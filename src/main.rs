@@ -1,7 +1,185 @@
-use clap::Parser;
+use agent_job_relay::{
+    config::Config,
+    core::{CommandSpec, StartSpec},
+    ipc::{self, Request},
+};
+use anyhow::Result;
+use clap::{Parser, Subcommand};
+use std::{collections::BTreeMap, path::PathBuf};
 #[derive(Parser)]
-#[command(version, about = "Durable background jobs for local AI agents")]
-struct Cli {}
-fn main() {
-    Cli::parse();
+#[command(
+    version,
+    about = "Durable background jobs for local AI agents",
+    long_about = "Run commands independently of MCP clients. Start the daemon first. Commands run with your OS permissions, not in a sandbox. JSON output is bounded; host acceptance is not confirmed Agent execution."
+)]
+struct Cli {
+    #[arg(
+        long,
+        global = true,
+        env = "AJR_STATE_DIR",
+        help = "Private state directory (default: XDG state / agent-job-relay)"
+    )]
+    state_dir: Option<PathBuf>,
+    #[command(subcommand)]
+    command: Commands,
+}
+#[derive(Subcommand)]
+enum Commands {
+    /// Run the local daemon in the foreground; Ctrl-C leaves runners alive
+    Daemon,
+    /// Execute explicit argv, or opt into a shell with --shell
+    Start {
+        #[arg(long, conflicts_with = "command")]
+        shell: Option<String>,
+        #[arg(long, default_value = "/bin/sh")]
+        interpreter: String,
+        #[arg(long)]
+        cwd: Option<PathBuf>,
+        #[arg(long)]
+        timeout: Option<u64>,
+        #[arg(long)]
+        session: Option<String>,
+        #[arg(long)]
+        idempotency_key: Option<String>,
+        #[arg(last = true, required_unless_present = "shell")]
+        command: Vec<String>,
+    },
+    Status {
+        job_id: String,
+    },
+    List {
+        #[arg(long, default_value_t = 0)]
+        after: i64,
+        #[arg(long, default_value_t = 20)]
+        limit: u32,
+    },
+    Logs {
+        job_id: String,
+        #[arg(long, default_value = "stdout")]
+        stream: String,
+        #[arg(long, default_value_t = 0)]
+        cursor: u64,
+        #[arg(long, default_value_t = 8192)]
+        limit: u32,
+    },
+    Events {
+        job_id: String,
+        #[arg(long, default_value_t = 0)]
+        after: i64,
+        #[arg(long, default_value_t = 20)]
+        limit: u32,
+    },
+    Wait {
+        job_id: String,
+        #[arg(long, default_value_t = 0)]
+        after: i64,
+        #[arg(long, default_value_t = 10)]
+        seconds: u32,
+    },
+    Stop {
+        job_id: String,
+    },
+    /// Diagnose connectivity and persistent store health
+    Doctor,
+    #[command(hide = true)]
+    Runner {
+        job_id: String,
+        nonce: String,
+    },
+}
+#[tokio::main]
+async fn main() {
+    agent_job_relay::platform::initialize();
+    tracing_subscriber::fmt()
+        .with_writer(std::io::stderr)
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .init();
+    if let Err(e) = run(Cli::parse()).await {
+        eprintln!("error: {e:#}");
+        std::process::exit(1);
+    }
+}
+async fn run(cli: Cli) -> Result<()> {
+    let config = Config::new(cli.state_dir)?;
+    let req = match cli.command {
+        Commands::Daemon => return agent_job_relay::daemon::serve(config).await,
+        Commands::Runner { job_id, nonce } => {
+            return agent_job_relay::runner::run(config, job_id, nonce).await;
+        }
+        Commands::Start {
+            shell,
+            interpreter,
+            cwd,
+            timeout,
+            session,
+            idempotency_key,
+            command,
+        } => {
+            let command = if let Some(script) = shell {
+                CommandSpec::Shell {
+                    interpreter,
+                    script,
+                }
+            } else {
+                CommandSpec::Exec {
+                    program: command[0].clone(),
+                    args: command[1..].to_vec(),
+                }
+            };
+            let cwd = cwd.unwrap_or(std::env::current_dir()?);
+            let cwd = if cwd.is_absolute() {
+                cwd
+            } else {
+                std::env::current_dir()?.join(cwd)
+            };
+            Request::Start {
+                spec: StartSpec {
+                    command,
+                    cwd,
+                    env: BTreeMap::new(),
+                    timeout_seconds: timeout,
+                    session,
+                    idempotency_key,
+                },
+            }
+        }
+        Commands::Status { job_id } => Request::Status { job_id },
+        Commands::List { after, limit } => Request::List { after, limit },
+        Commands::Logs {
+            job_id,
+            stream,
+            cursor,
+            limit,
+        } => Request::Logs {
+            job_id,
+            stream,
+            cursor,
+            limit,
+        },
+        Commands::Events {
+            job_id,
+            after,
+            limit,
+        } => Request::Events {
+            job_id,
+            after,
+            limit,
+        },
+        Commands::Wait {
+            job_id,
+            after,
+            seconds,
+        } => Request::Wait {
+            job_id,
+            after,
+            seconds,
+        },
+        Commands::Stop { job_id } => Request::Stop { job_id },
+        Commands::Doctor => Request::Doctor,
+    };
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&ipc::call(&config, req).await?)?
+    );
+    Ok(())
 }
