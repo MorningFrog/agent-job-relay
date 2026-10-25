@@ -82,11 +82,14 @@ impl ServerHandler for Relay {
 }
 pub async fn serve(config: Config) -> Result<()> {
     // stdout belongs exclusively to rmcp's stdio transport.
+    let (input, output) = rmcp::transport::stdio_pipes();
+    let transport = rmcp::transport::async_rw::AsyncRwTransport::new(input, output)
+        .with_max_line_length(131072);
     let server = Relay {
         config,
         tools: tools(),
     }
-    .serve(rmcp::transport::stdio())
+    .serve(transport)
     .await?;
     server.waiting().await?;
     Ok(())

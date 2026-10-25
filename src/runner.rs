@@ -32,8 +32,22 @@ async fn capture(mut source: impl AsyncRead + Unpin, path: std::path::PathBuf) -
     file.sync_all().await?;
     Ok(truncated)
 }
+async fn capture_checked(
+    source: impl AsyncRead + Unpin,
+    path: std::path::PathBuf,
+    errors: tokio::sync::mpsc::Sender<String>,
+) -> Result<bool> {
+    let result = capture(source, path).await;
+    if let Err(e) = &result {
+        let _ = errors
+            .send(format!("output persistence failed: {e:#}"))
+            .await;
+    }
+    result
+}
 pub async fn run(config: Config, j: String, nonce: String) -> Result<()> {
     crate::platform::require_runtime()?;
+    crate::platform::runner_initialize()?;
     let store = Store::new(config.clone());
     let job = store.status(j.clone()).await?;
     let lock = config.run_lock(&job.run_id)?;
@@ -98,6 +112,7 @@ async fn execute(config: &Config, store: &Store, job: &Job, spec: &StartSpec) ->
         .spawn()
         .context("cannot spawn executable (check program and cwd)")?;
     let pid = child.id().context("missing workload PID")?;
+    let mut group_guard = crate::platform::GroupGuard::new(pid);
     let ident = crate::platform::identity(pid);
     let j = job.job_id.clone();
     let r = job.run_id.clone();
@@ -127,20 +142,31 @@ async fn execute(config: &Config, store: &Store, job: &Job, spec: &StartSpec) ->
     }
     let stdout = child.stdout.take().context("stdout not piped")?;
     let stderr = child.stderr.take().context("stderr not piped")?;
-    let out = tokio::spawn(capture(
+    let (errors, mut output_errors) = tokio::sync::mpsc::channel(2);
+    let mut out = tokio::spawn(capture_checked(
         stdout,
         config.run_dir(&job.run_id).join("stdout.log"),
+        errors.clone(),
     ));
-    let err = tokio::spawn(capture(
+    let mut err = tokio::spawn(capture_checked(
         stderr,
         config.run_dir(&job.run_id).join("stderr.log"),
+        errors,
     ));
     let started = tokio::time::Instant::now();
     let mut tick = tokio::time::interval(Duration::from_millis(100));
     let mut forced = None;
+    let mut capture_error = None;
     let exit = loop {
         tokio::select! {
             result=child.wait()=>{break result?;},
+            Some(error)=output_errors.recv()=>{
+                capture_error=Some(error);forced=Some("failed");
+                crate::platform::signal_group(pid,15)?;
+                tokio::time::sleep(Duration::from_millis(500)).await;
+                crate::platform::signal_group(pid,9)?;
+                break child.wait().await?;
+            },
             _=tick.tick()=>{
                 let state=store.status(job.job_id.clone()).await?;
                 let timed=spec.timeout_seconds.is_some_and(|s|started.elapsed()>=Duration::from_secs(s));
@@ -158,10 +184,21 @@ async fn execute(config: &Config, store: &Store, job: &Job, spec: &StartSpec) ->
     crate::platform::signal_group(pid, 15)?;
     tokio::time::sleep(Duration::from_millis(50)).await;
     crate::platform::signal_group(pid, 9)?;
+    group_guard.disarm();
     let outputs = tokio::time::timeout(Duration::from_secs(2), async {
-        Ok::<_, anyhow::Error>((out.await??, err.await??))
+        Ok::<_, anyhow::Error>(((&mut out).await??, (&mut err).await??))
     })
     .await;
+    if !matches!(&outputs, Ok(Ok(_))) {
+        out.abort();
+        err.abort();
+    }
+    for _ in 0..50 {
+        if crate::platform::reap_descendants()? {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
     let (state, detail) = match outputs {
         Ok(Ok((a, b))) => (
             forced.unwrap_or(if exit.success() {
@@ -169,7 +206,7 @@ async fn execute(config: &Config, store: &Store, job: &Job, spec: &StartSpec) ->
             } else {
                 "failed"
             }),
-            format!("stdout_truncated={a}; stderr_truncated={b}"),
+            capture_error.unwrap_or_else(|| format!("stdout_truncated={a}; stderr_truncated={b}")),
         ),
         Ok(Err(e)) => ("failed", format!("output persistence failed: {e}")),
         Err(_) => (

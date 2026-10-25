@@ -123,3 +123,31 @@ pub async fn connect_host(path: &Path) -> Result<tokio::net::UnixStream> {
     );
     Ok(stream)
 }
+
+pub fn runner_initialize() -> Result<()> {
+    #[cfg(target_os = "linux")]
+    {
+        let result = unsafe { libc::prctl(libc::PR_SET_CHILD_SUBREAPER, 1) };
+        if result != 0 {
+            return Err(std::io::Error::last_os_error().into());
+        }
+    }
+    Ok(())
+}
+/// Called only after the supervised Tokio Child has been waited on.
+pub fn reap_descendants() -> Result<bool> {
+    loop {
+        let result = unsafe { libc::waitpid(-1, std::ptr::null_mut(), libc::WNOHANG) };
+        if result > 0 {
+            continue;
+        }
+        if result == 0 {
+            return Ok(false);
+        }
+        let e = std::io::Error::last_os_error();
+        if e.raw_os_error() == Some(libc::ECHILD) {
+            return Ok(true);
+        }
+        return Err(e.into());
+    }
+}

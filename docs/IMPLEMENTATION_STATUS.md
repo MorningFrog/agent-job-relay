@@ -31,3 +31,12 @@ no fallback, acceptance-only outcome. Schema v3 adds endpoint instance identity.
 `cargo clippy --all-targets -- -D warnings`: passed. Desktop live E2E and public
 Codex app-server writer integration NOT verified. Windows pipe/Job Objects and
 macOS runtime remain unimplemented; Stage 3 is a scoped Linux milestone only.
+
+Reliability review increment: output write failures terminate the workload;
+ordinary supervision errors have group cleanup guards; Linux runner acts as a
+subreaper and reaps adopted descendants; bounded rmcp input lines (128 KiB);
+fixed repeat initialization of schema v3; reject symlink databases; recheck
+Desktop endpoint identity after connecting; target idempotence at quota;
+CLI log following and optional integration diagnostics; two Tokio workers per
+process. Added recovery/outbox restart, stale PID, quota, write failure and
+secret non-echo regressions. Latest suite: 29 passed, 0 failed on Linux.

@@ -1,4 +1,5 @@
 #![cfg(target_os = "linux")]
+mod common;
 use agent_job_relay::{
     adapters,
     config::Config,
@@ -11,7 +12,7 @@ use serde_json::json;
 use std::{path::PathBuf, time::Duration};
 async fn store() -> (tempfile::TempDir, Store) {
     agent_job_relay::platform::initialize();
-    let d = tempfile::tempdir_in(concat!(env!("CARGO_MANIFEST_DIR"), "/.tmp")).unwrap();
+    let d = tempfile::tempdir_in(common::root()).unwrap();
     let c = Config::new(Some(d.path().join("state"))).unwrap();
     c.prepare().unwrap();
     let s = Store::new(c);

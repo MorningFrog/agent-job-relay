@@ -1,7 +1,11 @@
 use crate::{config::Config, core::*, storage::Store};
-use anyhow::{Context, Result};
+#[cfg(unix)]
+use anyhow::Context;
+use anyhow::Result;
 use rusqlite::params;
-use std::{process::Stdio, time::Duration};
+use std::process::Stdio;
+#[cfg(unix)]
+use std::time::Duration;
 pub async fn tick(store: &Store) -> Result<()> {
     let active = store.active().await?;
     for job in active {

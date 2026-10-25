@@ -3,7 +3,9 @@ use crate::{
     delivery::Claim,
     session::{Adapter, AgentSession},
 };
-use anyhow::{Context, Result, bail, ensure};
+#[cfg(unix)]
+use anyhow::Context;
+use anyhow::{Result, bail, ensure};
 use serde_json::{Value, json};
 /// Capability adapters never select or discover a substitute session.
 pub async fn probe(session: &AgentSession) -> Result<Value> {
@@ -70,6 +72,7 @@ async fn desktop(session: &AgentSession, claim: Option<&Claim>) -> Result<()> {
         );
         tokio::time::timeout(std::time::Duration::from_secs(3),async {
             let mut s=crate::platform::connect_host(endpoint).await.map_err(|_|anyhow::anyhow!("Desktop connection unavailable; no fallback was attempted"))?;
+            ensure!(crate::platform::endpoint_identity(endpoint).ok().as_ref()==session.endpoint_identity.as_ref(),"Desktop endpoint changed while connecting; refresh registration");
             let tools=rpc(&mut s,1,"tools/list",json!({"threadStartKind":"all"})).await?;
             let list=tools.get("tools").or_else(||tools.get("toolsList")).and_then(Value::as_array).context("malformed Desktop tools catalog")?;
             ensure!(list.iter().any(|t|(t["namespace"]=="codex_app"&&t["name"]=="send_message_to_thread")||t["name"]=="codex_app/send_message_to_thread"),"Desktop does not advertise send_message_to_thread; no fallback was attempted");

@@ -25,6 +25,12 @@ impl Store {
         let path = self.config.root.join("relay.sqlite3");
         tokio::task::spawn_blocking(move || {
             let _permit = permit;
+            if let Ok(m) = std::fs::symlink_metadata(&path) {
+                ensure!(
+                    m.is_file() && !m.file_type().is_symlink(),
+                    "database must be a regular file, not a symbolic link"
+                );
+            }
             let mut db = Connection::open(path)?;
             db.busy_timeout(std::time::Duration::from_secs(5))?;
             db.execute_batch("PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL;")?;

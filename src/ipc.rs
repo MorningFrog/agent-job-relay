@@ -1,5 +1,7 @@
 use crate::{config::Config, core::*, storage::Store};
-use anyhow::{Context, Result, bail, ensure};
+#[cfg(unix)]
+use anyhow::Context;
+use anyhow::{Result, bail, ensure};
 use rmcp::schemars;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -120,7 +122,12 @@ pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
         Request::Deliveries{job_id,after,limit}=>store.deliveries(job_id,after,limit).await,
         Request::RetryDelivery{delivery_id}=>store.retry_delivery(delivery_id).await,
         Request::DeliveryAttempts{delivery_id,after,limit}=>store.attempts(delivery_id,after,limit).await,
-        Request::Start{spec}=>{let j=store.start(spec).await?;Ok(json!({"job":j,"wake":{"can_resume":false,"warning":"No verified auto-resume adapter is bound; use bounded job_wait or inspect later. Do not poll in a loop."}}))},
+        Request::Start{spec}=>{
+            let j=store.start(spec).await?;
+            let wake=if let Some(key)=&j.session {let s=store.session(key.clone()).await?;json!({"session_key":key,"capabilities":crate::session::capabilities(&s.registration.adapter),"live_e2e_verified":false,"warning":"Inbox requires explicit inspection; Desktop auto-resume is experimental and unverified. Avoid polling loops."})}
+                else {json!({"can_resume":false,"warning":"No wake target registered; use bounded job_wait for short jobs or inspect later. Do not poll in a loop."})};
+            Ok(json!({"job":j,"wake":wake}))
+        },
         Request::Status{job_id}=>Ok(serde_json::to_value(store.status(job_id).await?)?),
         Request::List{after,limit}=>{ let jobs=store.list(after,limit).await?; Ok(json!({"next_cursor":jobs.last().map_or(after,|j|j.sequence),"jobs":jobs})) },
         Request::Stop{job_id}=>Ok(serde_json::to_value(store.stop(job_id).await?)?),

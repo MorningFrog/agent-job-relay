@@ -1,4 +1,5 @@
 #![cfg(target_os = "linux")]
+mod common;
 use agent_job_relay::{
     config::Config,
     core::*,
@@ -19,7 +20,7 @@ impl Rig {
     async fn new() -> Self {
         let dir = tempfile::Builder::new()
             .prefix("rt-")
-            .tempdir_in(concat!(env!("CARGO_MANIFEST_DIR"), "/.tmp"))
+            .tempdir_in(common::root())
             .unwrap();
         let config = Config::new(Some(dir.path().join("state"))).unwrap();
         let mut r = Self {
@@ -462,4 +463,179 @@ async fn real_stdio_mcp_exit_leaves_background_job_running() {
         .unwrap()
         .unwrap();
     r.state(j, &["completed"]).await;
+}
+
+#[tokio::test]
+async fn output_write_failure_stops_workload_and_is_diagnostic() {
+    let mut r = Rig::new().await;
+    r.crash();
+    let store = Store::new(r.config.clone());
+    let job = store.start(r.spec("sleep 20")).await.unwrap();
+    agent_job_relay::platform::secure_dir(&r.config.run_dir(&job.run_id)).unwrap();
+    std::fs::create_dir(r.config.run_dir(&job.run_id).join("stdout.log")).unwrap();
+    r.boot().await;
+    let v = r.state(&job.job_id, &["failed"]).await;
+    assert!(
+        v["detail"]
+            .as_str()
+            .unwrap()
+            .contains("output persistence failed")
+    );
+    if let Some(p) = v["workload_pid"].as_u64() {
+        assert!(agent_job_relay::platform::identity(p as u32).is_none());
+    }
+}
+#[tokio::test]
+async fn concurrent_jobs_distinct_workdirs_quota_and_pagination() {
+    let mut r = Rig::new().await;
+    r.crash();
+    let store = Store::new(r.config.clone());
+    let mut jobs = vec![];
+    for i in 0..8 {
+        let dir = r.dir.path().join(format!("work-{i}"));
+        std::fs::create_dir(&dir).unwrap();
+        let mut s = r.spec("pwd; sleep 0.1");
+        s.cwd = dir;
+        jobs.push(store.start(s).await.unwrap());
+    }
+    assert!(
+        store
+            .start(r.spec("true"))
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("quota")
+    );
+    let first = store.list(0, 3).await.unwrap();
+    let second = store.list(first.last().unwrap().sequence, 3).await.unwrap();
+    assert_eq!(first.len(), 3);
+    assert_eq!(second.len(), 3);
+    assert_ne!(first[0].job_id, second[0].job_id);
+    r.boot().await;
+    for (i, j) in jobs.iter().enumerate() {
+        r.state(&j.job_id, &["completed"]).await;
+        let log = r
+            .call(Request::Logs {
+                job_id: j.job_id.clone(),
+                stream: "stdout".into(),
+                cursor: 0,
+                limit: 8192,
+            })
+            .await;
+        assert!(log["text"].as_str().unwrap().contains(&format!("work-{i}")));
+    }
+}
+#[tokio::test]
+async fn explicit_environment_is_not_returned_and_invalid_specs_are_rejected() {
+    let r = Rig::new().await;
+    let mut s = r.spec("true");
+    s.env
+        .insert("TEST_SECRET".into(), "sensitive-test-value".into());
+    let v = r.call(Request::Start { spec: s }).await;
+    assert!(!v.to_string().contains("sensitive-test-value"));
+    let j = v["job"]["job_id"].as_str().unwrap();
+    let v = r.state(j, &["completed"]).await;
+    assert!(!v.to_string().contains("sensitive-test-value"));
+    let mut s = r.spec("true");
+    s.cwd = std::path::PathBuf::from("relative");
+    assert!(
+        ipc::call(&r.config, Request::Start { spec: s })
+            .await
+            .is_err()
+    );
+    assert!(
+        ipc::call(
+            &r.config,
+            Request::Wait {
+                job_id: j.into(),
+                after: 0,
+                seconds: 31
+            }
+        )
+        .await
+        .is_err()
+    );
+}
+
+#[tokio::test]
+async fn daemon_graceful_shutdown_keeps_runner_and_restart_dispatches_outbox() {
+    use agent_job_relay::session::{Adapter, Registration};
+    let mut r = Rig::new().await;
+    let registered = r
+        .call(Request::RegisterSession {
+            registration: Registration {
+                agent_kind: "codex_cli".into(),
+                session_id: "same-thread".into(),
+                instance_id: "same-instance".into(),
+                host_id: "test".into(),
+                adapter: Adapter::Inbox,
+                endpoint: None,
+                caller_thread_id: None,
+                lease_seconds: 3600,
+                experimental: false,
+            },
+        })
+        .await;
+    let key = registered["session"]["key"].as_str().unwrap().to_string();
+    let mut spec = r.spec("sleep 0.5; echo survived");
+    spec.session = Some(key.clone());
+    let v = r.call(Request::Start { spec }).await;
+    let j = v["job"]["job_id"].as_str().unwrap().to_string();
+    r.state(&j, &["running"]).await;
+    let mut daemon = r.daemon.take().unwrap();
+    unsafe {
+        libc::kill(daemon.id() as i32, libc::SIGINT);
+    }
+    tokio::time::timeout(Duration::from_secs(3), async {
+        loop {
+            if daemon.try_wait().unwrap().is_some() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+    let store = Store::new(r.config.clone());
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            if terminal(&store.status(j.clone()).await.unwrap().status) {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .unwrap();
+    r.boot().await;
+    let messages = tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let v = r
+                .call(Request::Inbox {
+                    session_key: key.clone(),
+                    after: 0,
+                    limit: 20,
+                })
+                .await;
+            if v["messages"][0]["status"] == "notification_recorded" {
+                break v;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(messages["messages"][0]["job_id"], j);
+}
+#[tokio::test]
+async fn stale_pid_identity_is_diagnostic_and_does_not_kill_unrelated_process() {
+    let mut r = Rig::new().await;
+    r.crash();
+    let store = Store::new(r.config.clone());
+    let job = store.start(r.spec("true")).await.unwrap();
+    let j = job.job_id.clone();
+    store.call(move|db|{db.execute("UPDATE jobs SET status='running' WHERE id=?",[&j])?;db.execute("UPDATE runs SET runner_pid=?,runner_identity='stale-boot:start-time',workload_pid=?,workload_identity='stale' WHERE job_id=?",rusqlite::params![std::process::id(),std::process::id(),j])?;Ok(())}).await.unwrap();
+    r.boot().await;
+    r.state(&job.job_id, &["orphaned"]).await;
+    assert!(agent_job_relay::platform::identity(std::process::id()).is_some());
 }

@@ -99,6 +99,11 @@ enum Commands {
     },
     Logs {
         job_id: String,
+        #[arg(
+            long,
+            help = "Follow output until terminal state; Ctrl-C stops only the viewer"
+        )]
+        follow: bool,
         #[arg(long, default_value = "stdout")]
         stream: String,
         #[arg(long, default_value_t = 0)]
@@ -124,7 +129,12 @@ enum Commands {
         job_id: String,
     },
     /// Diagnose connectivity and persistent store health
-    Doctor,
+    Doctor {
+        #[arg(long)]
+        client: Option<agent_job_relay::integration::Client>,
+        #[arg(long, requires = "client")]
+        config: Option<PathBuf>,
+    },
     #[command(hide = true)]
     Runner {
         job_id: String,
@@ -210,7 +220,7 @@ enum TargetCommand {
         session_key: String,
     },
 }
-#[tokio::main]
+#[tokio::main(worker_threads = 2)]
 async fn main() {
     agent_job_relay::platform::initialize();
     tracing_subscriber::fmt()
@@ -225,6 +235,67 @@ async fn main() {
 async fn run(cli: Cli) -> Result<()> {
     let config = Config::new(cli.state_dir)?;
     let req = match cli.command {
+        Commands::Doctor {
+            client,
+            config: path,
+        } => {
+            let mut report = ipc::call(&config, Request::Doctor).await?;
+            report["mcp_registration"] = serde_json::json!(
+                "not checked; use doctor --client codex --config <absolute-path>"
+            );
+            if let Some(client) = client {
+                let path = path
+                    .map(Ok)
+                    .unwrap_or_else(|| agent_job_relay::integration::default_path(client))?;
+                let preview =
+                    agent_job_relay::integration::configure(&config, client, path, false, false)?;
+                report["mcp_registration"] = serde_json::json!({"config_path":preview["config_path"],"matches_current_binary":preview["changed"]==false,"next_step":"Use setup --dry-run; restart the client after applying. Registration alone cannot verify a live MCP connection."});
+            }
+            println!("{}", serde_json::to_string_pretty(&report)?);
+            return Ok(());
+        }
+        Commands::Logs {
+            job_id,
+            stream,
+            cursor,
+            limit,
+            follow: true,
+        } => {
+            let mut cursor = cursor;
+            loop {
+                let v = ipc::call(
+                    &config,
+                    Request::Logs {
+                        job_id: job_id.clone(),
+                        stream: stream.clone(),
+                        cursor,
+                        limit,
+                    },
+                )
+                .await?;
+                cursor = v["next_cursor"].as_u64().unwrap();
+                let bytes = v["bytes"].as_u64().unwrap();
+                if bytes > 0 {
+                    print!("{}", v["text"].as_str().unwrap_or(""));
+                    use std::io::Write;
+                    std::io::stdout().flush()?;
+                }
+                if bytes == 0 {
+                    let status = ipc::call(
+                        &config,
+                        Request::Status {
+                            job_id: job_id.clone(),
+                        },
+                    )
+                    .await?;
+                    if agent_job_relay::core::terminal(status["status"].as_str().unwrap_or("")) {
+                        break;
+                    }
+                }
+                tokio::select! {_=tokio::signal::ctrl_c()=>break,_=tokio::time::sleep(std::time::Duration::from_millis(200))=>{}}
+            }
+            return Ok(());
+        }
         Commands::Session { command } => match command {
             SessionCommand::Register {
                 agent,
@@ -390,6 +461,7 @@ async fn run(cli: Cli) -> Result<()> {
         Commands::Status { job_id } => Request::Status { job_id },
         Commands::List { after, limit } => Request::List { after, limit },
         Commands::Logs {
+            follow: false,
             job_id,
             stream,
             cursor,
@@ -419,7 +491,6 @@ async fn run(cli: Cli) -> Result<()> {
             seconds,
         },
         Commands::Stop { job_id } => Request::Stop { job_id },
-        Commands::Doctor => Request::Doctor,
     };
     println!(
         "{}",

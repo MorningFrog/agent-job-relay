@@ -7,7 +7,7 @@ use anyhow::{Context, Result, ensure};
 use rusqlite::{OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Delivery {
     pub sequence: i64,
     pub id: String,
@@ -18,7 +18,7 @@ pub struct Delivery {
     pub expires_at: i64,
     pub last_error: Option<String>,
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Claim {
     pub delivery: Delivery,
     pub token: String,
@@ -59,6 +59,7 @@ impl Store {
         self.call(|db|{
         let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;let t=now();
         tx.execute("UPDATE deliveries SET status='dead_letter',last_error='delivery TTL expired' WHERE expires<=? AND status IN ('pending','retry_wait','leased')",[t])?;
+        tx.execute("UPDATE delivery_attempts SET ended=?,outcome='ttl_expired',error='delivery TTL expired' WHERE ended IS NULL AND delivery_id IN (SELECT id FROM deliveries WHERE status='dead_letter')",[t])?;
         let candidate:Option<(String,String)>=tx.query_row("SELECT d.id,t.session_key FROM deliveries d JOIN targets t ON t.id=d.target_id WHERE t.active=1 AND d.expires>? AND ((d.status IN ('pending','retry_wait') AND d.next_at<=?) OR (d.status='leased' AND d.lease_until<=?)) ORDER BY d.rowid LIMIT 1",params![t,t,t],|r|Ok((r.get(0)?,r.get(1)?))).optional()?;
         let Some((d,key))=candidate else {tx.commit()?;return Ok(None);};
         tx.execute("UPDATE delivery_attempts SET ended=?,outcome='lease_expired',error='daemon disconnected before recording outcome' WHERE delivery_id=? AND ended IS NULL",params![t,d])?;

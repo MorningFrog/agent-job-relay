@@ -54,3 +54,32 @@ pub fn require_runtime() -> Result<()> {
 pub fn endpoint_identity(_: &Path) -> Result<String> {
     bail!("native host endpoint identity is not implemented on this OS")
 }
+
+/// Ensures ordinary supervision errors terminate the entire owned process group.
+pub struct GroupGuard {
+    pid: u32,
+    armed: bool,
+}
+impl GroupGuard {
+    pub fn new(pid: u32) -> Self {
+        Self { pid, armed: true }
+    }
+    pub fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+impl Drop for GroupGuard {
+    fn drop(&mut self) {
+        if self.armed {
+            let _ = signal_group(self.pid, 9);
+        }
+    }
+}
+#[cfg(not(unix))]
+pub fn runner_initialize() -> Result<()> {
+    bail!("native runner initialization unavailable")
+}
+#[cfg(not(unix))]
+pub fn reap_descendants() -> Result<bool> {
+    bail!("native descendant reaping unavailable")
+}

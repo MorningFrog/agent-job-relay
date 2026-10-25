@@ -1,3 +1,4 @@
+mod common;
 use agent_job_relay::{
     adapters,
     config::Config,
@@ -13,7 +14,7 @@ struct Fixture {
 impl Fixture {
     async fn new() -> Self {
         agent_job_relay::platform::initialize();
-        let dir = tempfile::tempdir_in(concat!(env!("CARGO_MANIFEST_DIR"), "/.tmp")).unwrap();
+        let dir = tempfile::tempdir_in(common::root()).unwrap();
         let config = Config::new(Some(dir.path().join("state"))).unwrap();
         config.prepare().unwrap();
         let store = Store::new(config);
@@ -114,9 +115,16 @@ async fn inbox_routes_exact_session_and_duplicate_ack_is_fenced() {
     let c = f.store.claim().await.unwrap().unwrap();
     let id = c.delivery.id.clone();
     assert_eq!(c.session.key, a);
+    let duplicate = c.clone();
     let outcome = adapters::deliver(&f.store.config, &c).await;
     assert_eq!(outcome.as_ref().unwrap(), &"notification_recorded");
     assert!(f.store.complete_claim(c, outcome).await.unwrap());
+    assert!(
+        !f.store
+            .complete_claim(duplicate, Ok("notification_recorded"))
+            .await
+            .unwrap()
+    );
     assert!(f.store.claim().await.unwrap().is_none());
     assert!(
         f.store
@@ -256,4 +264,37 @@ impl Fixture {
             })
             .await
     }
+}
+
+#[tokio::test]
+async fn repeated_schema_init_and_unknown_future_version_are_safe() {
+    let f = Fixture::new().await;
+    f.store.init().await.unwrap();
+    f.store
+        .call(|db| {
+            db.pragma_update(None, "user_version", 99)?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+    assert!(
+        f.store
+            .init()
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("newer")
+    );
+}
+#[cfg(unix)]
+#[tokio::test]
+async fn symlink_database_is_rejected() {
+    let f = Fixture::new().await;
+    let external = f._dir.path().join("unrelated");
+    std::fs::write(&external, "untouched").unwrap();
+    let db = f.store.config.root.join("relay.sqlite3");
+    std::fs::remove_file(&db).unwrap();
+    std::os::unix::fs::symlink(&external, &db).unwrap();
+    assert!(f.store.init().await.is_err());
+    assert_eq!(std::fs::read_to_string(external).unwrap(), "untouched");
 }

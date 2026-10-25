@@ -1,10 +1,11 @@
+mod common;
 use agent_job_relay::{
     config::Config,
     integration::{self, Client},
 };
 use std::path::Path;
 fn fixture() -> (tempfile::TempDir, Config) {
-    let d = tempfile::tempdir_in(concat!(env!("CARGO_MANIFEST_DIR"), "/.tmp")).unwrap();
+    let d = tempfile::tempdir_in(common::root()).unwrap();
     let c = Config::new(Some(d.path().join("state"))).unwrap();
     (d, c)
 }

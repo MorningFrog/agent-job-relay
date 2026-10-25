@@ -228,6 +228,17 @@ pub fn add_target(db: &Connection, j: &str, key: &str) -> Result<String> {
         session.connected && session.expires_at > now(),
         "session expired or invalidated; refresh registration explicitly"
     );
+    let existing: Option<String> = db
+        .query_row(
+            "SELECT id FROM targets WHERE job_id=? AND session_key=?",
+            params![j, key],
+            |r| r.get(0),
+        )
+        .optional()?;
+    if let Some(id) = existing {
+        db.execute("UPDATE targets SET active=1 WHERE id=?", [&id])?;
+        return Ok(id);
+    }
     let count: i64 = db.query_row("SELECT count(*) FROM targets WHERE job_id=?", [j], |r| {
         r.get(0)
     })?;
