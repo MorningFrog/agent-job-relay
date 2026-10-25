@@ -31,6 +31,7 @@ fn default_lease() -> u32 {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentSession {
     pub key: String,
+    pub endpoint_identity: Option<String>,
     pub registration: Registration,
     pub expires_at: i64,
     pub connected: bool,
@@ -101,14 +102,32 @@ impl Store {
                 );
             }
         }
+        let endpoint_identity = r
+            .endpoint
+            .as_ref()
+            .map(|p| crate::platform::endpoint_identity(p))
+            .transpose()?;
         self.call(move|db|{
             let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
             let old:Option<String>=tx.query_row("SELECT key FROM sessions WHERE agent=? AND logical=? AND instance=? AND host=?",params![r.agent_kind,r.session_id,r.instance_id,r.host_id],|row|row.get(0)).optional()?;
             if old.is_none(){let count:i64=tx.query_row("SELECT count(*) FROM sessions",[],|r|r.get(0))?;ensure!(count<1000,"session quota (1000) reached");}
             let key=old.unwrap_or_else(id);let expires=now()+r.lease_seconds as i64*1000;
-            tx.execute("INSERT INTO sessions(key,agent,logical,instance,host,registration,expires,connected) VALUES(?,?,?,?,?,?,?,1) ON CONFLICT(key) DO UPDATE SET registration=excluded.registration,expires=excluded.expires,connected=1",params![key,r.agent_kind,r.session_id,r.instance_id,r.host_id,serde_json::to_string(&r)?,expires])?;
-            tx.commit()?;Ok(AgentSession{key,registration:r,expires_at:expires,connected:true})
+            tx.execute("INSERT INTO sessions(key,agent,logical,instance,host,registration,expires,connected,endpoint_identity) VALUES(?,?,?,?,?,?,?,1,?) ON CONFLICT(key) DO UPDATE SET registration=excluded.registration,expires=excluded.expires,connected=1,endpoint_identity=excluded.endpoint_identity",params![key,r.agent_kind,r.session_id,r.instance_id,r.host_id,serde_json::to_string(&r)?,expires,endpoint_identity])?;
+            tx.commit()?;Ok(AgentSession{key,registration:r,expires_at:expires,connected:true,endpoint_identity})
         }).await
+    }
+    pub async fn inbox(&self, key: String, after: i64, limit: u32) -> Result<Value> {
+        validate_id(&key)?;
+        ensure!(
+            after >= 0 && (1..=100).contains(&limit),
+            "invalid inbox pagination"
+        );
+        self.call(move|db|{
+        read_session(db,&key)?;
+        let mut q=db.prepare("SELECT d.rowid,d.id,e.id,e.job_id,e.kind,d.status FROM deliveries d JOIN targets t ON d.target_id=t.id JOIN events e ON e.id=d.event_id WHERE t.session_key=? AND d.rowid>? ORDER BY d.rowid LIMIT ?")?;
+        let rows=q.query_map(params![key,after,limit],|r|Ok(json!({"sequence":r.get::<_,i64>(0)?,"delivery_id":r.get::<_,String>(1)?,"event_id":r.get::<_,String>(2)?,"job_id":r.get::<_,String>(3)?,"kind":r.get::<_,String>(4)?,"status":r.get::<_,String>(5)?})))?.collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(json!({"messages":rows,"next_cursor":rows.last().and_then(|v|v["sequence"].as_i64()).unwrap_or(after),"auto_resume":false}))
+    }).await
     }
     pub async fn session(&self, key: String) -> Result<AgentSession> {
         validate_id(&key)?;
@@ -190,7 +209,13 @@ pub fn read_session(db: &Connection, key: &str) -> Result<AgentSession> {
             |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
         )
         .context("session not found; register an explicit host identity first")?;
+    let endpoint_identity = db.query_row(
+        "SELECT endpoint_identity FROM sessions WHERE key=?",
+        [key],
+        |r| r.get(0),
+    )?;
     Ok(AgentSession {
+        endpoint_identity,
         key: key.into(),
         registration: serde_json::from_str(&raw)?,
         expires_at,

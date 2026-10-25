@@ -46,6 +46,13 @@ pub enum Request {
         seconds: u32,
     },
     Doctor,
+    Inbox {
+        session_key: String,
+        #[serde(default)]
+        after: i64,
+        #[serde(default = "default_limit")]
+        limit: u32,
+    },
     RegisterSession {
         registration: crate::session::Registration,
     },
@@ -103,10 +110,11 @@ fn default_wait() -> u32 {
 }
 pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
     match req {
+        Request::Inbox{session_key,after,limit}=>store.inbox(session_key,after,limit).await,
         Request::RegisterSession{registration}=>{let s=store.register(registration).await?;Ok(json!({"capabilities":crate::session::capabilities(&s.registration.adapter),"session":s}))},
         Request::Sessions{after,limit}=>store.sessions(after,limit).await,
         Request::InvalidateSession{session_key}=>store.invalidate(session_key).await,
-        Request::ProbeSession{session_key}=>{let s=store.session(session_key).await?;Ok(json!({"lease_valid":s.connected&&s.expires_at>now(),"capabilities":crate::session::capabilities(&s.registration.adapter),"session":s}))},
+        Request::ProbeSession{session_key}=>{let s=store.session(session_key).await?;let probe=crate::adapters::probe(&s).await?;Ok(json!({"probe":probe,"lease_valid":s.connected&&s.expires_at>now(),"capabilities":crate::session::capabilities(&s.registration.adapter),"session":s}))},
         Request::AddWakeTarget{job_id,session_key,replay}=>store.target(job_id,session_key,replay).await,
         Request::RebindTarget{target_id,session_key}=>store.rebind(target_id,session_key).await,
         Request::Deliveries{job_id,after,limit}=>store.deliveries(job_id,after,limit).await,

@@ -50,3 +50,7 @@ pub fn require_runtime() -> Result<()> {
     }
     Ok(())
 }
+#[cfg(not(unix))]
+pub fn endpoint_identity(_: &Path) -> Result<String> {
+    bail!("native host endpoint identity is not implemented on this OS")
+}

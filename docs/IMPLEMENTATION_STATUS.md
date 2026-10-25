@@ -21,3 +21,13 @@ JSON MCP setup/removal with receipts, backups, dry-run and --apply.
 runtime), 0 failed. Includes real stdio initialization/discovery/job execution
 and MCP process exit while background job completes. `cargo clippy --all-targets
 -- -D warnings`: passed. Private Desktop transport is not enabled yet.
+
+Stage 3 increment: Codex CLI notification inbox; explicit session/target/delivery
+CLI commands; experimental Desktop AF_UNIX JSON-RPC adapter with owner credential
+check, endpoint inode/ctime binding, capability preflight, required callerSource
+and caller/destination IDs, bounded fragmented frames, shared sequence deadline,
+no fallback, acceptance-only outcome. Schema v3 adds endpoint instance identity.
+`cargo test --all-targets`: 22 passed, 0 failed (Desktop 4 simulated tests).
+`cargo clippy --all-targets -- -D warnings`: passed. Desktop live E2E and public
+Codex app-server writer integration NOT verified. Windows pipe/Job Objects and
+macOS runtime remain unimplemented; Stage 3 is a scoped Linux milestone only.

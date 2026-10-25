@@ -99,3 +99,27 @@ pub fn signal_group(pid: u32, signal: i32) -> Result<()> {
 pub fn exit_signal(s: &std::process::ExitStatus) -> Option<i32> {
     s.signal()
 }
+
+pub fn endpoint_identity(path: &Path) -> Result<String> {
+    use std::os::unix::fs::FileTypeExt;
+    let m = std::fs::symlink_metadata(path)?;
+    ensure!(
+        m.file_type().is_socket() && m.uid() == unsafe { libc::geteuid() },
+        "Desktop endpoint must be an owned Unix socket"
+    );
+    Ok(format!(
+        "{}:{}:{}:{}",
+        m.dev(),
+        m.ino(),
+        m.ctime(),
+        m.ctime_nsec()
+    ))
+}
+pub async fn connect_host(path: &Path) -> Result<tokio::net::UnixStream> {
+    let stream = tokio::net::UnixStream::connect(path).await?;
+    ensure!(
+        stream.peer_cred()?.uid() == unsafe { libc::geteuid() },
+        "Desktop endpoint peer owner mismatch"
+    );
+    Ok(stream)
+}

@@ -29,6 +29,29 @@ enum Commands {
     Daemon,
     /// Serve the Model Context Protocol on stdio (daemon must already be running)
     Mcp,
+    /// Register, refresh, probe or invalidate an exact Agent session
+    Session {
+        #[command(subcommand)]
+        command: SessionCommand,
+    },
+    /// Inspect durable notifications for one explicitly registered session
+    Inbox {
+        session_key: String,
+        #[arg(long, default_value_t = 0)]
+        after: i64,
+        #[arg(long, default_value_t = 20)]
+        limit: u32,
+    },
+    /// Inspect deliveries, attempt history or explicitly retry failed delivery
+    Delivery {
+        #[command(subcommand)]
+        command: DeliveryCommand,
+    },
+    /// Bind jobs to exact session registrations; no latest-session routing
+    Target {
+        #[command(subcommand)]
+        command: TargetCommand,
+    },
     /// Preview MCP configuration; write only with --apply
     Setup {
         client: agent_job_relay::integration::Client,
@@ -120,6 +143,73 @@ enum IntegrationCommand {
         apply: bool,
     },
 }
+#[derive(Subcommand)]
+enum SessionCommand {
+    Register {
+        #[arg(long)]
+        agent: String,
+        #[arg(long)]
+        session_id: String,
+        #[arg(long)]
+        instance_id: String,
+        #[arg(long)]
+        host_id: String,
+        #[arg(long)]
+        endpoint: Option<PathBuf>,
+        #[arg(long)]
+        caller_thread_id: Option<String>,
+        #[arg(long)]
+        experimental: bool,
+        #[arg(long, default_value_t = 3600)]
+        lease_seconds: u32,
+    },
+    List {
+        #[arg(long, default_value_t = 0)]
+        after: i64,
+        #[arg(long, default_value_t = 20)]
+        limit: u32,
+    },
+    Probe {
+        session_key: String,
+    },
+    Invalidate {
+        session_key: String,
+    },
+}
+#[derive(Subcommand)]
+enum DeliveryCommand {
+    List {
+        #[arg(long)]
+        job_id: Option<String>,
+        #[arg(long, default_value_t = 0)]
+        after: i64,
+        #[arg(long, default_value_t = 20)]
+        limit: u32,
+    },
+    Attempts {
+        delivery_id: String,
+        #[arg(long, default_value_t = 0)]
+        after: u32,
+        #[arg(long, default_value_t = 20)]
+        limit: u32,
+    },
+    Retry {
+        delivery_id: String,
+    },
+}
+#[derive(Subcommand)]
+enum TargetCommand {
+    Add {
+        job_id: String,
+        session_key: String,
+        #[arg(long)]
+        replay: bool,
+    },
+    Rebind {
+        target_id: String,
+        session_key: String,
+    },
+}
 #[tokio::main]
 async fn main() {
     agent_job_relay::platform::initialize();
@@ -135,6 +225,87 @@ async fn main() {
 async fn run(cli: Cli) -> Result<()> {
     let config = Config::new(cli.state_dir)?;
     let req = match cli.command {
+        Commands::Session { command } => match command {
+            SessionCommand::Register {
+                agent,
+                session_id,
+                instance_id,
+                host_id,
+                endpoint,
+                caller_thread_id,
+                experimental,
+                lease_seconds,
+            } => Request::RegisterSession {
+                registration: agent_job_relay::session::Registration {
+                    agent_kind: agent,
+                    session_id,
+                    instance_id,
+                    host_id,
+                    adapter: if endpoint.is_some() {
+                        agent_job_relay::session::Adapter::DesktopExperimental
+                    } else {
+                        agent_job_relay::session::Adapter::Inbox
+                    },
+                    endpoint,
+                    caller_thread_id,
+                    experimental,
+                    lease_seconds,
+                },
+            },
+            SessionCommand::List { after, limit } => Request::Sessions { after, limit },
+            SessionCommand::Probe { session_key } => Request::ProbeSession { session_key },
+            SessionCommand::Invalidate { session_key } => {
+                Request::InvalidateSession { session_key }
+            }
+        },
+        Commands::Inbox {
+            session_key,
+            after,
+            limit,
+        } => Request::Inbox {
+            session_key,
+            after,
+            limit,
+        },
+        Commands::Delivery { command } => match command {
+            DeliveryCommand::List {
+                job_id,
+                after,
+                limit,
+            } => Request::Deliveries {
+                job_id,
+                after,
+                limit,
+            },
+            DeliveryCommand::Attempts {
+                delivery_id,
+                after,
+                limit,
+            } => Request::DeliveryAttempts {
+                delivery_id,
+                after,
+                limit,
+            },
+            DeliveryCommand::Retry { delivery_id } => Request::RetryDelivery { delivery_id },
+        },
+        Commands::Target { command } => match command {
+            TargetCommand::Add {
+                job_id,
+                session_key,
+                replay,
+            } => Request::AddWakeTarget {
+                job_id,
+                session_key,
+                replay,
+            },
+            TargetCommand::Rebind {
+                target_id,
+                session_key,
+            } => Request::RebindTarget {
+                target_id,
+                session_key,
+            },
+        },
         Commands::Setup {
             client,
             config: path,
