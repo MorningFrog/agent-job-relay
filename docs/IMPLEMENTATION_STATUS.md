@@ -12,3 +12,12 @@ SQLite schema v1, local length-prefixed owner-only IPC, CLI and pagination.
 `cargo test --test runtime -- --test-threads=2`: 7 passed, 0 failed on Linux.
 `cargo clippy --all-targets -- -D warnings`: initial style warnings repaired;
 strict rerun required at final gate. No live host integration tested.
+
+Stage 2 increment: rmcp 3.7 stdio tools and schemas, explicit leased sessions,
+transactional targets/outbox, bounded retry+jitter/TTL/dead letters, attempt
+history, CAS-fenced claims, notification inbox, explicit rebind, Codex TOML and
+JSON MCP setup/removal with receipts, backups, dry-run and --apply.
+`cargo test --all-targets`: 18 passed (1 schema + 5 delivery + 4 setup + 8
+runtime), 0 failed. Includes real stdio initialization/discovery/job execution
+and MCP process exit while background job completes. `cargo clippy --all-targets
+-- -D warnings`: passed. Private Desktop transport is not enabled yet.

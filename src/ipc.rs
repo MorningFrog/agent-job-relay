@@ -1,9 +1,10 @@
 use crate::{config::Config, core::*, storage::Store};
 use anyhow::{Context, Result, bail, ensure};
+use rmcp::schemars;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::time::Duration;
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Request {
     Start {
@@ -45,6 +46,48 @@ pub enum Request {
         seconds: u32,
     },
     Doctor,
+    RegisterSession {
+        registration: crate::session::Registration,
+    },
+    Sessions {
+        #[serde(default)]
+        after: i64,
+        #[serde(default = "default_limit")]
+        limit: u32,
+    },
+    InvalidateSession {
+        session_key: String,
+    },
+    ProbeSession {
+        session_key: String,
+    },
+    AddWakeTarget {
+        job_id: String,
+        session_key: String,
+        #[serde(default)]
+        replay: bool,
+    },
+    RebindTarget {
+        target_id: String,
+        session_key: String,
+    },
+    Deliveries {
+        job_id: Option<String>,
+        #[serde(default)]
+        after: i64,
+        #[serde(default = "default_limit")]
+        limit: u32,
+    },
+    RetryDelivery {
+        delivery_id: String,
+    },
+    DeliveryAttempts {
+        delivery_id: String,
+        #[serde(default)]
+        after: u32,
+        #[serde(default = "default_limit")]
+        limit: u32,
+    },
 }
 fn default_limit() -> u32 {
     20
@@ -60,6 +103,15 @@ fn default_wait() -> u32 {
 }
 pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
     match req {
+        Request::RegisterSession{registration}=>{let s=store.register(registration).await?;Ok(json!({"capabilities":crate::session::capabilities(&s.registration.adapter),"session":s}))},
+        Request::Sessions{after,limit}=>store.sessions(after,limit).await,
+        Request::InvalidateSession{session_key}=>store.invalidate(session_key).await,
+        Request::ProbeSession{session_key}=>{let s=store.session(session_key).await?;Ok(json!({"lease_valid":s.connected&&s.expires_at>now(),"capabilities":crate::session::capabilities(&s.registration.adapter),"session":s}))},
+        Request::AddWakeTarget{job_id,session_key,replay}=>store.target(job_id,session_key,replay).await,
+        Request::RebindTarget{target_id,session_key}=>store.rebind(target_id,session_key).await,
+        Request::Deliveries{job_id,after,limit}=>store.deliveries(job_id,after,limit).await,
+        Request::RetryDelivery{delivery_id}=>store.retry_delivery(delivery_id).await,
+        Request::DeliveryAttempts{delivery_id,after,limit}=>store.attempts(delivery_id,after,limit).await,
         Request::Start{spec}=>{let j=store.start(spec).await?;Ok(json!({"job":j,"wake":{"can_resume":false,"warning":"No verified auto-resume adapter is bound; use bounded job_wait or inspect later. Do not poll in a loop."}}))},
         Request::Status{job_id}=>Ok(serde_json::to_value(store.status(job_id).await?)?),
         Request::List{after,limit}=>{ let jobs=store.list(after,limit).await?; Ok(json!({"next_cursor":jobs.last().map_or(after,|j|j.sequence),"jobs":jobs})) },
@@ -83,7 +135,7 @@ pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
         },
         Request::Doctor=>store.call(|db|{let integrity:String=db.query_row("PRAGMA quick_check",[],|r|r.get(0))?;
             let active:i64=db.query_row("SELECT count(*) FROM jobs WHERE status IN ('queued','launching','running')",[],|r|r.get(0))?;
-            Ok(json!({"daemon":"reachable","store":integrity,"active_jobs":active,"runtime":std::env::consts::OS,"auto_resume":"not verified","next_step":"Register an explicit session; Desktop requires opt-in experimental binding. No service is installed."})) }).await
+            Ok(json!({"daemon":"reachable","store":integrity,"active_jobs":active,"sessions":db.query_row("SELECT count(*) FROM sessions WHERE connected=1 AND expires>?",[now()],|r|r.get::<_,i64>(0))?,"dead_letters":db.query_row("SELECT count(*) FROM deliveries WHERE status='dead_letter'",[],|r|r.get::<_,i64>(0))?,"runtime":std::env::consts::OS,"auto_resume":"not verified","next_step":"Register an explicit session; Desktop requires opt-in experimental binding. No service is installed."})) }).await
     }
 }
 pub async fn call(config: &Config, request: Request) -> Result<Value> {

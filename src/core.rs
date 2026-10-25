@@ -1,4 +1,5 @@
 use anyhow::{Result, bail, ensure};
+use rmcp::schemars;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
@@ -22,7 +23,7 @@ pub fn terminal(s: &str) -> bool {
     )
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum CommandSpec {
     Exec {
@@ -35,7 +36,7 @@ pub enum CommandSpec {
         script: String,
     },
 }
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct StartSpec {
     pub command: CommandSpec,

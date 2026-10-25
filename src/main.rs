@@ -27,6 +27,27 @@ struct Cli {
 enum Commands {
     /// Run the local daemon in the foreground; Ctrl-C leaves runners alive
     Daemon,
+    /// Serve the Model Context Protocol on stdio (daemon must already be running)
+    Mcp,
+    /// Preview MCP configuration; write only with --apply
+    Setup {
+        client: agent_job_relay::integration::Client,
+        #[arg(long)]
+        config: Option<PathBuf>,
+        #[arg(long, conflicts_with = "apply")]
+        dry_run: bool,
+        #[arg(long)]
+        apply: bool,
+    },
+    /// Remove only an unchanged, owned MCP entry; job history is preserved
+    Integration {
+        #[command(subcommand)]
+        command: IntegrationCommand,
+    },
+    /// Send a JSON IPC request; useful for explicit session and delivery operations
+    Request {
+        json: String,
+    },
     /// Execute explicit argv, or opt into a shell with --shell
     Start {
         #[arg(long, conflicts_with = "command")]
@@ -87,6 +108,18 @@ enum Commands {
         nonce: String,
     },
 }
+#[derive(Subcommand)]
+enum IntegrationCommand {
+    Remove {
+        client: agent_job_relay::integration::Client,
+        #[arg(long)]
+        config: Option<PathBuf>,
+        #[arg(long, conflicts_with = "apply")]
+        dry_run: bool,
+        #[arg(long)]
+        apply: bool,
+    },
+}
 #[tokio::main]
 async fn main() {
     agent_job_relay::platform::initialize();
@@ -102,6 +135,46 @@ async fn main() {
 async fn run(cli: Cli) -> Result<()> {
     let config = Config::new(cli.state_dir)?;
     let req = match cli.command {
+        Commands::Setup {
+            client,
+            config: path,
+            apply,
+            ..
+        } => {
+            let path = path
+                .map(Ok)
+                .unwrap_or_else(|| agent_job_relay::integration::default_path(client))?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&agent_job_relay::integration::configure(
+                    &config, client, path, false, apply
+                )?)?
+            );
+            return Ok(());
+        }
+        Commands::Integration {
+            command:
+                IntegrationCommand::Remove {
+                    client,
+                    config: path,
+                    apply,
+                    ..
+                },
+        } => {
+            let path = path
+                .map(Ok)
+                .unwrap_or_else(|| agent_job_relay::integration::default_path(client))?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&agent_job_relay::integration::configure(
+                    &config, client, path, true, apply
+                )?)?
+            );
+            return Ok(());
+        }
+
+        Commands::Mcp => return agent_job_relay::mcp::serve(config).await,
+        Commands::Request { json } => serde_json::from_str(&json)?,
         Commands::Daemon => return agent_job_relay::daemon::serve(config).await,
         Commands::Runner { job_id, nonce } => {
             return agent_job_relay::runner::run(config, job_id, nonce).await;

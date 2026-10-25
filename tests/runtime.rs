@@ -396,3 +396,70 @@ async fn log_cap_security_and_bad_frames() {
     );
     assert_eq!(r.call(Request::Doctor).await["store"], "ok");
 }
+
+#[tokio::test]
+async fn real_stdio_mcp_exit_leaves_background_job_running() {
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+    let r = Rig::new().await;
+    let mut child = tokio::process::Command::new(env!("CARGO_BIN_EXE_agent-job-relay"))
+        .arg("--state-dir")
+        .arg(&r.config.root)
+        .arg("mcp")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .kill_on_drop(true)
+        .spawn()
+        .unwrap();
+    let mut input = child.stdin.take().unwrap();
+    let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
+    async fn send(input: &mut tokio::process::ChildStdin, v: Value) {
+        input.write_all(format!("{v}\n").as_bytes()).await.unwrap();
+        input.flush().await.unwrap();
+    }
+    async fn response(
+        lines: &mut tokio::io::Lines<BufReader<tokio::process::ChildStdout>>,
+    ) -> Value {
+        serde_json::from_str(
+            &tokio::time::timeout(Duration::from_secs(5), lines.next_line())
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap(),
+        )
+        .unwrap()
+    }
+    send(&mut input,serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"isolated-test","version":"1"}}})).await;
+    let initialized = response(&mut lines).await;
+    assert!(initialized.get("result").is_some(), "{initialized}");
+    send(
+        &mut input,
+        serde_json::json!({"jsonrpc":"2.0","method":"notifications/initialized"}),
+    )
+    .await;
+    send(
+        &mut input,
+        serde_json::json!({"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}),
+    )
+    .await;
+    let tools = response(&mut lines).await;
+    assert!(
+        tools["result"]["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|t| t["name"] == "job_start")
+    );
+    send(&mut input,serde_json::json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"job_start","arguments":{"spec":r.spec("sleep 0.5; echo mcp-survived")}}})).await;
+    let result = response(&mut lines).await;
+    assert_ne!(result["result"]["isError"], true, "{result}");
+    let job: Value =
+        serde_json::from_str(result["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    let j = job["job"]["job_id"].as_str().unwrap();
+    drop(input);
+    tokio::time::timeout(Duration::from_secs(5), child.wait())
+        .await
+        .unwrap()
+        .unwrap();
+    r.state(j, &["completed"]).await;
+}

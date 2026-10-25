@@ -1,7 +1,12 @@
+pub mod adapters;
 pub mod config;
 pub mod core;
 pub mod daemon;
+pub mod delivery;
+pub mod integration;
 pub mod ipc;
+pub mod mcp;
 pub mod platform;
 pub mod runner;
+pub mod session;
 pub mod storage;

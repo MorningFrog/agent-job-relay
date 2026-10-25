@@ -1,0 +1,220 @@
+use crate::{core::*, storage::Store};
+use anyhow::{Context, Result, ensure};
+use rmcp::schemars;
+use rusqlite::{Connection, OptionalExtension, params};
+use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
+#[derive(Debug, Clone, Serialize, Deserialize, rmcp::schemars::JsonSchema, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum Adapter {
+    Inbox,
+    DesktopExperimental,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Registration {
+    pub agent_kind: String,
+    pub session_id: String,
+    pub instance_id: String,
+    pub host_id: String,
+    pub adapter: Adapter,
+    pub endpoint: Option<std::path::PathBuf>,
+    pub caller_thread_id: Option<String>,
+    #[serde(default = "default_lease")]
+    pub lease_seconds: u32,
+    #[serde(default)]
+    pub experimental: bool,
+}
+fn default_lease() -> u32 {
+    3600
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentSession {
+    pub key: String,
+    pub registration: Registration,
+    pub expires_at: i64,
+    pub connected: bool,
+}
+#[derive(Debug, Serialize)]
+pub struct Capabilities {
+    pub can_notify: bool,
+    pub can_resume: bool,
+    pub can_confirm_resume: bool,
+    pub requires_live_host: bool,
+    pub supports_reconnect: bool,
+    pub verification: &'static str,
+}
+pub fn capabilities(adapter: &Adapter) -> Capabilities {
+    match adapter {
+        Adapter::Inbox => Capabilities {
+            can_notify: true,
+            can_resume: false,
+            can_confirm_resume: false,
+            requires_live_host: false,
+            supports_reconnect: true,
+            verification: "local inbox only; agent must inspect explicitly",
+        },
+        Adapter::DesktopExperimental => Capabilities {
+            can_notify: true,
+            can_resume: true,
+            can_confirm_resume: false,
+            requires_live_host: true,
+            supports_reconnect: true,
+            verification: "experimental; transport tests simulated; live resume not verified",
+        },
+    }
+}
+impl Store {
+    pub async fn register(&self, r: Registration) -> Result<AgentSession> {
+        for s in [&r.agent_kind, &r.session_id, &r.instance_id, &r.host_id] {
+            ensure!(
+                !s.is_empty() && s.len() <= 256 && !s.contains('\0'),
+                "session identities must be 1..256 bytes"
+            );
+        }
+        ensure!(
+            (1..=86400).contains(&r.lease_seconds),
+            "lease must be 1..86400 seconds"
+        );
+        match r.adapter {
+            Adapter::Inbox => ensure!(
+                r.endpoint.is_none() && r.caller_thread_id.is_none(),
+                "inbox registration does not take a host endpoint"
+            ),
+            Adapter::DesktopExperimental => {
+                ensure!(
+                    r.experimental,
+                    "Desktop private API requires explicit experimental=true opt-in"
+                );
+                let ep = r.endpoint.as_ref().context(
+                    "explicit Desktop endpoint required; no session scanning is performed",
+                )?;
+                ensure!(
+                    ep.is_absolute() && ep.as_os_str().len() < 104,
+                    "Desktop endpoint must be an absolute Unix socket path shorter than 104 bytes"
+                );
+                ensure!(
+                    r.caller_thread_id
+                        .as_ref()
+                        .is_some_and(|s| !s.is_empty() && s.len() <= 256),
+                    "explicit caller_thread_id required"
+                );
+            }
+        }
+        self.call(move|db|{
+            let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+            let old:Option<String>=tx.query_row("SELECT key FROM sessions WHERE agent=? AND logical=? AND instance=? AND host=?",params![r.agent_kind,r.session_id,r.instance_id,r.host_id],|row|row.get(0)).optional()?;
+            if old.is_none(){let count:i64=tx.query_row("SELECT count(*) FROM sessions",[],|r|r.get(0))?;ensure!(count<1000,"session quota (1000) reached");}
+            let key=old.unwrap_or_else(id);let expires=now()+r.lease_seconds as i64*1000;
+            tx.execute("INSERT INTO sessions(key,agent,logical,instance,host,registration,expires,connected) VALUES(?,?,?,?,?,?,?,1) ON CONFLICT(key) DO UPDATE SET registration=excluded.registration,expires=excluded.expires,connected=1",params![key,r.agent_kind,r.session_id,r.instance_id,r.host_id,serde_json::to_string(&r)?,expires])?;
+            tx.commit()?;Ok(AgentSession{key,registration:r,expires_at:expires,connected:true})
+        }).await
+    }
+    pub async fn session(&self, key: String) -> Result<AgentSession> {
+        validate_id(&key)?;
+        self.call(move |db| read_session(db, &key)).await
+    }
+    pub async fn sessions(&self, after: i64, limit: u32) -> Result<Value> {
+        ensure!(
+            after >= 0 && (1..=100).contains(&limit),
+            "invalid session pagination"
+        );
+        self.call(move |db| {
+            let mut q =
+                db.prepare("SELECT rowid,key FROM sessions WHERE rowid>? ORDER BY rowid LIMIT ?")?;
+            let keys = q
+                .query_map(params![after, limit], |r| {
+                    Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?))
+                })?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            let sessions = keys
+                .iter()
+                .map(|(_, k)| read_session(db, k))
+                .collect::<Result<Vec<_>>>()?;
+            Ok(json!({"next_cursor":keys.last().map_or(after,|v|v.0),"sessions":sessions}))
+        })
+        .await
+    }
+    pub async fn invalidate(&self, key: String) -> Result<Value> {
+        validate_id(&key)?;
+        self.call(move |db| {
+            read_session(db, &key)?;
+            db.execute("UPDATE sessions SET connected=0 WHERE key=?", [key])?;
+            Ok(json!({"invalidated":true,"deliveries":"retry until TTL or explicit rebind"}))
+        })
+        .await
+    }
+    pub async fn target(&self, j: String, session: String, replay: bool) -> Result<Value> {
+        validate_id(&j)?;
+        validate_id(&session)?;
+        self.call(move |db| {
+            let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+            crate::storage::read_job(&tx, &j)?;
+            let target = add_target(&tx, &j, &session)?;
+            if replay {
+                let mut q =
+                    tx.prepare("SELECT id,at FROM events WHERE job_id=? AND kind!='started'")?;
+                let e = q
+                    .query_map([&j], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))?
+                    .collect::<rusqlite::Result<Vec<_>>>()?;
+                drop(q);
+                for (event, at) in e {
+                    enqueue(&tx, &event, &target, at)?;
+                }
+            }
+            tx.commit()?;
+            Ok(json!({"target_id":target,"session_key":session,"replayed":replay}))
+        })
+        .await
+    }
+    pub async fn rebind(&self, target: String, session: String) -> Result<Value> {
+        validate_id(&target)?;
+        validate_id(&session)?;
+        self.call(move|db|{
+        let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let j:String=tx.query_row("SELECT job_id FROM targets WHERE id=?",[&target],|r|r.get(0)).context("target not found")?;
+        let new=add_target(&tx,&j,&session)?;ensure!(new!=target,"new session must differ from current target");
+        tx.execute("UPDATE targets SET active=0 WHERE id=?",[&target])?;
+        tx.execute("UPDATE deliveries SET status='cancelled',last_error='explicit rebind' WHERE target_id=? AND status IN ('pending','leased','retry_wait','dead_letter')",[target])?;
+        let mut q=tx.prepare("SELECT id,at FROM events WHERE job_id=? AND kind!='started'")?;
+        let e=q.query_map([j],|r|Ok((r.get::<_,String>(0)?,r.get::<_,i64>(1)?)))?.collect::<rusqlite::Result<Vec<_>>>()?;drop(q);
+        for (event,at) in e{enqueue(&tx,&event,&new,at)?;}tx.commit()?;Ok(json!({"target_id":new,"session_key":session}))
+    }).await
+    }
+}
+pub fn read_session(db: &Connection, key: &str) -> Result<AgentSession> {
+    let (raw, expires_at, connected): (String, i64, bool) = db
+        .query_row(
+            "SELECT registration,expires,connected FROM sessions WHERE key=?",
+            [key],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .context("session not found; register an explicit host identity first")?;
+    Ok(AgentSession {
+        key: key.into(),
+        registration: serde_json::from_str(&raw)?,
+        expires_at,
+        connected,
+    })
+}
+pub fn add_target(db: &Connection, j: &str, key: &str) -> Result<String> {
+    let session = read_session(db, key)?;
+    ensure!(
+        session.connected && session.expires_at > now(),
+        "session expired or invalidated; refresh registration explicitly"
+    );
+    let count: i64 = db.query_row("SELECT count(*) FROM targets WHERE job_id=?", [j], |r| {
+        r.get(0)
+    })?;
+    ensure!(count < 16, "wake target quota (16 per job) reached");
+    db.execute("INSERT INTO targets(id,job_id,session_key,active) VALUES(?,?,?,1) ON CONFLICT(job_id,session_key) DO UPDATE SET active=1",params![id(),j,key])?;
+    Ok(db.query_row(
+        "SELECT id FROM targets WHERE job_id=? AND session_key=?",
+        params![j, key],
+        |r| r.get(0),
+    )?)
+}
+pub fn enqueue(db: &Connection, event: &str, target: &str, at: i64) -> Result<()> {
+    db.execute("INSERT OR IGNORE INTO deliveries(id,event_id,target_id,status,attempts,next_at,expires) VALUES(?,?,?,'pending',0,?,?)",params![id(),event,target,now(),at+86400000])?;
+    Ok(())
+}

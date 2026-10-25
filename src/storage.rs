@@ -36,11 +36,14 @@ impl Store {
         self.call(|db| {
             let v: i64 = db.pragma_query_value(None, "user_version", |r| r.get(0))?;
             ensure!(
-                v <= 1,
+                v <= 2,
                 "database schema is newer than this executable; downgrade refused"
             );
             db.pragma_update(None, "journal_mode", "WAL")?;
-            db.execute_batch(include_str!("schema.sql"))?;
+            if v == 0 {
+                db.execute_batch(include_str!("schema.sql"))?;
+            }
+            db.execute_batch(include_str!("delivery.sql"))?;
             Ok(())
         })
         .await
@@ -61,6 +64,7 @@ impl Store {
             let j=id(); let r=id(); let nonce=id(); let t=now();
             tx.execute("INSERT INTO jobs(id,run_id,spec,idem,status,created,updated) VALUES(?,?,?,?,'queued',?,?)",params![j,r,raw,spec.idempotency_key,t,t])?;
             tx.execute("INSERT INTO runs(id,job_id,attempt,nonce) VALUES(?,?,1,?)",params![r,j,nonce])?;
+            if let Some(key)=&spec.session {crate::session::add_target(&tx,&j,key)?;}
             let result=read_job(&tx,&j)?; tx.commit()?; Ok(result)
         }).await
     }
@@ -222,5 +226,20 @@ pub fn insert_event(
         "INSERT INTO events(id,job_id,run_id,kind,at,payload) VALUES(?,?,?,?,?,?)",
         params![id(), j, r, kind, now(), payload],
     )?;
+    if terminal(kind) {
+        let event: String = tx.query_row(
+            "SELECT id FROM events WHERE run_id=? AND kind=?",
+            params![r, kind],
+            |row| row.get(0),
+        )?;
+        let mut q = tx.prepare("SELECT id FROM targets WHERE job_id=? AND active=1")?;
+        let targets = q
+            .query_map([j], |r| r.get::<_, String>(0))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        drop(q);
+        for target in targets {
+            crate::session::enqueue(tx, &event, &target, now())?;
+        }
+    }
     Ok(())
 }

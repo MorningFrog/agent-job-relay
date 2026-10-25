@@ -88,6 +88,7 @@ pub async fn serve(config: Config) -> Result<()> {
         }
         let listener = tokio::net::UnixListener::bind(&path).context("cannot bind relay socket")?;
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))?;
+        let delivery_task = tokio::spawn(crate::delivery::worker(store.clone()));
         let mut tick = tokio::time::interval(Duration::from_millis(100));
         let slots = std::sync::Arc::new(tokio::sync::Semaphore::new(32));
         let mut tasks = tokio::task::JoinSet::new();
@@ -100,6 +101,8 @@ pub async fn serve(config: Config) -> Result<()> {
                 Some(r)=tasks.join_next()=>{if let Err(e)=r {tracing::error!(error=%e,"IPC worker panicked");}}
             }
         }
+        delivery_task.abort();
+        let _ = delivery_task.await;
         tasks.shutdown().await;
         std::fs::remove_file(path)?;
     }
