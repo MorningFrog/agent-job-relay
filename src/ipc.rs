@@ -149,8 +149,9 @@ pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
             };data.truncate(n);Ok(json!({"text":String::from_utf8_lossy(&data),"bytes":n,"next_cursor":cursor+n as u64,"untrusted":true,"encoding":"utf8_lossy","cap_bytes":crate::runner::LOG_CAP}))
         },
         Request::Doctor=>store.call(|db|{let integrity:String=db.query_row("PRAGMA quick_check",[],|r|r.get(0))?;
+            ensure!(integrity=="ok","SQLite integrity check failed; stop new work and inspect a backup before repair: {integrity}");
             let active:i64=db.query_row("SELECT count(*) FROM jobs WHERE status IN ('queued','launching','running')",[],|r|r.get(0))?;
-            Ok(json!({"daemon":"reachable","protocol_version":1,"version":env!("CARGO_PKG_VERSION"),"store":integrity,"active_jobs":active,"sessions":db.query_row("SELECT count(*) FROM sessions WHERE connected=1 AND expires>?",[now()],|r|r.get::<_,i64>(0))?,"dead_letters":db.query_row("SELECT count(*) FROM deliveries WHERE status='dead_letter'",[],|r|r.get::<_,i64>(0))?,"runtime":std::env::consts::OS,"auto_resume":"not verified","next_step":"Register an explicit session; Desktop requires opt-in experimental binding. No service is installed."})) }).await
+            Ok(json!({"daemon":"reachable","protocol_version":1,"version":env!("CARGO_PKG_VERSION"),"store":integrity,"active_jobs":active,"orphaned_jobs":db.query_row("SELECT count(*) FROM jobs WHERE status='orphaned'",[],|r|r.get::<_,i64>(0))?,"retrying_deliveries":db.query_row("SELECT count(*) FROM deliveries WHERE status='retry_wait'",[],|r|r.get::<_,i64>(0))?,"sessions":db.query_row("SELECT count(*) FROM sessions WHERE connected=1 AND expires>?",[now()],|r|r.get::<_,i64>(0))?,"dead_letters":db.query_row("SELECT count(*) FROM deliveries WHERE status='dead_letter'",[],|r|r.get::<_,i64>(0))?,"runtime":std::env::consts::OS,"auto_resume":"not verified","next_step":"Register an explicit session; Desktop requires opt-in experimental binding. No service is installed."})) }).await
     }
 }
 pub async fn call(config: &Config, request: Request) -> Result<Value> {
@@ -195,11 +196,7 @@ pub async fn call(config: &Config, request: Request) -> Result<Value> {
 }
 #[cfg(unix)]
 pub async fn handle(mut stream: tokio::net::UnixStream, store: Store) -> Result<()> {
-    let cred = stream.peer_cred()?;
-    ensure!(
-        cred.uid() == unsafe { libc::geteuid() },
-        "IPC peer owner mismatch"
-    );
+    crate::platform::verify_peer(&stream)?;
     let raw =
         tokio::time::timeout(Duration::from_secs(5), read_frame(&mut stream, 131072)).await??;
     let result = if raw["protocol_version"] != 1 {

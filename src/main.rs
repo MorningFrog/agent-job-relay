@@ -68,9 +68,7 @@ enum Commands {
         command: IntegrationCommand,
     },
     /// Send a JSON IPC request; useful for explicit session and delivery operations
-    Request {
-        json: String,
-    },
+    Request { json: String },
     /// Execute explicit argv, or opt into a shell with --shell
     Start {
         #[arg(long, conflicts_with = "command")]
@@ -88,15 +86,16 @@ enum Commands {
         #[arg(last = true, required_unless_present = "shell")]
         command: Vec<String>,
     },
-    Status {
-        job_id: String,
-    },
+    /// Show durable job/run state, exit outcome and process identity
+    Status { job_id: String },
+    /// List jobs with a bounded page and continuation cursor
     List {
         #[arg(long, default_value_t = 0)]
         after: i64,
         #[arg(long, default_value_t = 20)]
         limit: u32,
     },
+    /// Read bounded stdout/stderr bytes or follow output
     Logs {
         job_id: String,
         #[arg(
@@ -111,6 +110,7 @@ enum Commands {
         #[arg(long, default_value_t = 8192)]
         limit: u32,
     },
+    /// Read durable events after a monotonic cursor
     Events {
         job_id: String,
         #[arg(long, default_value_t = 0)]
@@ -118,6 +118,7 @@ enum Commands {
         #[arg(long, default_value_t = 20)]
         limit: u32,
     },
+    /// Wait at most 30 seconds for new events or terminal state
     Wait {
         job_id: String,
         #[arg(long, default_value_t = 0)]
@@ -125,9 +126,8 @@ enum Commands {
         #[arg(long, default_value_t = 10)]
         seconds: u32,
     },
-    Stop {
-        job_id: String,
-    },
+    /// Request idempotent process-group cancellation
+    Stop { job_id: String },
     /// Diagnose connectivity and persistent store health
     Doctor {
         #[arg(long)]
@@ -136,10 +136,7 @@ enum Commands {
         config: Option<PathBuf>,
     },
     #[command(hide = true)]
-    Runner {
-        job_id: String,
-        nonce: String,
-    },
+    Runner { job_id: String, nonce: String },
 }
 #[derive(Subcommand)]
 enum IntegrationCommand {
@@ -291,6 +288,9 @@ async fn run(cli: Cli) -> Result<()> {
                     if agent_job_relay::core::terminal(status["status"].as_str().unwrap_or("")) {
                         break;
                     }
+                }
+                if bytes > 0 {
+                    continue;
                 }
                 tokio::select! {_=tokio::signal::ctrl_c()=>break,_=tokio::time::sleep(std::time::Duration::from_millis(200))=>{}}
             }

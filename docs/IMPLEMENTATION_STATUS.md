@@ -46,3 +46,12 @@ timestamps in schema v4. An initial migration regression caused 5 delivery test
 failures; fixed the missing migration and added a retained v1 database upgrade
 regression. Full rerun: 31 passed, 0 failed (includes new README acceptance test).
 The final release binary is being rebuilt after this fix.
+
+Onboarding review: release smoke completed 62 isolated CLI invocations (including
+first start, session inbox, log follow, setup/doctor/removal and data retention).
+Initial smoke's cargo job failed because isolated HOME hid the Rust toolchain;
+harness now explicitly preserves toolchain cache locations; full rerun passed.
+Isolated `cargo install --path . --locked --offline --root "$PWD/.tmp/install"`,
+installed `--version`, and corresponding cargo uninstall succeeded without PATH
+or real config changes. CLI help/doctor and log follow were polished afterward;
+full suite (31/0), strict Clippy and release rebuild passed again.

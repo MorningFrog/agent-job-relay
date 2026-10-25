@@ -151,3 +151,11 @@ pub fn reap_descendants() -> Result<bool> {
         return Err(e.into());
     }
 }
+
+pub fn verify_peer(stream: &tokio::net::UnixStream) -> Result<()> {
+    ensure!(
+        stream.peer_cred()?.uid() == unsafe { libc::geteuid() },
+        "IPC peer owner mismatch"
+    );
+    Ok(())
+}
