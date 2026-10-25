@@ -42,16 +42,30 @@ impl Store {
         self.call(|db| {
             let v: i64 = db.pragma_query_value(None, "user_version", |r| r.get(0))?;
             ensure!(
-                v <= 3,
+                v <= 4,
                 "database schema is newer than this executable; downgrade refused"
             );
             db.pragma_update(None, "journal_mode", "WAL")?;
             if v == 0 {
                 db.execute_batch(include_str!("schema.sql"))?;
             }
-            if v<2 { db.execute_batch(include_str!("delivery.sql"))?; }
-            if v<3 { db.execute_batch("BEGIN IMMEDIATE; ALTER TABLE sessions ADD COLUMN endpoint_identity TEXT; PRAGMA user_version=3; COMMIT;")?; }
-            else {db.pragma_update(None,"user_version",3)?;}
+            if v < 2 {
+                db.execute_batch(include_str!("delivery.sql"))?;
+            }
+            if v < 3 {
+                db.execute_batch("BEGIN IMMEDIATE; ALTER TABLE sessions ADD COLUMN endpoint_identity TEXT; PRAGMA user_version=3; COMMIT;")?;
+            }
+            if v < 4 {
+                db.execute_batch(
+                    "BEGIN IMMEDIATE;
+                     ALTER TABLE runs ADD COLUMN status TEXT NOT NULL DEFAULT 'queued';
+                     ALTER TABLE runs ADD COLUMN started INTEGER;
+                     UPDATE runs SET status=(SELECT status FROM jobs WHERE jobs.id=runs.job_id),
+                         started=(SELECT at FROM events WHERE events.run_id=runs.id AND kind='started');
+                     PRAGMA user_version=4;
+                     COMMIT;",
+                )?;
+            }
             Ok(())
         })
         .await
@@ -147,7 +161,7 @@ impl Store {
 }
 pub fn read_job(db: &Connection, j: &str) -> Result<Job> {
     let row=db.query_row("SELECT j.id,j.run_id,j.status,j.spec,j.created,j.updated,j.cancel,r.runner_pid,r.runner_identity,r.workload_pid,r.workload_identity,r.exit_code,r.signal,r.detail FROM jobs j JOIN runs r ON r.id=j.run_id WHERE j.id=?",[j],|r|{
-        Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,String>(3)?,r.get::<_,i64>(4)?,r.get::<_,i64>(5)?,r.get::<_,bool>(6)?,r.get(7)?,r.get(8)?,r.get(9)?,r.get(10)?,r.get(11)?,r.get(12)?,r.get(13)?))
+        Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,String>(3)?,r.get::<_,i64>(4)?,r.get::<_,i64>(5)?,r.get::<_,bool>(6)?,r.get::<_,Option<u32>>(7)?,r.get::<_,Option<String>>(8)?,r.get::<_,Option<u32>>(9)?,r.get::<_,Option<String>>(10)?,r.get::<_,Option<i32>>(11)?,r.get::<_,Option<i32>>(12)?,r.get::<_,Option<String>>(13)?))
     }).optional()?;
     let Some((
         job_id,
@@ -169,8 +183,28 @@ pub fn read_job(db: &Connection, j: &str) -> Result<Job> {
         bail!("job not found");
     };
     let spec: StartSpec = serde_json::from_str(&spec)?;
+    let (attempt, run_status, started_at, ended_at) = db.query_row(
+        "SELECT attempt,status,started,ended FROM runs WHERE id=?",
+        [&run_id],
+        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+    )?;
+    let run = Run {
+        run_id: run_id.clone(),
+        job_id: job_id.clone(),
+        attempt,
+        status: run_status,
+        started_at,
+        ended_at,
+        runner_pid,
+        runner_identity: runner_identity.clone(),
+        workload_pid,
+        workload_identity: workload_identity.clone(),
+        exit_code,
+        signal,
+    };
     let sequence = db.query_row("SELECT rowid FROM jobs WHERE id=?", [j], |r| r.get(0))?;
     Ok(Job {
+        run,
         sequence,
         job_id,
         run_id,
@@ -209,8 +243,8 @@ pub fn finish_tx(
         params![state, t, j],
     )?;
     tx.execute(
-        "UPDATE runs SET exit_code=?,signal=?,detail=?,ended=? WHERE id=?",
-        params![code, signal, detail, t, job.run_id],
+        "UPDATE runs SET exit_code=?,signal=?,detail=?,ended=?,status=? WHERE id=?",
+        params![code, signal, detail, t, state, job.run_id],
     )?;
     insert_event(
         tx,

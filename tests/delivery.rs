@@ -298,3 +298,53 @@ async fn symlink_database_is_rejected() {
     assert!(f.store.init().await.is_err());
     assert_eq!(std::fs::read_to_string(external).unwrap(), "untouched");
 }
+
+#[tokio::test]
+async fn version_one_database_upgrades_without_losing_job_or_run() {
+    let dir = tempfile::tempdir_in(common::root()).unwrap();
+    let config = Config::new(Some(dir.path().join("state"))).unwrap();
+    config.prepare().unwrap();
+    let j = id();
+    let r = id();
+    let spec = StartSpec {
+        command: CommandSpec::Exec {
+            program: "true".into(),
+            args: vec![],
+        },
+        cwd: dir.path().into(),
+        env: Default::default(),
+        timeout_seconds: None,
+        session: None,
+        idempotency_key: None,
+    };
+    {
+        let db = rusqlite::Connection::open(config.root.join("relay.sqlite3")).unwrap();
+        db.execute_batch(include_str!("../src/schema.sql")).unwrap();
+        db.execute(
+            "INSERT INTO jobs(id,run_id,spec,status,created,updated) VALUES(?,?,?,'completed',1,2)",
+            rusqlite::params![j, r, serde_json::to_string(&spec).unwrap()],
+        )
+        .unwrap();
+        db.execute(
+            "INSERT INTO runs(id,job_id,attempt,nonce,exit_code,ended) VALUES(?,?,1,?,0,2)",
+            rusqlite::params![r, j, id()],
+        )
+        .unwrap();
+    }
+    let store = Store::new(config);
+    store.init().await.unwrap();
+    store.init().await.unwrap();
+    let job = store.status(j).await.unwrap();
+    assert_eq!(job.status, "completed");
+    assert_eq!(job.run.status, "completed");
+    assert_eq!(job.run.attempt, 1);
+    assert_eq!(job.run.exit_code, Some(0));
+    assert_eq!(job.run.ended_at, Some(2));
+    assert_eq!(
+        store
+            .call(|db| Ok(db.pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0))?))
+            .await
+            .unwrap(),
+        4
+    );
+}

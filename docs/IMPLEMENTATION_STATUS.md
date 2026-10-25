@@ -40,3 +40,9 @@ Desktop endpoint identity after connecting; target idempotence at quota;
 CLI log following and optional integration diagnostics; two Tokio workers per
 process. Added recovery/outbox restart, stale PID, quota, write failure and
 secret non-echo regressions. Latest suite: 29 passed, 0 failed on Linux.
+
+Protocol/schema review increment: IPC v1 envelope and explicit Run state/attempt/
+timestamps in schema v4. An initial migration regression caused 5 delivery test
+failures; fixed the missing migration and added a retained v1 database upgrade
+regression. Full rerun: 31 passed, 0 failed (includes new README acceptance test).
+The final release binary is being rebuilt after this fix.

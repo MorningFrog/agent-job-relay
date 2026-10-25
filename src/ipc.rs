@@ -150,7 +150,7 @@ pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
         },
         Request::Doctor=>store.call(|db|{let integrity:String=db.query_row("PRAGMA quick_check",[],|r|r.get(0))?;
             let active:i64=db.query_row("SELECT count(*) FROM jobs WHERE status IN ('queued','launching','running')",[],|r|r.get(0))?;
-            Ok(json!({"daemon":"reachable","store":integrity,"active_jobs":active,"sessions":db.query_row("SELECT count(*) FROM sessions WHERE connected=1 AND expires>?",[now()],|r|r.get::<_,i64>(0))?,"dead_letters":db.query_row("SELECT count(*) FROM deliveries WHERE status='dead_letter'",[],|r|r.get::<_,i64>(0))?,"runtime":std::env::consts::OS,"auto_resume":"not verified","next_step":"Register an explicit session; Desktop requires opt-in experimental binding. No service is installed."})) }).await
+            Ok(json!({"daemon":"reachable","protocol_version":1,"version":env!("CARGO_PKG_VERSION"),"store":integrity,"active_jobs":active,"sessions":db.query_row("SELECT count(*) FROM sessions WHERE connected=1 AND expires>?",[now()],|r|r.get::<_,i64>(0))?,"dead_letters":db.query_row("SELECT count(*) FROM deliveries WHERE status='dead_letter'",[],|r|r.get::<_,i64>(0))?,"runtime":std::env::consts::OS,"auto_resume":"not verified","next_step":"Register an explicit session; Desktop requires opt-in experimental binding. No service is installed."})) }).await
     }
 }
 pub async fn call(config: &Config, request: Request) -> Result<Value> {
@@ -163,8 +163,16 @@ pub async fn call(config: &Config, request: Request) -> Result<Value> {
                 .context(
                     "daemon unavailable; run agent-job-relay --state-dir <same-path> daemon",
                 )?;
-            write_frame(&mut stream, &serde_json::to_value(request)?).await?;
+            write_frame(
+                &mut stream,
+                &json!({"protocol_version":1,"request":request}),
+            )
+            .await?;
             let response = read_frame(&mut stream, 1048576).await?;
+            ensure!(
+                response["protocol_version"] == 1,
+                "unsupported daemon protocol; restart daemon with this executable"
+            );
             if response["ok"] == true {
                 Ok(response["result"].clone())
             } else {
@@ -194,13 +202,19 @@ pub async fn handle(mut stream: tokio::net::UnixStream, store: Store) -> Result<
     );
     let raw =
         tokio::time::timeout(Duration::from_secs(5), read_frame(&mut stream, 131072)).await??;
-    let result = match serde_json::from_value::<Request>(raw) {
-        Ok(req) => dispatch(&store, req).await,
-        Err(e) => Err(e.into()),
+    let result = if raw["protocol_version"] != 1 {
+        Err(anyhow::anyhow!(
+            "unsupported IPC protocol_version; expected 1"
+        ))
+    } else {
+        match serde_json::from_value::<Request>(raw["request"].clone()) {
+            Ok(req) => dispatch(&store, req).await,
+            Err(e) => Err(e.into()),
+        }
     };
     let envelope = match result {
-        Ok(v) => json!({"ok":true,"result":v}),
-        Err(e) => json!({"ok":false,"error":format!("{e:#}")}),
+        Ok(v) => json!({"protocol_version":1,"ok":true,"result":v}),
+        Err(e) => json!({"protocol_version":1,"ok":false,"error":format!("{e:#}")}),
     };
     tokio::time::timeout(Duration::from_secs(5), write_frame(&mut stream, &envelope)).await??;
     Ok(())

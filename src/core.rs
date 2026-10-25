@@ -107,7 +107,23 @@ impl StartSpec {
     }
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Run {
+    pub run_id: String,
+    pub job_id: String,
+    pub attempt: u32,
+    pub status: String,
+    pub started_at: Option<i64>,
+    pub ended_at: Option<i64>,
+    pub runner_pid: Option<u32>,
+    pub runner_identity: Option<String>,
+    pub workload_pid: Option<u32>,
+    pub workload_identity: Option<String>,
+    pub exit_code: Option<i32>,
+    pub signal: Option<i32>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Job {
+    pub run: Run,
     pub sequence: i64,
     pub job_id: String,
     pub run_id: String,

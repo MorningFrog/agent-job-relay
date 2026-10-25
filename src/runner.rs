@@ -60,7 +60,7 @@ pub async fn run(config: Config, j: String, nonce: String) -> Result<()> {
         let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         let ok=tx.execute("UPDATE jobs SET status='running',updated=? WHERE id=? AND status='launching' AND run_id IN (SELECT id FROM runs WHERE nonce=?)",params![now(),key,nonce])?;
         ensure!(ok==1,"launch claim is stale; command was not executed");
-        tx.execute("UPDATE runs SET runner_pid=?,runner_identity=? WHERE job_id=?",params![pid,identity,key])?;
+        tx.execute("UPDATE runs SET runner_pid=?,runner_identity=?,status='running',started=? WHERE job_id=?",params![pid,identity,now(),key])?;
         let raw:String=tx.query_row("SELECT spec FROM jobs WHERE id=?",[key],|r|r.get(0))?;
         tx.commit()?;Ok(serde_json::from_str(&raw)?)
     }).await?;
