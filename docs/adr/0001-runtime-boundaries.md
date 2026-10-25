@@ -10,3 +10,9 @@ Linux-native IPC and process groups first. macOS/Windows builds may expose help
 and setup, but runtime support must remain explicitly unavailable without native
 identity, pipe ACL and Job Object implementations. This is a scoped milestone,
 not a claim that Linux process semantics generalize to Windows.
+
+Implementation detail: Linux runner is a child subreaper. Ordinary errors use
+an owned group cleanup guard; SIGKILL cannot run it. Windows/macOS remain
+explicitly unsupported runtime paths. IPC has version 1; schema migrations
+currently advance through v4. Run state/timestamps are persisted independently
+from the job intent (one attempt per job for this milestone).
