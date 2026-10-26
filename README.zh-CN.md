@@ -22,13 +22,13 @@ Run durable background commands and route completion events to explicitly regist
 | 标准 stdio MCP，客户端退出不影响任务 | 真实握手、工具发现与执行测试 |
 | 会话、租期、精确路由、事务 Outbox、重试/TTL/dead letter | 持久化与故障自动化测试 |
 | Codex CLI 集成 | MCP 配置与通知收件箱；**不能自动恢复 Agent** |
-| Desktop 唤醒 | 实验性 Unix Socket 适配器；自动化假宿主测试，以及 ChatGPT Desktop 26.1021.22027 / Ubuntu 26.04 上**用户确认通过的基础真实端到端测试** |
+| Desktop 唤醒 | 实验性 Unix Socket 适配器；自动化假宿主测试，以及 ChatGPT Desktop 26.1021.22027 / Ubuntu 26.04 上**用户确认通过的真实端到端测试**，覆盖显式登记和 CLI `--wake` 首次启动、复用、空闲 Daemon 重启 |
 | setup、doctor、移除所属 MCP 项 | 隔离配置测试；没有修改真实用户设置 |
 | Windows/macOS 运行时 | **尚未实现/验证**，明确返回不支持 |
 
 任务完成、`notification_recorded`、`accepted_by_host` 与观察到 Agent 真正继续执行是不同状态。
 当前没有适配器能够自动确认 Agent 已恢复。Desktop 的 `can_resume` 表示配置的请求机制，不能视为真实端到端验证。
-本次用户确认通过的基础实测及本地证据核对见[真实端到端验证记录](docs/live-e2e.md)；宿主重启和重新绑定等场景仍需单独验证。
+用户确认通过的实测及本地证据核对见[真实端到端验证记录](docs/live-e2e.md)。CLI 快捷入口三轮均在无人发消息时自动续接，对照聊天未收到错误通知。任务运行中 Daemon 中断、Desktop 重启和重新绑定仍需单独验证。
 
 ## 一分钟源码快速开始
 
@@ -160,7 +160,7 @@ wake_me 不应与显式 spec.session 同时使用，CLI 的 `--wake` 和 `--sess
 
 自动登记租期为 24 小时，用 Socket 指纹标识宿主实例；每次请求唤醒都会刷新。
 端点替换会产生新绑定，不会迁移已有任务。超过该租期的任务需要显式刷新或重新绑定。
-宿主接受请求仍不代表 Agent 已恢复。新增快捷入口已有自动化假宿主覆盖，单独记录的真实基础测试使用的是显式登记流程。
+宿主接受请求仍不代表 Agent 已恢复。CLI 快捷入口的首次启动、复用和空闲 Daemon 重启已在记录的 Desktop 版本与系统上通过用户确认的真实测试。MCP `wake_me=true` 已有自动化假宿主覆盖，尚未单独验证其真实宿主路径。
 
 高级手工登记仍保留，用于其他宿主或诊断。本地收件箱演示使用显式身份注册：
 

@@ -13,7 +13,7 @@ Declared Rust 1.89 MSRV is not independently tested.
 | 0: reference/design | Completed; full spec/ancestor instruction audit, read-only Vanth audit, architecture/ADR, compiled Cargo package | No reference implementation copied |
 | 1: core | Implemented and tested on Linux: CLI, private IPC, SQLite Job/Run/Event, independent runner, capture, cancel/timeout, conservative restart recovery | Windows/macOS native runtime and escaped-daemon containment pending |
 | 2: MCP/delivery/setup | Implemented and tested: real rmcp stdio, sessions, targets, atomic outbox, lease fencing, retries/TTL/dead letters, setup/removal/backups | No Tasks/subscriptions; no guessed ChatGPT config format |
-| 3: Agent integration | Codex CLI MCP + notification inbox implemented/tested; Desktop fake-host automation plus **user-confirmed basic live same-session E2E** on ChatGPT Desktop 26.1021.22027 / Ubuntu 26.04; local proof cross-checked | Live restart/rebind/failure matrix pending; no automatic resume confirmation, public app-server writer or Windows pipe adapter |
+| 3: Agent integration | Codex CLI MCP + notification inbox implemented/tested; Desktop fake-host automation plus **user-confirmed explicit-registration and CLI shortcut live same-session E2E** on ChatGPT Desktop 26.1021.22027 / Ubuntu 26.04; CLI first start, reuse and idle-daemon restart passed; proofs cross-checked | Live in-flight interruption, Desktop restart/rebind/failure matrix and MCP shortcut pending; no automatic resume confirmation, public app-server writer or Windows pipe adapter |
 | 4: local quality/docs | Local fmt/strict Clippy/full tests/release build and onboarding passed; complete bilingual READMEs, security/protocol/testing/install/release docs, maintenance AGENTS, changelog, CI matrix | GitHub Actions not executed; macOS/Windows build/runtime not locally verified; native platform gates remain open |
 
 This is a verified Linux milestone, **not completion of every cross-platform
@@ -84,6 +84,7 @@ integration, config, platform. SQLite schema **v4**, local IPC **v1**.
 | `./.tmp/install/bin/agent-job-relay --version` | `agent-job-relay 0.1.0` |
 | `cargo uninstall --root "$PWD/.tmp/install" agent-job-relay` | Passed; local test install removed, state retained |
 | Basic live Desktop wake | User confirmed pass on ChatGPT Desktop 26.1021.22027 / Ubuntu 26.04; proof/token/thread/delivery correlation checked read-only; see live-e2e.md |
+| CLI shortcut live Desktop wake | A first start, B session reuse, C idle-daemon stop/auto-start all passed on the same client/OS; user confirmed no manual continuation or wrong control-chat notification; all three proofs, database and binary identity cross-checked read-only |
 | `git diff --check` | Passed before commits |
 
 Onboarding covered help/version, first daemon start, explicit sessions, job/run
@@ -111,11 +112,15 @@ write failure and transaction-abort recovery have automated evidence.
 Desktop automated tests validate protocol framing, callerSource, caller/destination,
 capability rejection, endpoint replacement and acceptance-only semantics. They
 remain simulated. Subsequently, the user confirmed the basic live same-session
-test passed on ChatGPT Desktop 26.1021.22027 / Ubuntu 26.04. Read-only checks of
-the ignored local proof, output log and database confirmed matching token,
-thread/caller/target and event/job/delivery identities, completed job and one
-accepted host delivery. UI turn execution is user-attested, not independently
-replayed by this assistant. See live-e2e.md for scope and evidence provenance.
+test and three-round CLI shortcut run passed on ChatGPT Desktop 26.1021.22027 /
+Ubuntu 26.04. Read-only checks of ignored proofs, output logs and databases
+confirmed matching markers, thread/caller/target and event/job/delivery identities,
+completed jobs and one accepted host delivery per job. The shortcut run also
+matched its recorded binary hash and commit, reused one registration and left
+no active jobs or test IPC socket. UI turn execution and the quiet control chat
+are user-attested, not independently observed by this reviewer. Round C restarted
+an idle daemon, without an in-flight job or Desktop restart. See live-e2e.md for
+scope and evidence provenance.
 The adapter still cannot automatically confirm resume. Codex CLI inbox remains
 notification-only; no credential or unrelated private conversation scan was used.
 
@@ -128,9 +133,10 @@ crash. Stable delivery IDs do not prove receiver-side exactly-once behavior.
 
 ## Handoff priorities
 
-1. Extend the basic live pass to daemon/host restarts, explicit rebind, temporary
-   delivery failure and repeated routing checks; replace private interfaces
-   with public ones when available. Preserve per-version evidence and provenance.
+1. Extend the live CLI passes to in-flight daemon interruption/offline completion,
+   Desktop restart, explicit rebind, temporary delivery failure and concurrent
+   exact routing; validate real-host MCP wake_me=true separately. Replace private
+   interfaces with public ones when available; preserve version-specific evidence.
 2. Stronger Linux containment and fault/soak/real disk-full testing.
 3. Windows SID/DACL/named pipe/Job Objects and macOS process identity/native tests.
 4. More migration fault tests, backup/export, retention preview and explicit
@@ -158,6 +164,8 @@ English Conventional Commits, no pushes, no remote created, no history rewrite:
 
 - a216fd0 `docs: document verified Linux milestone and deferred distribution`
 - 3d68313 `docs: update README and add icon for AgentJobRelay`
+- 18ccdef `docs: record user-confirmed same-session Desktop wake validation`
+- f8dc8dd `feat(ux): automate current-session wake binding and daemon startup`
 
 Live-test documentation was updated after the user confirmed the basic pass;
 see `git log` for the subsequent evidence-recording commit.
@@ -183,10 +191,36 @@ context, refused host capability, changed endpoint identity, non-replacement of
 an incompatible daemon, and safe shutdown/restart with a surviving runner.
 Full suite: 39 passed, 0 failed. fmt, strict Clippy and release build passed.
 Nine release CLI checks passed against a fresh repository-local state directory.
-No real host message or real user configuration change was performed here.
+No real host message or real user configuration change was performed during
+that implementation increment.
 
 The prior user-confirmed live pass remains valid for the underlying explicit
-adapter route. The new shortcut has not been separately live-UI tested. Automatic
-binding needs per-session inherited context; shared MCP/ordinary terminals with
-no identity fail explicitly. Automatic leases are 24 hours; long-job renewal
-and host-restart recovery remain separately tracked in TODO.md and ADR 0002.
+adapter route. A subsequent three-round CLI shortcut run passed as recorded
+below. Automatic binding needs per-session inherited context; shared MCP/ordinary
+terminals with no identity fail explicitly. Automatic leases are 24 hours;
+long-job renewal and host-restart recovery remain tracked in TODO.md and ADR 0002.
+
+## CLI shortcut live acceptance (2026-10-26)
+
+The user confirmed A (first start), B (same registration reused) and C (idle
+daemon stopped, next submission auto-started it) all passed on ChatGPT Desktop
+26.1021.22027 / Ubuntu 26.04. Each Agent turn ended before automatic continuation
+without another human message. The control chat received no incorrect event.
+
+The retained report, three proof files and stopped SQLite database were reviewed
+read-only. All three jobs completed with exit code 0, distinct log markers and
+one accepted Desktop delivery each; all targets reference the same initiating
+session/caller. Submission flags confirm automatic binding and successful probe.
+The tested commit is f8dc8dd; its recorded release SHA-256 matched the actual
+binary before the documentation-review build. Full binary identity and sanitized times
+are in live-e2e.md; raw identities, endpoint paths and markers remain ignored.
+
+This adds live evidence for the CLI shortcut, not real-host MCP wake_me=true,
+Desktop restart/rebind, in-flight daemon interruption or receiver deduplication.
+The reviewer did not send host messages, change configuration or replay the UI
+test. A local endpoint-output handling deviation in round A is noted in live-e2e.md.
+
+Documentation-review gates rerun: cargo fmt --check, strict all-target Clippy,
+cargo test --all-targets (39 passed, 0 failed) and locked release build all passed.
+Only sanitized documentation changed; original live evidence remains untouched
+and ignored. No real user configuration/service change or remote operation occurred.

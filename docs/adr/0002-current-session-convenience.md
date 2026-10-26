@@ -30,5 +30,9 @@ starts the daemon again. Shutdown is not exposed as an MCP tool.
 The underlying durable start/outbox protocol and accepted_by_host semantics are
 unchanged. Endpoint replacement creates a new registration; old targets are not
 automatically moved. Long jobs beyond the lease and explicit host replacement
-still require refresh/rebind. New shortcuts have fake-host and real CLI/MCP
-process tests; the prior user-confirmed live pass used explicit registration.
+still require refresh/rebind. Shortcuts have fake-host and real CLI/MCP process
+tests. On 2026-10-26 the user also confirmed CLI live first start, registration
+reuse and idle-daemon stop/auto-start, each continuing in the same chat without
+another human message; the control chat stayed quiet. Private artifacts were
+correlated read-only (live-e2e.md). In-flight interruption, Desktop restart/rebind
+and real-host MCP wake_me=true remain separate validation work.

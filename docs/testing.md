@@ -46,11 +46,15 @@ validated yet. No install packages are built or tested in this milestone.
 
 Basic procedure: **passed, user-confirmed on 2026-10-26**, using ChatGPT Desktop
 26.1021.22027 / Ubuntu 26.04. Local proof/log/session/delivery consistency was
-checked separately. See [evidence and scope](live-e2e.md). Restart and recovery
-scenarios have not been confirmed by this live result.
+checked separately. A subsequent three-round CLI shortcut run also passed,
+including idle-daemon stop/auto-start; see [evidence and scope](live-e2e.md) and
+the shortcut procedure below. In-flight interruption, Desktop restart/rebind and
+delivery-failure recovery have not been confirmed by these live results.
 
 Only use a disposable session and host endpoint explicitly authorized for this
-purpose. Do not scan private conversations or mutate desktop binaries.
+purpose. Do not scan private conversations or mutate desktop binaries. The
+following is the explicit-registration diagnostic procedure; its host restart
+and rebind steps are extensions still requiring separate live acceptance.
 
 1. Record client/app version, OS, host instance and the exact initiating and
    destination logical thread IDs. Obtain the endpoint from the authorized host
@@ -84,8 +88,60 @@ distinguishes loading a thread from starting or steering a generation turn.
 `cargo test --test convenience` covers eight isolated real CLI/MCP lifecycle
 tests with fake Desktop endpoints. No real host is messaged. Automatic binding,
 concurrent daemon startup, per-caller routing, repeated submission/registration,
-missing context, rejected capability, new endpoint identity safe daemon stop and non-replacement of incompatible daemons
-are checked. For an authorized follow-up live run, use `start --wake` or
-job_start with wake_me=true in the same host context as the basic live test;
-retain the same no-manual-continuation/proof criteria. The shortcut's live status
-must be recorded separately from the prior explicit-registration pass.
+missing context, rejected capability, new endpoint identity, safe daemon stop
+and non-replacement of incompatible daemons are checked.
+
+The **CLI shortcut live run passed, user-confirmed on 2026-10-26**, on ChatGPT
+Desktop 26.1021.22027 / Ubuntu 26.04. All three rounds resumed without another
+human message after the Agent ended its turn; the control chat received no wrong
+notification. Proofs were independently correlated read-only with logs, SQLite
+records and the recorded binary hash. MCP wake_me=true is still fake-host tested,
+without a separate real-host shortcut pass. These are distinct from the earlier
+explicit-registration basic result; retain per-path provenance in live-e2e.md.
+
+### Manual CLI shortcut procedure
+
+1. Build with `cargo build --release --locked`. Open a disposable Desktop Agent
+   chat with local terminal access and authorize completion-event delivery only
+   to that chat. Keep Desktop running and the machine awake. Open an idle control
+   chat if available; never message it from the test.
+2. Have the Agent create a unique short directory under repository `.tmp/` and
+   use its absolute `state` path for every CLI call. Record commit, binary
+   SHA-256, client/OS and time. Do not dump the environment or raw session-list
+   output into the chat. The terminal tool must inherit CODEX_THREAD_ID and
+   CODEX_APP_TOOLS_PIPE_PATH; missing context is a test failure, not permission
+   to guess another session. No MCP setup or manual registration is required.
+3. Round A: call `start --wake` with that state, an explicit cwd, a unique
+   idempotency key and this literal `--shell` script:
+
+   ```sh
+   sleep 90; printf 'WAKE_TOKEN=%s\n' "$(cat /proc/sys/kernel/random/uuid)"
+   ```
+
+   Do not expand the script when constructing the submission. Save the response,
+   job/run IDs and session key; require `wake.automatic_binding=true` and
+   `wake.probe=passed`. Do not manually start the daemon, register, connect or
+   probe. End the Agent turn immediately, without completion polling, waits,
+   log follow, timers or an automation. The user sends no further message.
+4. On the matching completion event, deduplicate its delivery ID, read bounded
+   status/logs/events/deliveries using the **same CLI and state**, and check the
+   stored session/caller against the initiating identity privately. Save
+   `proof-A.json` containing round, job/delivery/session/thread IDs, the output
+   marker, completion time, proof time and delivery status. Require completed,
+   exit code 0 and matching event/target/log marker. Host acceptance alone does
+   not prove a new Agent turn; the user must observe the automatic continuation.
+5. Round B: from that resumed turn submit a new job using the same state and
+   daemon, but a new idempotency key. Require the same session registration key,
+   end the turn again, and on its automatic continuation save `proof-B.json`.
+6. Round C: after B completes, use `daemon stop` for this state only. Confirm IPC
+   disconnection within a bounded five-second check. Submit the next delayed
+   job directly with `start --wake` and a new key, allowing automatic startup.
+   End the turn and on its completion event save `proof-C.json`. This checks an
+   idle daemon restart, not in-flight interruption or Desktop restart.
+7. If any submission fails, save the error and stop. If a round does not resume
+   within three minutes, record failure; a later human diagnostic message must
+   not count as automatic wake. Do not re-deliver or advance remaining rounds
+   to hide failure. On success save a private report with all round timestamps,
+   identity checks and the user's no-manual-continuation/control-chat observations.
+   Confirm all test jobs are terminal, stop only this test daemon and retain
+   private evidence. Never commit raw proofs, markers, endpoint paths or logs.

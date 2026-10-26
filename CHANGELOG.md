@@ -12,6 +12,9 @@
   Ubuntu 26.04, with local artifacts cross-checked (docs/live-e2e.md).
 - One-flag `start --wake` / MCP wake_me=true: current-context registration, lease
   refresh and preflight; on-demand detached daemon and safe `daemon stop`.
+- User-confirmed CLI shortcut live first start, session reuse and idle-daemon
+  stop/auto-start on the same Desktop version/OS, with no manual continuation
+  or wrong control-chat notification; local proofs and binary hash cross-checked.
 - Dry-run setup, backed-up owned configuration edits, safe integration removal,
   CLI diagnostics and bilingual onboarding.
 - Linux behavior tests and compile/test CI definition; future packaging roadmap.

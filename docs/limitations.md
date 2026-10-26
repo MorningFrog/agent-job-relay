@@ -8,10 +8,13 @@
   It does not start/resume an Agent automatically. No public app-server writer
   is owned by this program. No authentication or model invocation is performed.
 - Desktop transport is opt-in, private and experimental. Automated transport
-  tests use fake hosts. A basic live same-session test passed according to the
-  user on ChatGPT Desktop 26.1021.22027 / Ubuntu 26.04, with local artifacts
-  cross-checked (see live-e2e.md). This does not qualify other versions, host
-  restart/rebind or recovery scenarios. An ack remains accepted_by_host;
+  tests use fake hosts. The user confirmed explicit-registration basic and
+  three-round CLI shortcut live passes on ChatGPT Desktop 26.1021.22027 /
+  Ubuntu 26.04; local artifacts were cross-checked (see live-e2e.md). CLI rounds
+  cover first start, reuse and idle-daemon stop/auto-start, without human
+  continuation or wrong control-chat notification. They do not qualify other
+  versions, in-flight daemon interruption, Desktop restart/rebind or delivery
+  failure recovery. An ack remains accepted_by_host;
   can_resume is request capability, not an automatic confirmation mechanism.
   There is no confirmed-resume adapter.
 - Explicit host/session identities are supplied by the trusted caller. The
@@ -53,6 +56,7 @@ Convenience support: `start --wake` / MCP wake_me=true remove manual registratio
 when current host context is inherited. They cannot infer identity in an ordinary
 terminal or shared MCP process. Use the current Desktop Agent terminal tool when
 MCP lacks those variables. Automatic sessions lease for 24 hours and need refresh
-for longer work. The shortcut itself has fake-host automation and real CLI/MCP
-process coverage; it has not received a separate live UI validation. The recorded
-basic live pass covers the underlying explicit Desktop adapter route.
+for longer work. CLI shortcut live evidence is user-attested and version-specific;
+the reviewer correlated private artifacts without independently observing the UI.
+MCP wake_me=true has fake-host automation and real process coverage, but no
+separate real-host shortcut validation.

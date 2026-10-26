@@ -23,16 +23,18 @@ No installer or package-manager release is available.
 | Standard stdio MCP tools; client exit does not stop jobs | Actual MCP handshake, discovery and execution tests |
 | Sessions, leases, exact routing, transactional outbox, retry/TTL/dead letters | Automated persistence and failure tests |
 | Codex CLI integration | MCP configuration and notification inbox; **no automatic resume** |
-| Desktop wake | Experimental Unix socket adapter; automated fake-host tests and **user-confirmed basic live E2E** on ChatGPT Desktop 26.1021.22027 / Ubuntu 26.04 |
+| Desktop wake | Experimental Unix socket adapter; automated fake-host tests and **user-confirmed live E2E** for explicit registration and CLI `--wake` first start, reuse and idle-daemon restart on ChatGPT Desktop 26.1021.22027 / Ubuntu 26.04 |
 | Setup, doctor and owned MCP removal | Isolated configuration tests; no real user settings changed |
 | Windows/macOS runtime | **Not implemented/verified**; requests fail explicitly |
 
 Job completion, `notification_recorded`, `accepted_by_host` and observed Agent
 execution are distinct. No current adapter automatically confirms that an Agent resumed.
 A configured Desktop `can_resume` capability describes the request mechanism;
-it is not live E2E evidence. The user-confirmed basic live test and artifact checks
-are recorded in [live E2E evidence](docs/live-e2e.md); restart/rebind scenarios
-remain outside that result.
+it is not live E2E evidence. The user-confirmed live runs and artifact checks
+are recorded in [live E2E evidence](docs/live-e2e.md). The CLI shortcut passed
+three rounds without manual continuation; the control chat received no wrong
+notification. In-flight daemon interruption, Desktop restart and rebind remain
+outside those results.
 
 ## One-minute source quick start
 
@@ -192,8 +194,10 @@ Automatic registration uses a 24-hour lease and a socket fingerprint as host
 instance identity. Each wake-enabled submission refreshes it; a replacement
 endpoint produces a new binding without moving existing jobs. Jobs exceeding
 that lease need explicit refresh/rebind. A host acknowledgement still does not
-confirm Agent execution. The new shortcuts have automated fake-host coverage;
-the separately recorded live pass used the explicit registration procedure.
+confirm Agent execution. The CLI shortcut also passed user-confirmed live first
+start, reuse and idle-daemon restart on the recorded Desktop version/OS. MCP
+`wake_me=true` has automated fake-host coverage; its real-host path is not yet
+separately validated.
 
 Advanced manual registration remains available for other hosts and diagnosis.
 For a local notification demonstration, register explicit identities:

@@ -6,9 +6,12 @@ Core correctness and usable local source builds have priority over distribution.
 
 ## Runtime and integrations
 
-- P0: extend the user-confirmed basic Desktop live E2E pass (ChatGPT Desktop
-  26.1021.22027 / Ubuntu 26.04; see live-e2e.md) to daemon restart, host restart,
-  explicit rebind, temporary delivery failure and a second no-cross-routing run.
+- P0: extend the user-confirmed Desktop live E2E passes (ChatGPT Desktop
+  26.1021.22027 / Ubuntu 26.04; see live-e2e.md) to in-flight daemon interruption
+  and completion while offline, Desktop restart, explicit rebind, temporary
+  delivery failure and concurrent exact routing. CLI shortcut first start,
+  registration reuse and idle-daemon stop/auto-start passed; the user confirmed
+  all three continued without another message and the control chat stayed quiet.
   Keep private evidence local, revalidate API compatibility for each client
   version and never treat host acceptance as automated resume confirmation.
 - P0: Linux cgroups or equivalent optional containment for descendants that escape
@@ -22,8 +25,9 @@ Core correctness and usable local source builds have priority over distribution.
 - P1: opt-in public Codex app-server integration only for an explicitly owned
   writer/session; handle active turns, approvals, auth and reconnect safely.
 - P1: lease renewal for jobs longer than 24 hours, authenticated per-call identity
-  handoff for shared MCP hosts, and a live shortcut-path verification. Never
-  infer a current chat from a global latest-session record.
+  handoff for shared MCP hosts, and real-host MCP wake_me=true shortcut validation
+  when per-session inherited context is available. CLI --wake live verification
+  passed; never infer a current chat from a global latest-session record.
 - P1: inspect all active runner/host health from doctor; versioned config file and
   tunable resource budgets; bounded structured progress event protocol.
 - P1: atomic schema migration fault tests across every supported version; online
