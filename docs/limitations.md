@@ -55,8 +55,9 @@
   them. The user's installed skill + CLI fallback real release task passed wake,
   after an initial failed launch and separate-state workaround. It did not call
   MCP. The repaired Codex CLI 0.164.0 loader discovers 19 tools in isolation;
-  updated Desktop MCP execution and browser discovery/install are still separate
-  unverified items. Source templates alone contain no native executable.
+  the user confirmed updated v0.1.2 Desktop MCP connectivity following the
+  job_doctor procedure, without new independently reviewed tool evidence. MCP
+  task submission/wake and browser discovery/install remain separately unverified. Source templates alone contain no native executable.
 - The current local Codex bundle uses `.codex-plugin/plugin.json` and `.mcp.json`
   with an absolute installed native command. Cached MCP needs that original
   installation to remain; the terminal wrapper is relative. Portable root MCP
@@ -86,9 +87,9 @@ Installed/generated MCP uses shared-host mode, rejecting inherited-context wake.
 The plugin skill obtains a fresh current-terminal session key and supplies it to
 MCP. That route is tested with two callers, real installed CLI/MCP processes and
 a fake Desktop host; it needs a local terminal and is not available in a cloud
-chat without one. The next live acceptance first checks updated Desktop MCP
-exposure/doctor, then qualifies the next naturally long real MCP task without
-internal paths in its prompt. Prior CLI passes do not qualify this path, and
+chat without one. Updated Desktop MCP exposure/doctor is user-confirmed. The
+next naturally long real MCP task can qualify submission and same-chat wake,
+without internal paths in its prompt. Prior CLI passes do not qualify this path, and
 another manual crash matrix is not a prerequisite.
 
 Early 0.1.0 daemons without IPC shutdown can be stopped by the 0.1.2 client's

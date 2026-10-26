@@ -24,7 +24,10 @@ come first. An installable local plugin is not an official directory listing.
   verified Linux pidfds and selects state with daemon stop --install-root. All
   50 tests passed; the user authorized upgrading the actual personal install and
   host plugin cache to 0.1.2. Installed/cache MCP self-check finds 19 tools.
-  Actual updated Desktop tool discovery/call remains separately unverified.
+  The user subsequently confirmed the updated Desktop MCP connectivity test
+  passed following the host job_doctor procedure (user-attested, no new tool
+  transcript reviewed). Remaining coverage is a naturally long real MCP task's
+  submission and same-chat continuation; do not repeat connectivity or CLI tests.
 - Implemented baseline: no-override local updates retain the configured state;
   regressions cover this and replaced-image Runner launch. Keep configuration,
   daemon readiness, local MCP self-check, real host discovery and same-chat

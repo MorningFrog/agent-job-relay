@@ -10,6 +10,8 @@
 - Wait for daemon lock release before successful stop returns, allowing immediate
   update; improve active-install errors with a concrete profile-aware command.
 - Add legacy-upgrade, unrelated-peer and non-shutdown-error regression coverage.
+- User confirmed post-install Desktop MCP connectivity following the host
+  job_doctor procedure; no new MCP background-task/wake evidence is implied.
 
 ## 0.1.1 — 2026-10-26 (unreleased development repair)
 

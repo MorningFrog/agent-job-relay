@@ -12,7 +12,7 @@ Declared Rust 1.89 MSRV is not independently tested.
 |---|---|---|
 | 0: reference/design | Completed; full spec/ancestor instruction audit, read-only Vanth audit, architecture/ADR, compiled Cargo package | No reference implementation copied |
 | 1: core | Implemented and tested on Linux: CLI, private IPC, SQLite Job/Run/Event, independent runner, capture, cancel/timeout, conservative restart recovery | Windows/macOS native runtime and escaped-daemon containment pending |
-| 2: MCP/delivery/setup | Implemented and tested: real rmcp stdio, sessions, targets, atomic outbox, lease fencing, retries/TTL/dead letters, native/Plugin local install, marketplace setup/removal/backups and safe shared-MCP binding | No Tasks/subscriptions; updated Desktop MCP route and Plugin browser evidence pending; no guessed ChatGPT config format |
+| 2: MCP/delivery/setup | Implemented and tested: real rmcp stdio, sessions, targets, atomic outbox, lease fencing, retries/TTL/dead letters, native/Plugin local install, marketplace setup/removal/backups and safe shared-MCP binding | No Tasks/subscriptions; MCP task/wake and Plugin browser evidence pending; Desktop MCP connectivity user-confirmed; no guessed ChatGPT config format |
 | 3: Agent integration | Codex CLI MCP + notification inbox implemented/tested; Desktop fake-host automation plus **user-confirmed explicit-registration and CLI shortcut live same-session E2E** on ChatGPT Desktop 26.1021.22027 / Ubuntu 26.04; CLI first start, reuse and idle-daemon restart passed; installed skill/CLI real release-test task also resumed; proofs/logs cross-checked | Updated Desktop MCP job route unverified; Desktop restart/rebind remains unverified; no automatic resume confirmation, public app-server writer or Windows pipe adapter |
 | 4: local quality/docs | Local fmt/strict Clippy/full tests/release build and onboarding passed; complete bilingual READMEs, security/protocol/testing/install/release docs, maintenance AGENTS, changelog, CI matrix | GitHub Actions not executed; macOS/Windows build/runtime not locally verified; native platform gates remain open |
 
@@ -74,7 +74,9 @@ integration, deployment, diagnostics, config, platform. SQLite schema **v4**, lo
 - Doctor separates stopped daemon, configured entry, private bounded stdio self-check
   and an actual host tool invocation. No diagnostic sends a host message or launches
   a workload. An actual isolated Codex CLI 0.164.0 loader discovers 19 tools.
-  Updated Desktop MCP tool use and plugin browser installation remain unverified.
+  Updated v0.1.2 Desktop MCP connectivity is user-confirmed following the requested
+  job_doctor procedure; no new transcript reviewed. MCP task/wake and plugin
+  browser installation remain separately unverified.
 - Linux internal child launch uses the mapped `/proc/self/exe` so source rebuilds
   cannot break current-daemon Runner launch. Peer-derived Doctor evidence detects
   affected legacy deleted-image daemons before submission. No automatic restart,
@@ -109,6 +111,7 @@ integration, deployment, diagnostics, config, platform. SQLite schema **v4**, lo
 | Real removed-image regression | Reproduced ENOENT before the fix; after fix, the same daemon launches exactly one completed workload after pathname replacement |
 | User's installed release-test task | Prior v0.1.0, `cargo test --release --all-targets`: 45 passed, exit 0; first submission failed, separate-state retry succeeded; skill + CLI fallback, correct same-chat wake |
 | `python3 scripts/check_codex_plugin.py` | Passed on actual Codex CLI 0.164.0; 19 MCP tools discovered in isolated HOME; no model turn, daemon/workload or real host/config change |
+| Updated Desktop MCP connectivity | User confirmed the requested post-install host job_doctor test passed; no new tool transcript independently reviewed; no MCP job/wake claim |
 | `git diff --check` | Passed before commits |
 
 Onboarding covered help/version, first daemon start, explicit sessions, job/run
@@ -158,11 +161,11 @@ crash. Stable delivery IDs do not prove receiver-side exactly-once behavior.
 
 ## Handoff priorities
 
-1. After a user-chosen idle local update/cache refresh, qualify actual updated
-   Desktop MCP tool exposure and `job_doctor`. The real release task loaded the
-   installed skill but used CLI fallback; that wake passed, not MCP. Do not repeat
-   the 45-test workload or the previous CLI rounds. Use the next naturally long
-   real task only once MCP is available. Keep plugin browser discovery separate.
+1. Updated Desktop MCP connectivity is user-confirmed after the authorized 0.1.2
+   upgrade and requested job_doctor procedure. Do not repeat this check, the
+   45-test workload or earlier CLI rounds. During ordinary use, the next naturally
+   long real MCP task can qualify actual submission and same-chat continuation.
+   Earlier release-task wake used CLI fallback; keep browser discovery separate.
 2. Implement Claude Code/OpenCode plugins around the same Rust/MCP runtime, using
    each host's actual supported format and separately verified caller/continuation
    interfaces. No skeleton integration is advertised as supported.
@@ -386,8 +389,28 @@ Performed the authorized personal upgrade after rechecking zero active jobs:
   as requested. Pre-existing host caches/unknown files were preserved. Private
   verification reports/hashes remain ignored; they are not recovery copies.
 
-The active Desktop process was not forcibly restarted. Actual refreshed Desktop
-MCP tool exposure/job_doctor and live MCP task wake still need a new host chat;
-local CLI/cache checks do not establish those. No platform submission, publication
+At installation time the active Desktop process was not forcibly restarted;
+refreshed host tool connectivity and MCP task wake remained separate from local
+CLI/cache checks. The subsequent user-confirmed connectivity pass is recorded
+below; MCP task/wake still needs separate evidence. No platform submission, publication
 or push occurred. This explicit user-authorized install is distinct from the
 previous isolated-only development increments.
+
+## Post-install Desktop MCP connectivity acceptance (2026-10-26)
+
+After the prior instruction to restart Desktop, open a new chat and invoke
+job_doctor through MCP, the user confirmed the test completed successfully. This
+adds a user-attested v0.1.2 installed Desktop MCP connectivity pass. The actual
+0.1.2 installed/cache version and local 19-tool self-check were already verified;
+no new transcript/report was supplied or independently inspected. Client/OS
+fields are carried only as prior context. Do not infer new MCP background jobs,
+completion events or automatic continuation. The CLI live wake results remain
+valid separately. See live-e2e.md for scope and provenance.
+
+Synchronized both READMEs, installation, testing, limitations and TODO with the
+reported connectivity result. No runtime source, installed plugin/cache, user
+configuration or service is changed in this documentation increment; no recovery
+backup, host message or repeated live test is created. No publication/push.
+
+Documentation-review gates passed: fmt, strict all-target Clippy, all 50 tests
+and locked release build. No source or installed binary changes were needed.

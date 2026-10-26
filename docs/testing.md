@@ -152,7 +152,7 @@ explicit-registration basic result; retain per-path provenance in live-e2e.md.
 The installed real release task passed via **skill + CLI fallback**, after a
 failed initial launch and a separate-state workaround. It ran the prior 45-test
 release suite and resumed the correct chat; see live-e2e.md for exact provenance.
-It did not call MCP. The runtime/loader repair now has 47 passing Rust tests.
+It did not call MCP. The current v0.1.2 runtime/upgrade repair has 50 passing Rust tests.
 Do not repeat passed CLI workloads or require a manual artificial crash matrix.
 
 For an optional developer real-loader check, after the release build run:
@@ -169,7 +169,13 @@ starts no model turn and touches no real user config or Desktop endpoint. Logs
 and report.json stay ignored in the printed `.tmp/loader-...` directory. A loader
 check is not a Desktop UI or live MCP task/wake result.
 
-The next minimal user acceptance targets the repaired Desktop entry:
+The user confirmed the updated Desktop MCP connectivity test passed after the
+authorized 0.1.2 installation, following the requested host `job_doctor` procedure.
+This records the reported procedure result, without independently reviewing a new
+tool transcript or inferring task/wake success. The first step below is complete
+for that user-reported run and need not be repeated. The remaining coverage can
+come from the next naturally long real task during ordinary use:
+
 
 1. Follow installation.md for a user-chosen idle update at the same install/state
    root, refresh the host cache and restart Desktop. Do not change state to bypass
@@ -195,9 +201,12 @@ The next minimal user acceptance targets the repaired Desktop entry:
    evidence of the host loading it. Stop on genuine integration failures and
    fix those rather than asking for another equivalent test.
 
-The repair has isolated installed CLI/MCP, runtime and actual Codex loader
-coverage. The reviewer did not change real HOME/config/services, update actual
-host caches or stop real daemons. The earlier user task used an existing install.
+The repair initially had isolated installed CLI/MCP, runtime and actual Codex
+loader coverage. A later explicitly authorized personal 0.1.2 install stopped the
+idle old daemon, upgraded native/cache files and preserved data/other settings
+(IMPLEMENTATION_STATUS.md). The subsequent Desktop connectivity result is
+user-confirmed; actual MCP task/wake remains separate. The earlier release task
+used an existing install through CLI fallback.
 The bundled skill passed skill-creator's quick_validate.py; that validates
 structure, not agent judgment or browser discovery.
 

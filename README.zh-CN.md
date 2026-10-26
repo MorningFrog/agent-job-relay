@@ -25,7 +25,7 @@ Run durable background commands and route completion events to explicitly regist
 | Codex CLI 集成 | MCP 配置与通知收件箱；**不能自动恢复 Agent** |
 | Desktop 唤醒 | 实验性 Unix Socket 适配器；自动化假宿主测试，以及 ChatGPT Desktop 26.1021.22027 / Ubuntu 26.04 上**用户确认通过的真实端到端测试**，覆盖显式登记和 CLI `--wake` 首次启动、复用、空闲 Daemon 重启 |
 | setup、doctor、移除所属 MCP 项 | 隔离配置测试；没有修改真实用户设置 |
-| 一次安装的本地 Desktop Plugin + MCP | 安装后的技能 + CLI 降级入口已完成真实 release 测试任务并唤醒同一聊天；修复后的 Codex CLI 0.164.0 加载器在隔离环境发现 19 个 MCP 工具；更新后的 Desktop MCP 任务路径待验收 |
+| 一次安装的本地 Desktop Plugin + MCP | 安装后的技能 + CLI 降级入口已完成真实 release 测试任务并唤醒同一聊天；修复后的 Codex CLI 0.164.0 加载器在隔离环境发现 19 个 MCP 工具；0.1.2 Desktop MCP 连通性已获用户确认；MCP 任务/唤醒路径待验收 |
 | Windows/macOS 运行时 | **尚未实现/验证**，明确返回不支持 |
 
 任务完成、`notification_recorded`、`accepted_by_host` 与观察到 Agent 真正继续执行是不同状态。
@@ -52,7 +52,7 @@ AJR_INSTALL_ROOT="$HOME/.local/share/agent-job-relay"
 
 日常提示词无需工具路径、状态目录或会话 ID。插件技能取得当前聊天绑定后，在 MCP 可用时通过 MCP 提交，否则明确报告使用 CLI 降级入口。提交后结束回合，完成时读取结果；工作目录由已选项目确定。用户的 release 测试任务已加载安装后的技能，通过 CLI 降级入口完成并唤醒同一聊天。首次运行时错误及后续绕行情况见[真实测试记录](docs/live-e2e.md)。
 
-修复后的本地程序包使用 `.codex-plugin/plugin.json` 和 `.mcp.json`，真实 Codex CLI 0.164.0 已在隔离环境发现全部 19 个 MCP 工具。更新后的 Desktop MCP 任务路径和插件界面安装仍需独立证据；Desktop 唤醒仍是实验性机制。详见[安装说明](docs/installation.md)。
+修复后的本地程序包使用 `.codex-plugin/plugin.json` 和 `.mcp.json`，真实 Codex CLI 0.164.0 已在隔离环境发现全部 19 个 MCP 工具。用户按照宿主 `job_doctor` 流程确认更新后的 0.1.2 Desktop MCP 连通性测试通过；此次属于用户确认，未独立审阅新的工具调用记录。MCP 任务提交/唤醒和插件界面安装仍需独立证据；Desktop 唤醒仍是实验性机制。详见[安装说明](docs/installation.md)。
 
 安装不修改 PATH、不配置系统服务、不公开发布插件。状态数据与程序目录独立，复制到插件缓存后仍使用同一状态配置。插件固定该配置，不受已导出 AJR_STATE_DIR 的影响；仍可主动用 CLI `--state-dir` 覆盖。省略 `--root` 时使用 `$XDG_DATA_HOME/agent-job-relay`，否则默认上述路径；个人 marketplace 请使用 HOME 内的安装目录。源码构建仍需 Rust。Claude Code 和 OpenCode 插件集成属于计划，尚未实现。官方插件平台是未来目标，当前不提交或发布。开发安装的 MCP 指向稳定安装目录中的绝对程序路径，即使宿主已有插件缓存，也须保留该安装。
 
@@ -184,7 +184,7 @@ CLI、MCP 必须使用同一目录，已有目录须属于当前用户且权限�
 
 自动登记租期为 24 小时，用 Socket 指纹标识宿主实例；每次请求唤醒都会刷新。
 端点替换会产生新绑定，不会迁移已有任务。超过该租期的任务需要显式刷新或重新绑定。
-宿主接受请求仍不代表 Agent 已恢复。CLI 快捷入口的首次启动、复用和空闲 Daemon 重启已在记录的 Desktop 版本与系统上通过用户确认的真实测试。安装后的共享 MCP 与两个终端绑定、单会话 MCP `wake_me=true` 均有自动化假宿主覆盖，尚未单独验证这些真实宿主入口。
+宿主接受请求仍不代表 Agent 已恢复。CLI 快捷入口的首次启动、复用和空闲 Daemon 重启已在记录的 Desktop 版本与系统上通过用户确认的真实测试。安装后的共享 MCP 与两个终端绑定、单会话 MCP `wake_me=true` 均有自动化假宿主覆盖。用户已确认 0.1.2 更新后的 Desktop MCP 连通性通过；真实宿主上的共享 MCP 任务提交/唤醒和单会话 wake_me=true 仍待单独验证。
 
 高级手工登记仍保留，用于其他宿主或诊断。本地收件箱演示使用显式身份注册：
 

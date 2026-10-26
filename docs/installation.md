@@ -52,8 +52,11 @@ filled by the Agent from the chosen project.
 
 The user's installed skill + CLI fallback release-test task completed and woke
 the correct chat, after a failed first submission and a separate-state workaround.
-It did not call MCP; see live-e2e.md. The updated Desktop MCP tool route and
-browser discovery/install UI remain **not separately verified**. Plugin availability
+It did not call MCP; see live-e2e.md. After the authorized 0.1.2 update, the user
+confirmed the Desktop MCP connectivity test passed following the host job_doctor
+procedure. That is user-attested, without a new independently reviewed transcript.
+MCP task submission/wake and browser discovery/install UI still need separate
+evidence. Plugin availability
 can depend on host version, surface and account policies. A local executor and
 current-chat terminal context are required for this Desktop wake workflow; no
 web/remote execution API is provided. See ADR 0003 and limitations.md.

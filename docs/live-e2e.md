@@ -166,14 +166,33 @@ These checks did not update real installed/cache files or stop the real daemons.
 Existing user processes remain on their original versions until explicitly updated.
 Raw thread/job/delivery/session IDs and endpoints stay private and ignored.
 
+## Updated Desktop MCP connectivity: user-confirmed pass
+
+On 2026-10-26, immediately following the authorized personal v0.1.2 installation
+and the instruction to restart Desktop/open a new chat and invoke `job_doctor`
+through MCP, the user reported: “已经完成测试，测试成功！”
+
+This is recorded as a **user-confirmed Desktop MCP connectivity procedure pass**.
+The installed/cache version was independently checked as 0.1.2 during installation;
+that local stdio self-check found 19 tools. The current follow-up supplies no new
+tool transcript, report path or client/OS version fields. No private chat scan or
+repeat host call was performed for this documentation update. The previous
+Desktop 26.1021.22027 / Ubuntu 26.04 information remains prior user-reported
+context, not a freshly measured compatibility claim. No exact observed tool count
+is attributed to this new user report.
+
+The scope is plugin MCP exposure and the requested host health-tool call. It
+adds no job_start, completed workload, completion delivery or automatic same-chat
+continuation evidence. The earlier real CLI wake results remain separate and
+valid. Plugin browser discovery/install and other clients remain separate gates;
+no runtime delivery is changed to confirmed_resumed by this report.
+
 ## Next validation
 
-Do not repeat the passed CLI workloads or request an artificial manual crash
-matrix. The remaining entry-point coverage is the **updated Desktop MCP route**:
-after a user-chosen idle local update/cache refresh, first check actual tool
-exposure and `job_doctor`. Only when MCP is available should the next naturally
-long real task qualify MCP submission and same-chat continuation. Keep plugin
-browser discovery, host tools, job completion, host acceptance and observed new
-Agent execution as separate evidence. A successful CLI fallback cannot qualify
-MCP loading. Follow testing.md; retain private artifacts without committing raw
-identities. Other host versions/platforms and receiver deduplication remain unverified.
+Do not repeat the passed connectivity check, CLI workloads or a manual crash
+matrix. During ordinary use, the next naturally long real project task can
+qualify MCP submission and same-chat continuation: obtain the current-terminal
+binding, submit through actual job_start, end the turn and observe the result
+without another human message. Keep job completion, host acceptance and observed
+Agent continuation separate. Record the actual route if a CLI fallback occurs.
+This does not require a synthetic workload or another full-suite test now.
