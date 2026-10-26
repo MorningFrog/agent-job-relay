@@ -1,5 +1,10 @@
 # Implementation status
 
+Deferred user request (2026-10-26): task output monitoring and interruption is
+missing beyond existing bounded log queries/follow and manual cancellation.
+Recorded in TODO.md for a later design/implementation increment; the current
+notification-recovery work does not implement or claim this capability.
+
 Last verified: **2026-10-26 (Asia/Shanghai)**. Version **0.1.2**, unreleased
 source-build/local Plugin development repair. Host: Linux x86_64, kernel
 7.0.0-38-generic; Rust 1.99.1 / Cargo 1.99.1, edition 2024. Cargo.lock pins

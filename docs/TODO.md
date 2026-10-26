@@ -74,6 +74,15 @@ Prioritize demonstrated user problems and normal lifecycle behavior. The existin
 CLI live passes do not need repetition with another workload or an artificial
 manual crash matrix.
 
+- P1, user-requested on 2026-10-26, deferred: **task output monitoring and
+  interruption**. Existing bounded log reads/`logs --follow` and manual `job_stop`
+  do not implement this feature. Design monitoring of stdout/stderr and how an
+  observed condition leads to a deliberate interruption, including who decides,
+  bounded output handling, duplicate triggers and false-positive protection.
+  Monitoring rules, the Agent/runtime responsibility boundary and acceptance
+  scenarios must be defined in that later increment. Record only for now; do not
+  fold implementation into the notification-recovery work.
+
 - P1: normal host restart/rebind and temporarily unavailable delivery recovery;
   concurrent exact routing, version-specific compatibility and event deduplication.
 - P1: Linux containment for descendants escaping process groups and runner death;
