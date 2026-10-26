@@ -2,7 +2,7 @@
 
 This procedure checks the reader's actual installation and Desktop workflow. Use a trusted compatible offline bundle; no source rebuild is required. Test configuration, local stdio, host discovery, actual MCP calls and same-chat continuation as separate outcomes. The isolated automated baseline is in [implementation status](IMPLEMENTATION_STATUS.md); previously passed CLI wake tests do not need repeating.
 
-The installed MCP submission/continuation path has a user-confirmed pass, with task/log/delivery correlation recorded in [live evidence](live-e2e.md#installed-mcp-task-and-same-chat-continuation-user-confirmed-pass). Keep this procedure for a new installation or relevant change; an already passed run does not need repeating. UI/host-version and restart/renewal coverage remain separate.
+The installed MCP submission/continuation path has a user-confirmed pass, with task/log/delivery correlation recorded in [live evidence](live-e2e.md#installed-mcp-workflow). Keep this procedure for a new installation or relevant change; an already passed run does not need repeating. UI/host-version and restart/renewal coverage remain separate.
 
 ## 1. Install or update the runtime
 

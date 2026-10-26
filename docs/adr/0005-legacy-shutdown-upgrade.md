@@ -10,8 +10,6 @@ Keep the original same-UID IPC peer PID and boot/start identity in a typed remot
 
 Renamed legacy binaries, inaccessible proc, missing pidfd support, changed peers and other errors fail explicitly. This stays in platform code and the trusted local-user model; executable-name checks are not cryptographic product attestation. Modern shutdown still uses IPC. No shutdown tool is exposed through MCP.
 
-## Evidence
+## Validation
 
-Three isolated upgrade tests exercise an old-protocol fixture, actual signal/exit and lock release, immediate owned replacement, history/profile retention despite wrong exports, stale identity refusal, unrelated peer refusal and no signal on other errors. Existing real modern Runner tests cover surviving daemon stop. All 50 tests, formatting, strict Clippy and release build passed. Actual isolated Codex CLI loading found 19 tools again.
-
-After explicit user installation authorization, the actual idle early daemon was stopped through this path, the personal native install/cache upgraded to 0.1.2, and the original tables/profile were verified unchanged. Installed/cache MCP self-checks found 19 tools. The user declined recovery backups: only newly created copies/old-install backup were removed after checking ownership, preserving user data and other plugins. Desktop refresh/live MCP behavior remains a separate gate.
+The isolated legacy-daemon fixture verifies actual signal/exit and lock release, immediate owned replacement, history/profile retention despite wrong exports, stale identity refusal, unrelated peer refusal and no signal on other errors. Modern Runner tests verify survival across daemon stop. Preserve this fixture and behavioral coverage; current results belong in [implementation status](../IMPLEMENTATION_STATUS.md), with historical runs available in Git history.

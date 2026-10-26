@@ -12,7 +12,7 @@ Distribute through Agent plugins around one Rust/MCP runtime, targeting ChatGPT 
 
 ## Host integration and plugin delivery
 
-- **Completed P0 acceptance:** real installed MCP submission, successful 71-test workload and completion-triggered same-chat continuation, with no CLI fallback, are user-confirmed and correlated with persisted records. Do not repeat this test merely to refill evidence; see [live E2E](live-e2e.md).
+- **Completed P0 acceptance:** real installed MCP submission, successful quality-gate workload and completion-triggered same-chat continuation, with no CLI fallback, are user-confirmed and correlated with persisted records. Do not repeat this test merely to refill evidence; see [live E2E](live-e2e.md).
 - **P1:** qualify plugin-browser discovery/install and supported host versions during an appropriate installation. Keep UI, local stdio, tool connectivity and observed continuation separate; no artificial crash matrix is required.
 - **Completed local increment:** offline `plugin pack/bootstrap/update`, version/profile preservation, managed cache launchers and explicit snapshot inspection/refresh. Recipients need no Rust. Installation/cache upgrade provenance is separate from live wake acceptance; see [ADR 0007](adr/0007-offline-plugin-runtime.md).
 - **P1:** extend offline bootstrap to verified host-driven installation and portable local launch paths as loaders support them; design authenticated native artifact download/provenance before any online installer. The tested loader still requires a stable original installation, and legacy caches need host refresh first. Native artifacts inside plugins do not revive OS packages; no download/publication is implemented.
@@ -21,6 +21,10 @@ Distribute through Agent plugins around one Rust/MCP runtime, targeting ChatGPT 
 - **P1:** generate host descriptors from shared metadata where useful, but test each real loader. The current Codex development bundle requires `.codex-plugin/plugin.json`, `.mcp.json` and a stable absolute native command.
 - **P1:** improve interrupted setup/update/removal recovery while preserving modified/foreign files, other plugins, custom profiles and history. Distinguish marketplace-source removal, host-cache uninstall and user-data deletion.
 - **P2, later authorization required:** prepare official platform eligibility, publisher identity, listing assets, permissions, update provenance and review materials. Recheck OpenAI local-MCP eligibility, Claude marketplace/directory requirements and OpenCode's supported package mechanism; package publication does not itself prove official approval.
+
+## Testing and maintenance
+
+- **Completed:** testing/artifact rules now prioritize behavioral regression coverage; remove README wording/structure assertions, retain required fixtures and keep only concise current verification in documentation. Generated outputs/reports/logs remain ignored.
 
 ## Runtime backlog
 

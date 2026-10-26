@@ -4,7 +4,7 @@
 
 Last verified: **2026-10-26 (Asia/Shanghai)**. Source version **0.1.4**, unreleased; Linux x86_64, kernel 7.0.0-38-generic, Rust/Cargo 1.99.1, edition 2024. Cargo.lock pins rmcp 3.7.0, Tokio 1.54.1 and rusqlite 0.41.0. The declared Rust 1.89 MSRV has not been independently tested.
 
-One Rust package/executable provides CLI, stdio MCP, daemon and runner modes. SQLite schema is **v6**, local IPC is **v1**. Read [PROJECT_SPEC.md](../PROJECT_SPEC.md), [architecture](architecture.md) and [AGENTS.md](../AGENTS.md) before changing behavior. Detailed past increments remain in Git; real-host evidence is maintained in [live-e2e.md](live-e2e.md).
+One Rust package/executable provides CLI, stdio MCP, daemon and runner modes. SQLite schema is **v6**, local IPC is **v1**. Read [PROJECT_SPEC.md](../PROJECT_SPEC.md), [architecture](architecture.md) and [AGENTS.md](../AGENTS.md) before changing behavior. Historical increments/results remain in Git; concise current live verification is in [live-e2e.md](live-e2e.md).
 
 Stages 0–2 have locally verified design, Linux execution, MCP/delivery and setup implementations. Stage 3 has the version-specific host evidence described below; Stage 4 has passed local quality/documentation gates. Native Windows/macOS, remote CI and remaining live-host acceptance are still open.
 
@@ -31,18 +31,17 @@ Normal submissions start the per-state daemon on demand. Doctor/status do not st
 |---|---|
 | `cargo fmt --check` | Passed |
 | `cargo clippy --all-targets -- -D warnings` | Passed |
-| `cargo test --all-targets` | **71 passed, 0 failed, 0 ignored** |
-| Test groups | 2 library, 13 convenience/installed MCP, 10 delivery/migration, 7 Desktop simulation/renewal, 1 README, 4 integration, 5 onboarding, 9 offline plugin/cache, 3 legacy-upgrade, 4 scoped-recovery, 13 Linux runtime |
+| `cargo test --all-targets` | **70 passed, 0 failed, 0 ignored** |
+| Test groups | 2 library, 13 convenience/installed MCP, 10 delivery/migration, 7 Desktop simulation/renewal, 4 integration, 5 onboarding, 9 offline plugin/cache, 3 legacy-upgrade, 4 scoped-recovery, 13 Linux runtime |
 | `cargo build --release --locked` | Passed; `target/release/agent-job-relay`, version 0.1.4 |
 | Plugin loader | Actual Codex CLI 0.164.0 in isolated HOME/CODEX_HOME bootstraps a relocated offline bundle, checks the host-created cache and discovers 20 tools, including `job_recover_session`; no model turn, daemon, workload or real Desktop endpoint |
-| Live installed MCP | User-confirmed MCP submission and completion-triggered same-chat continuation without CLI fallback; read-only correlation confirms completed/exit 0, 121.335 seconds, 71 tests and one accepted delivery; current MCP runtime reports 0.1.4 |
+| Live installed MCP | User-confirmed MCP submission and completion-triggered same-chat continuation without CLI fallback; read-only correlation confirms successful completion and one accepted delivery; current MCP runtime reports 0.1.4 |
 | Plugin skill | skill-creator quick validation passed; structural validation does not prove Agent judgment |
-| Documentation | Reader-facing READMEs put offline quick install before source builds; installation, usage, manual acceptance and automated verification have dedicated guides. Bilingual alignment, single-line paragraphs, local links and isolated manual command examples checked |
-| Historical local smoke | Source CLI/setup/removal and installed/cache profile/ownership/data-preservation checks passed; detailed records remain in Git and [testing.md](testing.md) |
+| Test policy | README wording/structure assertions removed; behavioral suites and required fixtures preserved. Generated reports/logs stay ignored; documentation keeps concise current results |
 
 Desktop transport, host replacement, scoped recovery and lease-renewal tests use fake hosts. The long-job test injects session expiry 48 hours into the past; it does not prove a real multi-day run or Desktop restart. Tests keep state/endpoints under ignored repository-local `.tmp/` and do not touch Vanth state.
 
-CLI wake and the installed MCP submission/same-chat continuation workflow have user-confirmed live passes. The latest MCP task ran the four quality gates, completed with 71 passing tests and resumed its chat without CLI fallback, according to the user. Its status, logs, matching completed event and one accepted delivery were independently correlated through bounded read-only MCP queries. The originating tool calls and actual host continuation remain user-attested; no current Desktop version, native image hash or chat/UI transcript was collected. Prior host versions, CLI/fallback runs and full provenance remain in [live-e2e.md](live-e2e.md).
+The installed MCP submission/same-chat continuation workflow has a user-confirmed live pass without CLI fallback, supported by read-only task/event/delivery correlation. Originating tool calls and actual host continuation remain user-attested; the current Desktop version, native image hash and chat/UI transcript were not independently collected. See the concise [live verification summary](live-e2e.md).
 
 `notification_recorded`, `accepted_by_host` and observed Agent execution remain distinct. No adapter automatically confirms resume, and receiver-side deduplication is not established. The user-confirmed installed MCP continuation milestone is complete; plugin-browser discovery/install, current host-version compatibility and Desktop restart/rebind remain separate open checks. Do not repeat the passed MCP/CLI workload or connectivity checks merely to refill evidence.
 
@@ -50,7 +49,7 @@ CLI wake and the installed MCP submission/same-chat continuation workflow have u
 
 The latest read-only installed MCP health check reports runtime **0.1.4**, actual MCP connectivity, explicit current-terminal binding and matching recorded/active state. This verifies the active runtime/profile, not a fresh audit of native/cache hashes or data preservation across its upgrade. The user's successful task report follows the v0.1.4 manual procedure but does not independently describe plugin-browser operations.
 
-The last full personal installation audit was the explicitly authorized v0.1.2 update: verified pidfd/SIGINT idle stop, preserved table hashes/counts/profile and unrelated settings, owned native/plugin/cache replacement and 19-tool local MCP check. See [ADR 0005](adr/0005-legacy-shutdown-upgrade.md) and Git history. The user declined retained recovery backups; only verified copies generated during that update were removed, preserving existing caches/unknown files. This evidence update performs no installation/configuration/service mutation or host messaging. Source changes alone do not update installed or running programs.
+Source development does not update installed/running programs or modify real configuration/services. Earlier installation audits and backup decisions remain in Git history; they are not a fresh audit of the current installation.
 
 ## Limitations and next work
 

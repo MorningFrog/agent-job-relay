@@ -4,10 +4,9 @@
 
 Read `PROJECT_SPEC.md`, `docs/architecture.md` and `docs/IMPLEMENTATION_STATUS.md` first. The specification governs scope; report limitations honestly. This is one Rust package/executable with CLI, MCP, daemon and runner modes; Linux is the verified runtime.
 
-## Architecture and verification
+## Architecture and behavior
 
 - Keep job execution, MCP connections, sessions and deliveries independent. Keep OS-specific behavior in `src/platform/`; unsupported operations must fail explicitly.
-- Add regression tests for state-machine, recovery and delivery changes. Process trees, SQLite transactions and IPC permissions require behavioral tests.
 - `accepted_by_host` never means `confirmed_resumed` without external evidence. Distinguish simulated tests, host connectivity, plugin browser discovery and observed same-chat execution.
 - Installed plugins use shared-host MCP and a fresh current-terminal binding; never infer a caller from the shared process environment. Test installed entry points and keep state profiles separate from binaries.
 - Offline plugin bundles carry no selected user profile. Preserve recorded state on plugin updates, reject downgrades, and verify explicit cache snapshots before replacement; never scan/delete host caches or stop daemons implicitly.
@@ -15,7 +14,14 @@ Read `PROJECT_SPEC.md`, `docs/architecture.md` and `docs/IMPLEMENTATION_STATUS.m
 - Explicit upgrade stops must select the installed profile and revalidate the original peer before any legacy signal; never use process-name/group kills or PID alone.
 - Prefer documented public host interfaces and document private API compatibility risks. Preserve practical CLI/setup/doctor/removal and modified or foreign installation/marketplace content.
 
-Run all delivery gates before final delivery; test state and fake endpoints must stay isolated inside this repository:
+## Testing and artifacts
+
+- Add targeted tests only for meaningful behavior, correctness or regression risk. State-machine, recovery/delivery, process-tree, SQLite transaction and IPC-permission changes require behavioral coverage; reuse the existing Rust/fake-host infrastructure.
+- Avoid redundant, trivial or implementation-coupled tests. Do not test README wording, section order or specific text unless documentation itself is a product/interface under test. Keep tests of actual CLI/MCP/configuration behavior and preserve required cases, fixtures and reference data.
+- Keep generated test state, endpoints, outputs, reports and logs in ignored repository-local `.tmp/` or `target/`. Do not commit temporary or historical test artifacts; never clean real user/Vanth state as test cleanup.
+- Document only concise results for the latest applicable version and material verification limits. Do not accumulate execution logs or historical test reports in documentation; past results remain in Git history.
+
+Run all delivery gates before final delivery:
 
 ```bash
 cargo fmt --check
@@ -32,7 +38,7 @@ cargo build --release
 - After code changes, check `AGENTS.md`, both READMEs, `docs/TODO.md`, `docs/IMPLEMENTATION_STATUS.md` and other affected docs. Synchronize functionality, APIs, configuration, dependencies, architecture and workflows; change only relevant documentation.
 - Keep the English and Chinese READMEs semantically aligned, including their bilingual introductions, language links, runnable commands and actual support boundaries.
 - Use `docs/TODO.md` as the project backlog; update completed, changed and newly identified tasks without creating a duplicate root TODO. Output monitoring/interruption remains deferred until requested for implementation.
-- Keep `docs/IMPLEMENTATION_STATUS.md` a current handoff: version, capabilities, verification, limitations and next work. Keep detailed historical evidence in `docs/live-e2e.md`, ADRs and Git history rather than duplicating a chronological work log.
+- Keep `docs/IMPLEMENTATION_STATUS.md` a current handoff and `docs/live-e2e.md` a concise current live-verification summary. ADRs preserve design decisions and regression rationale, not run logs; use Git history for past results.
 
 ## Git and operating boundaries
 
