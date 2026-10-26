@@ -35,11 +35,11 @@ def main():
         if Path(name).name != name or hashlib.sha256((release / name).read_bytes()).hexdigest() != digest:
             parser.error("candidate checksums do not match")
     (REPO / ".tmp").mkdir(exist_ok=True)
-    root = Path(tempfile.mkdtemp(prefix="pkg-", dir=REPO / ".tmp"))
+    root = Path(tempfile.mkdtemp(prefix="r-", dir=REPO / ".tmp"))
     print(json.dumps({"isolated_check": str(root)}), flush=True)
     home = root / "home"
     home.mkdir()
-    env = {"PATH": os.environ["PATH"], "HOME": str(home), "XDG_STATE_HOME": str(root / "s"),
+    env = {"PATH": os.environ["PATH"], "HOME": str(home), "XDG_STATE_HOME": str(root),
            "XDG_CONFIG_HOME": str(root / "config"), "XDG_CACHE_HOME": str(root / "cache"),
            "npm_config_cache": str(root / "npm"), "npm_config_userconfig": str(root / "empty-npmrc")}
     installed = root / "installed"
@@ -49,7 +49,7 @@ def main():
         (root / f"{name}.stdout").write_text(result.stdout)
         (root / f"{name}.stderr").write_text(result.stderr)
         if result.returncode != expected:
-            raise RuntimeError(f"{name}: exit {result.returncode}; inspect {root}")
+            raise RuntimeError(f"{name}: exit {result.returncode}; inspect {root}\n{result.stderr[-2000:]}")
         return result.stdout
 
     # A tiny loopback registry serves only our unpublished runtime. No production
