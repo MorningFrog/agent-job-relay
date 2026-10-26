@@ -1,11 +1,27 @@
 use crate::{config::Config, core::*, storage::Store};
 #[cfg(unix)]
 use anyhow::Context;
-use anyhow::{Result, bail, ensure};
+#[cfg(not(unix))]
+use anyhow::bail;
+use anyhow::{Result, ensure};
 use rmcp::schemars;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::time::Duration;
+
+/// Preserve the authenticated peer when an older daemon rejects shutdown.
+/// This is not inferred from a PID file or a process-name search.
+#[derive(Debug)]
+pub(crate) struct RemoteError {
+    pub message: String,
+    pub shutdown_peer: Option<(u32, String)>,
+}
+impl std::fmt::Display for RemoteError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+impl std::error::Error for RemoteError {}
 #[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Request {
@@ -161,12 +177,18 @@ pub async fn call(config: &Config, request: Request) -> Result<Value> {
     #[cfg(unix)]
     {
         let is_doctor = matches!(&request, Request::Doctor);
+        let is_shutdown = matches!(&request, Request::Shutdown);
         tokio::time::timeout(Duration::from_secs(40), async {
             let mut stream = tokio::net::UnixStream::connect(config.socket())
                 .await
                 .context(
                     "daemon unavailable; start/job_start auto-starts it, or run agent-job-relay --state-dir <same-path> daemon",
                 )?;
+            crate::platform::verify_peer(&stream)?;
+            let shutdown_peer = if is_shutdown {
+                stream.peer_cred()?.pid().filter(|p| *p > 1)
+                    .and_then(|pid| crate::platform::identity(pid as u32).map(|identity| (pid as u32, identity)))
+            } else { None };
             let image_path_available = if is_doctor {
                 stream.peer_cred().ok().and_then(|c| c.pid()).filter(|p| *p>0)
                     .and_then(|pid| crate::platform::process_image_path_available(pid as u32))
@@ -189,12 +211,10 @@ pub async fn call(config: &Config, request: Request) -> Result<Value> {
                 }
                 Ok(result)
             } else {
-                bail!(
-                    "{}",
-                    response["error"]
-                        .as_str()
-                        .unwrap_or("invalid daemon response")
-                )
+                Err(RemoteError {
+                    message: response["error"].as_str().unwrap_or("invalid daemon response").into(),
+                    shutdown_peer,
+                }.into())
             }
         })
         .await

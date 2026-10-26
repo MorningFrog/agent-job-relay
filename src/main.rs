@@ -3,7 +3,7 @@ use agent_job_relay::{
     core::{CommandSpec, StartSpec},
     ipc::{self, Request},
 };
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use std::{collections::BTreeMap, path::PathBuf};
 #[derive(Parser)]
@@ -226,7 +226,11 @@ enum SessionCommand {
 #[derive(Subcommand)]
 enum DaemonCommand {
     /// Stop only this daemon; independent runners continue and data is retained
-    Stop,
+    Stop {
+        /// Use this install's recorded state, overriding --state-dir/AJR_STATE_DIR
+        #[arg(long)]
+        install_root: Option<PathBuf>,
+    },
 }
 #[derive(Subcommand)]
 enum DeliveryCommand {
@@ -277,6 +281,15 @@ async fn main() {
 async fn run(cli: Cli) -> Result<()> {
     let remove_install = matches!(&cli.command, Commands::Uninstall { .. });
     let mut state = cli.state_dir;
+    if let Commands::Daemon {
+        command: Some(DaemonCommand::Stop {
+            install_root: Some(root),
+        }),
+    } = &cli.command
+    {
+        state = Some(agent_job_relay::deployment::installation_state(root)?
+            .context("no owned installation at --install-root; use an existing installation or an explicit --state-dir")?);
+    }
     if state.is_none()
         && let Commands::Install { root, .. } | Commands::Uninstall { root, .. } = &cli.command
     {
@@ -503,7 +516,7 @@ async fn run(cli: Cli) -> Result<()> {
         Commands::Request { json } => serde_json::from_str(&json)?,
         Commands::Daemon { command: None } => return agent_job_relay::daemon::serve(config).await,
         Commands::Daemon {
-            command: Some(DaemonCommand::Stop),
+            command: Some(DaemonCommand::Stop { .. }),
         } => Request::Shutdown,
         Commands::Runner { job_id, nonce } => {
             return agent_job_relay::runner::run(config, job_id, nonce).await;

@@ -1,6 +1,6 @@
 # Implementation status
 
-Last verified: **2026-10-26 (Asia/Shanghai)**. Version **0.1.1**, unreleased
+Last verified: **2026-10-26 (Asia/Shanghai)**. Version **0.1.2**, unreleased
 source-build/local Plugin development repair. Host: Linux x86_64, kernel
 7.0.0-38-generic; Rust 1.99.1 / Cargo 1.99.1, edition 2024. Cargo.lock pins
 resolved dependencies including rmcp 3.7.0, Tokio 1.54.1, rusqlite 0.41.0.
@@ -86,7 +86,7 @@ integration, deployment, diagnostics, config, platform. SQLite schema **v4**, lo
 |---|---|
 | `cargo fmt --check` | Passed |
 | `cargo clippy --all-targets -- -D warnings` | Passed, no warnings suppressed |
-| `cargo test --all-targets` | **47 passed, 0 failed, 0 ignored** |
+| `cargo test --all-targets` | **50 passed, 0 failed, 0 ignored** |
 | └ library/schema and legacy-readiness tests | 2 passed |
 | └ automatic connection/startup/shutdown, removed-image and shared-MCP tests | 10 passed (real CLI/MCP, fake Desktop host) |
 | └ delivery/persistence/migration tests | 8 passed |
@@ -94,6 +94,7 @@ integration, deployment, diagnostics, config, platform. SQLite schema **v4**, lo
 | └ README acceptance tests | 1 passed |
 | └ setup/removal/clean HOME tests | 4 passed |
 | └ installed plugin/onboarding/ownership tests | 5 passed |
+| └ legacy upgrade/profile/peer-signal tests | 3 passed |
 | └ actual Linux runtime/MCP/recovery tests | 13 passed |
 | `cargo build --release --locked` | Passed; native binary at target/release/agent-job-relay |
 | `cargo run -- --help` | Passed; actual CLI help inspected |
@@ -114,8 +115,9 @@ Onboarding covered help/version, first daemon start, explicit sessions, job/run
 status, stdout/stderr/cursors/follow, events/wait/list/stop, durable inbox,
 delivery attempts, Codex/default isolated HOME + JSON setup dry-run/apply,
 idempotence, backups, doctor config matching and removal preserving task data.
-Smoke artifacts remain ignored under `.tmp/`; no actual user configuration or
-existing service was changed. Tests clean their own live processes.
+Automated smoke artifacts remain ignored under `.tmp/`; those isolated tests
+changed no real user configuration/service and clean their own live processes.
+The later explicitly authorized personal install is recorded separately below.
 
 Failure history (repaired, not hidden): early API/style errors were fixed;
 adding Run state initially omitted migration columns and caused **5 delivery
@@ -200,6 +202,7 @@ English Conventional Commits, no pushes, no remote created, no history rewrite:
 - d95587b `feat(integration): install local plugins with safe shared-session binding`
 - d44654d `fix(plugin): pin installed profiles and document install-once usage`
 - fb70d5c `fix(plugin): restore MCP discovery and resilient runner startup`
+- 381c6e7 `docs: adopt plugin delivery and record real task evidence`
 
 Live-test documentation was updated after the user confirmed the basic pass;
 see `git log` for the subsequent evidence-recording commit.
@@ -335,3 +338,54 @@ configuration/service/cache modifications or pushes are performed now.
 Final repair rerun: all four Rust gates passed again after documentation synchronization;
 the rebuilt v0.1.1 binary passed the clean real Codex loader check again (19 tools).
 Only repository-local ignored test installations/state were created.
+
+## Upgrade-stop compatibility repair and authorized installation (2026-10-26)
+
+The user reported install blocked by an active daemon, followed by `daemon stop`
+returning `unknown variant shutdown`. Read-only checks found the owned install
+profile targets an early v0.1.0 daemon with zero active jobs, an unlinked source
+image, and no shutdown operation. A bare source command can also choose a different
+state from an installed profile; the default source state had no daemon during
+review. No signal was sent during diagnosis.
+
+Implemented `daemon stop --install-root` to read the exact installation profile;
+it overrides stop-state exports. Only a typed remote unknown-shutdown response
+permits legacy handling. The original socket peer UID/PID and boot/start identity
+are retained, rechecked with socket/daemon-mode/executable/legacy-health checks,
+and a pidfd pins the signal target. SIGINT invokes the existing Ctrl-C handler;
+there is no process-name search, group signal, automatic install-time stop or
+force kill. Modern stop now waits for daemon-lock release too. Unsupported kernels,
+renamed peers and other errors fail explicitly. New isolated legacy fixture tests
+cover immediate upgrade/history retention despite foreign state exports, stale
+identity refusal, unrelated socket peers and unrelated shutdown errors.
+
+Initial new test run: 2 passed, 1 failed because the test's synchronous child call
+blocked its single-thread fake-server runtime. The test runtime was corrected;
+all 3 new tests then passed. An unused-import warning was fixed without suppression.
+All 0.1.2 gates passed: fmt, strict Clippy, **50 tests** and locked release build.
+The real Codex CLI loader check passed again with 19 tools. The user explicitly
+authorized direct installation, then declined retained recovery backups.
+
+Performed the authorized personal upgrade after rechecking zero active jobs:
+- The actual early 0.1.0 daemon stopped via verified pidfd/SIGINT compatibility;
+  the response reported stopped/legacy_sigint and its lock was released.
+- The owned stable native/plugin installation and host-managed plugin cache were
+  upgraded to **0.1.2** using the install command and `codex plugin add` respectively.
+  The original installed state profile was retained; no new state was selected.
+- Read-only before/after hashes and row counts match for every persisted table;
+  SQLite quick_check is ok. Actual installed and cached launchers report 0.1.2;
+  cached stdio self-check initializes and discovers all 19 tools. No job or host
+  message was submitted for this installation check. The daemon remains stopped;
+  next ordinary submission starts the updated runtime automatically.
+- The marketplace bytes and all unrelated parsed Codex settings are unchanged;
+  only the requested plugin was enabled/refreshed. No unrelated service was stopped.
+- Removed only recovery copies and the generated old-install tree created in this
+  turn, after ownership/content checks. No new recovery backups are retained,
+  as requested. Pre-existing host caches/unknown files were preserved. Private
+  verification reports/hashes remain ignored; they are not recovery copies.
+
+The active Desktop process was not forcibly restarted. Actual refreshed Desktop
+MCP tool exposure/job_doctor and live MCP task wake still need a new host chat;
+local CLI/cache checks do not establish those. No platform submission, publication
+or push occurred. This explicit user-authorized install is distinct from the
+previous isolated-only development increments.

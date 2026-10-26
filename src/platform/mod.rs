@@ -64,6 +64,10 @@ pub fn self_image() -> Result<std::path::PathBuf> {
 pub fn endpoint_identity(_: &Path) -> Result<String> {
     bail!("native host endpoint identity is not implemented on this OS")
 }
+#[cfg(not(unix))]
+pub async fn stop_legacy_daemon(_: &Path, _: u32, _: &str) -> Result<()> {
+    bail!("verified legacy daemon shutdown is only implemented on Linux")
+}
 
 /// Ensures ordinary supervision errors terminate the entire owned process group.
 pub struct GroupGuard {

@@ -172,3 +172,139 @@ pub fn verify_peer(stream: &tokio::net::UnixStream) -> Result<()> {
     );
     Ok(())
 }
+
+/// Migrate pre-shutdown daemons using their existing Ctrl-C handler. The pidfd
+/// pins the original socket peer, so PID reuse cannot redirect the signal.
+pub async fn stop_legacy_daemon(root: &Path, pid: u32, expected_identity: &str) -> Result<()> {
+    #[cfg(target_os = "linux")]
+    {
+        use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+        use std::time::Duration;
+        ensure!(
+            pid > 1 && pid != std::process::id(),
+            "refusing invalid daemon PID"
+        );
+        let metadata = std::fs::symlink_metadata(root)?;
+        ensure!(
+            metadata.is_dir()
+                && !metadata.file_type().is_symlink()
+                && metadata.uid() == unsafe { libc::geteuid() }
+                && metadata.mode() & 0o077 == 0,
+            "legacy state must be an owned private directory"
+        );
+        endpoint_identity(&root.join("relay.sock"))?;
+        let mut stream = tokio::time::timeout(
+            Duration::from_secs(3),
+            tokio::net::UnixStream::connect(root.join("relay.sock")),
+        )
+        .await??;
+        verify_peer(&stream)?;
+        ensure!(
+            stream.peer_cred()?.pid() == Some(pid as i32),
+            "daemon socket peer changed; no signal was sent"
+        );
+        let raw = unsafe { libc::syscall(libc::SYS_pidfd_open, pid, 0) };
+        ensure!(
+            raw >= 0,
+            "cannot pin legacy daemon with pidfd_open: {}; no signal was sent",
+            std::io::Error::last_os_error()
+        );
+        let process = unsafe { OwnedFd::from_raw_fd(raw as i32) };
+        ensure!(
+            identity(pid).as_deref() == Some(expected_identity),
+            "daemon process identity changed; no signal was sent"
+        );
+        let image = std::fs::read_link(format!("/proc/{pid}/exe"))?;
+        ensure!(
+            image.file_name().is_some_and(
+                |name| name == "agent-job-relay" || name == "agent-job-relay (deleted)"
+            ),
+            "socket peer is not a recognized AgentJobRelay executable; no signal was sent"
+        );
+        let arguments = std::fs::read(format!("/proc/{pid}/cmdline"))?;
+        let mut arguments = arguments
+            .split(|c| *c == 0)
+            .filter(|s| !s.is_empty())
+            .skip(1);
+        let mut daemon = false;
+        while let Some(argument) = arguments.next() {
+            match argument {
+                b"daemon" if !daemon => daemon = true,
+                b"--state-dir" => {
+                    ensure!(arguments.next().is_some(), "incomplete daemon arguments");
+                }
+                value if value.starts_with(b"--state-dir=") => {}
+                _ => anyhow::bail!("socket peer is not in daemon mode; no signal was sent"),
+            }
+        }
+        ensure!(
+            daemon,
+            "socket peer is not in daemon mode; no signal was sent"
+        );
+        let health = tokio::time::timeout(Duration::from_secs(3), async {
+            crate::ipc::write_frame(
+                &mut stream,
+                &serde_json::json!({"protocol_version":1,"request":{"op":"doctor"}}),
+            )
+            .await?;
+            crate::ipc::read_frame(&mut stream, 1048576).await
+        })
+        .await??;
+        let result = &health["result"];
+        ensure!(
+            health["protocol_version"] == 1
+                && health["ok"] == true
+                && result["daemon"] == "reachable"
+                && result["version"] == "0.1.0"
+                && result["store"] == "ok"
+                && result["runtime"] == "linux",
+            "peer is not a healthy supported legacy daemon; no signal was sent"
+        );
+        let sent = unsafe {
+            libc::syscall(
+                libc::SYS_pidfd_send_signal,
+                process.as_raw_fd(),
+                libc::SIGINT,
+                std::ptr::null::<libc::siginfo_t>(),
+                0,
+            )
+        };
+        ensure!(
+            sent == 0,
+            "legacy graceful signal failed: {}",
+            std::io::Error::last_os_error()
+        );
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+        loop {
+            let mut poll = libc::pollfd {
+                fd: process.as_raw_fd(),
+                events: libc::POLLIN,
+                revents: 0,
+            };
+            let ready = unsafe { libc::poll(&mut poll, 1, 0) };
+            ensure!(
+                ready >= 0,
+                "cannot check legacy process exit: {}",
+                std::io::Error::last_os_error()
+            );
+            if ready > 0 {
+                ensure!(
+                    poll.revents & libc::POLLIN != 0,
+                    "unexpected legacy pidfd status"
+                );
+                break;
+            }
+            ensure!(
+                tokio::time::Instant::now() < deadline,
+                "legacy daemon did not exit after SIGINT; no force kill was attempted"
+            );
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        Ok(())
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = (root, pid, expected_identity);
+        anyhow::bail!("verified legacy daemon shutdown is only implemented on Linux")
+    }
+}

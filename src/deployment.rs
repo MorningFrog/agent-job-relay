@@ -276,7 +276,7 @@ fn verify_owned(root: &Path, receipt: &Receipt) -> Result<()> {
     Ok(())
 }
 /// Keep both locks until replacement/removal ends. No existing daemon is stopped.
-fn idle_guards(state: &Path) -> Result<Vec<File>> {
+fn idle_guards(state: &Path, install_root: &Path) -> Result<Vec<File>> {
     if !state.exists() {
         return Ok(Vec::new());
     }
@@ -286,7 +286,10 @@ fn idle_guards(state: &Path) -> Result<Vec<File>> {
         let path = state.join(name);
         if path.exists() {
             let f = File::open(&path)?;
-            f.try_lock().context("daemon/startup is active; use the installed relay daemon stop before replacing/removing binaries")?;
+            f.try_lock().with_context(|| format!(
+                "daemon/startup is active for state {}; use the updated executable with daemon stop --install-root '{}' before replacing/removing binaries; task data is preserved",
+                state.display(), install_root.display().to_string().replace('\'', "'\"'\"'")
+            ))?;
             locks.push(f);
         }
     }
@@ -381,7 +384,7 @@ pub fn change(config: &Config, root: PathBuf, remove: bool, apply: bool) -> Resu
         let mut guards = Vec::new();
         if let Some(old) = &existing {
             verify_owned(&root, old)?;
-            guards.extend(idle_guards(&old.state_dir)?);
+            guards.extend(idle_guards(&old.state_dir, &root)?);
         }
         if remove {
             let old = existing.as_ref().unwrap();

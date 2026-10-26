@@ -185,11 +185,56 @@ pub async fn start(config: &Config, mut spec: StartSpec, wake_me: bool) -> Resul
 }
 pub async fn stop_daemon(config: &Config) -> Result<Value> {
     match ipc::call(config, Request::Shutdown).await {
-        Ok(v) => Ok(v),
+        Ok(mut v) => {
+            wait_for_daemon_stop(config).await?;
+            v["daemon"] = json!("stopped");
+            Ok(v)
+        }
         Err(e) if unavailable(&e) => {
             Ok(json!({"daemon":"stopped","already_stopped":true,"runners":"unaffected"}))
         }
-        Err(e) => Err(e),
+        Err(e) => {
+            if let Some(remote) = e.downcast_ref::<ipc::RemoteError>()
+                && remote
+                    .message
+                    .starts_with("unknown variant `shutdown`, expected ")
+                && let Some((pid, identity)) = &remote.shutdown_peer
+            {
+                crate::platform::stop_legacy_daemon(&config.root, *pid, identity)
+                    .await
+                    .context("legacy daemon rejected shutdown; verified graceful stop failed; no other process or state was selected")?;
+                wait_for_daemon_stop(config).await?;
+                return Ok(
+                    json!({"daemon":"stopped","method":"legacy_sigint","runners":"continue independently","data":"preserved","state_dir":config.root}),
+                );
+            }
+            Err(e.context("daemon stop failed; use this installation's recorded state with daemon stop --install-root <same-install-root>"))
+        }
+    }
+}
+async fn wait_for_daemon_stop(config: &Config) -> Result<()> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    loop {
+        let mut options = std::fs::OpenOptions::new();
+        options.read(true).write(true);
+        crate::platform::secure_options(&mut options);
+        let stopped = match options.open(config.root.join("daemon.lock")) {
+            Ok(lock) => match lock.try_lock() {
+                Ok(()) => true,
+                Err(std::fs::TryLockError::WouldBlock) => false,
+                Err(e) => return Err(e.into()),
+            },
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => !config.socket().exists(),
+            Err(e) => return Err(e.into()),
+        };
+        if stopped {
+            return Ok(());
+        }
+        ensure!(
+            tokio::time::Instant::now() < deadline,
+            "shutdown requested but daemon lock is still held; installation was not changed; wait and retry for the same state"
+        );
+        tokio::time::sleep(Duration::from_millis(20)).await;
     }
 }
 /// Shared high-level entry for CLI and MCP; only submissions auto-start a daemon.
