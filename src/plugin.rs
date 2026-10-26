@@ -71,7 +71,7 @@ fn write_tree(root: &Path, files: &BTreeMap<String, Artifact>) -> Result<()> {
     File::open(root)?.sync_all()?;
     Ok(())
 }
-fn verify_tree(root: &Path, files: &BTreeMap<String, String>) -> Result<()> {
+pub(crate) fn verify_tree(root: &Path, files: &BTreeMap<String, String>) -> Result<()> {
     let mut expected: BTreeSet<String> = files.keys().cloned().collect();
     for name in files.keys() {
         let mut parent = Path::new(name).parent();
@@ -322,6 +322,7 @@ fn separate_cache(root: &Path, state: &Path, cache: &Path) -> Result<()> {
 }
 fn cache_profile(cache: &Path, root: &Path, state: &Path) -> Result<RuntimeProfile> {
     separate_cache(root, state, cache)?;
+    crate::lifecycle::require_clear(cache)?;
     let raw = deploy::read_file(&cache.join(PROFILE)).context(
         "cache lacks a managed runtime profile; refresh this legacy cache through the host first",
     )?;
@@ -364,6 +365,7 @@ fn cache_profile(cache: &Path, root: &Path, state: &Path) -> Result<RuntimeProfi
 pub fn status(root: PathBuf, caches: Vec<PathBuf>) -> Result<Value> {
     crate::platform::require_runtime()?;
     deploy::checked_path(&root)?;
+    crate::lifecycle::require_clear(&root)?;
     let receipt = deploy::read_receipt(&root)?;
     deploy::verify_owned(&root, &receipt)?;
     let installed = installed_version(&root)?;
@@ -386,6 +388,8 @@ pub fn status(root: PathBuf, caches: Vec<PathBuf>) -> Result<Value> {
 pub fn refresh_cache(root: PathBuf, cache: PathBuf, apply: bool) -> Result<Value> {
     crate::platform::require_runtime()?;
     deploy::checked_path(&root)?;
+    crate::lifecycle::require_clear(&root)?;
+    crate::lifecycle::require_clear(&cache)?;
     let initial = deploy::read_receipt(&root)?;
     // Validate before creating any lock file, especially for protected paths.
     cache_profile(&cache, &root, &initial.state_dir)?;
@@ -422,25 +426,13 @@ pub fn refresh_cache(root: PathBuf, cache: PathBuf, apply: bool) -> Result<Value
         != Some(&deploy::digest(&deploy::read_file(&cache.join(PROFILE))?));
     let mut backup = None;
     if apply && changed {
-        let parent = cache.parent().unwrap();
-        let stage = parent.join(format!(".ajr-cache-stage-{}", id()));
-        let result = (|| -> Result<()> {
-            write_tree(&stage, &files)?;
-            cache_profile(&cache, &root, &receipt.state_dir)?;
-            let previous = parent.join(format!(".ajr-cache-backup-{}", id()));
-            std::fs::rename(&cache, &previous)?;
-            backup = Some(previous.clone());
-            if let Err(error) = std::fs::rename(&stage, &cache) {
-                std::fs::rename(previous, &cache).context("could not restore cache backup")?;
-                return Err(error.into());
-            }
-            File::open(parent)?.sync_all()?;
-            Ok(())
-        })();
-        if stage.exists() {
-            let _ = std::fs::remove_dir_all(stage);
-        }
-        result?;
+        backup = crate::lifecycle::replace(
+            &cache,
+            &root,
+            &receipt.state_dir,
+            crate::lifecycle::Kind::Cache,
+            &files,
+        )?;
     }
     drop((install_lock, cache_lock));
     Ok(

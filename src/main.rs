@@ -179,6 +179,16 @@ enum Commands {
 }
 #[derive(Subcommand)]
 enum PluginCommand {
+    /// Inspect/finish one interrupted installation or cache replacement
+    Repair {
+        /// Exact installation or cache directory with a pending operation
+        #[arg(long)]
+        path: PathBuf,
+        #[arg(long, conflicts_with = "apply")]
+        dry_run: bool,
+        #[arg(long)]
+        apply: bool,
+    },
     /// Export an offline Linux bundle with native runtime; no recipient Rust toolchain
     Pack {
         #[arg(long)]
@@ -403,6 +413,9 @@ async fn run(cli: Cli) -> Result<()> {
                 let root =
                     |path: Option<PathBuf>| path.map(Ok).unwrap_or_else(deployment::plugin_root);
                 match command {
+                    PluginCommand::Repair { path, apply, .. } => {
+                        agent_job_relay::lifecycle::repair(path, apply)
+                    }
                     PluginCommand::Pack { output, apply, .. } => plugin::pack(output, apply),
                     PluginCommand::Bootstrap {
                         root: path,

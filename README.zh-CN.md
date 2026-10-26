@@ -9,7 +9,7 @@ Tasks run in the background. Agents pick up when needed.
 任务在后台运行，Agent 在需要时接棒。
 </div>
 
-让长时间命令独立于 Agent 连接运行，保存结果，并在宿主支持时通知发起任务的聊天。**v0.1.4 是尚未发布的 Linux x86_64 开发版本。** Desktop 唤醒使用实验性接口；目前不支持 Windows/macOS、Claude Code 和 OpenCode。
+让长时间命令独立于 Agent 连接运行，保存结果，并在宿主支持时通知发起任务的聊天。**v0.1.5 是尚未发布的 Linux x86_64 开发版本。** Desktop 唤醒使用实验性接口；目前不支持 Windows/macOS、Claude Code 和 OpenCode。
 
 ## 快速安装
 
@@ -56,6 +56,15 @@ Agent 会绑定当前聊天、提交任务、结束回合，并在收到通知�
 ```
 
 更新保留原状态、历史和备份，拒绝降级，不会隐式停止 Daemon。之后通过宿主刷新或重新安装插件，并重新连接 MCP。旧缓存需要先做这次宿主刷新；显式核验后的缓存修复见[安装指南](docs/installation.md#cache-inspection-and-refresh)。
+
+安装、升级或缓存替换中断后，使用新离线包的启动器预览并完成已记录的替换：
+
+```bash
+"$AJR_BUNDLE/relay" plugin repair --path "$AJR_INSTALL_ROOT" --dry-run
+"$AJR_BUNDLE/relay" plugin repair --path "$AJR_INSTALL_ROOT" --apply
+```
+
+修复缓存时改为该缓存的确切目录。修复保留历史和备份，拒绝覆盖修改过的文件，也不会停止 daemon。之后重试原 bootstrap/update 命令，完成剩余步骤。限制见[中断操作恢复](docs/installation.md#compatibility-and-interrupted-operations)。
 
 ## 卸载
 

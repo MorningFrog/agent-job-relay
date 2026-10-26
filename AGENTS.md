@@ -9,6 +9,7 @@ Read `PROJECT_SPEC.md`, `docs/architecture.md` and `docs/IMPLEMENTATION_STATUS.m
 - Keep job execution, MCP connections, sessions and deliveries independent. Keep OS-specific behavior in `src/platform/`; unsupported operations must fail explicitly.
 - `accepted_by_host` never means `confirmed_resumed` without external evidence. Distinguish simulated tests, host connectivity, plugin browser discovery and observed same-chat execution.
 - Installed plugins use shared-host MCP and a fresh current-terminal binding; never infer a caller from the shared process environment. Test installed entry points and keep state profiles separate from binaries.
+- Interrupted install/cache replacement repair must validate its recorded snapshots, preserve backups/history and finish forward only; never infer operations by scanning caches or roll back a used schema.
 - Offline plugin bundles carry no selected user profile. Preserve recorded state on plugin updates, reject downgrades, and verify explicit cache snapshots before replacement; never scan/delete host caches or stop daemons implicitly.
 - Same-chat notification recovery must preserve valid delivery IDs, expiry and attempt history, fence stale claims and exclude accepted/expired events. Renew opted-in leases only after verifying the original endpoint and current claim; never move targets implicitly.
 - Explicit upgrade stops must select the installed profile and revalidate the original peer before any legacy signal; never use process-name/group kills or PID alone.

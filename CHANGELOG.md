@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.5 — 2026-10-26 (unreleased interrupted replacement recovery)
+
+- Durably stage installation/cache replacements and publish a sibling operation journal before renaming directories; block overlapping lifecycle changes until repair.
+- Add `plugin repair --path` preview/apply to finish the recorded replacement, validate original/staged/backup files and profiles, retain backups/history and respect active-runtime locks. No automatic daemon stop, schema rollback or global cache scan.
+- Defer Claude Code/OpenCode adapters until a later environment, potentially using Docker. Desktop UI/restart verification requires separate observed evidence.
+
 ## 0.1.4 — 2026-10-26 (unreleased plugin runtime lifecycle)
 
 - Export a relocatable offline native plugin bundle; bootstrap validates the bundle and installation/marketplace ownership before writing, with no recipient Rust/Python/Node toolchain.

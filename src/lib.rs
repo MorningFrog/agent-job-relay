@@ -8,6 +8,7 @@ pub mod deployment;
 pub mod diagnostics;
 pub mod integration;
 pub mod ipc;
+pub mod lifecycle;
 pub mod mcp;
 pub mod platform;
 pub mod plugin;

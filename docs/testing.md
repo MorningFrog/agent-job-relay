@@ -13,7 +13,7 @@ cargo test --all-targets
 cargo build --release --locked
 ```
 
-The current suite contains 70 behavioral tests; current results, toolchain/version and limitations are in [implementation status](IMPLEMENTATION_STATUS.md). CI defines full Linux behavior tests plus macOS/Windows compilation and portable library checks. A configured matrix does not establish that remote CI ran or those runtimes work. The declared Rust 1.89 minimum is not independently verified.
+The current suite contains 77 behavioral tests; current results, toolchain/version and limitations are in [implementation status](IMPLEMENTATION_STATUS.md). CI defines full Linux behavior tests plus macOS/Windows compilation and portable library checks. A configured matrix does not establish that remote CI ran or those runtimes work. The declared Rust 1.89 minimum is not independently verified.
 
 ## Test selection and artifacts
 
@@ -25,14 +25,14 @@ Keep generated test state, outputs, reports and logs under ignored repository-lo
 
 | Suite | Coverage | Boundary |
 |---|---|---|
-| Library | MCP schemas and legacy launch-readiness checks | Local checks |
+| Library | MCP schemas, legacy launch-readiness and interrupted replacement recovery/refusal/locks | Local checks plus deterministic filesystem fault states |
 | Runtime | Execution/output/cursors, idempotency, process trees, cancellation/timeout, daemon/runner independence, launch recovery, quotas, IPC/security | Real Linux children and injected failure windows |
 | Delivery | Terminal/outbox transactions, migrations, exact routing, fenced attempts, retries/TTL/dead letters | Real SQLite and persistence simulations |
 | Desktop | Framing, catalog/identity checks, endpoint replacement and fenced lease renewal | Fake hosts; no real restart/multi-day proof |
 | Convenience | CLI/MCP binding, multi-caller routing, installed shared MCP, loaded-image spawn, recovery and long-job renewal | Real CLI/MCP processes plus fake hosts |
 | Integration | Preview/apply, comments/foreign-entry preservation, ownership refusal and removal | Isolated files |
 | Onboarding | Installed launcher/profile, manifests, marketplace setup, active-runtime refusal and data-preserving removal | Isolated installed processes/files |
-| Plugin | Relocated/toolchain-free bootstrap, package validation, preserved DB/marketplace, custom-root defaults, profile/downgrade rules, cache refresh/refusal | Linux behavioral tests; local payload/resource-change fixtures |
+| Plugin | Relocated/toolchain-free bootstrap, package validation, preserved DB/marketplace, custom-root defaults, profile/downgrade rules, cache refresh/refusal, actual CLI repair and retained SQLite history | Linux behavioral tests; local payload/resource-change fixtures |
 | Legacy upgrade | Verified same-profile stop, peer identity checks, lock release and immediate replacement | Std-only legacy fixture; no unrelated peer signals |
 | Recovery | Scoped preview/apply, pagination, rollback/audit, preserved delivery IDs/history/TTL, accepted/expired exclusion and stale-claim fencing | Isolated storage/endpoint fixtures |
 

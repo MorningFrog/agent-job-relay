@@ -111,6 +111,16 @@ async fn installed_legacy_stop_keeps_profile_and_history_and_allows_immediate_up
         "{:x}",
         Sha256::digest(std::fs::read(&executable).unwrap())
     ));
+    // Keep both ownership records coherent when constructing the older-image fixture.
+    let profile_path = install.join(".agent-job-relay-runtime.json");
+    let mut profile: Value =
+        serde_json::from_slice(&std::fs::read(&profile_path).unwrap()).unwrap();
+    profile["files"]["bin/agent-job-relay"] = receipt["files"]["bin/agent-job-relay"].clone();
+    std::fs::write(&profile_path, serde_json::to_vec(&profile).unwrap()).unwrap();
+    receipt["files"][".agent-job-relay-runtime.json"] = json!(format!(
+        "{:x}",
+        Sha256::digest(std::fs::read(profile_path).unwrap())
+    ));
     std::fs::write(receipt_path, serde_json::to_vec(&receipt).unwrap()).unwrap();
     let mut legacy = launch(&state, &executable).await;
     std::fs::write(state.join("history"), "keep all previous results").unwrap();

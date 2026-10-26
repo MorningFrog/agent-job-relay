@@ -492,3 +492,89 @@ fn update_refuses_downgrade_and_bootstrap_ignores_unrelated_exported_state() {
     assert_eq!(result["install"]["changed"], false);
     assert!(!r.dir.path().join("unrelated-state").exists());
 }
+
+#[test]
+fn cli_repairs_a_missing_installation_after_interrupted_update_without_losing_history() {
+    let r = Rig::new();
+    r.pack();
+    r.bootstrap(true);
+    let job = ok(r.installed(&["start", "--", "/bin/echo", "history before repair"]));
+    r.wait(job["job"]["job_id"].as_str().unwrap());
+    r.stop();
+    let database = std::fs::read(r.state.join("relay.sqlite3")).unwrap();
+    let operation = uuid::Uuid::new_v4().to_string();
+    let stage = r
+        .install
+        .parent()
+        .unwrap()
+        .join(format!(".ajr-stage-{operation}"));
+    let backup = r
+        .install
+        .parent()
+        .unwrap()
+        .join(format!(".ajr-backup-{operation}"));
+    let receipt_name = ".agent-job-relay-install.json";
+    let snapshot = |path: &Path| {
+        let receipt = read_json(&path.join(receipt_name));
+        let mut files = receipt["files"].as_object().unwrap().clone();
+        files.insert(
+            receipt_name.into(),
+            json!(hash(&std::fs::read(path.join(receipt_name)).unwrap())),
+        );
+        files
+    };
+    let before = snapshot(&r.install);
+    copy_tree(&r.install, &stage, true);
+    let skill_name = "skills/background-jobs/SKILL.md";
+    let skill = stage.join(skill_name);
+    let revised = [
+        std::fs::read(&skill).unwrap(),
+        b"\nRevised fixture\n".to_vec(),
+    ]
+    .concat();
+    std::fs::write(&skill, &revised).unwrap();
+    let mut profile = read_json(&stage.join(PROFILE));
+    profile["files"][skill_name] = json!(hash(&revised));
+    write_json(&stage.join(PROFILE), &profile);
+    let mut receipt = read_json(&stage.join(receipt_name));
+    receipt["files"][skill_name] = json!(hash(&revised));
+    receipt["files"][PROFILE] = json!(hash(&std::fs::read(stage.join(PROFILE)).unwrap()));
+    write_json(&stage.join(receipt_name), &receipt);
+    let journal = r.install.parent().unwrap().join(format!(
+        ".{}.ajr-operation.json",
+        r.install.file_name().unwrap().to_str().unwrap()
+    ));
+    write_json(
+        &journal,
+        &json!({"format":1,"id":operation,"kind":"install","root":r.install,"install_root":r.install,"state_dir":r.state,"before_state_dir":r.state,"before":before,"after":snapshot(&stage)}),
+    );
+    // Reproduce the persistent filesystem state at the interrupted rename gap.
+    std::fs::rename(&r.install, &backup).unwrap();
+    fails(r.update(&[], true), "plugin repair");
+    let repair = |apply| {
+        r.source(&[
+            "plugin",
+            "repair",
+            "--path",
+            s(&r.install),
+            if apply { "--apply" } else { "--dry-run" },
+        ])
+    };
+    assert_eq!(ok(repair(false))["phase"], "destination_missing");
+    assert!(!r.install.exists());
+    let result = ok(repair(true));
+    assert_eq!(result["state_dir"], s(&r.state));
+    assert_eq!(result["backup"], s(&backup));
+    assert_eq!(std::fs::read(r.install.join(skill_name)).unwrap(), revised);
+    assert_eq!(
+        std::fs::read(r.state.join("relay.sqlite3")).unwrap(),
+        database
+    );
+    assert!(backup.join(receipt_name).exists());
+    assert!(!journal.exists());
+    assert_eq!(ok(repair(true))["changed"], false);
+    assert_eq!(
+        ok(r.installed(&["doctor", "--check-mcp"]))["stdio_self_check"]["status"],
+        "passed"
+    );
+}

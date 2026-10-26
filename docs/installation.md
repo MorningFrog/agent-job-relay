@@ -57,7 +57,7 @@ For a known cache directory belonging to this plugin, set AJR_CACHE to that exac
 
 Commands run through a custom installed launcher default to its own root. Refresh validates the original installation/state/platform, complete file set and hashes. It supports host copies with or without the management receipt, refuses altered/unknown/missing/symlinked/foreign files, retains the previous snapshot as a backup and is idempotent. It does not scan/delete caches or change the host's registry/enabled state. Do not pass a parent containing other plugins. Reconnect MCP after a change.
 
-To preflight and refresh several known snapshots during runtime update, repeat `--cache <absolute-directory>` on `plugin update`. All selected caches are checked before runtime replacement. Cache refresh alone does not stop the daemon. File replacement and multi-directory updates are not crash-atomic; on partial failure inspect the reported result and retry the indicated cache operation rather than automatically rolling back a runtime that may have opened newer data.
+To preflight and refresh several known snapshots during runtime update, repeat `--cache <absolute-directory>` on `plugin update`. All selected caches are checked before runtime replacement. Cache refresh alone does not stop the daemon. Each directory replacement records a durable recovery operation; multiple directories and marketplace writes remain separate. On interruption use `plugin repair` for the exact affected directory, then retry the original update. No runtime/schema rollback occurs.
 
 ## Custom directories and stored data
 
@@ -144,4 +144,13 @@ For standalone MCP, replace `plugin` in integration removal with `codex`, or `js
 
 The tested Codex CLI 0.164.0 loader uses `.codex-plugin/plugin.json` and `.mcp.json` with a stable absolute native command. Its portable root and PLUGIN_ROOT behavior differed from the documented format; see [ADR 0004](adr/0004-loaded-image-and-codex-loader.md) and [ADR 0007](adr/0007-offline-plugin-runtime.md). Packaging does not establish other host/OS support.
 
-Installation/configuration/cache writes are separate operations, and staged two-rename replacements are not power-loss transactions. Errors identify possible completed work and the operation to retry. Preserve backups and inspect ownership after interruption. Current schema is v6; older executables refuse newer schemas. Support/evidence is maintained in [implementation status](IMPLEMENTATION_STATUS.md), with historical live records in [live-e2e](live-e2e.md).
+Installation and cache replacements durably stage files and record a private sibling operation journal before renaming the original directory. A pending operation blocks another lifecycle change. If the installation path is missing, use the new offline bundle or source executable, not the missing installed launcher:
+
+```bash
+"$AJR_BUNDLE/relay" plugin repair --path "$AJR_INSTALL_ROOT" --dry-run
+"$AJR_BUNDLE/relay" plugin repair --path "$AJR_INSTALL_ROOT" --apply
+```
+
+Use an explicitly selected cache directory for a cache operation. Preview reports `prepared`, `destination_missing` or `installed`; apply finishes the recorded replacement and retains the original backup. Repeating a completed repair reports `changed=false`. Repair verifies the complete staged/original/backup snapshots, profiles and hashes; modified, unknown, missing or symlinked contents are refused. Installation repair requires idle old/new profiles and never stops a daemon. Cache repair leaves the managed runtime running.
+
+Retry the original bootstrap/update afterward to finish marketplace registration or other selected caches. Repair neither changes the database nor rolls back an installed runtime. Cross-directory/configuration operations and uninstall remain separate and are not crash-atomic. Before journal publication, interruption leaves the original untouched and may leave unreferenced staging files; these and old pre-0.1.5 interruptions require inspection, not automatic scanning/deletion. Physical power-loss/ENOSPC testing remains pending. Current schema is v6; older executables refuse newer schemas. See [implementation status](IMPLEMENTATION_STATUS.md), [live evidence](live-e2e.md) and [ADR 0008](adr/0008-interrupted-plugin-replacement.md).

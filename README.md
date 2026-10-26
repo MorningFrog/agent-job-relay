@@ -9,7 +9,7 @@ Tasks run in the background. Agents pick up when needed.
 任务在后台运行，Agent 在需要时接棒。
 </div>
 
-Run long commands independently of the Agent connection, keep their results, and notify the initiating chat when the host supports it. **v0.1.4 is an unreleased Linux x86_64 development version.** Desktop wake uses an experimental interface; Windows/macOS, Claude Code and OpenCode are not supported yet.
+Run long commands independently of the Agent connection, keep their results, and notify the initiating chat when the host supports it. **v0.1.5 is an unreleased Linux x86_64 development version.** Desktop wake uses an experimental interface; Windows/macOS, Claude Code and OpenCode are not supported yet.
 
 ## Quick install
 
@@ -56,6 +56,15 @@ Finish active tasks first. Use the **new bundle's launcher**, which also works w
 ```
 
 The update retains the recorded state/history and a backup, refuses downgrades and never stops a daemon implicitly. Refresh/reinstall the plugin through the host and reconnect MCP afterward. Legacy caches need this host refresh; explicit checked cache repair is described in [installation](docs/installation.md#cache-inspection-and-refresh).
+
+If an install/update or cache replacement was interrupted, use the new bundle's launcher to preview and finish the recorded replacement:
+
+```bash
+"$AJR_BUNDLE/relay" plugin repair --path "$AJR_INSTALL_ROOT" --dry-run
+"$AJR_BUNDLE/relay" plugin repair --path "$AJR_INSTALL_ROOT" --apply
+```
+
+For a cache, pass that exact cache directory instead. Repair preserves history and backups, refuses modified files and never stops a daemon. Retry the original bootstrap/update afterward to finish any remaining steps. See [interrupted operations](docs/installation.md#compatibility-and-interrupted-operations) for limits.
 
 ## Uninstalling
 

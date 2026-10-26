@@ -1,5 +1,5 @@
 //! Private local installation and shared, ownership-checked plugin artifacts.
-use crate::{config::Config, core::id};
+use crate::config::Config;
 use anyhow::{Context, Result, bail, ensure};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -161,6 +161,7 @@ pub fn plugin_root() -> Result<PathBuf> {
 /// history, rather than switch to the source executable's default directory.
 pub fn installation_state(root: &Path) -> Result<Option<PathBuf>> {
     checked_path(root)?;
+    crate::lifecycle::require_clear(root)?;
     if root.exists() {
         let receipt = read_receipt(root)?;
         ensure!(
@@ -348,7 +349,7 @@ pub(crate) fn verify_owned(root: &Path, receipt: &Receipt) -> Result<()> {
     Ok(())
 }
 /// Keep both locks until replacement/removal ends. No existing daemon is stopped.
-fn idle_guards(state: &Path, install_root: &Path) -> Result<Vec<File>> {
+pub(crate) fn idle_guards(state: &Path, install_root: &Path) -> Result<Vec<File>> {
     if !state.exists() {
         return Ok(Vec::new());
     }
@@ -413,6 +414,7 @@ pub(crate) fn change_artifacts(
 ) -> Result<Value> {
     crate::platform::require_runtime()?;
     checked_path(&root)?;
+    crate::lifecycle::require_clear(&root)?;
     checked_path(&config.root)?;
     ensure!(
         !config.root.starts_with(&root) && !root.starts_with(&config.root),
@@ -460,6 +462,7 @@ pub(crate) fn change_artifacts(
         )))?;
         lock.try_lock()
             .context("another installation/removal is in progress")?;
+        crate::lifecycle::require_clear(&root)?;
         // A concurrent writer must not turn a preview into an unowned overwrite.
         ensure!(
             root.exists() == existing.is_some(),
@@ -481,38 +484,21 @@ pub(crate) fn change_artifacts(
             std::fs::remove_file(root.join(RECEIPT))?;
             remove_empty_dirs(&root)?;
         } else {
-            let stage = parent.join(format!(".ajr-stage-{}", id()));
-            let result = (|| -> Result<()> {
-                crate::platform::secure_dir(&stage)?;
-                for (name, artifact) in &files {
-                    write_artifact(&stage.join(name), artifact)?;
-                }
-                write_artifact(
-                    &stage.join(RECEIPT),
-                    &Artifact {
-                        bytes: serde_json::to_vec_pretty(&desired)?,
-                        executable: false,
-                    },
-                )?;
-                if root.exists() {
-                    let old = parent.join(format!(".ajr-backup-{}", id()));
-                    std::fs::rename(&root, &old)?;
-                    backup = Some(old);
-                }
-                if let Err(e) = std::fs::rename(&stage, &root) {
-                    if let Some(old) = &backup {
-                        std::fs::rename(old, &root)
-                            .context("could not restore installation backup")?;
-                    }
-                    return Err(e.into());
-                }
-                File::open(parent)?.sync_all()?;
-                Ok(())
-            })();
-            if stage.exists() {
-                let _ = std::fs::remove_dir_all(&stage);
-            } // Only our newly created staging directory.
-            result?;
+            let mut staged = files.clone();
+            staged.insert(
+                RECEIPT.into(),
+                Artifact {
+                    bytes: serde_json::to_vec_pretty(&desired)?,
+                    executable: false,
+                },
+            );
+            backup = crate::lifecycle::replace(
+                &root,
+                &root,
+                &config.root,
+                crate::lifecycle::Kind::Install,
+                &staged,
+            )?;
         }
         drop(guards);
     }
