@@ -35,7 +35,7 @@ Tools derive their argument schemas from the same Request types as IPC:
 
 `job_start`, `job_status`, `job_list`, `job_logs`, `job_events`, `job_stop`,
 `job_wait`, `job_doctor`, `job_connect_session`, `job_register_session`, `job_sessions`, `job_inbox`,
-`job_probe_session`, `job_invalidate_session`, `job_add_wake_target`,
+`job_probe_session`, `job_recover_session`, `job_invalidate_session`, `job_add_wake_target`,
 `job_rebind_target`, `job_deliveries`, `job_retry_delivery`,
 `job_delivery_attempts`.
 
@@ -139,3 +139,23 @@ No new operation/version is required in the old daemon; no MCP shutdown tool is
 introduced. All successful stops now wait for daemon-lock release. Installation
 profile selection is CLI-only (`daemon stop --install-root`), not a job caller
 identity or a state migration. PID/name matching alone cannot authorize a signal.
+
+## Explicit same-chat recovery (schema v6, additive IPC v1 operation)
+
+`session recover [--apply] [--after N --limit 20]` refreshes/probes the current
+terminal binding and invokes `recover_session {session_key,apply,after,limit}`.
+MCP exposes job_recover_session; shared MCP requires a fresh terminal key. Preview
+registers/probes, but does not change targets/deliveries or send a host message.
+The daemon probes the supplied registration and fences concurrent changes inside
+the recovery transaction. Matching requires agent/logical/host and identical
+Desktop caller/destination. No unrelated-session endpoint scan occurs.
+
+Active jobs and unresolved unexpired events may move to a new immutable target;
+original delivery IDs, attempts and event TTL survive. Accepted/expired events
+are not replayed. Live claims on either old/new target are skipped, stale claims
+are fenced and their unfinished attempts are recorded. Existing canonical target
+deliveries are coalesced with a superseded-by audit; accepted canonical deliveries
+are never reset. Target/delivery changes and target_recoveries audit commit in one
+transaction. The response includes recent audits and bounded target pagination.
+Low-level target rebind/replay remains an explicit advanced API with its existing
+semantics; this conservative recovery operation does not renew expired TTLs.

@@ -154,6 +154,23 @@ pub async fn connect(config: &Config) -> Result<Value> {
     ensure_daemon(config).await?;
     connect_registration(config, registration, fingerprint).await
 }
+pub async fn recover(config: &Config, apply: bool, after: i64, limit: u32) -> Result<Value> {
+    let binding = connect(config).await?;
+    let key = binding["session"]["key"]
+        .as_str()
+        .context("missing binding key")?
+        .to_owned();
+    ipc::call(
+        config,
+        Request::RecoverSession {
+            session_key: key,
+            apply,
+            after,
+            limit,
+        },
+    )
+    .await
+}
 pub async fn start(config: &Config, mut spec: StartSpec, wake_me: bool) -> Result<Value> {
     ensure!(
         !wake_me || spec.session.is_none(),

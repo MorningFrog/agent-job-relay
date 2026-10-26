@@ -25,7 +25,7 @@ publication during development. Claude Code/OpenCode are planned, not implemente
 
 One Rust package/executable with daemon, runner, mcp and user CLI modes.
 Modules: client, core, storage, runner, daemon, ipc, session, delivery, adapters,
-integration, deployment, diagnostics, config, platform. SQLite schema **v5**, local IPC **v1**.
+integration, deployment, diagnostics, config, platform. SQLite schema **v6**, local IPC **v1**.
 
 - Explicit Exec argv or Shell interpreter/script; canonical cwd, validated
   arguments/env/timeout; UUID identities and durable idempotent submit.
@@ -429,3 +429,25 @@ Regression coverage includes 12 temporary failures, reopen/success with the same
 permanent/identity classification, TTL expiry and v4 retained delivery/attempt migration.
 Only repository-local isolated state/fake hosts were used; no real host message,
 configuration change, install, publication or push.
+
+## Same-chat notification recovery increment (2026-10-26)
+
+Added session recover preview/--apply and job_recover_session with fresh terminal
+binding. Exact logical/caller/host matching, unchanged-probe fencing, bounded
+pagination/audit and atomic target transfer preserve delivery IDs/history/TTL.
+Accepted/expired events are excluded; live claims are skipped, stale acks fenced
+and canonical duplicates coalesced. No command replay or global caller inference.
+Schema v6 adds target_recoveries; v1/v4 migration regressions retain data.
+
+Initial migration fixture failed because its simulated v4 retained a newly added
+v6 table; corrected the historical fixture. A test closure's endpoint borrow
+prevented compilation and was corrected without changing runtime behavior.
+Targeted recovery/delivery/installed CLI/MCP tests and strict Clippy pass.
+Real host restart/rebind remains unverified; all hosts used here are isolated fakes.
+
+Recovery increment final gates: fmt, strict all-target Clippy, all 56 tests and
+release build passed. Plugin skill quick validation passed. Installed CLI recovery
+uses the pinned profile despite foreign state exports; fake host replacement
+restores only thread A, retains callId, leaves thread B untouched, and records
+an audit. Shared installed MCP successfully invokes job_recover_session for each
+fresh caller key without using its inherited stale thread.

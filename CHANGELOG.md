@@ -2,6 +2,9 @@
 
 ## Unreleased — notification recovery
 
+- Add preview/apply same-chat recovery through CLI/MCP with atomic audits,
+  preserved delivery IDs/history/TTL, and no accepted-event or command replay.
+
 - Retry temporary delivery failures until TTL with jitter capped at five minutes;
   pause changed identities for explicit recovery and stop permanent failures.
 - Preserve delivery IDs/history and expose failure kind and next-attempt time;

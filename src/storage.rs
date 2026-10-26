@@ -42,7 +42,7 @@ impl Store {
         self.call(|db| {
             let v: i64 = db.pragma_query_value(None, "user_version", |r| r.get(0))?;
             ensure!(
-                v <= 5,
+                v <= 6,
                 "database schema is newer than this executable; downgrade refused"
             );
             db.pragma_update(None, "journal_mode", "WAL")?;
@@ -68,6 +68,14 @@ impl Store {
             }
             if v < 5 {
                 db.execute_batch("BEGIN IMMEDIATE; ALTER TABLE deliveries ADD COLUMN failure_kind TEXT; PRAGMA user_version=5; COMMIT;")?;
+            }
+            if v < 6 {
+                db.execute_batch("BEGIN IMMEDIATE;
+                    CREATE TABLE target_recoveries(id TEXT PRIMARY KEY, at INTEGER NOT NULL,
+                        from_target TEXT NOT NULL REFERENCES targets(id),
+                        to_target TEXT NOT NULL REFERENCES targets(id),
+                        session_key TEXT NOT NULL REFERENCES sessions(key), details TEXT NOT NULL);
+                    PRAGMA user_version=6; COMMIT;")?;
             }
             Ok(())
         })

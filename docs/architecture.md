@@ -71,3 +71,9 @@ pidfds to invoke only that daemon's Ctrl-C handler after revalidation. It waits
 for process exit/lock release; install never stops a daemon on its own. The legacy
 path requires proc/pidfd support and refuses unknown/renamed peers. Modern IPC
 shutdown also waits for lock release before returning success.
+
+Same-chat recovery (recovery.rs) probes a fresh current-terminal registration,
+checks the unchanged session snapshot inside a transaction, and scopes old targets
+to identical agent/logical/host/caller identities. It transfers only unexpired
+unresolved deliveries, retaining IDs/history/TTL; accepted events and live claims
+are excluded. New immutable targets and the recovery audit commit atomically.

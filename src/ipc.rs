@@ -87,6 +87,15 @@ pub enum Request {
     ProbeSession {
         session_key: String,
     },
+    RecoverSession {
+        session_key: String,
+        #[serde(default)]
+        apply: bool,
+        #[serde(default)]
+        after: i64,
+        #[serde(default = "default_limit")]
+        limit: u32,
+    },
     AddWakeTarget {
         job_id: String,
         session_key: String,
@@ -135,6 +144,7 @@ pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
         Request::Sessions{after,limit}=>store.sessions(after,limit).await,
         Request::InvalidateSession{session_key}=>store.invalidate(session_key).await,
         Request::ProbeSession{session_key}=>{let s=store.session(session_key).await?;let probe=crate::adapters::probe(&s).await?;Ok(json!({"probe":probe,"lease_valid":s.connected&&s.expires_at>now(),"capabilities":crate::session::capabilities(&s.registration.adapter),"session":s}))},
+        Request::RecoverSession{session_key,apply,after,limit}=>{let s=store.session(session_key).await?;crate::adapters::probe(&s).await?;store.recover_session(s,apply,after,limit).await},
         Request::AddWakeTarget{job_id,session_key,replay}=>store.target(job_id,session_key,replay).await,
         Request::RebindTarget{target_id,session_key}=>store.rebind(target_id,session_key).await,
         Request::Deliveries{job_id,after,limit}=>store.deliveries(job_id,after,limit).await,

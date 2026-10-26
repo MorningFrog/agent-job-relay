@@ -315,6 +315,13 @@ async fn installed_shared_mcp_uses_each_terminal_binding_and_never_its_inherited
             serde_json::from_str(started["result"]["content"][0]["text"].as_str().unwrap())
                 .unwrap();
         jobs.push(result["job"]["job_id"].as_str().unwrap().to_string());
+        let recovery = rpc(&mut input, &mut lines, json!({"jsonrpc":"2.0","id":20+i,"method":"tools/call","params":{"name":"job_recover_session","arguments":{"session_key":binding["session_key"]}}})).await;
+        assert_ne!(recovery["result"]["isError"], true, "{recovery}");
+        let recovery: Value =
+            serde_json::from_str(recovery["result"]["content"][0]["text"].as_str().unwrap())
+                .unwrap();
+        assert_eq!(recovery["session_key"], binding["session_key"]);
+        assert_eq!(recovery["apply"], false);
     }
     drop(input);
     assert!(
@@ -349,6 +356,79 @@ async fn installed_shared_mcp_uses_each_terminal_binding_and_never_its_inherited
     .await
     .unwrap();
     assert_eq!(sessions["sessions"].as_array().unwrap().len(), 2);
+    assert!(!r.dir.path().join("wrong-state").exists());
+}
+
+#[tokio::test]
+async fn installed_recovery_previews_then_rebinds_only_current_chat_after_host_replacement() {
+    let r = Rig::new();
+    let host = Host::new(&r, true);
+    let install = r.dir.path().join("plugin");
+    success(
+        r.cli(
+            &["install", "--root", install.to_str().unwrap(), "--apply"],
+            None,
+        )
+        .await,
+    );
+    let mut jobs = Vec::new();
+    for thread in ["thread-a", "thread-b"] {
+        let out = tokio::process::Command::new(install.join("relay"))
+            .args([
+                "start",
+                "--wake",
+                "--cwd",
+                r.dir.path().to_str().unwrap(),
+                "--shell",
+                "sleep 0.4; echo recovery",
+            ])
+            .env("CODEX_THREAD_ID", thread)
+            .env("CODEX_APP_TOOLS_PIPE_PATH", &host.endpoint)
+            .env("AJR_STATE_DIR", r.dir.path().join("wrong-state"))
+            .output()
+            .await
+            .unwrap();
+        jobs.push(success(out)["job"]["job_id"].as_str().unwrap().to_owned());
+    }
+    let endpoint = host.endpoint.clone();
+    drop(host);
+    std::fs::remove_file(&endpoint).unwrap();
+    let mut replacement = Host::new(&r, true);
+    for job in &jobs {
+        assert_eq!(r.terminal(job).await.status, "completed");
+    }
+    let store = Store::new(r.config.clone());
+    let before = store
+        .deliveries(Some(jobs[0].clone()), 0, 20)
+        .await
+        .unwrap()["deliveries"][0]
+        .clone();
+    let recover = |apply: bool| {
+        let mut c = tokio::process::Command::new(install.join("relay"));
+        c.args(["session", "recover"])
+            .env("CODEX_THREAD_ID", "thread-a")
+            .env("CODEX_APP_TOOLS_PIPE_PATH", &endpoint)
+            .env("AJR_STATE_DIR", r.dir.path().join("wrong-state"));
+        if apply {
+            c.arg("--apply");
+        }
+        c
+    };
+    let preview = success(recover(false).output().await.unwrap());
+    assert_eq!(preview["targets"].as_array().unwrap().len(), 1);
+    assert_eq!(preview["targets"][0]["job_id"], jobs[0]);
+    let result = success(recover(true).output().await.unwrap());
+    assert_eq!(result["targets"][0]["applied"], true);
+    let message = replacement.delivery().await;
+    assert_eq!(message["params"]["arguments"]["threadId"], "thread-a");
+    assert_eq!(message["params"]["callId"], before["id"]);
+    assert!(
+        tokio::time::timeout(Duration::from_millis(100), replacement.received.recv())
+            .await
+            .is_err()
+    );
+    let history = success(recover(false).output().await.unwrap());
+    assert_eq!(history["recent_recoveries"].as_array().unwrap().len(), 1);
     assert!(!r.dir.path().join("wrong-state").exists());
 }
 

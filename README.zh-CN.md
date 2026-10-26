@@ -125,6 +125,23 @@ CLI、MCP 必须使用同一目录，已有目录须属于当前用户且权限�
 宿主能力不支持则立即停止。`delivery list` 显示 `failure_kind` 与 `next_attempt_at`；
 `delivery retry` 保留投递 ID 和历史，不会重新执行任务。
 
+## Desktop 重启后恢复通知
+
+从同一聊天的终端执行已安装启动器：
+
+```bash
+"$AJR_INSTALL_ROOT/relay" session recover
+"$AJR_INSTALL_ROOT/relay" session recover --apply
+```
+
+第一个命令刷新并探测当前绑定，预览可恢复任务，不迁移目标或发送聊天消息。
+`--apply` 仅恢复相同逻辑聊天、调用者和宿主的通知，保留原投递 ID、有效期和尝试历史。
+已接受或过期的事件不重发，正在投递的目标跳过，命令不会重新执行。
+结果包含有界恢复审计及 `next_cursor`，后续页使用 `--after`。
+共享 MCP 提供 `job_recover_session(session_key, apply)`，必须使用当前终端取得的新绑定。
+此流程已有安装后 CLI/MCP 和假宿主测试；真实 Desktop 重启与继续执行仍待验证。
+私有宿主身份仍来自可信调用者输入。
+
 ## MCP 配置与安全移除
 
 默认只预览，`--apply` 表示调用者明确授权写入。先使用隔离文件，以下命令不会配置真实 Codex：

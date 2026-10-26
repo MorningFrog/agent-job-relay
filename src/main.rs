@@ -186,6 +186,17 @@ enum IntegrationCommand {
 }
 #[derive(Subcommand)]
 enum SessionCommand {
+    /// Preview recovery for this exact chat; --apply rebinds unexpired notifications
+    Recover {
+        #[arg(long)]
+        apply: bool,
+        #[arg(long, conflicts_with = "apply")]
+        dry_run: bool,
+        #[arg(long, default_value_t = 0)]
+        after: i64,
+        #[arg(long, default_value_t = 20)]
+        limit: u32,
+    },
     /// Register and probe the current Desktop context (experimental opt-in)
     Connect {
         /// Return only the binding key and capability, without private host paths
@@ -371,6 +382,16 @@ async fn run(cli: Cli) -> Result<()> {
             return Ok(());
         }
         Commands::Session { command } => match command {
+            SessionCommand::Recover {
+                apply,
+                after,
+                limit,
+                ..
+            } => {
+                let value = agent_job_relay::client::recover(&config, apply, after, limit).await?;
+                println!("{}", serde_json::to_string_pretty(&value)?);
+                return Ok(());
+            }
             SessionCommand::Connect { brief } => {
                 let value = agent_job_relay::client::connect(&config).await?;
                 let value = if brief {

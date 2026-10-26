@@ -1,6 +1,6 @@
 ---
 name: background-jobs
-description: Use AgentJobRelay to execute requested local background commands and continue the initiating chat on completion, or inspect and cancel existing relay jobs.
+description: Use AgentJobRelay to execute requested local background commands and continue the initiating chat on completion, inspect or cancel jobs, or recover this chat's notifications after host restart.
 ---
 
 Use the installed MCP tools and this plugin's `../../relay` launcher. Resolve the
@@ -58,3 +58,20 @@ running during normal use; it serves other jobs too. For connection issues use
 `job_doctor` or the launcher with `doctor --check-mcp`; diagnose without rewriting
 settings or restarting unrelated processes. Installation/configuration is a
 separate user-requested operation, not part of each task.
+
+## Recover this chat's notifications
+
+When asked to restore notifications after Desktop restart or a failed delivery,
+run the bundled launcher with `session recover` in this chat's terminal. It
+refreshes/probes the current binding and previews eligible targets; it does not
+move targets or send a chat message. Apply recovery with `session recover --apply`
+when the user requested restoration. Alternatively, obtain a fresh terminal
+binding and call `job_recover_session` with its `session_key` and `apply=true`.
+Shared MCP cannot infer the current caller from its own environment.
+
+Recovery is limited to the same logical chat, caller and host. It preserves
+delivery IDs, TTL and attempt history, records a recovery audit, and never reruns
+commands or replays accepted/expired events. In-flight targets are skipped;
+report them and inspect later rather than polling. Results are paginated with
+`next_cursor`/`after`; an empty target page completes the scan. Never recover
+another chat by guessing its key or switch state directories to hide a failure.

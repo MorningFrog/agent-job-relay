@@ -171,6 +171,25 @@ event TTL. A changed/expired session waits for explicit recovery; unsupported
 host capabilities stop immediately. `delivery list` exposes `failure_kind` and
 `next_attempt_at`; `delivery retry` preserves the ID/history and never reruns a job.
 
+## Recover notifications after Desktop restart
+
+From the same chat's terminal, use the installed launcher:
+
+```bash
+"$AJR_INSTALL_ROOT/relay" session recover
+"$AJR_INSTALL_ROOT/relay" session recover --apply
+```
+
+The first command refreshes/probes the current binding and previews eligible
+jobs; it does not move targets or send a chat message. `--apply` restores only
+that logical chat/caller/host, preserving original delivery IDs, expiry and
+attempt history. Accepted or expired events are excluded; in-flight attempts are
+skipped. Commands are never rerun. Responses include a bounded recovery audit and
+`next_cursor`; use `--after` for more pages. Shared MCP offers
+`job_recover_session(session_key, apply)` using a fresh current-terminal binding.
+This has isolated installed CLI/MCP and fake-host coverage; real Desktop restart
+and continuation remain unverified. Private host identity is trusted caller input.
+
 ## MCP setup and safe removal
 
 Preview is the default. `--apply` explicitly authorizes a write. Start with
