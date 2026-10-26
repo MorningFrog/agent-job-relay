@@ -1,6 +1,6 @@
 # Same-session live wake validation
 
-Results: **passed, user-confirmed explicit-registration basic live E2E and three-round CLI shortcut live E2E**. Reported and reviewed on 2026-10-26 (Asia/Shanghai). These are manual integration results in addition to fake-host automation, not an automated `confirmed_resumed` adapter capability.
+Results: **passed, user-confirmed explicit-registration, CLI shortcut and installed MCP same-chat completion workflows**. Reported and reviewed on 2026-10-26 (Asia/Shanghai). These are manual integration results in addition to fake-host automation, not an automated `confirmed_resumed` adapter capability.
 
 ## Explicit-registration basic run
 
@@ -116,6 +116,25 @@ This is recorded as a **user-confirmed Desktop MCP connectivity procedure pass**
 
 The scope is plugin MCP exposure and the requested host health-tool call. It adds no job_start, completed workload, completion delivery or automatic same-chat continuation evidence. The earlier real CLI wake results remain separate and valid. Plugin browser discovery/install and other clients remain separate gates; no runtime delivery is changed to confirmed_resumed by this report.
 
-## Next validation
+## Installed MCP task and same-chat continuation: user-confirmed pass
 
-Do not repeat the passed connectivity check, CLI workloads or a manual crash matrix. During ordinary use, the next naturally long real project task can qualify MCP submission and same-chat continuation: obtain the current-terminal binding, submit through actual job_start, end the turn and observe the result without another human message. Keep job completion, host acceptance and observed Agent continuation separate. Record the actual route if a CLI fallback occurs. This does not require a synthetic workload or another full-suite test now.
+On 2026-10-26, after receiving the v0.1.4 manual acceptance procedure, the user supplied a task ID and the completed chat's result summary. The report explicitly states that the task was submitted through MCP, the submitting turn ended, the completion notification restored the same chat and the Agent verified the result, with no CLI fallback. This is a **user-confirmed installed MCP submission and same-chat continuation pass**, supported by the read-only persisted-record checks below. The originating tool transcript and UI transition were not independently reviewed.
+
+| Field | Evidence |
+|---|---|
+| Workload | Recorded shell command includes `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --all-targets` and `cargo build --release` |
+| Started / completed | 2026-10-26 16:22:04.667 / 16:24:06.002, UTC+08:00 |
+| Result | Completed, exit 0, execution attempt 1, duration 121.335 seconds |
+| Test logs | 71 passed, 0 failed, 0 ignored across all reported test groups; stderr records the finished release build and no error lines |
+| Completion / delivery | Matching job/run completed event and one corresponding delivery, accepted_by_host after one successful attempt |
+| Current installed MCP check | Doctor reports runtime 0.1.4, Linux, explicit current-terminal binding, actual MCP connectivity and matching installed/active state profile |
+| Human observation | MCP submission, end of submitting turn, completion-triggered same-chat continuation and no CLI fallback, as explicitly reported by the user |
+| Private correlation record | Ignored owner-only `.tmp/live-mcp-review-20261026/evidence.json`, retaining supplied job/run/event/delivery IDs, timestamps, counts and provenance |
+
+The review used bounded MCP status/events/deliveries/attempts/log reads and Doctor. It matched the user's exact job ID, successful run, completed event, delivery and test totals. No workload, delivery retry, recovery, session probe or host message was initiated. The recorded live build command did not include `--locked`; it is not retrospectively labeled as a locked build. The existing local locked-build gate remains separate evidence.
+
+The current runtime check does not identify the original native image hash or independently audit installation/cache replacement and database preservation across the update. The latest report supplies no current Desktop app version, OS distribution, plugin-browser observation or private chat transcript; earlier Desktop 26.1021.22027 / Ubuntu 26.04 fields remain historical context. It does not establish Desktop restart/rebind, multi-day renewal, receiver deduplication, a quiet control-chat observation or automatic resume confirmation. Persisted delivery remains accepted_by_host; observed continuation is recorded separately as user-attested evidence.
+
+## Remaining validation
+
+The installed MCP submission/continuation milestone above is complete for this user-confirmed run. Do not repeat the passed workload, CLI or connectivity tests merely to refill that evidence. Plugin-browser discovery/install, current host-version compatibility, Desktop restart/rebind and real long-job renewal remain separate checks when an appropriate use case occurs. No synthetic delay or manual crash matrix is required. Keep runtime acceptance and human continuation evidence separate.

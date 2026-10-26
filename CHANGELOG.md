@@ -5,7 +5,8 @@
 - Export a relocatable offline native plugin bundle; bootstrap validates the bundle and installation/marketplace ownership before writing, with no recipient Rust/Python/Node toolchain.
 - Update from checked local bundles while retaining the recorded state and refusing downgrades, active runtimes and modified/foreign files; generate plugin version metadata from the actual package version.
 - Route cached terminal and MCP entry points to the same managed native runtime; add explicit cache status and backed-up snapshot refresh, including update preflight across selected caches. Never scan/delete caches or change host enablement.
-- Pass 71 Rust tests, strict Clippy/formatting and release build; the isolated real Codex loader bootstraps the offline artifact, validates its installed cache and discovers 20 tools. No personal install, live wake or public publication is performed.
+- Pass 71 Rust tests, strict Clippy/formatting and release build; the isolated real Codex loader bootstraps the offline artifact, validates its installed cache and discovers 20 tools without touching personal settings or a real Desktop endpoint.
+- Record the user-confirmed installed MCP submission/same-chat continuation pass without CLI fallback; read-only review matches its 71-test result, completed event and one accepted delivery. Host continuation remains user-attested; no automatic confirmed-resume capability or publication is claimed.
 
 ## 0.1.3 — 2026-10-26 (unreleased notification recovery)
 

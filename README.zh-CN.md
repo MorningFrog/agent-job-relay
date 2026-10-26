@@ -107,6 +107,6 @@ AJR_BUNDLE="$PWD/.tmp/agent-job-relay-offline"
 | 设计和接口细节 | [架构](docs/architecture.md)、[协议](docs/protocol.md) |
 | 计划及变更 | [路线图](docs/TODO.md)、[变更记录](CHANGELOG.md) |
 
-Linux 执行、离线插件管理和 Codex CLI 0.164.0 加载器已有隔离自动化验证。Desktop CLI 唤醒有用户确认的真实证据；安装后的 MCP 提交/唤醒和插件界面安装仍需分别验收。原生程序自动下载、官方插件发布及输出监控/中断尚未实现。独立系统安装包和软件仓库计划已取消。
+Linux 执行、离线插件管理和 Codex CLI 0.164.0 加载器已有隔离自动化验证。Desktop CLI 唤醒及安装后的 MCP 提交/同聊天续聊已有用户确认的真实证据，并已只读核对任务、日志和投递记录。插件界面安装及当前宿主版本兼容性仍需单独验证。原生程序自动下载、官方插件发布及输出监控/中断尚未实现。独立系统安装包和软件仓库计划已取消。
 
 MIT 许可。项目独立实现，只读研究 Vanth 的行为需求，见[参考审查](docs/reference-audit.md)。
