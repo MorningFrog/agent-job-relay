@@ -1,10 +1,13 @@
-# AgentJobRelay
+<div align="center"> 
+<img src="./assets/icons/agent-job-relay.svg" alt="icon" width="200"/>
+<h1>AgentJobRelay</h1>
 
-Run durable background commands and route completion events to explicitly registered AI agent sessions. Host-assisted wake is experimental.
+English | [简体中文](README.zh-CN.md)
 
-持久执行后台命令，将完成事件可靠地路由到明确注册的 AI Agent 会话；宿主辅助唤醒目前属于实验功能。
+Run durable background commands and route completion events to explicitly registered AI agent sessions.
 
-**Language / 语言:** [English](README.md) | [简体中文](README.zh-CN.md)
+持久执行后台命令, 将完成事件可靠地路由到明确注册的 AI Agent 会话.
+</div>
 
 A native Rust CLI, independent runner and stdio MCP server for one trusted local
 user. **v0.1.0 is a source-build development milestone, tested on Linux x86_64.**
