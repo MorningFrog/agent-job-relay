@@ -6,9 +6,11 @@ Core correctness and usable local source builds have priority over distribution.
 
 ## Runtime and integrations
 
-- P0: live Desktop E2E with explicit user authorization, client version, exact
-  session/host identity and observed subsequent Agent execution. Fake hosts are
-  simulated only. Revalidate private API; do not claim confirmation from ack.
+- P0: extend the user-confirmed basic Desktop live E2E pass (ChatGPT Desktop
+  26.1021.22027 / Ubuntu 26.04; see live-e2e.md) to daemon restart, host restart,
+  explicit rebind, temporary delivery failure and a second no-cross-routing run.
+  Keep private evidence local, revalidate API compatibility for each client
+  version and never treat host acceptance as automated resume confirmation.
 - P0: Linux cgroups or equivalent optional containment for descendants that escape
   process groups; stronger containment after SIGKILL of the runner. Existing
   process-group cancellation is for non-daemonizing trusted workloads.

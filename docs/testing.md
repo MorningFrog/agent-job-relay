@@ -41,7 +41,12 @@ checks plus compilation on macOS/Windows; unsupported runtime is deliberate.
 Only Rust 1.99.1 is locally verified; the declared 1.89 MSRV is not independently
 validated yet. No install packages are built or tested in this milestone.
 
-## Manual live Desktop E2E (NOT performed)
+## Manual live Desktop E2E
+
+Basic procedure: **passed, user-confirmed on 2026-10-26**, using ChatGPT Desktop
+26.1021.22027 / Ubuntu 26.04. Local proof/log/session/delivery consistency was
+checked separately. See [evidence and scope](live-e2e.md). Restart and recovery
+scenarios have not been confirmed by this live result.
 
 Only use a disposable session and host endpoint explicitly authorized for this
 purpose. Do not scan private conversations or mutate desktop binaries.

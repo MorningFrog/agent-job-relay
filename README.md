@@ -23,14 +23,16 @@ No installer or package-manager release is available.
 | Standard stdio MCP tools; client exit does not stop jobs | Actual MCP handshake, discovery and execution tests |
 | Sessions, leases, exact routing, transactional outbox, retry/TTL/dead letters | Automated persistence and failure tests |
 | Codex CLI integration | MCP configuration and notification inbox; **no automatic resume** |
-| Desktop wake | Explicit experimental Unix socket adapter, **simulated host tests only** |
+| Desktop wake | Experimental Unix socket adapter; automated fake-host tests and **user-confirmed basic live E2E** on ChatGPT Desktop 26.1021.22027 / Ubuntu 26.04 |
 | Setup, doctor and owned MCP removal | Isolated configuration tests; no real user settings changed |
 | Windows/macOS runtime | **Not implemented/verified**; requests fail explicitly |
 
 Job completion, `notification_recorded`, `accepted_by_host` and observed Agent
-execution are distinct. No current adapter confirms that an Agent resumed.
+execution are distinct. No current adapter automatically confirms that an Agent resumed.
 A configured Desktop `can_resume` capability describes the request mechanism;
-it is not live E2E evidence.
+it is not live E2E evidence. The user-confirmed basic live test and artifact checks
+are recorded in [live E2E evidence](docs/live-e2e.md); restart/rebind scenarios
+remain outside that result.
 
 ## One-minute source quick start
 

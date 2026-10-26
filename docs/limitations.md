@@ -7,10 +7,13 @@
 - Codex CLI integration provides MCP tools plus a durable notification inbox.
   It does not start/resume an Agent automatically. No public app-server writer
   is owned by this program. No authentication or model invocation is performed.
-- Desktop transport is opt-in, private, experimental and fake-host tested only.
-  A successful ack is accepted_by_host; actual same-session Agent execution has
-  never been observed by this project. can_resume describes request capability,
-  not a live E2E guarantee. There is no confirmed-resume adapter.
+- Desktop transport is opt-in, private and experimental. Automated transport
+  tests use fake hosts. A basic live same-session test passed according to the
+  user on ChatGPT Desktop 26.1021.22027 / Ubuntu 26.04, with local artifacts
+  cross-checked (see live-e2e.md). This does not qualify other versions, host
+  restart/rebind or recovery scenarios. An ack remains accepted_by_host;
+  can_resume is request capability, not an automatic confirmation mechanism.
+  There is no confirmed-resume adapter.
 - Explicit host/session identities are supplied by the trusted caller. The
   private API cannot independently attest them. Socket fingerprint/lease changes
   require refresh or rebind; no magical historical conversation discovery.

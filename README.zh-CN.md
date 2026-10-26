@@ -22,12 +22,13 @@ Run durable background commands and route completion events to explicitly regist
 | 标准 stdio MCP，客户端退出不影响任务 | 真实握手、工具发现与执行测试 |
 | 会话、租期、精确路由、事务 Outbox、重试/TTL/dead letter | 持久化与故障自动化测试 |
 | Codex CLI 集成 | MCP 配置与通知收件箱；**不能自动恢复 Agent** |
-| Desktop 唤醒 | 显式实验性 Unix Socket 适配器，**仅假宿主模拟验证** |
+| Desktop 唤醒 | 实验性 Unix Socket 适配器；自动化假宿主测试，以及 ChatGPT Desktop 26.1021.22027 / Ubuntu 26.04 上**用户确认通过的基础真实端到端测试** |
 | setup、doctor、移除所属 MCP 项 | 隔离配置测试；没有修改真实用户设置 |
 | Windows/macOS 运行时 | **尚未实现/验证**，明确返回不支持 |
 
 任务完成、`notification_recorded`、`accepted_by_host` 与观察到 Agent 真正继续执行是不同状态。
-当前没有适配器能够确认 Agent 已恢复。Desktop 的 `can_resume` 表示配置的请求机制，不能视为真实端到端验证。
+当前没有适配器能够自动确认 Agent 已恢复。Desktop 的 `can_resume` 表示配置的请求机制，不能视为真实端到端验证。
+本次用户确认通过的基础实测及本地证据核对见[真实端到端验证记录](docs/live-e2e.md)；宿主重启和重新绑定等场景仍需单独验证。
 
 ## 一分钟源码快速开始
 

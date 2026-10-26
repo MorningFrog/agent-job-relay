@@ -42,3 +42,8 @@ credential reading, implicit session discovery or claim of live E2E.
 License: independent original implementation under MIT. Reference is Apache-2.0;
 no reference code, assets or packaging copied. Behavioral observations and
 independently written tests do not relicense the reference repository.
+
+Subsequent evidence update: the initial audit above preceded a user-confirmed
+basic same-session live pass on ChatGPT Desktop 26.1021.22027 / Ubuntu 26.04.
+See live-e2e.md for the scoped result and artifact checks; this does not change
+the private API's compatibility or automatic-confirmation limitations.

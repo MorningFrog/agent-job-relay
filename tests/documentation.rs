@@ -7,8 +7,14 @@ fn readmes_have_bilingual_introductions_and_valid_local_links() {
         let intro = text.lines().take(9).collect::<Vec<_>>().join("\n");
         assert!(intro.contains("Run durable background commands"));
         assert!(intro.contains("持久执行后台命令"));
-        assert!(intro.contains("[English](README.md)"));
-        assert!(intro.contains("[简体中文](README.zh-CN.md)"));
+        // The active language can be plain text; the other language must be linked.
+        assert!(intro.contains("English") && intro.contains("简体中文"));
+        let other_language = if name == "README.md" {
+            "[简体中文](README.zh-CN.md)"
+        } else {
+            "[English](README.md)"
+        };
+        assert!(intro.contains(other_language));
         for part in text.split("](").skip(1) {
             let target = part.split(')').next().unwrap();
             if target.starts_with("https://") || target.starts_with('#') {

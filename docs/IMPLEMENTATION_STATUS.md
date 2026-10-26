@@ -13,7 +13,7 @@ Declared Rust 1.89 MSRV is not independently tested.
 | 0: reference/design | Completed; full spec/ancestor instruction audit, read-only Vanth audit, architecture/ADR, compiled Cargo package | No reference implementation copied |
 | 1: core | Implemented and tested on Linux: CLI, private IPC, SQLite Job/Run/Event, independent runner, capture, cancel/timeout, conservative restart recovery | Windows/macOS native runtime and escaped-daemon containment pending |
 | 2: MCP/delivery/setup | Implemented and tested: real rmcp stdio, sessions, targets, atomic outbox, lease fencing, retries/TTL/dead letters, setup/removal/backups | No Tasks/subscriptions; no guessed ChatGPT config format |
-| 3: Agent integration | Codex CLI MCP + notification inbox implemented/tested; Desktop AF_UNIX adapter **simulated** with fake hosts; exact multi-session routing/refresh/rebind tested | **No live Agent auto-resume E2E**, no public app-server writer, no Windows pipe adapter |
+| 3: Agent integration | Codex CLI MCP + notification inbox implemented/tested; Desktop fake-host automation plus **user-confirmed basic live same-session E2E** on ChatGPT Desktop 26.1021.22027 / Ubuntu 26.04; local proof cross-checked | Live restart/rebind/failure matrix pending; no automatic resume confirmation, public app-server writer or Windows pipe adapter |
 | 4: local quality/docs | Local fmt/strict Clippy/full tests/release build and onboarding passed; complete bilingual READMEs, security/protocol/testing/install/release docs, maintenance AGENTS, changelog, CI matrix | GitHub Actions not executed; macOS/Windows build/runtime not locally verified; native platform gates remain open |
 
 This is a verified Linux milestone, **not completion of every cross-platform
@@ -71,6 +71,7 @@ integration, config, platform. SQLite schema **v4**, local IPC **v1**.
 | `cargo install --path . --locked --offline --root "$PWD/.tmp/install"` | Passed, repository-local installation only |
 | `./.tmp/install/bin/agent-job-relay --version` | `agent-job-relay 0.1.0` |
 | `cargo uninstall --root "$PWD/.tmp/install" agent-job-relay` | Passed; local test install removed, state retained |
+| Basic live Desktop wake | User confirmed pass on ChatGPT Desktop 26.1021.22027 / Ubuntu 26.04; proof/token/thread/delivery correlation checked read-only; see live-e2e.md |
 | `git diff --check` | Passed before commits |
 
 Onboarding covered help/version, first daemon start, explicit sessions, job/run
@@ -95,11 +96,16 @@ Daemon abrupt restart and graceful shutdown, runner disappearance, stale process
 identity, startup uncertainty, duplicate submit/cancel, quotas, huge/binary logs,
 write failure and transaction-abort recovery have automated evidence.
 
-Desktop tests validate protocol framing, callerSource, caller/destination,
-capability rejection, endpoint replacement and acceptance-only semantics.
-They do **not** establish a live app version or actual subsequent Agent action.
-No authorized disposable Desktop endpoint/session was exercised. Codex CLI inbox
-is notification-only. No credentials or private conversation scan was used.
+Desktop automated tests validate protocol framing, callerSource, caller/destination,
+capability rejection, endpoint replacement and acceptance-only semantics. They
+remain simulated. Subsequently, the user confirmed the basic live same-session
+test passed on ChatGPT Desktop 26.1021.22027 / Ubuntu 26.04. Read-only checks of
+the ignored local proof, output log and database confirmed matching token,
+thread/caller/target and event/job/delivery identities, completed job and one
+accepted host delivery. UI turn execution is user-attested, not independently
+replayed by this assistant. See live-e2e.md for scope and evidence provenance.
+The adapter still cannot automatically confirm resume. Codex CLI inbox remains
+notification-only; no credential or unrelated private conversation scan was used.
 
 See limitations.md/security.md: power loss and true ENOSPC are not VM-tested;
 runner SIGKILL/escaped descendants can leave unknown external effects; same-UID
@@ -110,8 +116,9 @@ crash. Stable delivery IDs do not prove receiver-side exactly-once behavior.
 
 ## Handoff priorities
 
-1. Authorized same-session live Desktop E2E with observed Agent execution;
-   replace private interfaces with public ones when available.
+1. Extend the basic live pass to daemon/host restarts, explicit rebind, temporary
+   delivery failure and repeated routing checks; replace private interfaces
+   with public ones when available. Preserve per-version evidence and provenance.
 2. Stronger Linux containment and fault/soak/real disk-full testing.
 3. Windows SID/DACL/named pipe/Job Objects and macOS process identity/native tests.
 4. More migration fault tests, backup/export, retention preview and explicit
@@ -137,5 +144,15 @@ English Conventional Commits, no pushes, no remote created, no history rewrite:
 - 43f2662 `fix(storage): persist run lifecycle and version local IPC envelopes`
 - d9fe030 `fix(cli): improve health diagnostics and continuous log playback`
 
-Stage 4 adds a separate documentation/CI acceptance commit after this record.
+- a216fd0 `docs: document verified Linux milestone and deferred distribution`
+- 3d68313 `docs: update README and add icon for AgentJobRelay`
+
+Live-test documentation was updated after the user confirmed the basic pass;
+see `git log` for the subsequent evidence-recording commit.
 Read this file, PROJECT_SPEC.md, architecture.md and AGENTS.md before continuing.
+
+Live-evidence documentation update: retained the user's icon/header layout.
+The earlier README test expected the active language to link to itself and failed
+after that header change. It now requires the working other-language link in each
+README while retaining both-language introduction and local-link checks. This
+changes a layout assumption, not the bilingual navigation requirement.
