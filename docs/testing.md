@@ -21,7 +21,7 @@ strict lints. CI definition is not evidence that GitHub Actions ran.
 | Area | Automated evidence | Boundary |
 |---|---|---|
 | Process execution | exit code, success/failure, separate stdout/stderr, invalid UTF-8, byte cursors | Linux real children |
-| Isolation | stdio MCP disconnect, detached runner, daemon kill/restart and graceful shutdown | Linux real processes |
+| Isolation | stdio MCP disconnect, detached runner, daemon kill/restart, graceful shutdown and Runner launch after executable replacement | Linux real processes; replaced image executes once with same daemon PID |
 | Persistence | idempotency conflict and concurrent duplicate, terminal/outbox transaction abort trigger | SQLite real DB |
 | Launch recovery | unclaimed launch classified orphaned, delayed runner fenced, runner crash, stale PID/boot identity | injected crash windows; no replay |
 | Cancellation | descendants terminated, timeout, duplicate stop, unrelated process stays alive | non-daemonizing groups |
@@ -32,7 +32,7 @@ strict lints. CI definition is not evidence that GitHub Actions ran.
 | Desktop | fragmented length framing, catalog/field/callerSource checks, target identity, socket replacement, rejection and oversized input | fake host only |
 | Convenience | CLI --wake / MCP wake_me=true auto-start, registration/probe, concurrent routing, idempotence, missing context/capability refusal, host replacement and daemon stop | fake host + actual CLI/MCP processes |
 | Setup/remove | clean isolated HOME, TOML comment/foreign item retention, JSON preservation, dry-run/idempotency/backup, ownership refusal | isolated files |
-| Installed entry points | native/plugin install preview/apply, relative launcher/cache relocation, fixed profile despite exported overrides, marketplace/MCP preservation, safe removal/update, active-runtime refusal | 5 onboarding tests + real installed shared stdio MCP; fake Desktop |
+| Installed entry points | native/plugin install preview/apply, relative launcher/cache relocation, fixed profile despite exported overrides, no-override update retaining custom state, Codex manifest/native command, marketplace/MCP preservation, safe removal/update, active-runtime refusal | 5 onboarding tests + real installed shared stdio MCP; fake Desktop |
 | Security/schema | private socket/root modes, symlink DB/config refusal, env non-echo, future schema refusal, v1→v4 upgrade and repeat init | local checks |
 | Documentation | bilingual intro, language navigation and relative file links | static acceptance check |
 
@@ -86,7 +86,7 @@ distinguishes loading a thread from starting or steering a generation turn.
 
 ## Everyday-use shortcut verification
 
-`cargo test --test convenience` covers nine isolated real CLI/MCP lifecycle
+`cargo test --test convenience` covers ten isolated real CLI/MCP lifecycle
 tests with fake Desktop endpoints. No real host is messaged. Automatic binding,
 concurrent daemon startup, per-caller routing, repeated submission/registration,
 missing context, rejected capability, new endpoint identity, safe daemon stop
@@ -147,16 +147,37 @@ explicit-registration basic result; retain per-path provenance in live-e2e.md.
    Confirm all test jobs are terminal, stop only this test daemon and retain
    private evidence. Never commit raw proofs, markers, endpoint paths or logs.
 
-## Next user acceptance: one installed-plugin real task
+## Installed plugin evidence and next acceptance
 
-The CLI three-round result remains valid. Do not ask the user to repeat it with
-a different workload or perform a manual artificial crash matrix. The new coverage
-needed is the delivery entry point:
+The installed real release task passed via **skill + CLI fallback**, after a
+failed initial launch and a separate-state workaround. It ran the prior 45-test
+release suite and resumed the correct chat; see live-e2e.md for exact provenance.
+It did not call MCP. The runtime/loader repair now has 47 passing Rust tests.
+Do not repeat passed CLI workloads or require a manual artificial crash matrix.
 
-1. Follow installation.md to preview/apply one local installation and marketplace
-   entry. Restart Desktop, install AgentJobRelay from that marketplace, and open
-   a new local chat in the intended project. Verify the plugin is available.
-2. Ask it to run an actual project task in the background and report completion.
+For an optional developer real-loader check, after the release build run:
+
+```bash
+python3 scripts/check_codex_plugin.py
+```
+
+This needs the actual Codex CLI (tested 0.164.0) and Python for the check only.
+It installs into a fresh repository-local HOME/CODEX_HOME, adds the local plugin,
+queries actual app-server `plugin/read` and MCP tool status, requires core tools
+among the 19 discovered tools, and asserts no runtime state was created. It
+starts no model turn and touches no real user config or Desktop endpoint. Logs
+and report.json stay ignored in the printed `.tmp/loader-...` directory. A loader
+check is not a Desktop UI or live MCP task/wake result.
+
+The next minimal user acceptance targets the repaired Desktop entry:
+
+1. Follow installation.md for a user-chosen idle update at the same install/state
+   root, refresh the host cache and restart Desktop. Do not change state to bypass
+   errors. Verify actual AgentJobRelay MCP tools and call `job_doctor` from the
+   host. Stop and diagnose if absent; a skill alone is insufficient. Plugin browser
+   discovery/install needs its own observation.
+2. Once tools work, use the next naturally long real project task to qualify
+   background completion.
    Do not include executable/state/session paths in the prompt. Prefer a real
    workload long enough to outlast the submitting turn; do not add artificial
    delays merely to repeat the CLI test.
@@ -174,7 +195,8 @@ needed is the delivery entry point:
    evidence of the host loading it. Stop on genuine integration failures and
    fix those rather than asking for another equivalent test.
 
-The current increment has automated isolated install/CLI/MCP coverage only. It
-did not change real HOME/config/services or install into the actual host UI.
+The repair has isolated installed CLI/MCP, runtime and actual Codex loader
+coverage. The reviewer did not change real HOME/config/services, update actual
+host caches or stop real daemons. The earlier user task used an existing install.
 The bundled skill passed skill-creator's quick_validate.py; that validates
 structure, not agent judgment or browser discovery.

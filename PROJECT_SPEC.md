@@ -4,7 +4,9 @@
 > 项目根目录：`/data/Projects/Agents/agent-job-relay`
 > 仅供研究的参考目录：`/data/Projects/Agents/vanth-fork`
 > 状态：工程实施规范，不代表以下功能已经完成。
-> **交付优先级：可靠性 + 用户体验。** 本阶段必须实现可靠的后台运行时、便捷的本地开发/测试入口、清晰的 `setup` / `doctor` / 集成移除、双语 README 和阶段性英文 Conventional Commits。**跨平台安装包、包管理器上架及自动发布属于明确记录的未来 TODO，不要求现在实现或发布，不能因此阻碍核心开发。**
+> **交付优先级：可靠性 + 用户体验。** 本阶段必须实现可靠的后台运行时、便捷的本地开发/测试入口、清晰的 `setup` / `doctor` / 集成移除、双语 README 和阶段性英文 Conventional Commits。**交付方向现已修订为 Plugin，独立系统安装包计划取消；当前不向任何官方平台发布。**
+
+> **2026-10-26 用户修订（优先于原发行要求）：** 取消各系统独立安装包、包管理器及软件仓库发布计划，统一以 Agent Plugin 交付为目标，期望覆盖 ChatGPT Desktop/Codex、Claude Code、OpenCode，并尽可能通过各 Agent 官方支持的插件平台便捷安装。当前仍在开发阶段，暂不发布到官方平台，也不上传或配置发布凭证。保留一个 Rust/MCP 核心，各宿主分别实现插件入口和可验证的会话适配；Plugin 安装不等于已经支持自动唤醒。此修订替代旧的多格式安装包 TODO，详见新版 §16 和 docs/TODO.md。
 
 ## 0. 身份、总体任务与交付方式
 
@@ -12,7 +14,7 @@
 
 创建一个名为 **AgentJobRelay** 的全新开源候选项目：一个跨平台、以 Agent 会话为一等实体的事件驱动后台作业运行时。它可以安全地启动独立于 MCP/Agent 客户端生命周期的长时间命令，持久化进度和结果，并在宿主允许时可靠地通知或唤醒**正确的** Agent 会话，让 Agent 在需要处理任务事件时继续工作，尽量避免在长任务期间持续轮询。
 
-**设计目标是新架构，不是将 Vanth 翻译成 Rust。** 优先实现高可靠的核心闭环，不要照搬 Vanth 全部特性。**项目面向真实用户，而不只是开发者：从一开始就为简单、安全、可回滚的安装/卸载留下正确架构边界；当前优先保证源码构建、本地启动、MCP 客户端配置/移除和诊断体验。完整的安装包和包管理器发布由未来 TODO 实现，不是本轮交付要求。**
+**设计目标是新架构，不是将 Vanth 翻译成 Rust。** 优先实现高可靠的核心闭环，不要照搬 Vanth 全部特性。**项目面向真实用户，而不只是开发者：从一开始就为简单、安全、可回滚的安装/卸载留下正确架构边界；当前优先保证源码构建、本地启动、MCP 客户端配置/移除和诊断体验。各 Agent 的 Plugin 交付为后续目标，当前只做本地开发及验证，不发布到官方平台。**
 
 ### 操作边界（必须遵守）
 
@@ -58,9 +60,9 @@
 - `clap`：CLI；`serde` / `serde_json`：消息协议；`thiserror` / `anyhow`：分层错误；`tracing`：结构化日志。
 - Unix Domain Socket 与 Windows Named Pipe：本地 IPC；优先可维护的小型适配封装，必要时使用 `interprocess`；IPC 身份与权限必须按平台验证。
 - Linux/macOS 进程组与 session、Windows Job Objects：将 OS 特殊性限制在 `platform/` 内。其他 OS 作为后续兼容目标。
-- 测试：Rust 内置测试、`assert_cmd`/`tempfile`/`proptest` 等按需使用；GitHub Actions 多平台矩阵，后续考虑 `cargo-dist` 发布。
+- 测试：Rust 内置测试、`assert_cmd`/`tempfile`/`proptest` 等按需使用；GitHub Actions 多平台检查矩阵；插件发布自动化待后续授权，本轮不实现。
 - 可选 TUI：`ratatui`，严格排在可靠唤醒和恢复之后。
-- 发行与安装：当前提供可运行的 `cargo run`、`cargo build --release`、可选的 `cargo install --path .` 及对应 `cargo uninstall` 开发者流程；保持单个 Rust 原生可执行文件的打包友好性。未来计划使用 GitHub Actions 生成 `.deb`、`.rpm`、`.AppImage`、Windows `.exe` 安装程序、macOS `.dmg`、Flatpak，以及可选的 PyPI/`uv tool` 安装渠道；**完整打包、上架、自动发布目前只登记 TODO，不要实现**。详情见 §16.5。
+- 发行与安装：开发阶段保留 cargo build/run/install/uninstall 及本地插件安装入口。用户最终通过 Agent Plugin 使用同一 Rust/MCP 核心，期望覆盖 ChatGPT Desktop/Codex、Claude Code、OpenCode；逐一适配其官方安装机制。当前不发布，独立系统安装包及软件仓库计划已取消，详见 §16。
 
 坚持模块化单体，首先采用**一个 Cargo Package、一个可执行文件、内部清晰模块**。不要为了形式主义立刻拆成多个发布 crate；若后续需要才拆分。可执行文件内部提供 `daemon`、`mcp`、`runner` 等运行模式。
 
@@ -238,8 +240,8 @@ agent-job-relay integration remove <client> [--dry-run]
 - Windows/macOS 应至少在 GitHub Actions 上编译与运行可行测试；无法在当前主机验证的 OS 特有功能必须明确说明、以 platform adapter test 标注待测。
 - 使用 `Cargo.lock` 固定可执行程序依赖，避免动态 API 漂移；CI 包含 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --all-targets` 和 release build（根据实际命令与 features 调整）。
 - 安装应优先原生单可执行文件；无需要求 Python、Go、Node、Docker 运行环境。
-- 不直接发布仓库或 GitHub Release。本轮只需构建/测试 CI，完整 Release 打包/上架工作流登记为未来 TODO，待后续开发及用户授权。
-- **当前 P0 是开发者可用的本地运行入口、清晰 setup/doctor、Agent 集成的可逆配置与默认保留数据；原生安装包、系统包管理器、应用商店和自动发布是未来 TODO**。要求为未来发行预留可行路径，不能把完整打包任务提前混入核心里程碑；详见 §16。
+- 不直接发布仓库或插件。本轮进行构建/测试及本地插件验证，官方插件平台提交留待后续开发稳定及用户明确授权。
+- **当前 P0 是便捷的本地 Plugin/MCP 入口、清晰 setup/doctor、可逆配置与默认保留数据。** 独立系统安装包及软件仓库计划已取消，详见 §16。
 - 使用项目自己独立的状态目录（优先遵循各 OS 习惯，如 XDG_STATE_HOME / LocalAppData），**严禁复用或迁移 Vanth 的现有数据库**。
 
 ## 12. 测试矩阵：按行为验收而非按行数验收
@@ -263,8 +265,8 @@ P0 必须覆盖：
 13. 宿主机重启和 Runner 消失时的状态恢复策略（无法真实测试断电时，用故障注入说明可验证范围）。
 14. MCP：协议握手、工具发现、核心工具实际执行，与普通 MCP 客户端兼容。
 15. 当前用户体验：从干净 HOME/测试数据目录中验证本地构建后的首次启动、`setup --dry-run`、`doctor`，以及重复 setup 不覆盖其他 MCP 项；**不要求本阶段实际构建 `.deb`/`.rpm`/`.AppImage`/`.exe`/`.dmg`/Flatpak/PyPI Wheel**。
-16. 当前移除体验：测试 `integration remove` 的 dry-run、可逆配置变更、保留用户任务数据；记录本地 `cargo uninstall` / 删除自行安装二进制的注意事项。系统软件包卸载器、托管服务移除及包管理器卸载测试留待发行 TODO。
-17. 文档验证：两个 README 的**当前可执行**本地安装/运行、`setup`/`doctor`/集成移除命令必须匹配真实 CLI；未来发行格式、包管理器安装/卸载命令只能出现在明确标为 Planned/TODO 的位置；验证两个 README 开头都有英中双语简短介绍。
+16. 当前移除体验：测试 `integration remove` 的 dry-run、可逆配置变更、保留用户任务数据；记录本地 `cargo uninstall` / 删除自行安装二进制的注意事项。Plugin 移除须保留数据；不再规划独立系统包卸载器或包管理器测试。
+17. 文档验证：两个 README 的**当前可执行**本地安装/运行、`setup`/`doctor`/集成移除命令必须匹配真实 CLI；各宿主 Plugin 的实际支持和未实现项应明确标注；验证两个 README 开头都有英中双语简短介绍。
 
 真实 ChatGPT Desktop/真实 Codex Agent E2E 只有在测试环境明确可用时再运行；提供手动 E2E 文档、通过的版本号/客户端及观察记录。不能把 fake Host 的测试当成真实 Desktop 集成验证。
 
@@ -283,7 +285,7 @@ P0 必须覆盖：
 产出：可验证的 Codex CLI 集成；对 ChatGPT Desktop 构建严格隔离的实验适配器，兼容 Unix Socket/Windows Pipe（实测允许的平台），多会话注册逻辑，重新绑定；实测无法保证的能力必须作为限制。
 
 ### Stage 4 — 质量门禁及文档
-产出：CI 矩阵、稳定性/故障注入测试、**英文 `README.md` + 中文 `README.zh-CN.md`（两者开头均含英中文双语简介）**、安装/卸载与 MCP 一键配置文档、CLI 示例、恢复说明、`docs/security.md`、`docs/limitations.md`、`docs/testing.md`、版本/变更记录，以及**当前实际可运行的**源码构建/本地安装/集成移除说明和基础 smoke test。把各平台软件包、包管理器发布及 GitHub Actions Release 自动化登记到 `docs/TODO.md`（见 §16.5），**不要求现在创建发布流水线或构建安装包**。实际运行 fmt/clippy/test/release-build 并记录结果。
+产出：CI 矩阵、稳定性/故障注入测试、**英文 `README.md` + 中文 `README.zh-CN.md`（两者开头均含英中文双语简介）**、安装/卸载与 MCP 一键配置文档、CLI 示例、恢复说明、`docs/security.md`、`docs/limitations.md`、`docs/testing.md`、版本/变更记录，以及**当前实际可运行的**源码构建/本地安装/集成移除说明和基础 smoke test。在 `docs/TODO.md` 维护各宿主 Plugin 交付和未来官方平台计划，**当前不得发布，独立系统安装包计划已取消**。实际运行 fmt/clippy/test/release-build 并记录结果。
 
 如果自动化工作会话限制导致无法一次执行全部 Stage，应将所有已实现内容保存在仓库、完成相应测试并将后续任务写入 `docs/IMPLEMENTATION_STATUS.md`；下次从这个文档与 Git 历史恢复，不能只输出大段“以后再做”。
 
@@ -294,7 +296,7 @@ P0 必须覆盖：
 - 缺少平台测试只能标记 `not verified`；不要把 Linux 测试通过写成 Windows/macOS 全部验证。
 - 不得删除失败测试、降低 lint 严格程度或改坏功能换取绿色 CI。
 - 如为阶段性 MVP，清晰写出未完成功能，避免 README 预支未来能力。
-- **当前本地运行、setup/doctor、集成移除必须有测试或手动验证**；未来 `.deb`/`.rpm`/`.AppImage`/`.exe`/`.dmg`/Flatpak/`uv tool` 安装与包管理器上架是 TODO，**不是本阶段 Gate 的失败条件**。不允许将未构建/发布的平台写成“已支持”。
+- **当前本地运行、Plugin/MCP、setup/doctor、集成移除必须有测试或手动验证**。其他宿主和未来官方平台提交须单独标注未实现/未验证，不允许写成已支持；系统安装包已取消。
 - Stage 0 至 Stage 4 均需要有**阶段性本地 Git 提交**，代码变更按有意义的功能切分，使用英文 Conventional Commit 消息；不得把所有改动压成一个最终提交，也不得在测试失败时标称完成。
 
 ## 14. 文档、维护规范与 AGENTS.md
@@ -308,13 +310,13 @@ P0 必须覆盖：
 - 使用 UTF-8；测试隔离、不要碰上游 Vanth 状态；
 - 不要因为未实现功能而生成虚假文档、假接口或声称成功；
 - 尽量以公开官方接口替代不稳定私有 Host API；任何 private API 变更需写出兼容风险。
-- 优先提升当前用户体验：可运行的本地构建入口、清晰 setup/doctor、可逆 MCP 配置；免编译安装、多格式打包、包管理器发布、安全卸载器是明确登记的未来 TODO。
+- 优先提升当前用户体验：可运行的本地构建入口、清晰 setup/doctor、可逆 MCP 配置；Plugin 便捷安装和安全移除是交付目标，独立系统安装包已取消；当前不发布到官方平台。
 - README 英文版 `README.md` 与中文版 `README.zh-CN.md` 均应有英中文简短介绍，并及时同步安装/卸载等用户可见内容。
 - 使用 Conventional Commits 规范，Git 提交标题及正文均使用英文；阶段性提交、不得 push 或重写历史。
 
 同步维护 `docs/IMPLEMENTATION_STATUS.md`：当前版本、完成的 Stage、通过/失败的测试、实际已证实的宿主功能、已知缺陷、下一步优先事项和最后的验证命令。文档应与代码及运行结果一致。
 
-**README 国际化是必需项。** `README.md` 为默认英文完整版，`README.zh-CN.md` 为内容一致的中文完整版。两个文件的最前部（标题之后、目录及长篇说明之前）都必须分别提供**英文一小段介绍 + 中文一小段介绍**，不能只提供单语正文加一个语言链接；同时提供互相跳转的 `English | 简体中文` 链接。两者都包含**当前可执行的**开发者安装/运行、集成移除、一分钟 Quick Start、MCP 配置、CLI 示例、数据保留与清理警告、常见问题与故障排查；未来多平台安装包/卸载器必须明确标注为 Roadmap/TODO，不能冒充可执行命令；新功能或 CLI 变更需同步更新双语文件。不得宣称尚未发布的包管理渠道可用。
+**README 国际化是必需项。** `README.md` 为默认英文完整版，`README.zh-CN.md` 为内容一致的中文完整版。两个文件的最前部（标题之后、目录及长篇说明之前）都必须分别提供**英文一小段介绍 + 中文一小段介绍**，不能只提供单语正文加一个语言链接；同时提供互相跳转的 `English | 简体中文` 链接。两者都包含**当前可执行的**开发者安装/运行、集成移除、一分钟 Quick Start、MCP 配置、CLI 示例、数据保留与清理警告、常见问题与故障排查；各宿主 Plugin 的未实现能力和未来发布必须明确标注，不能冒充可执行命令；新功能或 CLI 变更需同步更新双语文件。不得宣称尚未接入或发布的插件平台可用。
 
 ## 15. 实现风格与架构约束
 
@@ -327,59 +329,35 @@ P0 必须覆盖：
 - 在相同功能下，优先降低 Agent Token 消耗：给出精炼状态与错误、有限日志切片，避免为了“动态进度”而引导主动高频轮询。
 - 不能将 `Agent wake` 的成功依赖于 Agent 自身保持运行；对不支持异步恢复的 Host 提供严格的 capability 说明。
 
-## 16. 用户体验、安装和卸载（当前基础体验为 P0；发行渠道为未来 TODO）
+## 16. 用户体验与 Plugin 交付（2026-10-26 修订）
 
-**长期产品目标：** 普通用户无需安装 Rust/Cargo，即可通过系统安装包或包管理器安装、升级和卸载 AgentJobRelay，并以最少步骤配置 MCP。**本轮开发不要提前实现完整的跨平台打包、上架、发布、签名和卸载器**；这些属于 §16.5 的显式 Deferred TODO。当前仍须保证基本 CLI、setup/doctor、MCP 集成移除方便且可测试。
+### 16.1 统一交付方向
 
-### 16.1 本轮必须实现的本地体验
+- 以 Agent Plugin 为用户入口，用户安装/配置一次后即可用自然语言调用后台工具，不应在每次提示词中填写二进制路径、状态目录或会话 ID。
+- 期望覆盖 ChatGPT Desktop/Codex、Claude Code、OpenCode。复用单一 Rust/MCP 核心，每个宿主按其官方机制提供插件描述、技能/工具、安装和会话适配。
+- 当前只允许本地开发、源码构建和隔离验证，不发布到官方平台、不推送仓库、不上传包、不配置线上凭证。未来以各 Agent 官方支持的插件平台/安装机制为优先目标；具体上架与审核须另行核定、另行授权。
+- 独立系统安装包、包管理器、软件仓库及其自动发布计划已取消，不应继续登记为待实现任务。插件内部按 OS/架构提供原生运行时不等同恢复系统安装包计划。
 
-- 提供可验证的 `cargo run -- --help`、`cargo build --release` 与构建产物直接运行的开发者流程；可按实际情况支持 `cargo install --path .`。不需要现在发布 `.deb`、`.rpm`、`.AppImage`、`.exe`、`.dmg`、Flatpak 或 PyPI 包。
-- 确保单个原生 Rust CLI/Daemon 可执行文件便于未来封装，数据目录与配置目录独立于安装目录，不能硬编码仓库绝对路径或依赖开发者本地环境。
-- 首次使用时能发现 Daemon/IPC/Host 配置问题，提供可靠 `--help`、`--version`、`doctor`、`setup --dry-run`，错误应明确可操作的下一步。
-- 本阶段只在隔离 HOME/配置目录中自动验证，不主动修改用户现有真实 Codex/ChatGPT 配置或全局 PATH。当前使用说明须诚实注明“本地源码构建 / development install”。
+### 16.2 当前必须实现的基础体验
 
-### 16.2 零困惑的首次初始化和诊断（当前必须实现）
+- 保留可执行的源码构建、CLI、setup/doctor、安全移除和稳定的开发安装入口；开发阶段允许构建一次后本地安装插件。
+- 安装、状态数据、Host 会话和 MCP 连接保持独立。升级时未显式更改状态目录应保留原有配置及历史，插件缓存更新不能使运行中的新版本 Daemon 失去启动 Runner 的能力。
+- 配置默认预览，--apply 仅改动所属项目条目并备份。仅在隔离 HOME/配置目录自动验证，不擅自修改真实配置、服务、PATH 或其他项目。
+- doctor 分别报告配置匹配、运行时健康、自身 MCP 协议检查和真实 Host 工具连通性，不把本地自检当成宿主已安装工具。
 
-- 提供清晰的 `setup`、`doctor`、`--version`、`--help`。`setup` 检测目标 Host 已有配置，采用**幂等的最小修改**（只增改 AgentJobRelay 自身条目），并给出修改前摘要、文件路径、必要的备份和下一步；支持 `--dry-run`。
-- 不应要求用户手工编写 JSON/TOML 才能集成常见支持的 MCP Client；暂不能自动配置的 Host 应显示明确、可复制的配置和原因，不可假装成功。
-- 诊断是否已正确启动 Daemon、MCP 是否注册、会话是否可被唤醒；如需重启 MCP Client 或重新绑定 Desktop，应明确说明。
-- 不自动覆盖第三方配置；面向真实用户配置的操作均遵守本文操作边界，未经授权不实际写入。
+### 16.3 各宿主适配及安全移除
 
-### 16.3 当前集成移除与未来安全卸载原则
+- 逐一实测宿主插件加载器，不能假定一个 portable manifest 在所有宿主通用；优先各平台正式支持的插件格式与本地开发方式。
+- 每项任务绑定真实发起会话。共享 MCP 不得使用进程继承的旧会话身份猜测调用者。Claude Code/OpenCode 的身份、通知和继续执行能力必须独立实现并验证，不沿用 Codex 私有端点伪称跨宿主支持。
+- 插件已显示、技能可用、MCP 工具实际加载、任务执行、Host 接收和 Agent 真实继续是不同验收项；降级到 CLI 必须记录实际入口，不能称为完整 MCP 验收通过。
+- 插件移除、marketplace 条目移除、缓存清理和用户数据清除是不同操作。正常移除默认保留任务历史、日志及个人数据，拒绝覆盖/删除第三方或用户修改的内容。
 
-- **应用卸载、Agent 集成移除、后台服务移除、用户数据清除是不同操作。** 当前至少提供 `integration remove <client>`（或同等语义命令）的可预览/可逆接口，支持 dry-run；仅移除本项目拥有的配置条目，不覆盖用户自行修改过的内容。
-- 当前文档描述 `cargo uninstall`（仅在确已安装时）、删除自行复制的原生可执行文件等本地开发者路径，并提醒运行中任务与后台进程可能需要先停止；若某种路径尚不能自动安全执行，应明确限制。
-- **未来各种安装包/包管理器的卸载都必须保留用户数据**：任务历史、日志与个人配置默认不删除，`data purge` 是不同的显式确认操作；卸载前检查仍在执行的任务、服务/自启动项，以及由安装器创建的集成。不能误删其他 MCP 服务或 Vanth 数据。
-- 任何渠道的更新/卸载语义须可回滚，不依赖未经授权的 `sudo` 或危险 `rm -rf`。
+### 16.4 验收与后续计划
 
-### 16.4 当前验收与未来测试边界
-
-- 现在验证隔离 HOME 下的首次本地启动、`setup`/`doctor`、setup 幂等、dry-run、已有 MCP 配置保留、`integration remove` 的配置回滚和数据保留语义。
-- `README.md` 和 `README.zh-CN.md` 只给出**已实际运行**的本地构建/启动/配置/移除命令；将所有未来安装包、软件仓库和卸载方式列在明确标注的 Roadmap 中。
-- **现在不要求**多平台安装包 smoke test、下载器/安装器开发、GitHub Releases、软件包仓库发布、签名/公证、PyPI 上传或生产用自动 Release CI；这些是单独的未来实施阶段。
-
-### 16.5 Deferred TODO：完整多平台安装、卸载和自动发布（本轮只需规划，不实现）
-
-必须在 `docs/TODO.md` 中增加独立的 **Distribution & Packaging** 路线图，至少覆盖以下候选渠道，并标注优先级、交付物、安装/更新/卸载方式、潜在限制、测试标准和 GitHub Actions 发布计划。**可以记录设计决策和简单兼容性评估，但不得现在将打包、商店提交、发行上线作为开发任务执行。**
-
-| 平台 | 目标安装格式/渠道 | 建议优先级 | 关键注意事项 |
-| --- | --- | --- | --- |
-| Ubuntu / Debian | `.deb`；APT 仓库 | P1 | 包文件、依赖、仓库索引/签名、升级/卸载和用户级配置行为 |
-| Fedora / RHEL | `.rpm`；DNF/YUM 仓库 | P1 | 仓库元数据与签名、发行版差异、服务与数据清理语义 |
-| Windows | `.exe` 安装器（如 WiX/NSIS）；WinGet | P1 | 架构、PATH、安装/卸载、代码签名、后台进程和文件锁 |
-| macOS | `.dmg`（必要时评估 `.pkg`）；Homebrew | P1 | CLI 与守护进程的安装位置、签名、公证、LaunchAgent/数据目录 |
-| 全平台 | GitHub Releases 预编译二进制/压缩包 | P1 | SHA-256、架构识别、版本升级、独立下载与卸载说明 |
-| 跨平台可选渠道 | PyPI Wheels + `uv tool install agent-job-relay` | P1 可选 | 纯 Rust CLI 可以用 `maturin` 的二进制 Wheel 模式封装；须先验证名称、平台 wheel 和 Python/uv 安装依赖与最终体验，不得将 Rust 包误当作原生 `uv tool` 包 |
-| Linux 桌面 | `.AppImage` | P2 | 便携分发不等于包管理器安装；CLI、PATH、系统服务与桌面集成需额外设计 |
-| Linux 桌面 | Flatpak 包；Flathub | P2 / 可行性评估 | 沙箱可能限制宿主进程执行、MCP 配置读写、Unix Socket、Daemon 服务；先证明适配安全可行，不能为上架削弱沙箱权限而不说明 |
-
-- 发行自动化：未来评估 `cargo-dist`、`cargo-deb`、`cargo-generate-rpm`、`maturin`、Flatpak 构建工具及各 OS 原生打包方案。按**工具当时真实支持的格式**选用，可混合使用，不要求一个工具生成全部安装包。
-- GitHub Actions 未来规划为：CI 测试矩阵 → 有权限的版本 Tag / Release 触发 → Linux/Windows/macOS 构建 → 安装包生成 → 隔离环境的安装、运行、升级和卸载 smoke test → Checksum、签名/公证与版本元数据 → GitHub Release → 经授权向 PyPI、WinGet、Homebrew、Flathub 或 APT/DNF 仓库发布。
-- 软件包的构建上传与包管理器**收录/上架是不同步骤**；后者可能依赖专门维护的 manifest、仓库、审核、权限或签名证书。不可写成“GitHub Actions 已构建则包管理器自动上架”。
-- 构建与发布工作流分离，采用最小权限、受保护环境/Secrets 或 OIDC、可追溯 release tag 与可复现构建元数据；**未经用户明确许可不得配置线上凭证、提交上游/平台包仓库、推送 Git Tag、创建 Release 或发布任何产物**。
-- 所有未来渠道都必须有相应卸载方法；默认只移除软件、由本软件创建且经验证可安全移除的集成或服务，**不删除用户的任务历史/日志/配置**；另提供明确的可选数据清理步骤和升级兼容性检查。
-- TODO 中按具体任务拆分，包括可行性调查、技术方案、打包脚本/manifest、GitHub CI 流水线、签名与公证、分平台 smoke tests、渠道上架、双语 README 更新。标注 **Deferred / Not implemented**，不给出虚构安装链接或已发布命令。
-- **不得因为此 TODO 尚未完成而降低当前核心架构、执行、持久化、MCP、双语 README 和 Git 提交的质量门槛；也不得为了追求安装包矩阵而延误这些任务。**
+- 自动验证安装、升级、配置幂等、跨目录启动、状态一致性、其他插件保留和安全移除；对真实暴露的问题补回归测试。
+- 人工验收优先使用一次安装后的真实任务，用户提示词不含工具内部路径；不要求重复已通过的 CLI 测试或执行不相关的人为故障矩阵。
+- 维护 docs/TODO.md 中的 Plugin 交付路线图、各宿主的实际支持状态及未来官方平台工作；未实现和未验证的宿主不得写为支持。
+- 官方平台发布留待开发稳定且用户另行授权之后。当前不创建发布流水线或执行线上操作。
 
 ## 17. 双语 README、Git 规范与阶段提交（必需）
 
@@ -423,14 +401,14 @@ P0 必须覆盖：
   feat(delivery): route durable wake events to registered sessions
   feat(cli): add idempotent agent setup and integration removal
   test(recovery): cover daemon restart and duplicate deliveries
-  docs(roadmap): plan cross-platform distribution packages
+  docs(roadmap): define host plugin delivery targets
   docs(readme): add bilingual onboarding and uninstall instructions
   ```
 
 ### 17.3 交付时的 Git 与文档验收
 
 - 验证 `README.md`、`README.zh-CN.md` 同时存在，并且两者开头均有真实英文简介与中文简介、语言切换链接。
-- 验证当前可执行的源码构建/本地运行、首次 setup、诊断、CLI 使用及移除集成在双语文档中与当前能力一致；完整安装包/包管理器卸载/可选数据清理若尚未实现，必须明确标注未来 TODO。
+- 验证当前可执行的源码构建/本地运行、首次 setup、诊断、CLI 使用及移除集成在双语文档中与当前能力一致；其他宿主插件/可选数据清理若尚未实现，必须明确标注；系统安装包计划已取消。
 - 输出 `git log --oneline` 的主要阶段提交及最终 `git status`；明确是否存在尚未提交的开发内容、跳过的验收或未验证的平台。
 
 ## 18. 交付输出的格式（完成时）
@@ -445,8 +423,8 @@ P0 必须覆盖：
 6. 在当前环境如何启动 Daemon、CLI、MCP，以及可验证的本地构建/安装方式；
 7. `docs/IMPLEMENTATION_STATUS.md` 的后续交接信息；
 8. 安全限制、已知风险与优先下一步；
-9. **当前真实可用**的本地构建/运行、首次 setup、doctor、移除 MCP 集成命令与默认保留数据说明；另列未来 `.deb` / `.rpm` / `.AppImage` / `.exe` / `.dmg` / Flatpak / `uv tool`、GitHub Releases 与包管理器发布 TODO；
+9. **当前真实可用**的本地构建/运行、首次 setup、doctor、移除 MCP 集成命令与默认保留数据说明；另列 ChatGPT Desktop/Codex、Claude Code、OpenCode 插件适配及未来官方平台计划，注明当前未发布；
 10. `README.md` 与 `README.zh-CN.md` 双语介绍和完整内容的验证结果；
 11. 阶段性 Conventional Commits 的 `git log --oneline` 摘要与 `git status`，明确全部使用英文且未推送。
 
-**第一轮开始后，不要只输出一份详细计划便停止。请完成 Stage 0 并立即进入 Stage 1，持续尽可能实现和验证 Stage 2/3/4。每完成可验证的增量立即进行符合规范的本地 Git 提交，并同步改善当前本地使用、setup/doctor/集成移除体验和双语文档；将多平台安装包/包管理器发布与自动 Release CI 记入 `docs/TODO.md`，**无需在本轮实现**。重要缺陷优先于新特性。**
+**第一轮开始后，不要只输出一份详细计划便停止。请完成 Stage 0 并立即进入 Stage 1，持续尽可能实现和验证 Stage 2/3/4。每完成可验证的增量立即进行符合规范的本地 Git 提交，并同步改善当前本地使用、setup/doctor/集成移除体验和双语文档；在 `docs/TODO.md` 维护 Plugin 交付计划，当前不发布，独立系统安装包已取消。重要缺陷优先于新特性。**

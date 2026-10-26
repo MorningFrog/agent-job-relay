@@ -20,10 +20,19 @@ AJR_INSTALL_ROOT="$HOME/.local/share/agent-job-relay"
 "$AJR_INSTALL_ROOT/relay" doctor --client plugin --check-mcp
 ```
 
-The bundle contains `bin/agent-job-relay`, a relative `relay` launcher, portable
-`plugin.json`/`mcp.json`, a background-jobs skill, icon and an owner-only install
-receipt. It is independent of the source checkout after installation. Updating
-source does not update an installed or host-cached copy.
+The v0.1.1 bundle contains `bin/agent-job-relay`, a relative `relay` launcher,
+`.codex-plugin/plugin.json`, `.mcp.json`, a background-jobs skill, icon and an
+owner-only install receipt. It is independent of the source checkout after
+installation. Updating source does not update an installed or host-cached copy.
+
+The MCP command is the stable absolute executable path in this local install,
+with explicit state arguments. Codex CLI 0.164.0 did not discover the previous
+portable root MCP declaration or expand plugin-root command variables; retaining
+both manifests also failed. Therefore portable root templates are not installed.
+An isolated real-loader check now discovers all 19 tools (ADR 0004). The cached
+terminal launcher remains relative, but **cached MCP still requires the original
+installation**. This local development solution is not a qualified public plugin
+bootstrap mechanism.
 
 `setup plugin` preserves existing marketplace metadata and other plugins. For
 an absent personal file it creates `~/.agents/plugins/marketplace.json` with the
@@ -35,13 +44,16 @@ and describe a real task, for example:
 > Run this project's release tests in the background and report the result.
 
 The plugin skill resolves the bundled launcher itself, obtains a current-terminal
-binding, submits with MCP and ends its turn. On completion it reads bounded logs
+binding, submits with MCP when available and ends its turn. If MCP is unavailable,
+it reports the installed CLI fallback explicitly. On completion it reads bounded logs
 and summarizes the result. No executable/state/session paths belong in everyday
 user prompts. The task's working directory remains explicit in the tool request,
 filled by the Agent from the chosen project.
 
-Desktop discovery/install UI and the installed real-host workflow remain
-**not live verified**. The original CLI live pass is separate. Plugin availability
+The user's installed skill + CLI fallback release-test task completed and woke
+the correct chat, after a failed first submission and a separate-state workaround.
+It did not call MCP; see live-e2e.md. The updated Desktop MCP tool route and
+browser discovery/install UI remain **not separately verified**. Plugin availability
 can depend on host version, surface and account policies. A local executor and
 current-chat terminal context are required for this Desktop wake workflow; no
 web/remote execution API is provided. See ADR 0003 and limitations.md.
@@ -98,11 +110,21 @@ explicitly cancel selected jobs, then use the installed launcher with `daemon
 stop`. Active daemon/startup locks and unfinished persisted jobs block replacement
 or removal. No unrelated process is stopped automatically.
 
-Rebuild source and repeat install at the same root to update. Unchanged installs
-are no-ops. Updates stage a full private tree and retain the old one as the
-reported backup. These two renames are not a crash/power-loss transaction; keep
+Rebuild source and repeat install at the same root to update. Without an explicit
+`--state-dir` or AJR_STATE_DIR override, the previous receipt's state profile is
+retained even when updating from a source binary. Unset unrelated exported state
+overrides before updating. Unchanged installs are no-ops. Updates stage a full
+private tree and retain the old one as the reported backup. These two renames are not a crash/power-loss transaction; keep
 the backup and inspect it after an interrupted update. Refresh/reinstall the
 host's cached plugin separately after updating its marketplace source.
+
+Current Linux daemons spawn from their mapped image even if a rebuild unlinks
+the original file. An already-running legacy daemon does not gain that repair:
+Doctor reports `runner_readiness.status=restart_required` when its executable
+path is gone and it lacks the loaded-image capability. New submissions fail
+before creating another job. Finish active jobs and explicitly stop that state's
+daemon, then submit using the updated program. Never switch state directories
+and report that as an update; never silently replay the failed job.
 
 For Plugin removal, uninstall/disable the installed plugin in Desktop so its
 host-managed cache and enabled state are handled by the host. Then preview/apply
@@ -121,10 +143,12 @@ symlinks. Only unchanged owned install files and directories are removed. An
 interrupted removal can need manual inspection; data, config backups and prior
 installation backups remain. Host caches are not scanned or deleted by the CLI.
 There is no data purge command, OS service manager or destructive automatic
-cleanup. Packaging, repositories and public-directory submission remain deferred
-in TODO.md. Never delete another project's state or unknown directories.
+cleanup. Independent OS installers and package repositories are cancelled.
+Claude Code/OpenCode integrations and future official plugin platforms are tracked
+in TODO.md; no submission or publication occurs during development. Never delete
+another project's state or unknown directories.
 
-Official package/marketplace references:
+Official plugin/marketplace references:
 
 - https://developers.openai.com/plugins/build/plugins
 - https://developers.openai.com/plugins/deploy/desktop-only

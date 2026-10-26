@@ -199,6 +199,7 @@ English Conventional Commits, no pushes, no remote created, no history rewrite:
 - 09077b9 `docs: record user-confirmed CLI shortcut live acceptance`
 - d95587b `feat(integration): install local plugins with safe shared-session binding`
 - d44654d `fix(plugin): pin installed profiles and document install-once usage`
+- fb70d5c `fix(plugin): restore MCP discovery and resilient runner startup`
 
 Live-test documentation was updated after the user confirmed the basic pass;
 see `git log` for the subsequent evidence-recording commit.

@@ -69,3 +69,15 @@ Two-rename upgrades and multi-file removals are not crash-atomic; after interrup
 inspect the private backup/receipt. Host plugin caches and user enablement are
 managed by the host, never scanned or purged by this CLI. Marketplace setup edits
 only the owned entry and preserves the existing catalogue and other plugins.
+
+Linux internal child launch executes the mapped `/proc/self/exe`, retaining the
+same program image after a rebuild unlinks its pathname. It does not adopt an
+arbitrary replacement binary or replay work. Peer-derived legacy readiness checks
+use the connected socket PID and do not scan user processes. A legacy runtime is
+never silently stopped: finish active work before an explicit same-state restart.
+
+The Codex local development MCP command is an absolute path into the owned stable
+installation, not an unexpanded plugin-root variable. Cached MCP depends on this
+path remaining present. Local real-loader checks run in isolated HOME/CODEX_HOME,
+without model requests, credentials or real Desktop endpoints. Independent OS
+packages are cancelled; no online plugin submission/upload is performed now.

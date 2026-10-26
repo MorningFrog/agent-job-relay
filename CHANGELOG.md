@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.1.1 — 2026-10-26 (unreleased development repair)
+
+- Fix Linux Runner/daemon spawning after a rebuild unlinks the executable, using
+  the mapped image; reproduce the prior ENOENT with a real-process regression.
+- Detect affected legacy daemons before submission and expose explicit idle-
+  restart guidance, without automatic restart, workload replay or state switching.
+- Install the tested Codex manifest/MCP layout with a stable absolute local native
+  command. An isolated actual Codex CLI 0.164.0 loader discovers all 19 tools.
+- Retain a custom installed state profile on updates without explicit overrides;
+  preserve legacy ownership receipts and modified/foreign-file refusal.
+- Require honest CLI fallback reporting. Record the user's real 45-test release
+  task as installed skill/CLI wake evidence, including its first failure/workaround.
+- Pass 47 Rust tests, strict Clippy, formatting and locked release build.
+- Revise distribution to host-specific Agent plugins around one Rust/MCP core:
+  Claude Code/OpenCode planned; independent OS installers/repositories cancelled.
+  Official plugin platforms are future work; no publication during development.
+
 ## 0.1.0 — 2026-10-26 (unreleased development milestone)
 
 - Independent Linux runner and process groups with durable launch claims,

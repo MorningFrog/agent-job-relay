@@ -1,7 +1,9 @@
 # ADR 0003: installed plugin and current-terminal binding for shared MCP
 
-Accepted, 2026-10-26. Users should configure the tool once and describe the real
-background task without copying executable/state paths or session IDs into prompts.
+Accepted, 2026-10-26. **Manifest/launcher compatibility findings below are
+superseded by ADR 0004**: the installed bundle uses the tested Codex layout and
+an absolute local MCP command, not portable-root manifests. Users should configure
+the tool once and describe the real background task without copying executable/state paths or session IDs into prompts.
 The prior three-round CLI live pass remains useful; another CLI workload would
 not qualify the missing installed entry point.
 
@@ -81,5 +83,6 @@ Official references consulted:
 
 Local marketplace development is separate from public-directory approval.
 Public local-MCP submissions currently require an approved/allowlisted partner;
-no publication or eligibility is claimed. Native installers, package repositories,
-signing and GitHub release automation remain deferred in TODO.md.
+no publication or eligibility is claimed. The later user revision cancels independent
+OS installers and package repositories; Agent plugin platforms are the future
+goal, with no publication/submission during development (TODO.md).

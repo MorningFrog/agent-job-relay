@@ -44,9 +44,22 @@ stops dispatch only; runner and result persistence lifetimes remain independent.
 
 Installed entry points (ADR 0003) are handled by deployment.rs and diagnostics.rs.
 A private native/plugin bundle carries a persistent state profile, never a chat
-identity. The relative launcher and `${PLUGIN_ROOT}` manifest survive plugin-cache
-copying. Setup/removal also owns one local marketplace entry. Shared MCP rejects
+identity. The relative terminal launcher retains the profile across cache copies.
+The local Codex bundle now uses `.codex-plugin/plugin.json` plus `.mcp.json`, with
+a stable absolute installed executable path: the tested Codex CLI 0.164.0 loader
+did not discover portable-root MCP or expand plugin-root variables (ADR 0004).
+The original installation must remain present for cached MCP. Setup/removal also
+owns one local marketplace entry. Shared MCP rejects
 implicit inherited identity; the plugin obtains a fresh session key from the
 calling chat's terminal and supplies it to job_start explicitly. Runtime/outbox
 semantics stay unchanged. Configuration, stdio self-check, actual host tool
 connectivity and observed continuation are separate evidence levels.
+
+Linux daemon/Runner spawning uses `/proc/self/exe`, the mapped image, so rebuilding
+source or unlinking its pathname cannot break a current daemon's Runner launch.
+A peer-derived Doctor field plus a capability flag identifies an affected legacy
+daemon before submission; it is not restarted automatically. Updating an install
+without a state override retains its receipt's profile. One Rust/MCP core is the
+basis for host-specific plugins; Claude Code and OpenCode are future adapters,
+not current implementations. Independent OS installers/repositories are cancelled;
+official plugin platforms are future work, with no publication during development.

@@ -34,7 +34,7 @@ verified using protocol 2025-06-18; SDK negotiates supported versions.
 Tools derive their argument schemas from the same Request types as IPC:
 
 `job_start`, `job_status`, `job_list`, `job_logs`, `job_events`, `job_stop`,
-`job_wait`, `job_doctor`, `job_register_session`, `job_sessions`, `job_inbox`,
+`job_wait`, `job_doctor`, `job_connect_session`, `job_register_session`, `job_sessions`, `job_inbox`,
 `job_probe_session`, `job_invalidate_session`, `job_add_wake_target`,
 `job_rebind_target`, `job_deliveries`, `job_retry_delivery`,
 `job_delivery_attempts`.
@@ -106,3 +106,19 @@ with bounded frames and required tool-schema checks. It reports a stdio self-che
 not actual host connectivity or wake. A real MCP `job_doctor` call reports that
 the request reached the server and describes its binding mode; no host message
 or capability probe is sent. Configuration ownership checks remain separate.
+
+## Loaded-image readiness (additive Doctor fields, IPC v1)
+
+Current Linux Doctor reports `runner_launch_from_loaded_image=true` when its
+mapped image is available via `/proc/self/exe`. The IPC client adds
+`daemon_executable_path_available` from the actual connected peer's `/proc` image
+pathname, if accessible. Missing evidence is not fabricated. A removed path plus
+absence of the new capability identifies the affected legacy daemon; submission
+fails before creating a job. CLI Doctor adds `runner_readiness` with status
+`restart_required` and idle-restart guidance. It does not restart the daemon.
+Neither field is a claim of new code being loaded or Agent continuation.
+
+The local Codex bundle uses `.codex-plugin/plugin.json` + `.mcp.json` and an
+absolute stable installation command. Actual CLI loader discovery (19 tools on
+0.164.0), standalone stdio self-check, host `job_doctor`, job execution and live
+wake remain separate evidence levels. Portable source templates are not installed.

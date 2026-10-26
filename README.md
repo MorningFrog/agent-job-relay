@@ -10,8 +10,9 @@ Run durable background commands and route completion events to explicitly regist
 </div>
 
 A native Rust CLI, independent runner and stdio MCP server for one trusted local
-user. **v0.1.0 is a source-build development milestone, tested on Linux x86_64.**
-No system installer or package-manager release is available.
+user. **v0.1.1 is an unreleased development milestone, tested on Linux x86_64.**
+Delivery is moving to Agent plugins. Independent OS installers and package
+repositories are cancelled; no official plugin publication is planned during development.
 
 ## What works today
 
@@ -25,7 +26,7 @@ No system installer or package-manager release is available.
 | Codex CLI integration | MCP configuration and notification inbox; **no automatic resume** |
 | Desktop wake | Experimental Unix socket adapter; automated fake-host tests and **user-confirmed live E2E** for explicit registration and CLI `--wake` first start, reuse and idle-daemon restart on ChatGPT Desktop 26.1021.22027 / Ubuntu 26.04 |
 | Setup, doctor and owned MCP removal | Isolated configuration tests; no real user settings changed |
-| Install-once local Desktop Plugin + MCP | Native bundle, stable launcher/profile, owned marketplace setup/removal and actual shared MCP tested in isolation; Desktop plugin UI/live installed workflow pending |
+| Install-once local Desktop Plugin + MCP | Installed skill + CLI fallback completed a real release-test task and resumed the same chat; repaired Codex CLI 0.164.0 loader discovers 19 MCP tools in isolation; updated Desktop MCP task route pending |
 | Windows/macOS runtime | **Not implemented/verified**; requests fail explicitly |
 
 Job completion, `notification_recorded`, `accepted_by_host` and observed Agent
@@ -60,11 +61,18 @@ local chat, select the plugin if needed, and ask:
 > Run this project's tests in the background and tell me when they finish.
 
 Everyday prompts need no tool path, state directory or session ID. The plugin's
-skill gets the current chat binding and submits through MCP; it ends the turn
-after submission and reads the result on completion. The working directory comes
-from the chosen project. The Desktop bridge remains experimental. Browser
-discovery/install and this installed real-host workflow are **not yet live
-verified**; the prior CLI pass does not establish them. See [installation](docs/installation.md).
+skill gets the current chat binding and submits through MCP when available; it
+reports CLI fallback explicitly. It ends the turn after submission and reads the
+result on completion. The working directory comes from the chosen project.
+The user's release-test task loaded the installed skill, used the CLI fallback
+and resumed the correct chat after completion. Its initial runtime failure and
+workaround are recorded in [live evidence](docs/live-e2e.md).
+
+The repaired local bundle uses `.codex-plugin/plugin.json` and `.mcp.json`.
+An isolated check with the actual Codex CLI 0.164.0 discovers all 19 MCP tools.
+The updated Desktop MCP task route and plugin browser installation still need
+separate evidence; the Desktop bridge remains experimental.
+See [installation](docs/installation.md).
 
 Installation does not change PATH, configure a service or publish a plugin.
 State is separate from the binary directory and persists across plugin-cache
@@ -72,7 +80,10 @@ copies. The plugin pins that profile and ignores an exported AJR_STATE_DIR;
 explicit CLI `--state-dir` can still override it. `install` defaults to
 `$XDG_DATA_HOME/agent-job-relay` or the path above;
 use a root inside HOME for a personal marketplace. Source builds still require
-Rust; native packages and public-directory publication remain deferred.
+Rust. Claude Code and OpenCode plugin integrations are planned, not implemented.
+Official plugin platforms are a future goal; nothing is submitted or published now.
+For local development, MCP uses the stable absolute installed executable path;
+keep that installation present even when the host caches the plugin.
 
 For a standalone MCP configuration, use the installed launcher's `setup codex`
 instead of `setup plugin`. The server advertises the same terminal-binding
@@ -313,16 +324,30 @@ foreground daemon with Ctrl-C). Removing software, removing MCP integration,
 removing a service and deleting user data are different operations. For a binary
 you manually copied, remove only that binary after checking processes. **Normal
 removal preserves state.** There is no `data purge` command or system-package uninstaller;
-do not delete unknown directories or another project's data. Future installers
-must also preserve history/logs/user config by default.
+do not delete unknown directories or another project's data. Plugin updates and
+removal must preserve history/logs/user config by default.
+
+When updating at the same install root without a state override, the existing
+state profile is retained. Finish active jobs, stop that state's daemon, rebuild,
+repeat install and refresh the host's cached plugin. Unset unrelated AJR_STATE_DIR
+exports before updating; an explicit override intentionally selects another profile.
+Current Linux daemons launch runners from their loaded image even after a source
+rebuild. An already-running legacy daemon with a removed executable still needs
+an explicit idle restart; it is never silently restarted or given a new state.
 
 ## Troubleshooting and development
 
 - **Daemon unavailable:** submissions auto-start it using the same state root.
   `doctor` intentionally checks without starting it. For startup failures run
   foreground `daemon` to see diagnostics; no OS service is installed.
-- **MCP missing:** preview/apply the correct client config and restart the client.
-  `doctor --client codex --config ...` checks owned config, not a live MCP handshake.
+- **MCP missing:** update the local bundle, refresh the cached plugin and restart
+  the client. A loaded skill alone does not prove MCP loaded. The repaired Codex
+  manifest is tested against CLI 0.164.0; `doctor --check-mcp` is a local self-check,
+  and `doctor --client ...` checks owned config. Neither proves Desktop connectivity.
+- **Runner restart required / missing executable:** `doctor` detects an affected
+  legacy daemon. Let active jobs finish, then explicitly stop the same state's
+  daemon and resubmit with the updated runtime. Preserve the failed job; changing
+  state directories bypasses the issue rather than repairing it.
 - **No Agent wake:** the plugin binds through the current terminal with `session
   connect --brief`, then passes spec.session to shared MCP. CLI `start --wake`
   uses current-terminal context; wake_me=true is only for per-session MCP.
@@ -350,14 +375,19 @@ locally verified. See [architecture](docs/architecture.md),
 [testing](docs/testing.md), [implementation status](docs/IMPLEMENTATION_STATUS.md),
 [reference audit](docs/reference-audit.md) and [changelog](CHANGELOG.md).
 
-## Roadmap / Deferred distribution
+## Plugin roadmap
 
-`.deb`/APT, `.rpm`/DNF, `.AppImage`, Windows `.exe`/WinGet, macOS `.dmg`/Homebrew,
-Flatpak/Flathub, GitHub Releases binaries, optional PyPI wheels/`uv tool`, signing,
-notarization and GitHub Actions package publication are **planned, not shipped**.
-No fabricated install links or published package commands are provided.
-[Distribution & Packaging TODO](docs/TODO.md) specifies priorities, lifecycle
-semantics, constraints, tests and separately authorized repository publication.
+Use one Rust/MCP core with host-specific plugins. Codex/Desktop has a local
+Linux development bundle; Claude Code and OpenCode integrations are **planned,
+not implemented**. Priorities are convenient installation, verified host tool
+loading, precise session routing, updates and data-preserving removal.
+
+Future delivery should use each Agent's officially supported plugin platform or
+installation mechanism. The project remains in development: **no platform
+submission, package upload or public release now**. Independent OS installers,
+package repositories and their publication pipelines are cancelled. Native
+runtime artifacts inside plugins may still be needed per OS/architecture.
+See the [Plugin roadmap](docs/TODO.md) for actual support and future work.
 
 MIT licensed. Independently implemented; Vanth was studied read-only for behavioral
 requirements, not copied. No remote repository was created or pushed by this work.

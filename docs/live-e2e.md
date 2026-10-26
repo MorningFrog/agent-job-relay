@@ -117,18 +117,63 @@ this run, not a concurrent multi-session matrix. The real-host shortcut run used
 the CLI; MCP `wake_me=true` retains automated fake-host coverage only. No
 receiver-side deduplication or automatic resume confirmation is established.
 
+## Installed skill + CLI fallback: real release-test task
+
+Reviewed on 2026-10-26. The user reported the chat titled **运行 release 全部目标测试**
+finished, initially errored then recovered, and woke normally. Its retained chat
+turns, report, stdout and both SQLite states were correlated read-only. No message
+was sent or test replayed during review. The previously reported environment is
+ChatGPT Desktop 26.1021.22027 / Ubuntu 26.04; the latest report did not independently
+reconfirm those version fields.
+
+| Field | Evidence |
+|---|---|
+| Tested source | `d44654d`, v0.1.0; clean tracked source at task start |
+| Installed/cache native SHA-256 | `b5367398545bf961bed1df2b1b430128c219fbc06f2d4b1017e1187a0ac0a873` |
+| User prompt | Real background release tests; project directory supplied, no internal tool/state/session paths |
+| Actual entry point | Installed plugin skill, then installed CLI binding/submission/query; no AgentJobRelay MCP tool calls |
+| Actual successful command | `cargo test --release --all-targets` (no `--locked` flag) |
+| Result | 45 passed, 0 failed, 0 ignored; exit 0, about 24.1 seconds |
+| Evidence | Ignored local report/tests.log/run.py, submission records, chat turns and two state databases |
+
+All times below are 2026-10-26, UTC+08:00.
+
+| Submission | Created | Ended | Result |
+|---|---|---|---|
+| First, using installed profile | 13:14:08.278 | 13:14:08.378 | Failed before Runner/workload launch: ENOENT |
+| Second, separate state directory | 13:14:27.730 | 13:14:52.547 | Completed, exit 0 |
+
+The first daemon's mapped executable was the source release program with
+` (deleted)` appended to its pathname. A rebuild had unlinked it; the old
+`current_exe()` spawn path could not start a Runner. The Agent changed state for
+the second submission. That created a separate runtime/history and bypassed the
+original problem; it did not repair source or restart the original daemon.
+The successful state's daemon used the installed cached native program.
+
+Both failure and completion targeted the initiating logical session/caller, with
+one accepted host delivery attempt each. The successful submitting turn ended at
+approximately 13:14:30; a new completion-triggered turn began at approximately
+13:14:52 and read the completed job/report. The retained thread has no intervening
+human continuation. The user's independent wake observation agrees with those
+turns. This qualifies **installed skill + CLI fallback live wake**, not the full
+installed MCP route. No automated `confirmed_resumed` capability is established.
+
+The v0.1.1 source repair launches from the mapped Linux executable, adds legacy
+readiness detection and preserves installed state on updates. A reproduced failing
+regression now passes. A repaired Codex manifest plus absolute local MCP command
+allows actual isolated Codex CLI 0.164.0 discovery of all 19 tools (ADR 0004).
+These checks did not update real installed/cache files or stop the real daemons.
+Existing user processes remain on their original versions until explicitly updated.
+Raw thread/job/delivery/session IDs and endpoints stay private and ignored.
+
 ## Next validation
 
-Prioritize the new installed Plugin/MCP entry point: follow installation.md and
-run one real project task from a new chat without tool/state/session paths in
-the user's prompt. The plugin UI installation, actual MCP route and automatic
-continuation need separate observation. Do not repeat the passed CLI rounds with
-another workload or require an artificial manual crash matrix from the user.
-
-Extend the CLI pass to in-flight daemon interruption/offline completion, Desktop
-restart with explicit rebind, temporary delivery failure, and concurrent exact
-routing; validate MCP convenience separately when per-session context is present.
-Follow testing.md and record each scenario separately. Preserve private artifacts
-locally, note the client version and exact binary hash, and record automatic
-new-turn/tool-action evidence. Do not infer new platform support, broad reliability
-or exactly-once effects from these passes.
+Do not repeat the passed CLI workloads or request an artificial manual crash
+matrix. The remaining entry-point coverage is the **updated Desktop MCP route**:
+after a user-chosen idle local update/cache refresh, first check actual tool
+exposure and `job_doctor`. Only when MCP is available should the next naturally
+long real task qualify MCP submission and same-chat continuation. Keep plugin
+browser discovery, host tools, job completion, host acceptance and observed new
+Agent execution as separate evidence. A successful CLI fallback cannot qualify
+MCP loading. Follow testing.md; retain private artifacts without committing raw
+identities. Other host versions/platforms and receiver deduplication remain unverified.

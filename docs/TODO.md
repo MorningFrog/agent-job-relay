@@ -1,99 +1,92 @@
 # TODO / Roadmap
 
-Status labels are **Deferred / Not implemented** unless marked otherwise in
-IMPLEMENTATION_STATUS.md. No public release, system installer or package repository exists.
-Core correctness and usable local source builds have priority over distribution.
+## Current distribution decision (2026-10-26)
 
-## Runtime and integrations
+The user's latest direction supersedes the original system-package roadmap:
+**distribute through Agent plugins**, with one shared Rust/MCP runtime and thin
+host-specific integrations. Aim for the official supported plugin installation
+surfaces of ChatGPT Desktop/Codex, Claude Code and OpenCode. Easy installation,
+updates and data-preserving removal are product requirements.
 
-- P0: qualify the installed Desktop Plugin/MCP entry point with one real task
-  whose prompt needs no tool/state/session paths. Local install, marketplace
-  setup/removal and two callers through shared MCP are implemented and tested
-  with fake Desktop; plugin browser discovery/install and installed real-host
-  workflow remain unverified. Existing three-round CLI live results need no
-  repetition. Follow installation.md and testing.md; fix demonstrated user-path
-  failures before expanding manual test matrices.
-- P1: extend the user-confirmed Desktop live E2E passes (ChatGPT Desktop
-  26.1021.22027 / Ubuntu 26.04; see live-e2e.md) to in-flight daemon interruption
-  and completion while offline, Desktop restart, explicit rebind, temporary
-  delivery failure and concurrent exact routing. CLI shortcut first start,
-  registration reuse and idle-daemon stop/auto-start passed; the user confirmed
-  all three continued without another message and the control chat stayed quiet.
-  Keep private evidence local, revalidate API compatibility for each client
-  version and never treat host acceptance as automated resume confirmation.
-- P1: Linux cgroups or equivalent optional containment for descendants that escape
-  process groups; stronger containment after SIGKILL of the runner. Existing
-  process-group cancellation is for non-daemonizing trusted workloads.
-- P1: real ENOSPC/power-loss VM tests and longer soak tests. Existing regression
-  injects output-open/transaction failures, stale identities and vanished runners.
-- P1: Windows native named-pipe SID/DACL checks, endpoint identity and Job Objects,
-  documented survival policy and native process-tree tests. Do not emulate setsid.
-- P1: macOS process instance identity, native lifecycle/restart tests and IPC audit.
-- P1: opt-in public Codex app-server integration only for an explicitly owned
-  writer/session; handle active turns, approvals, auth and reconnect safely.
-- P1: lease renewal for jobs longer than 24 hours, authenticated per-call identity
-  handoff for shared MCP hosts, and real-host MCP wake_me=true shortcut validation
-  when per-session inherited context is available. CLI --wake live verification
-  passed; never infer a current chat from a global latest-session record.
-- P1: inspect all active runner/host health from doctor; versioned config file and
-  tunable resource budgets; bounded structured progress event protocol.
-- P1: atomic schema migration fault tests across every supported version; online
-  backup/export and explicit retention preview/cleanup. `data purge` requires a
-  separate confirmation design; no destructive cleanup command exists today.
-- P1: setup receipt/config crash recovery and Windows atomic replacement tests;
-  broader official client formats only when verified. No automatic ChatGPT
-  configuration path is guessed. Preserve comments and foreign entries.
-- P2: optional standard MCP Tasks after negotiated client support. Tasks are not
-  automatic Agent conversation wake. OpenCode adapter only with verified APIs.
+The project is still in development. **Do not publish, submit, push or configure
+online credentials now.** Local plugin development, validation and documentation
+come first. An installable local plugin is not an official directory listing.
 
-## Distribution & Packaging — Deferred / Not implemented
+## Plugin delivery and integrations
 
-Desktop-only public Plugin Directory submission is also deferred. Local Plugin
-authoring/installation is implemented, but public local-MCP submissions currently
-require approved-partner eligibility. Confirm that separately before any later
-submission; do not replace local execution with a public command-execution service
-merely to obtain a listing. No upload, publication or submission was performed.
+- P0: finish qualifying the repaired Codex/Desktop installed MCP path. The user's
+  release task loaded the plugin skill and resumed successfully through its CLI
+  fallback, but initially hit an old daemon with a removed executable. It did
+  not call MCP. Version 0.1.1 fixes loaded-image Runner spawning, rejects the
+  affected legacy daemon before another job, and emits the explicit Codex
+  compatibility manifest. Isolated Codex CLI 0.164.0 now discovers all 19 tools.
+  Actual updated Desktop tool discovery/call remains separately unverified.
+- Implemented baseline: no-override local updates retain the configured state;
+  regressions cover this and replaced-image Runner launch. Keep configuration,
+  daemon readiness, local MCP self-check, real host discovery and same-chat
+  continuation as separate checks when extending the integrations.
+- P1: Claude Code plugin adapter: implement its manifest/MCP/skills layout,
+  locally validate installation and tools, then qualify exact session identity
+  and the host's supported completion/continuation mechanism. Current Desktop
+  socket transport is not a Claude adapter. Do not promise automatic wake until
+  it is observed. Reuse the Rust runtime instead of copying another runtime.
+- P1: OpenCode plugin adapter: choose and record the target V1/V2 API, implement
+  its official local/package plugin mechanism, MCP bridge and owned-session
+  routing. Qualify notifications versus actual continuation separately. OpenCode
+  V1/V2 configuration and plugin APIs differ; no placeholder adapter is shipped.
+- P1: plugin-managed native runtime bootstrap/update/cache handling so eventual
+  users need neither Rust nor manual executable paths. Native artifacts may be
+  required per OS/architecture inside the plugin delivery mechanism; this is not
+  a return to independent OS installers. Linux is the only implemented runtime.
+- P1: generate host-specific plugin descriptors from shared metadata where useful;
+  validate each host loader instead of assuming one portable manifest works
+  everywhere. The current Codex loader ignores the portable MCP declaration in
+  this layout, so the local install uses .codex-plugin/plugin.json + .mcp.json.
+- P1: preserve user-modified files, other plugins and all histories on update/
+  removal; distinguish marketplace source removal from host cache uninstallation.
+  Review interrupted setup/update/removal recovery without unsafe takeover.
+- P2, future authorization required: prepare official plugin platform submissions,
+  publisher identity, listing assets, permissions, update provenance and required
+  reviews. OpenAI local-MCP submission eligibility needs separate confirmation.
+  Claude Code provides marketplaces and an Anthropic directory submission route.
+  For OpenCode use its officially supported package/plugin mechanism; do not
+  equate npm publication with approval by an official directory. No submissions
+  or publications have occurred.
 
-Every channel must preserve task history, logs and user configuration on normal
-uninstall. Integration removal, service removal and data purge are separate.
-Do not implement distribution in the current core milestone.
+References checked for this direction:
 
-| Priority | Platform/channel and deliverable | Install / update / uninstall design | Limits and acceptance tests | Future GitHub Actions plan |
-|---|---|---|---|---|
-| P1 | Linux/Windows/macOS GitHub Releases: native binaries + archives | Download/extract; replace after checking active jobs; remove binary while keeping state | Architecture detection, SHA-256, provenance, clean startup, upgrade/downgrade schema safety | Authorized tag, matrix builds, checksums, signed metadata, protected Release upload |
-| P1 | Debian/Ubuntu `.deb` and signed APT repository | Package install/upgrade/remove through APT; no default state purge | Dependencies, user-service ownership, maintainer-script rollback; clean install/upgrade/remove with running-job checks | Evaluate cargo-deb; build package, test containers/VMs, sign index, authorized APT publish |
-| P1 | Fedora/RHEL `.rpm` and DNF/YUM repository | DNF install/upgrade/remove; keep user history/config | Distro differences, signed repository metadata, service boundaries, migration rollback smoke tests | Evaluate cargo-generate-rpm; isolated RPM jobs, signing and authorized repository sync |
-| P1 | Windows `.exe` installer (evaluate NSIS/WiX) and WinGet manifest | User-level install/update/uninstall; reversible PATH and owned integration entries | x64/ARM64, signatures, locked executables, background jobs, no forced job termination/data loss | Windows build/sign/VM smoke; Release assets; separate reviewed WinGet manifest submission |
-| P1 | macOS `.dmg`, evaluate `.pkg`; Homebrew formula/tap | Document CLI location, upgrade and uninstall; separate opt-in LaunchAgent | Intel/Apple silicon, signing/notarization, quarantine, service/data boundaries | macOS package/notarize; install/upgrade/remove tests; authorized Homebrew manifest publication |
-| P1 optional | PyPI binary Wheels + `uv tool` installation | Evaluate maturin binary-wheel mode; versioned install/upgrade/uninstall via uv | Verify package name, platform tags, Python/uv prerequisites and native binary behavior. A Rust crate alone is not a uv tool package | Build/test wheels, clean uv environments, trusted publishing/OIDC only after authorization |
-| P2 | Linux `.AppImage` | Portable executable; replace/remove file; explicit PATH/integration setup | Portability is not package-manager support. Prove CLI invocation, FUSE behavior, daemon separation and state retention | Linux image build, clean desktop/CLI smoke, checksums and Release asset upload |
-| P2 feasibility | Flatpak and Flathub manifest | Sandbox-aware install/update/uninstall; preserve state | Host command execution, MCP config, Unix sockets and daemon service access may conflict with sandbox. Document justified permissions; no silent weakening | First feasibility VM tests; then manifest/build/smoke and separate Flathub review/submission |
+- https://developers.openai.com/plugins/build/plugins
+- https://developers.openai.com/plugins/deploy/desktop-only
+- https://code.claude.com/docs/en/plugins
+- https://code.claude.com/docs/en/plugin-marketplaces
+- https://opencode.ai/v2/docs/plugins
 
-### Work items required for each channel
+## Runtime backlog
 
-1. Feasibility research and ADR: select actual supported formats/tools at that time
-   (`cargo-dist`, `cargo-deb`, `cargo-generate-rpm`, `maturin`, OS-native/Flatpak
-   tools). One tool need not generate every format.
-2. Packaging scripts/manifests with explicit install location and ownership
-   receipts; upgrade, rollback, schema compatibility and uninstall behavior.
-3. Separate build/release workflows with minimum permissions, protected
-   environments, authorized version tags, traceable source and reproducibility
-   metadata. No credentials, release tags or publishing permission configured now.
-4. Platform install/run/upgrade/uninstall smoke tests in isolated machines,
-   including active jobs, services, foreign MCP entries and retained data.
-5. SHA-256, signing/certificate management, macOS notarization, attestations;
-   protected Secrets or OIDC with explicit user authorization.
-6. Authorized GitHub Release publication, followed by separately maintained
-   APT/DNF indices, PyPI publishing or reviewed WinGet/Homebrew/Flathub manifests.
-   Building an asset does not make it listed in a package manager.
-7. Synchronized English/Chinese install, update, troubleshooting, rollback,
-   uninstall and optional explicit data-cleanup documentation.
+Prioritize demonstrated user problems and normal lifecycle behavior. The existing
+CLI live passes do not need repetition with another workload or an artificial
+manual crash matrix.
 
-Planned flow: test matrix → authorized tag/Release → native builds → packages →
-isolated lifecycle smoke tests → checksum/sign/notarize/metadata → GitHub Release
-→ separately authorized repository/store submissions. Current CI only tests and
-builds. Never push tags, publish, submit manifests or provision online credentials
-without explicit authorization.
+- P1: normal host restart/rebind and temporarily unavailable delivery recovery;
+  concurrent exact routing, version-specific compatibility and event deduplication.
+- P1: Linux containment for descendants escaping process groups and runner death;
+  longer soak and controlled disk/power-loss tests. Existing process-group
+  cancellation is for trusted, non-daemonizing workloads.
+- P1: Windows SID/DACL, named pipes and Job Objects; macOS native process identity,
+  lifecycle and IPC. OS runtime support still requires native verification even
+  when distribution uses plugins.
+- P1: leases beyond 24 hours and authenticated per-call identity for shared hosts;
+  never infer the caller from a global latest-session record.
+- P1: backup/export, migrations, retention previews and configurable budgets.
+  Data purge remains a separate explicit design, not part of plugin uninstall.
+- P2: negotiated standard MCP Tasks, richer progress, optional public Codex writer
+  integration only for explicitly owned sessions. Tasks alone do not wake chats.
 
-Candidate future uv command: `uv tool install agent-job-relay` — **Deferred /
-Not implemented / not published**; do not run it as a current install instruction.
+## Cancelled system-package plan
+
+No longer planned: .deb/APT, .rpm/DNF, AppImage, Windows .exe installers/WinGet,
+macOS .dmg/Homebrew, Flatpak/Flathub, PyPI wheels/uv tool and their package-repository
+release pipelines. The original requirement to maintain those as future delivery
+work has been withdrawn by the user. No installer, package repository, store
+submission, signing/notarization or automatic publication workflow was implemented.
+Do not reopen this plan without a new user request.

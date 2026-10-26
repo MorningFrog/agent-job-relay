@@ -1,4 +1,4 @@
-# Current limitations (0.1.0 development milestone)
+# Current limitations (0.1.1 development milestone)
 
 - Linux x86_64 is the only locally compiled and process-tested runtime. Windows
   named-pipe ACLs/Job Objects and macOS instance identity/lifecycle are not
@@ -52,10 +52,26 @@
   OS service manager, system-package removal and destructive purge are not shipped.
   Interrupted config/install/removal can require inspection. Host cache copies
   and enablement are handled in the host UI; changing source files does not update
-  them. Marketplace discovery/install and the installed real-host workflow remain
-  unverified. The source plugin template alone does not contain a native executable.
-- Source build/development installation only. All binary packages, stores,
-  package repositories and automatic release work are deferred in TODO.md.
+  them. The user's installed skill + CLI fallback real release task passed wake,
+  after an initial failed launch and separate-state workaround. It did not call
+  MCP. The repaired Codex CLI 0.164.0 loader discovers 19 tools in isolation;
+  updated Desktop MCP execution and browser discovery/install are still separate
+  unverified items. Source templates alone contain no native executable.
+- The current local Codex bundle uses `.codex-plugin/plugin.json` and `.mcp.json`
+  with an absolute installed native command. Cached MCP needs that original
+  installation to remain; the terminal wrapper is relative. Portable root MCP
+  was not discovered and plugin-root command variables were not expanded by
+  the tested CLI loader. This is a version-specific development workaround,
+  not a qualified public plugin bootstrap (ADR 0004).
+- Current Linux daemons spawn from `/proc/self/exe`, surviving image pathname
+  replacement, not gaining new code until restarted. An already-running legacy
+  daemon with an unlinked executable needs an explicit idle restart. New client
+  preflight detects this condition and refuses before submitting another job;
+  no silent restart, state switch or failed-workload replay occurs.
+- Source build/local Plugin development only. Claude Code and OpenCode plugin
+  integrations are planned, not implemented. Independent OS installers and package
+  repositories are cancelled. Future official plugin platforms remain in TODO.md;
+  no publication/submission occurs during development.
 
 Convenience support: `start --wake` / MCP wake_me=true remove manual registration
 when current host context is inherited. They cannot infer identity in an ordinary
@@ -70,6 +86,7 @@ Installed/generated MCP uses shared-host mode, rejecting inherited-context wake.
 The plugin skill obtains a fresh current-terminal session key and supplies it to
 MCP. That route is tested with two callers, real installed CLI/MCP processes and
 a fake Desktop host; it needs a local terminal and is not available in a cloud
-chat without one. The next live acceptance is one real task through the installed
-plugin, without tool/state/session paths in its prompt. Prior CLI passes do not
-qualify this path, and another manual crash matrix is not a prerequisite.
+chat without one. The next live acceptance first checks updated Desktop MCP
+exposure/doctor, then qualifies the next naturally long real MCP task without
+internal paths in its prompt. Prior CLI passes do not qualify this path, and
+another manual crash matrix is not a prerequisite.

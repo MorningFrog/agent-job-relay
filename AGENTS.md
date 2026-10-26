@@ -16,7 +16,9 @@ The project specification governs scope; report limitations honestly.
   entry points, not just the source binary; keep profiles separate from binaries.
 - Preserve modified/foreign install and marketplace content. Plugin browser
   discovery and same-chat live execution need separate real-host evidence.
-- Packaging, package repositories and release automation are deferred in docs/TODO.md.
+- Distribute through Agent plugins (Codex/Desktop, Claude Code, OpenCode targets).
+  Independent OS installers/package repositories are cancelled. Official plugin
+  platforms are the future goal; do not publish/submit during current development.
 - Do not modify real user configuration/services, publish, push or rewrite history.
 - Commit verifiable increments with English Conventional Commit titles and bodies.
 - Run cargo fmt --check, cargo clippy --all-targets -- -D warnings,

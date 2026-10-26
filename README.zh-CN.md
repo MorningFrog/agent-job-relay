@@ -10,7 +10,8 @@ Run durable background commands and route completion events to explicitly regist
 </div>
 
 面向单个可信本机用户的 Rust 原生 CLI、独立 Runner 和 stdio MCP Server。
-**v0.1.0 是源码构建的开发里程碑，已在 Linux x86_64 验证。** 当前没有安装包或包管理器发行版。
+**v0.1.1 是尚未发布的开发里程碑，已在 Linux x86_64 验证。**
+交付方向统一转向 Agent Plugin，独立系统安装包及软件仓库计划已取消；开发阶段暂不发布到官方插件平台。
 
 ## 当前能力
 
@@ -24,7 +25,7 @@ Run durable background commands and route completion events to explicitly regist
 | Codex CLI 集成 | MCP 配置与通知收件箱；**不能自动恢复 Agent** |
 | Desktop 唤醒 | 实验性 Unix Socket 适配器；自动化假宿主测试，以及 ChatGPT Desktop 26.1021.22027 / Ubuntu 26.04 上**用户确认通过的真实端到端测试**，覆盖显式登记和 CLI `--wake` 首次启动、复用、空闲 Daemon 重启 |
 | setup、doctor、移除所属 MCP 项 | 隔离配置测试；没有修改真实用户设置 |
-| 一次安装的本地 Desktop Plugin + MCP | 原生程序包、稳定启动器/状态配置、所属 marketplace 配置及移除、真实共享 MCP 已通过隔离测试；Desktop 插件界面与安装后的真实流程待验收 |
+| 一次安装的本地 Desktop Plugin + MCP | 安装后的技能 + CLI 降级入口已完成真实 release 测试任务并唤醒同一聊天；修复后的 Codex CLI 0.164.0 加载器在隔离环境发现 19 个 MCP 工具；更新后的 Desktop MCP 任务路径待验收 |
 | Windows/macOS 运行时 | **尚未实现/验证**，明确返回不支持 |
 
 任务完成、`notification_recorded`、`accepted_by_host` 与观察到 Agent 真正继续执行是不同状态。
@@ -49,9 +50,11 @@ AJR_INSTALL_ROOT="$HOME/.local/share/agent-job-relay"
 
 > 后台执行这个项目的测试，完成后告诉我结果。
 
-日常提示词无需工具路径、状态目录或会话 ID。插件技能取得当前聊天绑定后通过 MCP 提交任务，提交后结束回合，完成时读取结果。任务工作目录由已选项目确定。Desktop 唤醒仍是实验性机制。**插件界面发现/安装和安装后的真实宿主流程尚未单独实测**，先前 CLI 通过不能代替这项验收。详见[安装说明](docs/installation.md)。
+日常提示词无需工具路径、状态目录或会话 ID。插件技能取得当前聊天绑定后，在 MCP 可用时通过 MCP 提交，否则明确报告使用 CLI 降级入口。提交后结束回合，完成时读取结果；工作目录由已选项目确定。用户的 release 测试任务已加载安装后的技能，通过 CLI 降级入口完成并唤醒同一聊天。首次运行时错误及后续绕行情况见[真实测试记录](docs/live-e2e.md)。
 
-安装不修改 PATH、不配置系统服务、不公开发布插件。状态数据与程序目录独立，复制到插件缓存后仍使用同一状态配置。插件固定该配置，不受已导出 AJR_STATE_DIR 的影响；仍可主动用 CLI `--state-dir` 覆盖。省略 `--root` 时使用 `$XDG_DATA_HOME/agent-job-relay`，否则默认上述路径；个人 marketplace 请使用 HOME 内的安装目录。源码构建仍需 Rust，原生安装包和公开目录上架继续延期。
+修复后的本地程序包使用 `.codex-plugin/plugin.json` 和 `.mcp.json`，真实 Codex CLI 0.164.0 已在隔离环境发现全部 19 个 MCP 工具。更新后的 Desktop MCP 任务路径和插件界面安装仍需独立证据；Desktop 唤醒仍是实验性机制。详见[安装说明](docs/installation.md)。
+
+安装不修改 PATH、不配置系统服务、不公开发布插件。状态数据与程序目录独立，复制到插件缓存后仍使用同一状态配置。插件固定该配置，不受已导出 AJR_STATE_DIR 的影响；仍可主动用 CLI `--state-dir` 覆盖。省略 `--root` 时使用 `$XDG_DATA_HOME/agent-job-relay`，否则默认上述路径；个人 marketplace 请使用 HOME 内的安装目录。源码构建仍需 Rust。Claude Code 和 OpenCode 插件集成属于计划，尚未实现。官方插件平台是未来目标，当前不提交或发布。开发安装的 MCP 指向稳定安装目录中的绝对程序路径，即使宿主已有插件缓存，也须保留该安装。
 
 如只配置独立 MCP，可将已安装启动器的 `setup plugin` 改为 `setup codex`。服务器指引同样包含当前终端绑定流程。不必在同一宿主/状态目录重复登记两种入口。
 
@@ -231,14 +234,17 @@ cargo uninstall --root "$PWD/.tmp/install" agent-job-relay
 移除或替换二进制前，先检查活动任务，按需停止任务，并对相同状态目录执行 `agent-job-relay daemon stop`，或用 Ctrl-C 退出前台 Daemon。
 卸载软件、移除 MCP 集成、移除系统服务和删除用户数据是不同操作。
 手动复制的二进制也应在检查进程后只删除该文件。**普通移除保留状态数据。**
-当前没有 `data purge` 或系统安装包卸载器，不要删除未知目录或其他项目数据。未来安装器卸载也必须默认保留历史、日志和用户配置。
+当前没有 `data purge` 或系统安装包卸载器，不要删除未知目录或其他项目数据。插件升级与移除须默认保留历史、日志和用户配置。
+
+在同一安装目录更新且没有覆盖状态配置时，会保留原有状态目录。先等待活动任务结束、停止该状态的 Daemon，再构建、重新安装并刷新宿主缓存。更新前取消无关 AJR_STATE_DIR 导出；显式覆盖会主动选择另一份状态。新版 Linux Daemon 即使程序文件被源码构建替换，也能从已加载程序启动 Runner；已有旧 Daemon 若原文件已删除，仍须显式空闲重启，不会自动重启或切换状态绕过。
 
 ## 常见问题与开发验证
 
 - **Daemon unavailable：** 提交任务会自动启动相同状态目录的 Daemon；`doctor` 只检查，不会主动启动。
   自动启动失败时，用前台 `daemon` 查看诊断；没有安装系统服务。
-- **看不到 MCP：** 预览并应用正确客户端配置，再重启客户端。
-  `doctor --client codex --config ...` 检查所属配置，不代表已验证真实 MCP 连接。
+- **看不到 MCP：** 更新本地程序包、刷新插件缓存并重启客户端。技能已加载不代表 MCP 已加载。
+  修复后的 Codex manifest 已用 CLI 0.164.0 验证；`doctor --check-mcp` 是本地自检，`doctor --client ...` 检查所属配置，两者都不能证明 Desktop 连通。
+- **Runner 要求重启 / 找不到程序：** `doctor` 会识别受影响的旧 Daemon。等待活动任务完成，再显式停止同一状态目录的 Daemon，用新版重新提交。保留失败任务；切换状态目录只是绕过问题，不是修复。
 - **Agent 没有唤醒：** 插件使用当前聊天终端的 `session connect --brief` 绑定，然后向共享 MCP 传 spec.session。`start --wake` 是当前终端的 CLI 入口；wake_me=true 只用于专属单会话 MCP。
   对已有任务检查会话租期、投递状态和尝试记录。
   Inbox 不具备恢复能力；Desktop 接受请求不代表 Agent 已执行。
@@ -258,11 +264,10 @@ CI 配置包含 Linux 完整测试与 Windows/macOS 编译及库检查；没有�
 更多内容见[架构](docs/architecture.md)、[测试](docs/testing.md)、[实施状态](docs/IMPLEMENTATION_STATUS.md)、
 [参考审查](docs/reference-audit.md)及[变更记录](CHANGELOG.md)。
 
-## 路线图 / 延后发行
+## Plugin 路线图
 
-`.deb`/APT、`.rpm`/DNF、`.AppImage`、Windows `.exe`/WinGet、macOS `.dmg`/Homebrew、
-Flatpak/Flathub、GitHub Releases 二进制、可选 PyPI Wheel/`uv tool`、签名、公证和 GitHub Actions 软件仓库发布
-均为 **Planned / Not implemented**。没有虚构安装链接或已经发布的包命令。
-[Distribution & Packaging TODO](docs/TODO.md)列出优先级、安装/升级/卸载语义、限制、测试标准及需单独授权的仓库发布。
+复用一个 Rust/MCP 核心，分别适配各宿主插件。Codex/Desktop 已有本地 Linux 开发程序包；Claude Code 和 OpenCode 集成属于**计划，尚未实现**。优先完善便捷安装、真实宿主工具加载、准确会话路由、升级和保留数据的移除。
+
+未来优先使用各 Agent 官方支持的插件平台或安装机制。当前仍在开发阶段，**暂不向平台提交、不上传包、不公开发布**。独立系统安装包、软件仓库及其发布流水线已取消；插件内部仍可能需要按系统/架构提供原生运行时。实际支持范围及后续工作见 [Plugin 路线图](docs/TODO.md)。
 
 MIT 许可。项目独立实现，只读研究 Vanth 的行为需求，没有复制实现，也没有创建或推送远程仓库。
