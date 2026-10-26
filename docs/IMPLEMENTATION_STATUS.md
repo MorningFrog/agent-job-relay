@@ -25,7 +25,7 @@ publication during development. Claude Code/OpenCode are planned, not implemente
 
 One Rust package/executable with daemon, runner, mcp and user CLI modes.
 Modules: client, core, storage, runner, daemon, ipc, session, delivery, adapters,
-integration, deployment, diagnostics, config, platform. SQLite schema **v4**, local IPC **v1**.
+integration, deployment, diagnostics, config, platform. SQLite schema **v5**, local IPC **v1**.
 
 - Explicit Exec argv or Shell interpreter/script; canonical cwd, validated
   arguments/env/timeout; UUID identities and durable idempotent submit.
@@ -43,8 +43,8 @@ integration, deployment, diagnostics, config, platform. SQLite schema **v4**, lo
   collects adopted descendants; escaped process groups remain a limitation.
 - Atomic terminal transition/Event/Outbox; session leases, immutable host-instance
   routing keys, explicit refresh/invalidation/rebind, stable delivery IDs,
-  fenced 10-second claims, three-second transport deadline, five-attempt retry
-  cycle, bounded exponential backoff+jitter, 24-hour TTL, dead letter and audit.
+  fenced 10-second claims, three-second transport deadline, TTL-bounded temporary retries,
+  classified identity/permanent failures, bounded exponential backoff+jitter, 24-hour TTL, dead letter and audit.
 - Inbox yields `notification_recorded`; experimental Desktop yields only
   `accepted_by_host`. No confirmed-resume state can be fabricated via API.
 - Owner-only Unix socket/directories and peer checks, size/page/concurrency
@@ -414,3 +414,18 @@ backup, host message or repeated live test is created. No publication/push.
 
 Documentation-review gates passed: fmt, strict all-target Clippy, all 50 tests
 and locked release build. No source or installed binary changes were needed.
+
+## Delivery retry increment (2026-10-26)
+
+Temporary failures now retry until the original 24-hour event TTL, with exponential
+backoff and jitter bounded to five minutes. There is no five-attempt cutoff.
+Typed identity/lease failures wait for explicit recovery instead of repeatedly
+contacting a changed endpoint; permanent capability/catalog failures dead-letter
+immediately. Queries expose failure_kind and next_attempt_at. Schema v5 adds the
+optional classification without rewriting delivery IDs or attempts.
+
+Validation: fmt, strict all-target Clippy, all 52 tests and release build passed.
+Regression coverage includes 12 temporary failures, reopen/success with the same ID,
+permanent/identity classification, TTL expiry and v4 retained delivery/attempt migration.
+Only repository-local isolated state/fake hosts were used; no real host message,
+configuration change, install, publication or push.

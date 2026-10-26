@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — notification recovery
+
+- Retry temporary delivery failures until TTL with jitter capped at five minutes;
+  pause changed identities for explicit recovery and stop permanent failures.
+- Preserve delivery IDs/history and expose failure kind and next-attempt time;
+  migrate existing delivery records to schema v5 without data loss.
+
 ## 0.1.2 — 2026-10-26 (unreleased upgrade repair)
 
 - Add `daemon stop --install-root` to select the recorded installation profile

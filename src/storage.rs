@@ -42,7 +42,7 @@ impl Store {
         self.call(|db| {
             let v: i64 = db.pragma_query_value(None, "user_version", |r| r.get(0))?;
             ensure!(
-                v <= 4,
+                v <= 5,
                 "database schema is newer than this executable; downgrade refused"
             );
             db.pragma_update(None, "journal_mode", "WAL")?;
@@ -65,6 +65,9 @@ impl Store {
                      PRAGMA user_version=4;
                      COMMIT;",
                 )?;
+            }
+            if v < 5 {
+                db.execute_batch("BEGIN IMMEDIATE; ALTER TABLE deliveries ADD COLUMN failure_kind TEXT; PRAGMA user_version=5; COMMIT;")?;
             }
             Ok(())
         })

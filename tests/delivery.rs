@@ -223,7 +223,7 @@ async fn expired_host_instance_requires_explicit_rebind() {
     assert_eq!(f.rows(&j.job_id).await.len(), 2);
 }
 #[tokio::test]
-async fn fifth_failure_dead_letters_and_missing_session_never_launches() {
+async fn temporary_failures_survive_five_attempts_and_store_reopen() {
     let f = Fixture::new().await;
     assert!(f.job_result_missing().await.is_err());
     let a = f.session("a", "one").await;
@@ -232,7 +232,8 @@ async fn fifth_failure_dead_letters_and_missing_session_never_launches() {
         .finish(j.job_id.clone(), "completed", Some(0), None, "done".into())
         .await
         .unwrap();
-    for _ in 0..5 {
+    let mut delivery_id = String::new();
+    for attempt in 1..=12 {
         f.store
             .call(|db| {
                 db.execute("UPDATE deliveries SET next_at=0", [])?;
@@ -241,12 +242,73 @@ async fn fifth_failure_dead_letters_and_missing_session_never_launches() {
             .await
             .unwrap();
         let c = f.store.claim().await.unwrap().unwrap();
+        assert_eq!(c.delivery.attempts, attempt);
+        if delivery_id.is_empty() {
+            delivery_id = c.delivery.id.clone();
+        }
+        assert_eq!(c.delivery.id, delivery_id);
         f.store
             .complete_claim(c, Err(anyhow::anyhow!("offline")))
             .await
             .unwrap();
+        let row = &f.rows(&j.job_id).await[0];
+        assert_eq!(row["status"], "retry_wait");
+        assert_eq!(row["failure_kind"], "temporary");
+        assert!(row["next_attempt_at"].as_i64().unwrap() > now());
+        assert!(row["next_attempt_at"].as_i64().unwrap() <= now() + 300_000);
     }
-    assert_eq!(f.rows(&j.job_id).await[0]["status"], "dead_letter");
+    let reopened = Store::new(f.store.config.clone());
+    reopened.init().await.unwrap();
+    reopened
+        .call(|db| {
+            db.execute("UPDATE deliveries SET next_at=0", [])?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+    let c = reopened.claim().await.unwrap().unwrap();
+    assert_eq!(c.delivery.id, delivery_id);
+    let outcome = adapters::deliver(&reopened.config, &c).await;
+    reopened.complete_claim(c, outcome).await.unwrap();
+    assert_eq!(
+        f.rows(&j.job_id).await[0]["status"],
+        "notification_recorded"
+    );
+}
+
+#[tokio::test]
+async fn permanent_errors_stop_and_identity_errors_wait_for_explicit_recovery() {
+    use agent_job_relay::delivery::{DeliveryError, FailureKind};
+    let f = Fixture::new().await;
+    let a = f.session("a", "one").await;
+    let j = f.job(&a).await;
+    f.store
+        .finish(j.job_id.clone(), "completed", Some(0), None, "done".into())
+        .await
+        .unwrap();
+    let c = f.store.claim().await.unwrap().unwrap();
+    let id = c.delivery.id.clone();
+    f.store
+        .complete_claim(
+            c,
+            Err(DeliveryError(FailureKind::Permanent, "unsupported capability").into()),
+        )
+        .await
+        .unwrap();
+    let row = &f.rows(&j.job_id).await[0];
+    assert_eq!(row["status"], "dead_letter");
+    assert_eq!(row["attempts"], 1);
+    assert_eq!(row["failure_kind"], "permanent");
+    f.store.retry_delivery(id).await.unwrap();
+    f.store.invalidate(a).await.unwrap();
+    let c = f.store.claim().await.unwrap().unwrap();
+    let outcome = adapters::deliver(&f.store.config, &c).await;
+    f.store.complete_claim(c, outcome).await.unwrap();
+    assert_eq!(
+        f.rows(&j.job_id).await[0]["failure_kind"],
+        "rebind_required"
+    );
+    assert!(f.store.claim().await.unwrap().is_none());
 }
 impl Fixture {
     async fn job_result_missing(&self) -> anyhow::Result<Job> {
@@ -345,6 +407,44 @@ async fn version_one_database_upgrades_without_losing_job_or_run() {
             .call(|db| Ok(db.pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0))?))
             .await
             .unwrap(),
-        4
+        5
+    );
+}
+
+#[tokio::test]
+async fn version_four_upgrade_preserves_pending_delivery_and_attempt_history() {
+    let f = Fixture::new().await;
+    let s = f.session("migration", "old").await;
+    let j = f.job(&s).await;
+    f.store
+        .finish(j.job_id.clone(), "completed", Some(0), None, "done".into())
+        .await
+        .unwrap();
+    let c = f.store.claim().await.unwrap().unwrap();
+    let id = c.delivery.id.clone();
+    f.store
+        .complete_claim(c, Err(anyhow::anyhow!("offline")))
+        .await
+        .unwrap();
+    f.store
+        .call(|db| {
+            db.execute_batch(
+                "ALTER TABLE deliveries DROP COLUMN failure_kind; PRAGMA user_version=4;",
+            )?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+    f.store.init().await.unwrap();
+    let row = &f.rows(&j.job_id).await[0];
+    assert_eq!(row["id"], id);
+    assert_eq!(row["attempts"], 1);
+    assert_eq!(row["status"], "retry_wait");
+    assert_eq!(
+        f.store.attempts(id, 0, 100).await.unwrap()["attempts"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
     );
 }

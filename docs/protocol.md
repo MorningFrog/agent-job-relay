@@ -50,8 +50,11 @@ Completion + stable Event ID + unique `(event_id,target_id)` Outbox rows commit
 in one IMMEDIATE SQLite transaction. One daemon dispatcher claims durable work
 for 10 seconds; transport deadline is 3 seconds. Old claim tokens cannot ack a
 new claim. Interrupted attempts are recorded on reclaim. TTL is 24 hours from
-the original event. Five failed attempts per retry cycle, finite exponential
-backoff capped at 30 seconds plus UUID-derived jitter. Explicit retry renews TTL
+the original event. Temporary errors retry until TTL, using finite exponential backoff with jitter
+capped at five minutes including jitter. Identity/lease failures wait in retry_wait
+with failure_kind=rebind_required until explicit recovery or expiry; unsupported
+capabilities/malformed catalogs dead-letter immediately. Delivery queries expose
+failure_kind and next_attempt_at (Unix milliseconds). There is no five-failure cutoff. Explicit retry renews TTL
 and keeps the delivery ID/history; it does not rerun the command.
 
 States: pending, leased, retry_wait, dead_letter, cancelled,

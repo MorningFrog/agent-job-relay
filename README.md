@@ -166,6 +166,11 @@ Eight active jobs are allowed. Reusing an idempotency key with identical setting
 returns the original job; different settings conflict. An intentional rerun needs
 a new key. `stop` is idempotent; a completed job stays completed.
 
+Temporary notification failures retry with bounded backoff until the 24-hour
+event TTL. A changed/expired session waits for explicit recovery; unsupported
+host capabilities stop immediately. `delivery list` exposes `failure_kind` and
+`next_attempt_at`; `delivery retry` preserves the ID/history and never reruns a job.
+
 ## MCP setup and safe removal
 
 Preview is the default. `--apply` explicitly authorizes a write. Start with
