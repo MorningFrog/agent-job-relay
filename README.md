@@ -36,44 +36,51 @@ remain outside that result.
 
 ## One-minute source quick start
 
-Requires Rust stable (package MSRV 1.89), Cargo and a native C build toolchain for
-bundled SQLite. Runtime needs no Python, Node, Go, Docker or external database.
-From the repository root, use a private, isolated demo state directory:
+Requires Rust stable (package MSRV 1.89), Cargo and a C toolchain for bundled
+SQLite. Runtime needs no Python, Node, Go, Docker or external database.
+From the repository root:
 
 ```bash
-cargo run -- --help
 cargo build --release --locked
-mkdir -p .tmp/demo
 export AJR_STATE_DIR="$PWD/.tmp/demo/state"
-./target/release/agent-job-relay daemon
-```
-
-Keep that terminal open. In another terminal at the same repository root:
-
-```bash
-export AJR_STATE_DIR="$PWD/.tmp/demo/state"
+./target/release/agent-job-relay start -- /bin/echo "hello from the runner"
 ./target/release/agent-job-relay doctor
-./target/release/agent-job-relay start --cwd "$PWD" -- /bin/echo "hello from the runner"
 ```
 
-The response contains `job.job_id` and `job.run_id`. Set `JOB_ID` to that returned
-job ID, then inspect it:
+**The first submission automatically starts a detached daemon.** No extra terminal
+or OS service is required. The response contains job.job_id and job.run_id. Set
+JOB_ID to the returned job ID, then inspect it:
 
 ```bash
 ./target/release/agent-job-relay status "$JOB_ID"
 ./target/release/agent-job-relay logs "$JOB_ID"
 ./target/release/agent-job-relay events "$JOB_ID"
-./target/release/agent-job-relay list --limit 20
 ```
 
-Ctrl-C in the daemon terminal stops the daemon and leaves runners alive. Restart
-with the same state directory to resume dispatch and query persisted results.
-The daemon is not an installed OS service and does not autostart at login.
+Inside a Desktop Agent's terminal tool, opt into same-session wake with one flag:
 
+```bash
+./target/release/agent-job-relay start --wake -- cargo check
+```
+
+This reads only the current process's inherited CODEX_THREAD_ID and
+CODEX_APP_TOOLS_PIPE_PATH, registers/refreshes that exact session, probes the host,
+and binds the job before execution. No manually copied thread ID, socket or key
+is needed. `--wake` explicitly opts into the experimental Desktop adapter.
+If identity or capability is unavailable, the job is not started and the error
+explains how to use the correct host context; there is no inbox/session fallback.
+
+```bash
+./target/release/agent-job-relay session connect  # optional connection diagnostic
+./target/release/agent-job-relay daemon stop     # leaves runners and data intact
+```
+
+`daemon` still runs in the foreground for diagnosis; Ctrl-C leaves runners alive.
+A subsequent submission restarts a stopped daemon. No login autostart is installed.
 Without an override, state defaults to `$XDG_STATE_HOME/agent-job-relay` or
 `$HOME/.local/state/agent-job-relay`. `--state-dir /absolute/path` overrides it.
-Use the same directory for daemon, CLI and MCP. Existing state must be owned by
-you with directory permissions 0700. Keep socket paths shorter than 104 bytes.
+CLI and MCP must use the same directory. Existing state must be owned by you
+with mode 0700; keep socket paths shorter than 104 bytes.
 
 ## CLI examples
 
@@ -119,7 +126,8 @@ For a real Codex client, choose its actual `--config` path, or omit the option t
 use `$CODEX_HOME/config.toml` / `$HOME/.codex/config.toml`. Review `setup codex
 --dry-run` before choosing `--apply`. Restart the MCP client after applying.
 The generated entry points to the **current executable** and state directory;
-re-run setup after moving the binary. It does not install/start the daemon.
+re-run setup after moving the binary. Setup does not install a service; task
+submissions start the daemon automatically.
 
 Generic clients using `mcpServers` JSON can use:
 
@@ -148,7 +156,7 @@ Config and receipt writes are individually atomic; interrupted setup fails close
 and may require reviewing the receipt and backup.
 
 `agent-job-relay mcp` serves stdout exclusively as MCP; diagnostics use stderr.
-Tools: `job_start/status/list/logs/events/stop/wait/doctor`, session registration,
+Tools: `job_start/status/list/logs/events/stop/wait/doctor`, automatic connection, session registration,
 probe/invalidation/inbox, target add/rebind, delivery list/attempts/retry.
 `job_start` takes `{"spec":{"command":{"kind":"exec","program":"/bin/echo",
 "args":["hello"]},"cwd":"/absolute/workdir"}}`. See [protocol](docs/protocol.md)
@@ -156,6 +164,38 @@ for exact schemas and bounded results.
 
 ## Sessions and wake behavior
 
+For normal MCP use, enable wake directly in the start call:
+
+```json
+{
+  "wake_me": true,
+  "spec": {
+    "command": { "kind": "exec", "program": "cargo", "args": ["check"] },
+    "cwd": "/absolute/workdir"
+  }
+}
+```
+
+`job_start` auto-starts the daemon; wake_me=true also registers, refreshes and
+probes the MCP process's inherited Desktop context. Then the Agent can end its
+turn and wait for the completion message. `job_connect_session` is an optional
+no-argument diagnostic; routine starts do not require it. Do not combine wake_me
+with explicit spec.session (`--wake` and `--session` also conflict).
+
+Automatic binding requires a per-session MCP process that actually receives the
+two host variables. A shared MCP process cannot infer which chat called it. If
+those variables are absent, let the Agent use `start --wake` from its current
+Desktop terminal tool, or explicitly supply an authorized spec.session. No
+human needs to copy IDs in the normal terminal-tool path.
+
+Automatic registration uses a 24-hour lease and a socket fingerprint as host
+instance identity. Each wake-enabled submission refreshes it; a replacement
+endpoint produces a new binding without moving existing jobs. Jobs exceeding
+that lease need explicit refresh/rebind. A host acknowledgement still does not
+confirm Agent execution. The new shortcuts have automated fake-host coverage;
+the separately recorded live pass used the explicit registration procedure.
+
+Advanced manual registration remains available for other hosts and diagnosis.
 For a local notification demonstration, register explicit identities:
 
 ```bash
@@ -212,7 +252,8 @@ cargo uninstall --root "$PWD/.tmp/install" agent-job-relay
 ```
 
 Before removing/replacing binaries, inspect running jobs, stop them if desired,
-and stop your foreground daemon. Removing software, removing MCP integration,
+and run `agent-job-relay daemon stop` for the same state directory (or stop a
+foreground daemon with Ctrl-C). Removing software, removing MCP integration,
 removing a service and deleting user data are different operations. For a binary
 you manually copied, remove only that binary after checking processes. **Normal
 removal preserves state.** There is no `data purge` command or system uninstaller;
@@ -221,11 +262,14 @@ must also preserve history/logs/user config by default.
 
 ## Troubleshooting and development
 
-- **Daemon unavailable:** start `daemon` using the same `--state-dir`; no auto
-  service is installed. `doctor` returns a nonzero exit with next steps.
+- **Daemon unavailable:** submissions auto-start it using the same state root.
+  `doctor` intentionally checks without starting it. For startup failures run
+  foreground `daemon` to see diagnostics; no OS service is installed.
 - **MCP missing:** preview/apply the correct client config and restart the client.
   `doctor --client codex --config ...` checks owned config, not a live MCP handshake.
-- **No Agent wake:** inspect session lease, `session probe`, deliveries and attempts.
+- **No Agent wake:** use `start --wake` / wake_me=true in the current Desktop
+  context; `session connect` probes it. For existing jobs inspect session lease,
+  deliveries and attempts.
   Inbox has no resume capability; Desktop acceptance is not confirmed execution.
 - **orphaned:** inspect external effects before deliberately submitting a new job.
   No automatic replay is performed. Escaped grandchildren may need manual review.

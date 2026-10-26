@@ -224,7 +224,7 @@ fn plan(
         }
     }
     Ok(
-        json!({"client":client,"config_path":path,"mode":if apply{"apply"}else{"dry_run"},"changed":changed,"action":if remove{"remove owned MCP entry"}else{"set owned MCP entry"},"managed_entry":if remove{Value::Null}else{desired},"backup":backup,"data":"preserved; no service/PATH changes","next_step":if apply{"Restart the MCP client. Start daemon with the same --state-dir. Session wake requires explicit registration."}else{"Review this preview; repeat with --apply to write. Backups are made before modifying an existing file."}}),
+        json!({"client":client,"config_path":path,"mode":if apply{"apply"}else{"dry_run"},"changed":changed,"action":if remove{"remove owned MCP entry"}else{"set owned MCP entry"},"managed_entry":if remove{Value::Null}else{desired},"backup":backup,"data":"preserved; no service/PATH changes","next_step":if apply{"Restart the MCP client. Task submissions auto-start the daemon. Use wake_me=true for automatic binding to inherited Desktop context (experimental)."}else{"Review this preview; repeat with --apply to write. Backups are made before modifying an existing file."}}),
     )
 }
 pub fn default_path(client: Client) -> Result<PathBuf> {

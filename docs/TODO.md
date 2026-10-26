@@ -21,6 +21,9 @@ Core correctness and usable local source builds have priority over distribution.
 - P1: macOS process instance identity, native lifecycle/restart tests and IPC audit.
 - P1: opt-in public Codex app-server integration only for an explicitly owned
   writer/session; handle active turns, approvals, auth and reconnect safely.
+- P1: lease renewal for jobs longer than 24 hours, authenticated per-call identity
+  handoff for shared MCP hosts, and a live shortcut-path verification. Never
+  infer a current chat from a global latest-session record.
 - P1: inspect all active runner/host health from doctor; versioned config file and
   tunable resource budgets; bounded structured progress event protocol.
 - P1: atomic schema migration fault tests across every supported version; online

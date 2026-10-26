@@ -35,3 +35,9 @@ there is no exactly-once promise. Host ack is not proof of agent execution.
 
 Linux is the verified runtime target. Other OS execution and IPC must fail clearly
 until their native security/lifecycle adapters are implemented and tested.
+
+Client-side convenience is in client.rs (ADR 0002). Submissions launch a detached
+per-state daemon on demand. Opted-in wake resolves only the CLI/MCP process's
+current inherited host identity, registers/refreshes and probes before submitting.
+No latest-session lookup or daemon-owned caller inference is used. `daemon stop`
+stops dispatch only; runner and result persistence lifetimes remain independent.

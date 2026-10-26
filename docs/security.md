@@ -43,3 +43,13 @@ Desktop endpoint is explicitly supplied, owned and peer-checked; private API
 compatibility and receiver dedupe remain uncertain. Registration stores a socket
 fingerprint, not cryptographic host attestation. It never scans other sessions,
 reads credentials, injects binaries or creates a second Codex writer.
+
+Current-context convenience accepts only inherited CODEX_THREAD_ID and
+CODEX_APP_TOOLS_PIPE_PATH for opted-in --wake/wake_me=true. These remain trusted
+caller declarations, not host attestation. Shared MCP processes cannot choose
+per-chat destinations and must use explicit bindings or the current Agent's
+terminal-tool CLI. Host capability is probed before executing a wake-enabled job.
+A missing context/capability is an error, not a weaker notification fallback.
+On-demand launch uses a private startup lock and a detached daemon boundary;
+only absent/refused sockets trigger launch. No system service is installed.
+Shutdown remains owner-only IPC and is excluded from MCP discovery.

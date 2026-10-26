@@ -33,39 +33,43 @@ Run durable background commands and route completion events to explicitly regist
 ## 一分钟源码快速开始
 
 需要 Rust stable（包声明的最低版本为 1.89）、Cargo 和用于编译内置 SQLite 的 C 工具链。
-运行时不依赖 Python、Node、Go、Docker 或外部数据库。从项目根目录开始，使用隔离状态目录：
+运行时不依赖 Python、Node、Go、Docker 或外部数据库。从项目根目录执行：
 
 ```bash
-cargo run -- --help
 cargo build --release --locked
-mkdir -p .tmp/demo
 export AJR_STATE_DIR="$PWD/.tmp/demo/state"
-./target/release/agent-job-relay daemon
-```
-
-保留该终端，在项目根目录的另一个终端执行：
-
-```bash
-export AJR_STATE_DIR="$PWD/.tmp/demo/state"
+./target/release/agent-job-relay start -- /bin/echo "hello from the runner"
 ./target/release/agent-job-relay doctor
-./target/release/agent-job-relay start --cwd "$PWD" -- /bin/echo "hello from the runner"
 ```
 
-返回值包含 `job.job_id` 和 `job.run_id`。将实际返回的 job_id 设置为 `JOB_ID`，然后查询：
+**首次提交任务会自动启动独立 Daemon**，不用额外保留终端，也不安装系统服务。
+返回值包含 job.job_id 和 job.run_id，将实际 job_id 设置为 JOB_ID 后查询：
 
 ```bash
 ./target/release/agent-job-relay status "$JOB_ID"
 ./target/release/agent-job-relay logs "$JOB_ID"
 ./target/release/agent-job-relay events "$JOB_ID"
-./target/release/agent-job-relay list --limit 20
 ```
 
-在 Daemon 终端按 Ctrl-C 会停止 Daemon，Runner 仍继续执行。用相同状态目录重新启动后，可以恢复投递并查询持久化结果。
-Daemon 当前不是系统服务，也没有登录自启动项。
+在 Desktop Agent 的终端工具中，只需一个选项即可绑定当前会话唤醒：
 
-没有指定目录时，默认使用 `$XDG_STATE_HOME/agent-job-relay`，否则使用
-`$HOME/.local/state/agent-job-relay`。`--state-dir /绝对路径` 可覆盖默认值。
-Daemon、CLI、MCP 必须使用同一目录。已有状态目录必须属于当前用户，权限为 0700；Socket 路径须短于 104 字节。
+```bash
+./target/release/agent-job-relay start --wake -- cargo check
+```
+
+程序只读取当前进程继承的 CODEX_THREAD_ID 和 CODEX_APP_TOOLS_PIPE_PATH，自动登记/刷新、探测宿主并绑定任务。
+不必手工复制 thread ID、socket 或注册 key。`--wake` 表示显式选择实验性 Desktop 适配器。
+缺少可靠身份或宿主能力时，任务不会启动，并返回如何从正确宿主上下文使用的提示；不会回退到收件箱或其他会话。
+
+```bash
+./target/release/agent-job-relay session connect  # 可选的连接诊断
+./target/release/agent-job-relay daemon stop     # 保留 Runner 和状态数据
+```
+
+`daemon` 仍可用于前台诊断，Ctrl-C 不停止独立 Runner；下次提交会重新启动已停止的 Daemon。
+没有登录自启动项。默认状态目录为 `$XDG_STATE_HOME/agent-job-relay`，否则使用
+`$HOME/.local/state/agent-job-relay`；可用 `--state-dir /绝对路径` 覆盖。
+CLI、MCP 必须使用同一目录，已有目录须属于当前用户且权限为 0700，Socket 路径短于 104 字节。
 
 ## CLI 示例
 
@@ -103,7 +107,7 @@ Daemon、CLI、MCP 必须使用同一目录。已有状态目录必须属于当�
 
 配置真实 Codex 时，选择实际 `--config` 路径；省略后使用 `$CODEX_HOME/config.toml` 或 `$HOME/.codex/config.toml`。
 先查看 `setup codex --dry-run`，再自行选择 `--apply`；修改后重启 MCP 客户端。
-生成项指向**当前可执行文件**及状态目录，移动二进制后应重新 setup。setup 不安装或启动 Daemon。
+生成项指向**当前可执行文件**及状态目录，移动二进制后应重新 setup。setup 不安装系统服务，提交任务时会自动启动 Daemon。
 
 使用 `mcpServers` JSON 格式的通用客户端可以执行：
 
@@ -128,13 +132,37 @@ Daemon、CLI、MCP 必须使用同一目录。已有状态目录必须属于当�
 移除集成会保留全部任务历史、日志及状态配置。配置与凭据各自原子写入，但不是跨文件事务；中断 setup 后可能需要核对凭据和备份，程序会保守拒绝接管。
 
 `agent-job-relay mcp` 的 stdout 仅用于 MCP，诊断写入 stderr。
-工具包括 `job_start/status/list/logs/events/stop/wait/doctor`、会话注册、探测、失效、收件箱、目标添加/重新绑定，以及投递列表、尝试记录和重试。
+工具包括 `job_start/status/list/logs/events/stop/wait/doctor`、自动连接、会话注册、探测、失效、收件箱、目标添加/重新绑定，以及投递列表、尝试记录和重试。
 `job_start` 参数形如 `{"spec":{"command":{"kind":"exec","program":"/bin/echo",
 "args":["hello"]},"cwd":"/absolute/workdir"}}`。准确 schema 和有界结果见[协议文档](docs/protocol.md)。
 
 ## 会话与唤醒
 
-本地收件箱演示使用显式身份注册：
+日常 MCP 使用直接在启动参数中选择唤醒：
+
+```json
+{
+  "wake_me": true,
+  "spec": {
+    "command": { "kind": "exec", "program": "cargo", "args": ["check"] },
+    "cwd": "/absolute/workdir"
+  }
+}
+```
+
+`job_start` 自动启动 Daemon；wake_me=true 还会根据 MCP 进程继承的 Desktop 上下文自动登记、刷新和探测。
+之后 Agent 可结束当前回合，等待任务完成消息。`job_connect_session` 是可选的无参数诊断工具，正常启动不必预先调用。
+wake_me 不应与显式 spec.session 同时使用，CLI 的 `--wake` 和 `--session` 也互斥。
+
+自动绑定要求每会话独立的 MCP 进程实际获得上述两个宿主环境变量。共享 MCP 进程无法判断哪个聊天发起了调用。
+如果变量没有传给 MCP，让 Agent 从当前 Desktop 的终端工具直接执行 `start --wake`，或显式提供已授权的 spec.session。
+正常终端工具路径无需人工复制任何身份参数。
+
+自动登记租期为 24 小时，用 Socket 指纹标识宿主实例；每次请求唤醒都会刷新。
+端点替换会产生新绑定，不会迁移已有任务。超过该租期的任务需要显式刷新或重新绑定。
+宿主接受请求仍不代表 Agent 已恢复。新增快捷入口已有自动化假宿主覆盖，单独记录的真实基础测试使用的是显式登记流程。
+
+高级手工登记仍保留，用于其他宿主或诊断。本地收件箱演示使用显式身份注册：
 
 ```bash
 ./target/release/agent-job-relay session register --agent codex_cli --session-id demo-thread --instance-id demo-instance --host-id local
@@ -177,18 +205,19 @@ cargo install --path . --locked --root "$PWD/.tmp/install"
 cargo uninstall --root "$PWD/.tmp/install" agent-job-relay
 ```
 
-移除或替换二进制前，先检查活动任务，按需停止任务，并退出前台 Daemon。
+移除或替换二进制前，先检查活动任务，按需停止任务，并对相同状态目录执行 `agent-job-relay daemon stop`，或用 Ctrl-C 退出前台 Daemon。
 卸载软件、移除 MCP 集成、移除系统服务和删除用户数据是不同操作。
 手动复制的二进制也应在检查进程后只删除该文件。**普通移除保留状态数据。**
 当前没有 `data purge` 或系统卸载器，不要删除未知目录或其他项目数据。未来安装器卸载也必须默认保留历史、日志和用户配置。
 
 ## 常见问题与开发验证
 
-- **Daemon unavailable：** 用相同 `--state-dir` 启动 `daemon`；没有自动系统服务。
-  `doctor` 会以非零退出码提供下一步建议。
+- **Daemon unavailable：** 提交任务会自动启动相同状态目录的 Daemon；`doctor` 只检查，不会主动启动。
+  自动启动失败时，用前台 `daemon` 查看诊断；没有安装系统服务。
 - **看不到 MCP：** 预览并应用正确客户端配置，再重启客户端。
   `doctor --client codex --config ...` 检查所属配置，不代表已验证真实 MCP 连接。
-- **Agent 没有唤醒：** 检查会话租期、`session probe`、投递状态和尝试记录。
+- **Agent 没有唤醒：** 在当前 Desktop 上下文中使用 `start --wake` 或 wake_me=true，`session connect` 可诊断连接。
+  对已有任务检查会话租期、投递状态和尝试记录。
   Inbox 不具备恢复能力；Desktop 接受请求不代表 Agent 已执行。
 - **orphaned：** 先审计外部副作用，再决定是否以新任务重跑。不会自动重放；逃逸的孙进程可能需要人工检查。
 - **权限或 Socket 错误：** 使用当前用户拥有、0700 权限且路径更短的状态目录；不要放宽权限或复用 Vanth 数据。

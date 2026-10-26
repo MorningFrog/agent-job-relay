@@ -10,7 +10,7 @@ use std::{collections::BTreeMap, path::PathBuf};
 #[command(
     version,
     about = "Durable background jobs for local AI agents",
-    long_about = "Run commands independently of MCP clients. Start the daemon first. Commands run with your OS permissions, not in a sandbox. JSON output is bounded; host acceptance is not confirmed Agent execution."
+    long_about = "Run commands independently of MCP clients. The daemon starts automatically on task submission. Commands run with your OS permissions, not in a sandbox. JSON output is bounded; host acceptance is not confirmed Agent execution."
 )]
 struct Cli {
     #[arg(
@@ -25,9 +25,12 @@ struct Cli {
 }
 #[derive(Subcommand)]
 enum Commands {
-    /// Run the local daemon in the foreground; Ctrl-C leaves runners alive
-    Daemon,
-    /// Serve the Model Context Protocol on stdio (daemon must already be running)
+    /// Run in foreground, or stop the daemon; start auto-launches it when needed
+    Daemon {
+        #[command(subcommand)]
+        command: Option<DaemonCommand>,
+    },
+    /// Serve MCP on stdio; submissions automatically start the daemon
     Mcp,
     /// Register, refresh, probe or invalidate an exact Agent session
     Session {
@@ -81,6 +84,12 @@ enum Commands {
         timeout: Option<u64>,
         #[arg(long)]
         session: Option<String>,
+        #[arg(
+            long,
+            conflicts_with = "session",
+            help = "Opt into experimental Desktop wake; bind the current host session automatically"
+        )]
+        wake: bool,
         #[arg(long)]
         idempotency_key: Option<String>,
         #[arg(last = true, required_unless_present = "shell")]
@@ -152,6 +161,8 @@ enum IntegrationCommand {
 }
 #[derive(Subcommand)]
 enum SessionCommand {
+    /// Register and probe the current Desktop context (experimental opt-in)
+    Connect,
     Register {
         #[arg(long)]
         agent: String,
@@ -182,6 +193,11 @@ enum SessionCommand {
     Invalidate {
         session_key: String,
     },
+}
+#[derive(Subcommand)]
+enum DaemonCommand {
+    /// Stop only this daemon; independent runners continue and data is retained
+    Stop,
 }
 #[derive(Subcommand)]
 enum DeliveryCommand {
@@ -236,7 +252,7 @@ async fn run(cli: Cli) -> Result<()> {
             client,
             config: path,
         } => {
-            let mut report = ipc::call(&config, Request::Doctor).await?;
+            let mut report = agent_job_relay::client::call(&config, Request::Doctor).await?;
             report["mcp_registration"] = serde_json::json!(
                 "not checked; use doctor --client codex --config <absolute-path>"
             );
@@ -297,6 +313,15 @@ async fn run(cli: Cli) -> Result<()> {
             return Ok(());
         }
         Commands::Session { command } => match command {
+            SessionCommand::Connect => {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(
+                        &agent_job_relay::client::connect(&config).await?
+                    )?
+                );
+                return Ok(());
+            }
             SessionCommand::Register {
                 agent,
                 session_id,
@@ -417,7 +442,10 @@ async fn run(cli: Cli) -> Result<()> {
 
         Commands::Mcp => return agent_job_relay::mcp::serve(config).await,
         Commands::Request { json } => serde_json::from_str(&json)?,
-        Commands::Daemon => return agent_job_relay::daemon::serve(config).await,
+        Commands::Daemon { command: None } => return agent_job_relay::daemon::serve(config).await,
+        Commands::Daemon {
+            command: Some(DaemonCommand::Stop),
+        } => Request::Shutdown,
         Commands::Runner { job_id, nonce } => {
             return agent_job_relay::runner::run(config, job_id, nonce).await;
         }
@@ -427,6 +455,7 @@ async fn run(cli: Cli) -> Result<()> {
             cwd,
             timeout,
             session,
+            wake,
             idempotency_key,
             command,
         } => {
@@ -447,16 +476,21 @@ async fn run(cli: Cli) -> Result<()> {
             } else {
                 std::env::current_dir()?.join(cwd)
             };
-            Request::Start {
-                spec: StartSpec {
-                    command,
-                    cwd,
-                    env: BTreeMap::new(),
-                    timeout_seconds: timeout,
-                    session,
-                    idempotency_key,
-                },
-            }
+            let spec = StartSpec {
+                command,
+                cwd,
+                env: BTreeMap::new(),
+                timeout_seconds: timeout,
+                session,
+                idempotency_key,
+            };
+            println!(
+                "{}",
+                serde_json::to_string_pretty(
+                    &agent_job_relay::client::start(&config, spec, wake).await?
+                )?
+            );
+            return Ok(());
         }
         Commands::Status { job_id } => Request::Status { job_id },
         Commands::List { after, limit } => Request::List { after, limit },
@@ -494,7 +528,7 @@ async fn run(cli: Cli) -> Result<()> {
     };
     println!(
         "{}",
-        serde_json::to_string_pretty(&ipc::call(&config, req).await?)?
+        serde_json::to_string_pretty(&agent_job_relay::client::call(&config, req).await?)?
     );
     Ok(())
 }

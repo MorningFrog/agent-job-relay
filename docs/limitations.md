@@ -48,3 +48,11 @@
   OS service manager, system removal or destructive data purge is shipped.
 - Source build/development installation only. All binary packages, stores,
   package repositories and automatic release work are deferred in TODO.md.
+
+Convenience support: `start --wake` / MCP wake_me=true remove manual registration
+when current host context is inherited. They cannot infer identity in an ordinary
+terminal or shared MCP process. Use the current Desktop Agent terminal tool when
+MCP lacks those variables. Automatic sessions lease for 24 hours and need refresh
+for longer work. The shortcut itself has fake-host automation and real CLI/MCP
+process coverage; it has not received a separate live UI validation. The recorded
+basic live pass covers the underlying explicit Desktop adapter route.

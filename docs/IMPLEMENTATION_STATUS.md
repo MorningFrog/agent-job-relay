@@ -23,7 +23,7 @@ is not a failed current milestone gate.
 ## Current implementation
 
 One Rust package/executable with daemon, runner, mcp and user CLI modes.
-Modules: core, storage, runner, daemon, ipc, session, delivery, adapters,
+Modules: client, core, storage, runner, daemon, ipc, session, delivery, adapters,
 integration, config, platform. SQLite schema **v4**, local IPC **v1**.
 
 - Explicit Exec argv or Shell interpreter/script; canonical cwd, validated
@@ -48,6 +48,16 @@ integration, config, platform. SQLite schema **v4**, local IPC **v1**.
   `accepted_by_host`. No confirmed-resume state can be fabricated via API.
 - Owner-only Unix socket/directories and peer checks, size/page/concurrency
   limits, symlink DB/config refusal, env non-echo. No HTTP service or telemetry.
+- One-flag `start --wake` / MCP `job_start(..., wake_me: true)` uses current
+  inherited host context to register/refresh/probe and bind before execution.
+  Optional `session connect` / `job_connect_session` diagnoses the same path.
+  No manual thread/socket/key is needed when trusted context is available;
+  missing context or capability rejects execution without fallback. New sockets
+  get distinct registrations, and old job targets never move implicitly.
+- Submissions auto-start a detached daemon, coordinated by startup/daemon locks;
+  readiness is bounded by eight seconds. Permission/protocol errors do not
+  trigger replacement. `daemon stop` leaves runners/data intact; next submission
+  starts dispatch again. No system service or real user configuration is changed.
 - Default preview setup; --apply writes only owned Codex TOML or mcpServers JSON,
   with adjacent receipts/backups. Idempotent removal refuses modified entries,
   preserves foreign settings and all job data. No PATH/service mutations.
@@ -58,8 +68,9 @@ integration, config, platform. SQLite schema **v4**, local IPC **v1**.
 |---|---|
 | `cargo fmt --check` | Passed |
 | `cargo clippy --all-targets -- -D warnings` | Passed, no warnings suppressed |
-| `cargo test --all-targets` | **31 passed, 0 failed, 0 ignored** |
+| `cargo test --all-targets` | **39 passed, 0 failed, 0 ignored** |
 | └ library/schema tests | 1 passed |
+| └ automatic connection/startup/shutdown tests | 8 passed (real CLI/MCP, fake Desktop host) |
 | └ delivery/persistence/migration tests | 8 passed |
 | └ Desktop fake-host tests | 4 passed (**simulated**) |
 | └ README acceptance tests | 1 passed |
@@ -67,7 +78,8 @@ integration, config, platform. SQLite schema **v4**, local IPC **v1**.
 | └ actual Linux runtime/MCP/recovery tests | 13 passed |
 | `cargo build --release --locked` | Passed; native binary at target/release/agent-job-relay |
 | `cargo run -- --help` | Passed; actual CLI help inspected |
-| Release onboarding smoke | **62 successful isolated CLI invocations**, daemon exited 0; source task `cargo check --offline` completed |
+| Convenience release smoke | 9 successful isolated release CLI checks; on-demand startup, completed job/log follow, doctor and idempotent safe shutdown; no real host contacted |
+| Original release onboarding smoke | **62 successful isolated CLI invocations**, daemon exited 0; source task `cargo check --offline` completed |
 | `cargo install --path . --locked --offline --root "$PWD/.tmp/install"` | Passed, repository-local installation only |
 | `./.tmp/install/bin/agent-job-relay --version` | `agent-job-relay 0.1.0` |
 | `cargo uninstall --root "$PWD/.tmp/install" agent-job-relay` | Passed; local test install removed, state retained |
@@ -156,3 +168,25 @@ The earlier README test expected the active language to link to itself and faile
 after that header change. It now requires the working other-language link in each
 README while retaining both-language introduction and local-link checks. This
 changes a layout assumption, not the bilingual navigation requirement.
+
+
+## Convenience increment (2026-10-26)
+
+Responding to the user's requirement for low-friction everyday use, normal task
+submission now needs only `--wake` (CLI) or wake_me=true (MCP), with no separate
+manual registration/probe. The daemon starts on demand. Explicit low-level
+session APIs remain for diagnosis and unsupported host contexts.
+
+Verified: eight new isolated tests cover real CLI/MCP startup and disconnect,
+registration/probe/reuse, idempotency, concurrent per-thread routing, missing
+context, refused host capability, changed endpoint identity, non-replacement of
+an incompatible daemon, and safe shutdown/restart with a surviving runner.
+Full suite: 39 passed, 0 failed. fmt, strict Clippy and release build passed.
+Nine release CLI checks passed against a fresh repository-local state directory.
+No real host message or real user configuration change was performed here.
+
+The prior user-confirmed live pass remains valid for the underlying explicit
+adapter route. The new shortcut has not been separately live-UI tested. Automatic
+binding needs per-session inherited context; shared MCP/ordinary terminals with
+no identity fail explicitly. Automatic leases are 24 hours; long-job renewal
+and host-restart recovery remain separately tracked in TODO.md and ADR 0002.

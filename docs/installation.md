@@ -16,9 +16,9 @@ cargo uninstall --root "$PWD/.tmp/install" agent-job-relay
 
 Do not put state inside the installed binary directory. CLI `--state-dir`
 (absolute) takes precedence over AJR_STATE_DIR, then XDG/HOME defaults. Every
-component must agree on the state root. A foreground `daemon` owns the private
-socket; no system service or login autostart is installed. Run `mcp` as a client
-subprocess, not manually in the daemon terminal.
+component must agree on the state root. Task submissions automatically launch a detached `daemon` owning the private
+socket; no system service or login autostart is installed. Foreground `daemon`
+remains a diagnostic option. Run `mcp` as a client subprocess.
 
 `setup codex --dry-run` previews the default Codex path; `--config` allows an
 explicit test/client file. `setup json --config <absolute-file> --dry-run`
@@ -28,7 +28,8 @@ MCP entry points to the same state root. Restart the client after configuration.
 ChatGPT private settings are not guessed. For hosts that require their own
 registration UI, use the generated command/args and official client procedure.
 
-Before removal: list jobs, stop desired jobs, Ctrl-C the foreground daemon,
+Before removal: list jobs, stop desired jobs, run `daemon stop` for the same state root (or
+Ctrl-C a foreground daemon),
 then preview/apply `integration remove <client> --config <file>`. This removes
 only an unchanged entry owned by AgentJobRelay. It does not delete job data or
 stop already-running runners. Removing a development install with cargo uninstall

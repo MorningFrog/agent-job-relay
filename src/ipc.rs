@@ -48,6 +48,7 @@ pub enum Request {
         seconds: u32,
     },
     Doctor,
+    Shutdown,
     Inbox {
         session_key: String,
         #[serde(default)]
@@ -112,6 +113,7 @@ fn default_wait() -> u32 {
 }
 pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
     match req {
+        Request::Shutdown=>Ok(json!({"daemon":"stopping","runners":"continue independently","data":"preserved"})),
         Request::Inbox{session_key,after,limit}=>store.inbox(session_key,after,limit).await,
         Request::RegisterSession{registration}=>{let s=store.register(registration).await?;Ok(json!({"capabilities":crate::session::capabilities(&s.registration.adapter),"session":s}))},
         Request::Sessions{after,limit}=>store.sessions(after,limit).await,
@@ -124,7 +126,7 @@ pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
         Request::DeliveryAttempts{delivery_id,after,limit}=>store.attempts(delivery_id,after,limit).await,
         Request::Start{spec}=>{
             let j=store.start(spec).await?;
-            let wake=if let Some(key)=&j.session {let s=store.session(key.clone()).await?;json!({"session_key":key,"capabilities":crate::session::capabilities(&s.registration.adapter),"live_e2e_verified":false,"warning":"Inbox requires explicit inspection; Desktop auto-resume is experimental and unverified. Avoid polling loops."})}
+            let wake=if let Some(key)=&j.session {let s=store.session(key.clone()).await?;json!({"session_key":key,"capabilities":crate::session::capabilities(&s.registration.adapter),"live_e2e_verified":false,"warning":"Inbox requires explicit inspection; Desktop wake is experimental. Host acceptance does not confirm Agent execution. Avoid polling loops."})}
                 else {json!({"can_resume":false,"warning":"No wake target registered; use bounded job_wait for short jobs or inspect later. Do not poll in a loop."})};
             Ok(json!({"job":j,"wake":wake}))
         },
@@ -151,7 +153,7 @@ pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
         Request::Doctor=>store.call(|db|{let integrity:String=db.query_row("PRAGMA quick_check",[],|r|r.get(0))?;
             ensure!(integrity=="ok","SQLite integrity check failed; stop new work and inspect a backup before repair: {integrity}");
             let active:i64=db.query_row("SELECT count(*) FROM jobs WHERE status IN ('queued','launching','running')",[],|r|r.get(0))?;
-            Ok(json!({"daemon":"reachable","protocol_version":1,"version":env!("CARGO_PKG_VERSION"),"store":integrity,"active_jobs":active,"orphaned_jobs":db.query_row("SELECT count(*) FROM jobs WHERE status='orphaned'",[],|r|r.get::<_,i64>(0))?,"retrying_deliveries":db.query_row("SELECT count(*) FROM deliveries WHERE status='retry_wait'",[],|r|r.get::<_,i64>(0))?,"sessions":db.query_row("SELECT count(*) FROM sessions WHERE connected=1 AND expires>?",[now()],|r|r.get::<_,i64>(0))?,"dead_letters":db.query_row("SELECT count(*) FROM deliveries WHERE status='dead_letter'",[],|r|r.get::<_,i64>(0))?,"runtime":std::env::consts::OS,"auto_resume":"not verified","next_step":"Register an explicit session; Desktop requires opt-in experimental binding. No service is installed."})) }).await
+            Ok(json!({"daemon":"reachable","protocol_version":1,"version":env!("CARGO_PKG_VERSION"),"store":integrity,"active_jobs":active,"orphaned_jobs":db.query_row("SELECT count(*) FROM jobs WHERE status='orphaned'",[],|r|r.get::<_,i64>(0))?,"retrying_deliveries":db.query_row("SELECT count(*) FROM deliveries WHERE status='retry_wait'",[],|r|r.get::<_,i64>(0))?,"sessions":db.query_row("SELECT count(*) FROM sessions WHERE connected=1 AND expires>?",[now()],|r|r.get::<_,i64>(0))?,"dead_letters":db.query_row("SELECT count(*) FROM deliveries WHERE status='dead_letter'",[],|r|r.get::<_,i64>(0))?,"runtime":std::env::consts::OS,"auto_resume":"not verified","next_step":"Use start --wake or job_start with wake_me=true from the current Desktop host context; no service is installed."})) }).await
     }
 }
 pub async fn call(config: &Config, request: Request) -> Result<Value> {
@@ -162,7 +164,7 @@ pub async fn call(config: &Config, request: Request) -> Result<Value> {
             let mut stream = tokio::net::UnixStream::connect(config.socket())
                 .await
                 .context(
-                    "daemon unavailable; run agent-job-relay --state-dir <same-path> daemon",
+                    "daemon unavailable; start/job_start auto-starts it, or run agent-job-relay --state-dir <same-path> daemon",
                 )?;
             write_frame(
                 &mut stream,
@@ -195,17 +197,21 @@ pub async fn call(config: &Config, request: Request) -> Result<Value> {
     }
 }
 #[cfg(unix)]
-pub async fn handle(mut stream: tokio::net::UnixStream, store: Store) -> Result<()> {
+pub async fn handle(mut stream: tokio::net::UnixStream, store: Store) -> Result<bool> {
     crate::platform::verify_peer(&stream)?;
     let raw =
         tokio::time::timeout(Duration::from_secs(5), read_frame(&mut stream, 131072)).await??;
+    let mut shutdown = false;
     let result = if raw["protocol_version"] != 1 {
         Err(anyhow::anyhow!(
             "unsupported IPC protocol_version; expected 1"
         ))
     } else {
         match serde_json::from_value::<Request>(raw["request"].clone()) {
-            Ok(req) => dispatch(&store, req).await,
+            Ok(req) => {
+                shutdown = matches!(req, Request::Shutdown);
+                dispatch(&store, req).await
+            }
             Err(e) => Err(e.into()),
         }
     };
@@ -214,7 +220,7 @@ pub async fn handle(mut stream: tokio::net::UnixStream, store: Store) -> Result<
         Err(e) => json!({"protocol_version":1,"ok":false,"error":format!("{e:#}")}),
     };
     tokio::time::timeout(Duration::from_secs(5), write_frame(&mut stream, &envelope)).await??;
-    Ok(())
+    Ok(shutdown)
 }
 pub async fn read_frame<S: tokio::io::AsyncRead + Unpin>(s: &mut S, max: usize) -> Result<Value> {
     use tokio::io::AsyncReadExt;

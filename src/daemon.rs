@@ -102,8 +102,8 @@ pub async fn serve(config: Config) -> Result<()> {
                 _=tokio::signal::ctrl_c()=>break,
                 _=tick.tick()=>{if let Err(e)=self::tick(&store).await {tracing::error!(error=%e,"reconciliation failed");}},
                 r=listener.accept()=>{let (s,_)=r?;let permit=match slots.clone().try_acquire_owned(){Ok(p)=>p,Err(_)=>continue};
-                    let service=store.clone();tasks.spawn(async move{let _permit=permit;if let Err(e)=crate::ipc::handle(s,service).await {tracing::debug!(error=%e,"IPC request rejected");}});},
-                Some(r)=tasks.join_next()=>{if let Err(e)=r {tracing::error!(error=%e,"IPC worker panicked");}}
+                    let service=store.clone();tasks.spawn(async move{let _permit=permit;match crate::ipc::handle(s,service).await {Ok(shutdown)=>shutdown,Err(e)=>{tracing::debug!(error=%e,"IPC request rejected");false}}});},
+                Some(r)=tasks.join_next()=>{match r {Ok(true)=>break,Ok(false)=>{},Err(e)=>tracing::error!(error=%e,"IPC worker panicked")}}
             }
         }
         delivery_task.abort();

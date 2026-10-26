@@ -66,3 +66,24 @@ lease bind registration to a host endpoint instance. Re-register explicitly afte
 host restart; rebind targets when host instance/session identity changes.
 Already transmitted requests cannot be revoked by rebind. Receivers must dedupe
 stable delivery IDs: private host dedupe is not proven.
+
+## Client convenience (no wire-version change)
+
+`start --wake` and the MCP-only `job_start` argument `wake_me: true` opt into
+experimental Desktop wake. The client reads its current inherited host context,
+auto-starts its per-state daemon if absent/refused, registers/refreshes and probes,
+then sends the ordinary start spec with the exact session key. `wake_me` is not
+part of the raw IPC start payload. Do not combine it with explicit spec.session.
+`job_connect_session` takes no arguments and performs the same connection probe
+without starting a workload; CLI equivalent is `session connect`.
+
+Missing context or capability fails before execution; no latest-session or
+notification-only fallback is selected. MCP needs a dedicated per-session host
+context; otherwise use CLI from the Agent's current Desktop terminal tool.
+Automatic leases last 24 hours, refreshed on each opted-in submission. New host
+fingerprints create distinct registrations; existing targets remain unchanged.
+
+Client submissions auto-launch a daemon; doctor/status queries do not. Raw IPC
+`{"op":"shutdown"}` / CLI `daemon stop` stops this daemon and retains runners
+and data; it is not advertised as an MCP tool. Repeating stop is a client-side
+no-op when the socket is already unavailable.

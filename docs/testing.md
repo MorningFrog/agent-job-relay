@@ -30,6 +30,7 @@ strict lints. CI definition is not evidence that GitHub Actions ran.
 | Delivery | expired claims, stale/duplicate ack, retry, fifth failure, TTL/dead letter and explicit retry | persisted simulation |
 | Routing | session A vs B, invalidated host, explicit rebind, daemon restart inbox dispatch | no latest-session fallback |
 | Desktop | fragmented length framing, catalog/field/callerSource checks, target identity, socket replacement, rejection and oversized input | fake host only |
+| Convenience | CLI --wake / MCP wake_me=true auto-start, registration/probe, concurrent routing, idempotence, missing context/capability refusal, host replacement and daemon stop | fake host + actual CLI/MCP processes |
 | Setup/remove | clean isolated HOME, TOML comment/foreign item retention, JSON preservation, dry-run/idempotency/backup, ownership refusal | isolated files |
 | Security/schema | private socket/root modes, symlink DB/config refusal, env non-echo, future schema refusal, v1→v4 upgrade and repeat init | local checks |
 | Documentation | bilingual intro, language navigation and relative file links | static acceptance check |
@@ -77,3 +78,14 @@ Codex CLI has notification-only integration today. Validate tools via a normal
 MCP client and inspect `inbox`; do not label it automatic conversation resume.
 The [official app-server documentation](https://learn.chatgpt.com/docs/app-server)
 distinguishes loading a thread from starting or steering a generation turn.
+
+## Everyday-use shortcut verification
+
+`cargo test --test convenience` covers eight isolated real CLI/MCP lifecycle
+tests with fake Desktop endpoints. No real host is messaged. Automatic binding,
+concurrent daemon startup, per-caller routing, repeated submission/registration,
+missing context, rejected capability, new endpoint identity safe daemon stop and non-replacement of incompatible daemons
+are checked. For an authorized follow-up live run, use `start --wake` or
+job_start with wake_me=true in the same host context as the basic live test;
+retain the same no-manual-continuation/proof criteria. The shortcut's live status
+must be recorded separately from the prior explicit-registration pass.
