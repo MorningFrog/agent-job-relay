@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "agent-job-relay": {
+      "command": "${CLAUDE_PLUGIN_ROOT}/relay",
+      "args": [
+        "mcp",
+        "--shared-host"
+      ]
+    }
+  }
+}

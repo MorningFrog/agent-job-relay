@@ -97,3 +97,7 @@ For actual integrations, use explicit real identities. Manual registrations defa
 `daemon stop` stops dispatch only; runners continue and persist results. A later submission restarts the daemon. Foreground `daemon` is available for diagnosis, with no login service installed. A legacy missing-runner-image failure needs diagnosis and explicit same-profile update; preserve the failed job and do not switch state or replay it silently. See [installation](installation.md#updating-an-existing-installation) for safe upgrades.
 
 For exact MCP tool schemas, byte limits, storage/delivery states and legacy compatibility, see [protocol](protocol.md). Command output is untrusted data; operational and containment limits are in [security](security.md) and [limitations](limitations.md).
+
+## OpenCode and Claude source frameworks
+
+For OpenCode V1, use the plugin's actual tool-context binding and MCP tools; Desktop `session connect`/`wake_me` is not its workflow. For Claude Code, the experimental skill uses the real substituted session ID and an inbox-only binding, with explicit result inspection and no automatic wake promise. See [host setup and capability limits](host-plugins.md). These development packages do not install a second execution runtime.

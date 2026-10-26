@@ -1,7 +1,7 @@
 //! Explicit recovery is scoped to a freshly probed, identical logical caller.
 use crate::{
     core::*,
-    session::{Adapter, AgentSession, add_target, read_session},
+    session::{AgentSession, add_target, read_session},
     storage::Store,
 };
 use anyhow::{Result, ensure};
@@ -31,21 +31,21 @@ impl Store {
                 && serde_json::to_value(&s.registration)? == serde_json::to_value(&expected.registration)?,
                 "session changed during recovery probe; obtain a fresh current-terminal binding");
             let r = &s.registration;
-            ensure!(r.adapter == Adapter::DesktopExperimental
+            ensure!(r.adapter.owned_bridge()
                 && r.caller_thread_id.as_deref() == Some(r.session_id.as_str()),
-                "recovery requires a current Desktop binding with identical caller and destination");
+                "recovery requires a current host binding with identical caller and destination");
             let t = now();
             let mut q = tx.prepare("SELECT t.rowid,t.id,t.job_id FROM targets t
                 JOIN sessions s ON s.key=t.session_key JOIN jobs j ON j.id=t.job_id
                 WHERE t.active=1 AND t.rowid>? AND s.agent=? AND s.logical=? AND s.host=?
-                AND json_extract(s.registration,'$.adapter')='desktop_experimental'
+                AND json_extract(s.registration,'$.adapter')=?
                 AND json_extract(s.registration,'$.caller_thread_id')=?
                 AND ((t.session_key<>? AND j.status IN ('queued','launching','running'))
                     OR EXISTS(SELECT 1 FROM deliveries d WHERE d.target_id=t.id AND d.expires>?
                         AND (d.status IN ('retry_wait','dead_letter','leased')
                              OR (t.session_key<>? AND d.status='pending'))))
                 ORDER BY t.rowid LIMIT ?")?;
-            let rows = q.query_map(params![after,r.agent_kind,r.session_id,r.host_id,r.session_id,s.key,t,s.key,limit],
+            let rows = q.query_map(params![after,r.agent_kind,r.session_id,r.host_id,serde_json::to_value(&r.adapter)?.as_str(),r.session_id,s.key,t,s.key,limit],
                 |row| Ok((row.get::<_,i64>(0)?,row.get::<_,String>(1)?,row.get::<_,String>(2)?)))?
                 .collect::<rusqlite::Result<Vec<_>>>()?;
             drop(q);

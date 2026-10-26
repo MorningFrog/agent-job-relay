@@ -1,0 +1,10 @@
+{
+  "name": "agent-job-relay-opencode-v1",
+  "version": "0.1.6",
+  "private": true,
+  "type": "module",
+  "main": "index.mjs",
+  "description": "Experimental local OpenCode V1 bridge to the AgentJobRelay Rust/MCP core",
+  "license": "MIT",
+  "dependencies": { "@opencode-ai/plugin": "1.19.4" }
+}

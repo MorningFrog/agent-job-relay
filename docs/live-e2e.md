@@ -21,3 +21,5 @@ Saved before/after bindings show a changed bridge instance, endpoint fingerprint
 - Keep this passed scenario complete. Do not repeat equivalent workloads or require a manual crash matrix merely to refill evidence.
 
 See [manual acceptance](manual-testing.md#desktop-restart-and-same-chat-rebinding) for the procedure and [implementation status](IMPLEMENTATION_STATUS.md) for automated results and operating limits.
+
+The source 0.1.6 OpenCode actual-host/simulated-model checks and Claude synthetic scaffold checks are separate evidence in [host plugins](host-plugins.md). They do not replace this Desktop 0.1.5 live result or establish a real provider/account session.

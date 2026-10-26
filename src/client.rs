@@ -264,7 +264,7 @@ async fn wait_for_daemon_stop(config: &Config) -> Result<()> {
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
 }
-/// Shared high-level entry for CLI and MCP; only submissions auto-start a daemon.
+/// Shared high-level entry for CLI and MCP; submissions and explicit registrations auto-start a daemon.
 pub async fn call(config: &Config, request: Request) -> Result<Value> {
     match request {
         Request::Start { spec } => start(config, spec, false).await,
@@ -274,6 +274,10 @@ pub async fn call(config: &Config, request: Request) -> Result<Value> {
             Ok(report)
         }
         Request::Shutdown => stop_daemon(config).await,
+        request @ Request::RegisterSession { .. } => {
+            ensure_daemon(config).await?;
+            ipc::call(config, request).await
+        }
         request => ipc::call(config, request).await,
     }
 }

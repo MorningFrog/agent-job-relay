@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.6 — 2026-10-26 (unreleased host-plugin framework)
+
+- Add owner-checked, bounded plugin bridge transport with exact session/instance/delivery echoes; reuse fenced renewal and adapter-scoped recovery. Explicit registrations start an absent daemon without starting a job.
+- Add OpenCode V1 caller-context binding to the existing MCP core and public session continuation. Target 1.19.4; actual loader/MCP/agent-loop checks use a local simulated model, with real-provider/restart/V2 evidence still open.
+- Add Claude Code manifest/MCP/skill/inbox scaffold and synthetic helper/MCP-entry checks. No Claude account or actual host test is available; community testing and PRs are welcome. No Claude wake support is claimed.
+- Document V1/V2 differences, community acceptance and local account-free checks; add Linux host-check CI definitions without publication or credentials.
+
 ## 0.1.5 — 2026-10-26 (unreleased interrupted replacement recovery)
 
 - Durably stage installation/cache replacements and publish a sibling operation journal before renaming directories; block overlapping lifecycle changes until repair.

@@ -12,6 +12,7 @@ pub mod lifecycle;
 pub mod mcp;
 pub mod platform;
 pub mod plugin;
+pub mod plugin_bridge;
 pub mod recovery;
 pub mod renewal;
 pub mod runner;

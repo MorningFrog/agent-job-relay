@@ -25,7 +25,7 @@ impl Store {
         let mut probe = expected.clone();
         probe.expires_at = now() + expected.registration.lease_seconds as i64 * 1000;
         // The adapter verifies the original endpoint fingerprint and owner, then
-        // tools/list capability. It neither discovers a new host nor sends a message.
+        // host capability. It neither discovers a new host nor sends a message.
         crate::adapters::probe(&probe).await?;
         let delivery = claim.delivery.id.clone();
         let token = claim.token.clone();
@@ -48,7 +48,7 @@ impl Store {
             tx.execute("UPDATE sessions SET expires=? WHERE key=?",params![current.expires_at,current.key])?;
             let details=json!([{"action":"lease_renewal","delivery_id":delivery,
                 "previous_expires_at":expected.expires_at,"expires_at":current.expires_at,
-                "evidence":"same endpoint fingerprint, owner and tools/list capability probe"}]);
+                "evidence":"same endpoint fingerprint, owner and host capability probe"}]);
             tx.execute("INSERT INTO target_recoveries(id,at,from_target,to_target,session_key,details) VALUES(?,?,?,?,?,?)",
                 params![id(),t,target,target,current.key,serde_json::to_string(&details)?])?;
             tx.commit()?;

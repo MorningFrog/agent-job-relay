@@ -9,11 +9,13 @@ Tasks run in the background. Agents pick up when needed.
 任务在后台运行，Agent 在需要时接棒。
 </div>
 
-让长时间命令独立于 Agent 连接运行，保存结果，并在宿主支持时通知发起任务的聊天。**v0.1.5 是尚未发布的 Linux x86_64 开发版本。** Desktop 唤醒使用实验性接口；目前不支持 Windows/macOS、Claude Code 和 OpenCode。
+让长时间命令独立于 Agent 连接运行，保存结果，并在宿主支持时通知发起任务的聊天。**v0.1.6 是尚未发布的 Linux x86_64 开发版本。** Desktop 唤醒使用实验性接口；目前不支持 Windows/macOS。OpenCode V1 提供实验性本地插件；Claude Code 提供仅收件箱通知的开发框架，需要社区验证。
+
+OpenCode/Claude 的开发安装及验证边界见[宿主插件指南](docs/host-plugins.md)。
 
 ## 快速安装
 
-使用适合当前 Linux 系统、来源可信的离线包。已有安装请直接按[更新](#更新)操作。首次安装时，在收到的离线包目录中打开终端，执行：
+Desktop 使用适合当前 Linux 系统、来源可信的离线包。已有安装请直接按[更新](#更新)操作。首次安装时，在收到的离线包目录中打开终端，执行：
 
 ```bash
 ./relay plugin bootstrap --dry-run
@@ -42,7 +44,7 @@ AJR_INSTALL_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/agent-job-relay"
 
 Agent 会绑定当前聊天、提交任务、结束回合，并在收到通知后读取结果。日常提示词无需程序路径或会话 ID。MCP 不可用时，工作流会明确报告 CLI 降级。绑定需要本地终端；普通 Codex CLI 集成提供通知收件箱，不会自动继续聊天。
 
-首次提交会自动启动 Daemon。命令以当前用户的系统权限执行。任务完成、宿主接收（`accepted_by_host`）和实际观察到 Agent 继续执行是三项独立结果。首次验收请按[人工测试](docs/manual-testing.md)操作；具体 CLI 命令和恢复方法见[使用指南](docs/usage.md)。
+首次提交或显式注册会话会自动启动 Daemon。命令以当前用户的系统权限执行。任务完成、宿主接收（`accepted_by_host`）和实际观察到 Agent 继续执行是三项独立结果。首次验收请按[人工测试](docs/manual-testing.md)操作；具体 CLI 命令和恢复方法见[使用指南](docs/usage.md)。
 
 ## 更新
 
@@ -114,8 +116,11 @@ AJR_BUNDLE="$PWD/.tmp/agent-job-relay-offline"
 | 当前支持及证据 | [实施状态](docs/IMPLEMENTATION_STATUS.md)、[真实验证记录](docs/live-e2e.md) |
 | 安全和运行限制 | [安全说明](docs/security.md)、[限制](docs/limitations.md) |
 | 设计和接口细节 | [架构](docs/architecture.md)、[协议](docs/protocol.md) |
+| 宿主框架及社区测试 | [宿主插件](docs/host-plugins.md)、[参与贡献](CONTRIBUTING.md) |
 | 计划及变更 | [路线图](docs/TODO.md)、[变更记录](CHANGELOG.md) |
 
 Linux 执行、离线插件管理和 Codex CLI 0.164.0 加载器已有隔离自动化验证。Desktop 26.1021.22027 与插件 0.1.5 已通过运行中任务的重启、重绑定和同聊天续聊验证，恢复、事件及投递记录一致。界面启用、版本和重启由用户确认；桥接身份变化已测量，并已观察到 Agent 续聊。全新界面安装及其他宿主版本仍未验证。原生程序自动下载、官方插件发布及输出监控/中断尚未实现。独立系统安装包和软件仓库计划已取消。
+
+OpenCode 1.19.4 已使用真实加载器、MCP 和会话 API 配合本地模拟模型验证；真实模型服务及 V2 仍需验证。Claude Code 仅完成模拟调用者助手与实际 MCP 启动入口检查，没有 Claude 账号、加载器或模型会话实测。**欢迎社区协助测试和提交 PR，尤其是 Claude Code 与容器化版本验证。** 参与方式见[贡献指南](CONTRIBUTING.md)。
 
 MIT 许可。项目独立实现，只读研究 Vanth 的行为需求，见[参考审查](docs/reference-audit.md)。

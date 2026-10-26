@@ -1,0 +1,7 @@
+#!/bin/sh
+set -eu
+: "${AJR_EXECUTABLE:?Set AJR_EXECUTABLE once to the absolute AgentJobRelay >=0.1.6 executable}"
+: "${AJR_STATE_DIR:?Set AJR_STATE_DIR once to an absolute persistent state directory}"
+case "$AJR_EXECUTABLE" in /*) ;; *) echo 'AJR_EXECUTABLE must be absolute' >&2; exit 2;; esac
+case "$AJR_STATE_DIR" in /*) ;; *) echo 'AJR_STATE_DIR must be absolute' >&2; exit 2;; esac
+exec "$AJR_EXECUTABLE" --state-dir "$AJR_STATE_DIR" "$@"

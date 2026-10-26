@@ -9,11 +9,13 @@ Tasks run in the background. Agents pick up when needed.
 任务在后台运行，Agent 在需要时接棒。
 </div>
 
-Run long commands independently of the Agent connection, keep their results, and notify the initiating chat when the host supports it. **v0.1.5 is an unreleased Linux x86_64 development version.** Desktop wake uses an experimental interface; Windows/macOS, Claude Code and OpenCode are not supported yet.
+Run long commands independently of the Agent connection, keep their results, and notify the initiating chat when the host supports it. **v0.1.6 is an unreleased Linux x86_64 development version.** Desktop wake uses an experimental interface; Windows/macOS are not supported. OpenCode V1 has an experimental local plugin; Claude Code has an inbox-only development framework that needs community verification.
+
+For OpenCode/Claude development setup and evidence boundaries, see [host plugins](docs/host-plugins.md).
 
 ## Quick install
 
-Use a trusted offline bundle for your Linux system. For an existing installation, go directly to [Updating](#updating). For a first installation, open a terminal in the received bundle directory and run:
+For Desktop, use a trusted offline bundle for your Linux system. For an existing installation, go directly to [Updating](#updating). For a first installation, open a terminal in the received bundle directory and run:
 
 ```bash
 ./relay plugin bootstrap --dry-run
@@ -42,7 +44,7 @@ Ask in a local Desktop chat with the plugin selected:
 
 The Agent binds the current chat, submits the task, ends its turn and reads the result after notification. Everyday prompts need no executable path or session ID. If MCP is unavailable, the workflow reports its CLI fallback. A local terminal is required for binding; ordinary Codex CLI integration provides a notification inbox, without automatic chat continuation.
 
-The first submission starts the daemon automatically. Commands run with your OS permissions. Job completion, host acknowledgement (`accepted_by_host`) and observed Agent continuation are separate results. For a first acceptance run, follow [manual testing](docs/manual-testing.md); detailed CLI commands and recovery are in [usage](docs/usage.md).
+The first submission or explicit session registration starts the daemon automatically. Commands run with your OS permissions. Job completion, host acknowledgement (`accepted_by_host`) and observed Agent continuation are separate results. For a first acceptance run, follow [manual testing](docs/manual-testing.md); detailed CLI commands and recovery are in [usage](docs/usage.md).
 
 ## Updating
 
@@ -114,8 +116,11 @@ Choose a new output directory for each export. Then use that directory's `relay 
 | Current support and evidence | [Implementation status](docs/IMPLEMENTATION_STATUS.md), [live evidence](docs/live-e2e.md) |
 | Safety and operational limits | [Security](docs/security.md), [limitations](docs/limitations.md) |
 | Design and API details | [Architecture](docs/architecture.md), [protocol](docs/protocol.md) |
+| Host frameworks and community testing | [Host plugins](docs/host-plugins.md), [Contributing](CONTRIBUTING.md) |
 | Planned work and changes | [Roadmap](docs/TODO.md), [changelog](CHANGELOG.md) |
 
 Linux execution, offline plugin management and the Codex CLI 0.164.0 loader have isolated automated coverage. Desktop 26.1021.22027 with plugin 0.1.5 passed a coordinated active-job restart, rebind and same-chat continuation check, with matching recovery/event/delivery records. UI enablement/version/restart are user-attested; bridge changes were measured and Agent continuation observed. Clean UI installation and other host versions remain unverified. Automatic native downloads, official plugin publication and output monitoring/interruption are pending. Independent OS installers and package repositories are cancelled.
+
+OpenCode 1.19.4 was checked with its actual loader, MCP and session API using a local simulated model; real-provider sessions and V2 still need verification. Claude Code was checked only through synthetic caller helpers and the actual MCP launcher; no Claude account/loader/model run is claimed. **Community testing and PRs are welcome, especially for Claude Code and container-based version checks.**
 
 MIT licensed. Independently implemented; Vanth was studied read-only for behavior requirements. See [reference audit](docs/reference-audit.md).

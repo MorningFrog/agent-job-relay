@@ -1,0 +1,11 @@
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { isAbsolute } from "node:path";
+const sessionID = process.argv[2];
+const executable = process.env.AJR_EXECUTABLE, state = process.env.AJR_STATE_DIR;
+if (!sessionID || !/^[A-Za-z0-9_-]{1,128}$/.test(sessionID)) throw new Error("Require the actual substituted CLAUDE_SESSION_ID; never guess or reuse another chat");
+if (!executable || !state || !isAbsolute(executable) || !isAbsolute(state)) throw new Error("Set absolute AJR_EXECUTABLE and AJR_STATE_DIR once before launching Claude Code");
+const request = { op: "register_session", registration: { agent_kind: "claude-code", session_id: sessionID, instance_id: `inbox:${sessionID}`, host_id: "claude-code-local-inbox", adapter: "inbox", endpoint: null, caller_thread_id: null, lease_seconds: 86400, experimental: false } };
+const { stdout } = await promisify(execFile)(executable, ["--state-dir", state, "request", JSON.stringify(request)], { timeout: 15000, maxBuffer: 1048576 });
+const binding = JSON.parse(stdout);
+console.log(JSON.stringify({ session_key: binding.session.key, can_resume: false, notification: "durable inbox; explicit inspection required", claude_live_verified: false }));

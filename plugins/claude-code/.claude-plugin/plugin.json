@@ -1,0 +1,6 @@
+{
+  "name": "agent-job-relay",
+  "version": "0.1.6",
+  "description": "Experimental AgentJobRelay MCP and explicit-session inbox framework. Claude Code community validation needed; PRs welcome.",
+  "license": "MIT"
+}

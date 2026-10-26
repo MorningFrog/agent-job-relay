@@ -9,6 +9,7 @@ use serde_json::{Value, json};
 pub enum Adapter {
     Inbox,
     DesktopExperimental,
+    PluginBridge,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -48,6 +49,11 @@ pub struct Capabilities {
     pub supports_reconnect: bool,
     pub verification: &'static str,
 }
+impl Adapter {
+    pub fn owned_bridge(&self) -> bool {
+        matches!(self, Self::DesktopExperimental | Self::PluginBridge)
+    }
+}
 pub fn capabilities(adapter: &Adapter) -> Capabilities {
     match adapter {
         Adapter::Inbox => Capabilities {
@@ -57,6 +63,14 @@ pub fn capabilities(adapter: &Adapter) -> Capabilities {
             requires_live_host: false,
             supports_reconnect: true,
             verification: "local inbox only; agent must inspect explicitly",
+        },
+        Adapter::PluginBridge => Capabilities {
+            can_notify: true,
+            can_resume: true,
+            can_confirm_resume: false,
+            requires_live_host: true,
+            supports_reconnect: true,
+            verification: "experimental plugin bridge; host acceptance is not model execution",
         },
         Adapter::DesktopExperimental => Capabilities {
             can_notify: true,
@@ -82,26 +96,33 @@ impl Store {
         );
         ensure!(
             !r.renew_on_delivery
-                || (r.adapter == Adapter::DesktopExperimental
+                || (r.adapter.owned_bridge()
                     && r.caller_thread_id.as_deref() == Some(r.session_id.as_str())),
-            "delivery-time renewal requires an owned Desktop caller/destination binding"
+            "delivery-time renewal requires an owned host caller/destination binding"
         );
         match r.adapter {
             Adapter::Inbox => ensure!(
                 r.endpoint.is_none() && r.caller_thread_id.is_none(),
                 "inbox registration does not take a host endpoint"
             ),
-            Adapter::DesktopExperimental => {
+            Adapter::DesktopExperimental | Adapter::PluginBridge => {
                 ensure!(
                     r.experimental,
-                    "Desktop private API requires explicit experimental=true opt-in"
+                    "host adapters require explicit experimental=true opt-in"
                 );
-                let ep = r.endpoint.as_ref().context(
-                    "explicit Desktop endpoint required; no session scanning is performed",
-                )?;
+                if r.adapter == Adapter::PluginBridge {
+                    ensure!(
+                        r.caller_thread_id.as_deref() == Some(r.session_id.as_str()),
+                        "plugin bridge requires identical caller and destination"
+                    );
+                }
+                let ep = r
+                    .endpoint
+                    .as_ref()
+                    .context("explicit host endpoint required; no session scanning is performed")?;
                 ensure!(
                     ep.is_absolute() && ep.as_os_str().len() < 104,
-                    "Desktop endpoint must be an absolute Unix socket path shorter than 104 bytes"
+                    "host endpoint must be an absolute Unix socket path shorter than 104 bytes"
                 );
                 ensure!(
                     r.caller_thread_id

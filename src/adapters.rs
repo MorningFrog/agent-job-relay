@@ -20,6 +20,12 @@ pub async fn probe(session: &AgentSession) -> Result<Value> {
         Adapter::Inbox => {
             Ok(json!({"transport":"local inbox","available":true,"can_resume":false}))
         }
+        Adapter::PluginBridge => {
+            crate::plugin_bridge::exchange(session, None).await?;
+            Ok(
+                json!({"transport":"owned plugin Unix socket","available":true,"can_confirm_resume":false}),
+            )
+        }
         Adapter::DesktopExperimental => {
             desktop(session, None).await?;
             Ok(
@@ -54,6 +60,10 @@ pub async fn deliver(config: &Config, c: &Claim) -> Result<&'static str> {
             let d = std::fs::File::open(dir)?;
             tokio::task::spawn_blocking(move || d.sync_all()).await??;
             Ok("notification_recorded")
+        }
+        Adapter::PluginBridge => {
+            crate::plugin_bridge::exchange(&c.session, Some(c)).await?;
+            Ok("accepted_by_host")
         }
         Adapter::DesktopExperimental => {
             desktop(&c.session, Some(c)).await?;

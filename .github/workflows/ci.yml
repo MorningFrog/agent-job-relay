@@ -28,4 +28,17 @@ jobs:
         run: cargo test --lib --locked
       - run: cargo build --release --locked
       - run: cargo run --locked -- --help
+      - uses: actions/setup-node@v4
+        if: runner.os == 'Linux'
+        with:
+          node-version: '24'
+      - name: Isolated host-plugin dependencies
+        if: runner.os == 'Linux'
+        run: npm install --prefix .tmp/opencode-toolchain --cache .tmp/npm-cache --ignore-scripts --no-audit --no-fund opencode-ai@1.19.4 @opencode-ai/plugin@1.19.4 @opencode-ai/sdk@1.19.4
+      - name: Actual OpenCode loader and agent loop with simulated model
+        if: runner.os == 'Linux'
+        run: python3 scripts/check_opencode_plugin.py --binary "$PWD/target/release/agent-job-relay"
+      - name: Claude scaffold only, without a Claude account or loader
+        if: runner.os == 'Linux'
+        run: python3 scripts/check_claude_scaffold.py --binary "$PWD/target/release/agent-job-relay"
       # Distribution, signing and publishing are deferred; no release credentials.
