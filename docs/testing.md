@@ -32,6 +32,7 @@ strict lints. CI definition is not evidence that GitHub Actions ran.
 | Desktop | fragmented length framing, catalog/field/callerSource checks, target identity, socket replacement, rejection and oversized input | fake host only |
 | Convenience | CLI --wake / MCP wake_me=true auto-start, registration/probe, concurrent routing, idempotence, missing context/capability refusal, host replacement and daemon stop | fake host + actual CLI/MCP processes |
 | Setup/remove | clean isolated HOME, TOML comment/foreign item retention, JSON preservation, dry-run/idempotency/backup, ownership refusal | isolated files |
+| Installed entry points | native/plugin install preview/apply, relative launcher/cache relocation, fixed profile despite exported overrides, marketplace/MCP preservation, safe removal/update, active-runtime refusal | 5 onboarding tests + real installed shared stdio MCP; fake Desktop |
 | Security/schema | private socket/root modes, symlink DB/config refusal, env non-echo, future schema refusal, v1→v4 upgrade and repeat init | local checks |
 | Documentation | bilingual intro, language navigation and relative file links | static acceptance check |
 
@@ -85,7 +86,7 @@ distinguishes loading a thread from starting or steering a generation turn.
 
 ## Everyday-use shortcut verification
 
-`cargo test --test convenience` covers eight isolated real CLI/MCP lifecycle
+`cargo test --test convenience` covers nine isolated real CLI/MCP lifecycle
 tests with fake Desktop endpoints. No real host is messaged. Automatic binding,
 concurrent daemon startup, per-caller routing, repeated submission/registration,
 missing context, rejected capability, new endpoint identity, safe daemon stop
@@ -145,3 +146,35 @@ explicit-registration basic result; retain per-path provenance in live-e2e.md.
    identity checks and the user's no-manual-continuation/control-chat observations.
    Confirm all test jobs are terminal, stop only this test daemon and retain
    private evidence. Never commit raw proofs, markers, endpoint paths or logs.
+
+## Next user acceptance: one installed-plugin real task
+
+The CLI three-round result remains valid. Do not ask the user to repeat it with
+a different workload or perform a manual artificial crash matrix. The new coverage
+needed is the delivery entry point:
+
+1. Follow installation.md to preview/apply one local installation and marketplace
+   entry. Restart Desktop, install AgentJobRelay from that marketplace, and open
+   a new local chat in the intended project. Verify the plugin is available.
+2. Ask it to run an actual project task in the background and report completion.
+   Do not include executable/state/session paths in the prompt. Prefer a real
+   workload long enough to outlast the submitting turn; do not add artificial
+   delays merely to repeat the CLI test.
+3. The Agent should load background-jobs, use its bundled terminal launcher to
+   get a fresh binding, then call the plugin's MCP job_start with that exact key.
+   It should end its turn. A CLI fallback alone does not qualify the installed
+   MCP route: record which route was actually used.
+4. Without another human message, observe same-chat continuation that reads and
+   summarizes the real result. Retain a private report with client/OS, installed
+   binary hash, selected plugin/route, job/event/delivery and proof correlations.
+   If the real task finishes before the Agent ends its submitting turn, record
+   execution only and use a later naturally long task to qualify wake.
+5. Record host UI discovery/installation, MCP tool connectivity and actual wake
+   separately. Configuration matching and local doctor stdio self-check are not
+   evidence of the host loading it. Stop on genuine integration failures and
+   fix those rather than asking for another equivalent test.
+
+The current increment has automated isolated install/CLI/MCP coverage only. It
+did not change real HOME/config/services or install into the actual host UI.
+The bundled skill passed skill-creator's quick_validate.py; that validates
+structure, not agent judgment or browser discovery.

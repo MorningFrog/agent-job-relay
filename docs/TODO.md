@@ -1,12 +1,19 @@
 # TODO / Roadmap
 
 Status labels are **Deferred / Not implemented** unless marked otherwise in
-IMPLEMENTATION_STATUS.md. No release, installer or package repository exists.
+IMPLEMENTATION_STATUS.md. No public release, system installer or package repository exists.
 Core correctness and usable local source builds have priority over distribution.
 
 ## Runtime and integrations
 
-- P0: extend the user-confirmed Desktop live E2E passes (ChatGPT Desktop
+- P0: qualify the installed Desktop Plugin/MCP entry point with one real task
+  whose prompt needs no tool/state/session paths. Local install, marketplace
+  setup/removal and two callers through shared MCP are implemented and tested
+  with fake Desktop; plugin browser discovery/install and installed real-host
+  workflow remain unverified. Existing three-round CLI live results need no
+  repetition. Follow installation.md and testing.md; fix demonstrated user-path
+  failures before expanding manual test matrices.
+- P1: extend the user-confirmed Desktop live E2E passes (ChatGPT Desktop
   26.1021.22027 / Ubuntu 26.04; see live-e2e.md) to in-flight daemon interruption
   and completion while offline, Desktop restart, explicit rebind, temporary
   delivery failure and concurrent exact routing. CLI shortcut first start,
@@ -14,10 +21,10 @@ Core correctness and usable local source builds have priority over distribution.
   all three continued without another message and the control chat stayed quiet.
   Keep private evidence local, revalidate API compatibility for each client
   version and never treat host acceptance as automated resume confirmation.
-- P0: Linux cgroups or equivalent optional containment for descendants that escape
+- P1: Linux cgroups or equivalent optional containment for descendants that escape
   process groups; stronger containment after SIGKILL of the runner. Existing
   process-group cancellation is for non-daemonizing trusted workloads.
-- P0: real ENOSPC/power-loss VM tests and longer soak tests. Existing regression
+- P1: real ENOSPC/power-loss VM tests and longer soak tests. Existing regression
   injects output-open/transaction failures, stale identities and vanished runners.
 - P1: Windows native named-pipe SID/DACL checks, endpoint identity and Job Objects,
   documented survival policy and native process-tree tests. Do not emulate setsid.
@@ -40,6 +47,12 @@ Core correctness and usable local source builds have priority over distribution.
   automatic Agent conversation wake. OpenCode adapter only with verified APIs.
 
 ## Distribution & Packaging — Deferred / Not implemented
+
+Desktop-only public Plugin Directory submission is also deferred. Local Plugin
+authoring/installation is implemented, but public local-MCP submissions currently
+require approved-partner eligibility. Confirm that separately before any later
+submission; do not replace local execution with a public command-execution service
+merely to obtain a listing. No upload, publication or submission was performed.
 
 Every channel must preserve task history, logs and user configuration on normal
 uninstall. Integration removal, service removal and data purge are separate.

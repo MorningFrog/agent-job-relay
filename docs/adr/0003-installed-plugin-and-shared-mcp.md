@@ -15,7 +15,10 @@ This is a local source-build install, not a system package or public publication
 An owner-only receipt records the installation root, separate absolute state
 profile and SHA-256 of each owned file. Explicit `--state-dir`, then AJR_STATE_DIR,
 override that installed profile; source binaries retain their XDG/HOME default.
-A cached copy of the plugin keeps the same state profile. It never contains a
+A cached copy of the plugin keeps the same state profile. Generated MCP arguments
+pin that state, and the relay launcher sets AJR_STATE_DIR to the installed
+profile, so an exported demo override cannot split the two entry points. Runtime
+launchers do not require management receipts to survive host-cache import. It never contains a
 host socket, thread ID, registered session key, token or job log. The native
 program and launcher resolve relative to the plugin, including when paths contain
 spaces. The source plugin is a template; `install --apply` supplies its binary.

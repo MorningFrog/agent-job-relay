@@ -25,6 +25,11 @@ pub async fn report(config: &Config, inspect_context: bool) -> Result<Value> {
         json!("not observed by CLI; invoke job_doctor from the host to verify tool connectivity");
     report["wake_verification"] =
         json!("context availability only; no host probe or message was sent");
+    report["state_dir"] = json!(config.root);
+    if let Some(profile) = crate::deployment::runtime_state()? {
+        report["installed_profile"] =
+            json!({"state_dir":profile,"matches_active_state":profile==config.root});
+    }
     Ok(report)
 }
 

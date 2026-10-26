@@ -69,7 +69,7 @@ stable delivery IDs: private host dedupe is not proven.
 
 ## Client convenience (no wire-version change)
 
-`start --wake` and the MCP-only `job_start` argument `wake_me: true` opt into
+`start --wake` and, for dedicated per-session MCP, `job_start` with `wake_me: true` opt into
 experimental Desktop wake. The client reads its current inherited host context,
 auto-starts its per-state daemon if absent/refused, registers/refreshes and probes,
 then sends the ordinary start spec with the exact session key. `wake_me` is not
@@ -87,3 +87,22 @@ Client submissions auto-launch a daemon; doctor/status queries do not. Raw IPC
 `{"op":"shutdown"}` / CLI `daemon stop` stops this daemon and retains runners
 and data; it is not advertised as an MCP tool. Repeating stop is a client-side
 no-op when the socket is already unavailable.
+
+## Installed/shared MCP binding (no wire-version change)
+
+Generated plugin and setup entries use `mcp --shared-host`. This rejects MCP
+`wake_me=true` and `job_connect_session` before submitting any workload, even if
+the process inherited another valid chat's environment. The start schema marks
+wake_me as const false in this mode. Server instructions advertise a terminal
+binding command as explicit argv. The plugin skill executes its bundled launcher
+with `session connect --brief` in the calling chat's terminal tool and passes the
+returned key as the existing `spec.session` field. The brief response contains
+session_key, probe=passed, can_resume and can_confirm_resume; no host path or raw
+registration is returned. Neither users nor a shared process invent thread IDs.
+
+CLI doctor can report a stopped daemon without creating state. Its optional
+`--check-mcp` runs a five-second bounded private initialize/discovery/EOF check,
+with bounded frames and required tool-schema checks. It reports a stdio self-check,
+not actual host connectivity or wake. A real MCP `job_doctor` call reports that
+the request reached the server and describes its binding mode; no host message
+or capability probe is sent. Configuration ownership checks remain separate.

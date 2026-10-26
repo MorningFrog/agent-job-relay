@@ -119,6 +119,12 @@ receiver-side deduplication or automatic resume confirmation is established.
 
 ## Next validation
 
+Prioritize the new installed Plugin/MCP entry point: follow installation.md and
+run one real project task from a new chat without tool/state/session paths in
+the user's prompt. The plugin UI installation, actual MCP route and automatic
+continuation need separate observation. Do not repeat the passed CLI rounds with
+another workload or require an artificial manual crash matrix from the user.
+
 Extend the CLI pass to in-flight daemon interruption/offline completion, Desktop
 restart with explicit rebind, temporary delivery failure, and concurrent exact
 routing; validate MCP convenience separately when per-session context is present.

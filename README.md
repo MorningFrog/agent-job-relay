@@ -11,7 +11,7 @@ Run durable background commands and route completion events to explicitly regist
 
 A native Rust CLI, independent runner and stdio MCP server for one trusted local
 user. **v0.1.0 is a source-build development milestone, tested on Linux x86_64.**
-No installer or package-manager release is available.
+No system installer or package-manager release is available.
 
 ## What works today
 
@@ -25,6 +25,7 @@ No installer or package-manager release is available.
 | Codex CLI integration | MCP configuration and notification inbox; **no automatic resume** |
 | Desktop wake | Experimental Unix socket adapter; automated fake-host tests and **user-confirmed live E2E** for explicit registration and CLI `--wake` first start, reuse and idle-daemon restart on ChatGPT Desktop 26.1021.22027 / Ubuntu 26.04 |
 | Setup, doctor and owned MCP removal | Isolated configuration tests; no real user settings changed |
+| Install-once local Desktop Plugin + MCP | Native bundle, stable launcher/profile, owned marketplace setup/removal and actual shared MCP tested in isolation; Desktop plugin UI/live installed workflow pending |
 | Windows/macOS runtime | **Not implemented/verified**; requests fail explicitly |
 
 Job completion, `notification_recorded`, `accepted_by_host` and observed Agent
@@ -36,7 +37,48 @@ three rounds without manual continuation; the control chat received no wrong
 notification. In-flight daemon interruption, Desktop restart and rebind remain
 outside those results.
 
-## One-minute source quick start
+## Install once, use from chat
+
+Build locally, then install the native program and Desktop plugin to a stable
+private location. The following is an explicit **personal installation**; commands
+without `--apply` only preview. Development tests use isolated `.tmp/` paths.
+
+```bash
+cargo build --release --locked
+AJR_INSTALL_ROOT="$HOME/.local/share/agent-job-relay"
+./target/release/agent-job-relay install --root "$AJR_INSTALL_ROOT"
+./target/release/agent-job-relay install --root "$AJR_INSTALL_ROOT" --apply
+"$AJR_INSTALL_ROOT/relay" setup plugin --dry-run
+"$AJR_INSTALL_ROOT/relay" setup plugin --apply
+"$AJR_INSTALL_ROOT/relay" doctor --client plugin --check-mcp
+```
+
+Restart Desktop, open Plugins and select your personal local marketplace
+(`AgentJobRelay Local` if newly created), then install AgentJobRelay. Start a new
+local chat, select the plugin if needed, and ask:
+
+> Run this project's tests in the background and tell me when they finish.
+
+Everyday prompts need no tool path, state directory or session ID. The plugin's
+skill gets the current chat binding and submits through MCP; it ends the turn
+after submission and reads the result on completion. The working directory comes
+from the chosen project. The Desktop bridge remains experimental. Browser
+discovery/install and this installed real-host workflow are **not yet live
+verified**; the prior CLI pass does not establish them. See [installation](docs/installation.md).
+
+Installation does not change PATH, configure a service or publish a plugin.
+State is separate from the binary directory and persists across plugin-cache
+copies. The plugin pins that profile and ignores an exported AJR_STATE_DIR;
+explicit CLI `--state-dir` can still override it. `install` defaults to
+`$XDG_DATA_HOME/agent-job-relay` or the path above;
+use a root inside HOME for a personal marketplace. Source builds still require
+Rust; native packages and public-directory publication remain deferred.
+
+For a standalone MCP configuration, use the installed launcher's `setup codex`
+instead of `setup plugin`. The server advertises the same terminal-binding
+workflow. Avoid registering both routes for the same host/state unnecessarily.
+
+## Source-only development quick start
 
 Requires Rust stable (package MSRV 1.89), Cargo and a C toolchain for bundled
 SQLite. Runtime needs no Python, Node, Go, Docker or external database.
@@ -128,7 +170,7 @@ For a real Codex client, choose its actual `--config` path, or omit the option t
 use `$CODEX_HOME/config.toml` / `$HOME/.codex/config.toml`. Review `setup codex
 --dry-run` before choosing `--apply`. Restart the MCP client after applying.
 The generated entry points to the **current executable** and state directory;
-re-run setup after moving the binary. Setup does not install a service; task
+use the installed launcher so these stay stable. Setup does not install a service; task
 submissions start the daemon automatically.
 
 Generic clients using `mcpServers` JSON can use:
@@ -145,7 +187,7 @@ For a client with manual configuration, the generated entry has this shape:
 ```json
 {
   "command": "/absolute/path/to/agent-job-relay",
-  "args": ["--state-dir", "/absolute/private/state", "mcp"]
+  "args": ["--state-dir", "/absolute/private/state", "mcp", "--shared-host"]
 }
 ```
 
@@ -166,38 +208,41 @@ for exact schemas and bounded results.
 
 ## Sessions and wake behavior
 
-For normal MCP use, enable wake directly in the start call:
+Installed plugins and generated MCP configurations use `mcp --shared-host`.
+The Agent runs the bundled launcher with `session connect --brief` from the
+**current chat's terminal tool**, then uses its fresh `session_key` in the MCP
+submission. This happens within the plugin workflow; the user copies no IDs.
 
 ```json
 {
-  "wake_me": true,
   "spec": {
     "command": { "kind": "exec", "program": "cargo", "args": ["check"] },
-    "cwd": "/absolute/workdir"
+    "cwd": "/absolute/workdir",
+    "session": "<fresh key returned to the Agent by the terminal binding>"
   }
 }
 ```
 
-`job_start` auto-starts the daemon; wake_me=true also registers, refreshes and
-probes the MCP process's inherited Desktop context. Then the Agent can end its
-turn and wait for the completion message. `job_connect_session` is an optional
-no-argument diagnostic; routine starts do not require it. Do not combine wake_me
-with explicit spec.session (`--wake` and `--session` also conflict).
+Shared mode rejects `wake_me=true` and `job_connect_session`: its environment
+cannot establish which chat called it. The binding command probes actual
+current-terminal context before any wake-dependent workload is submitted. If
+MCP is unavailable, the skill can use its installed launcher with `start --wake`
+in that same terminal. Context failure is explicit; no other session is selected.
 
-Automatic binding requires a per-session MCP process that actually receives the
-two host variables. A shared MCP process cannot infer which chat called it. If
-those variables are absent, let the Agent use `start --wake` from its current
-Desktop terminal tool, or explicitly supply an authorized spec.session. No
-human needs to copy IDs in the normal terminal-tool path.
+For an explicitly dedicated per-session MCP process, manual `mcp` without
+`--shared-host` retains `wake_me=true` / `job_connect_session` using its inherited
+context. Do not combine wake_me with spec.session (`--wake` and `--session` also
+conflict). This advanced path is not the default installed plugin workflow.
 
 Automatic registration uses a 24-hour lease and a socket fingerprint as host
 instance identity. Each wake-enabled submission refreshes it; a replacement
 endpoint produces a new binding without moving existing jobs. Jobs exceeding
 that lease need explicit refresh/rebind. A host acknowledgement still does not
 confirm Agent execution. The CLI shortcut also passed user-confirmed live first
-start, reuse and idle-daemon restart on the recorded Desktop version/OS. MCP
-`wake_me=true` has automated fake-host coverage; its real-host path is not yet
-separately validated.
+start, reuse and idle-daemon restart on the recorded Desktop version/OS. Installed
+shared MCP with two terminal bindings and per-session MCP `wake_me=true` have
+automated fake-host coverage; their real-host entry points remain separately
+unverified.
 
 Advanced manual registration remains available for other hosts and diagnosis.
 For a local notification demonstration, register explicit identities:
@@ -235,6 +280,13 @@ lost acknowledgements can still cause repeated host effects.
 
 ## Recovery, safety and uninstall
 
+For the managed local install, first remove/disable the plugin through Desktop
+and preview/apply `relay integration remove plugin` (or codex/json for standalone
+MCP). Inspect active jobs, finish/cancel them as appropriate, then `relay daemon
+stop`. Preview/apply `relay uninstall --root <same-install-root>` removes only
+unchanged owned install files. Task data and backups remain; host-managed plugin
+cache removal belongs to the host. Modified or unknown install contents are refused.
+
 SQLite records execution intent before launch. Each runner holds an exclusive
 run lock and claims once; uncertain launches become `orphaned` rather than being
 silently repeated. Runners persist terminal state/events/outbox while the daemon
@@ -260,7 +312,7 @@ and run `agent-job-relay daemon stop` for the same state directory (or stop a
 foreground daemon with Ctrl-C). Removing software, removing MCP integration,
 removing a service and deleting user data are different operations. For a binary
 you manually copied, remove only that binary after checking processes. **Normal
-removal preserves state.** There is no `data purge` command or system uninstaller;
+removal preserves state.** There is no `data purge` command or system-package uninstaller;
 do not delete unknown directories or another project's data. Future installers
 must also preserve history/logs/user config by default.
 
@@ -271,8 +323,10 @@ must also preserve history/logs/user config by default.
   foreground `daemon` to see diagnostics; no OS service is installed.
 - **MCP missing:** preview/apply the correct client config and restart the client.
   `doctor --client codex --config ...` checks owned config, not a live MCP handshake.
-- **No Agent wake:** use `start --wake` / wake_me=true in the current Desktop
-  context; `session connect` probes it. For existing jobs inspect session lease,
+- **No Agent wake:** the plugin binds through the current terminal with `session
+  connect --brief`, then passes spec.session to shared MCP. CLI `start --wake`
+  uses current-terminal context; wake_me=true is only for per-session MCP.
+  For existing jobs inspect session lease,
   deliveries and attempts.
   Inbox has no resume capability; Desktop acceptance is not confirmed execution.
 - **orphaned:** inspect external effects before deliberately submitting a new job.

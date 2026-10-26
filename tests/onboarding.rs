@@ -92,6 +92,9 @@ fn copy_tree(from: &Path, to: &Path) {
     std::fs::create_dir_all(to).unwrap();
     for e in std::fs::read_dir(from).unwrap() {
         let p = e.unwrap().path();
+        if p.file_name().unwrap() == ".agent-job-relay-install.json" {
+            continue; // Runtime plugin resources must work without management receipts.
+        }
         let target = to.join(p.file_name().unwrap());
         if p.is_dir() {
             copy_tree(&p, &target);
@@ -112,7 +115,7 @@ fn install_preview_stable_launcher_and_cached_plugin_keep_the_state_profile() {
         serde_json::from_slice(&std::fs::read(r.install.join("mcp.json")).unwrap()).unwrap();
     assert_eq!(
         manifest["mcpServers"]["agent-job-relay"]["args"],
-        json!(["mcp", "--shared-host"])
+        json!(["--state-dir", r.state, "mcp", "--shared-host"])
     );
     let report = ok(r.installed(&["doctor", "--check-mcp"]));
     assert_eq!(report["daemon"], "stopped");

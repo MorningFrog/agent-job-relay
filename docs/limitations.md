@@ -46,9 +46,14 @@
 - At-least-once delivery: a host may execute a request even if ack is lost.
   Stable IDs are provided; host deduplication is not proven. Rebind cancels
   future claims, not effects already transmitted externally.
-- Setup supports Codex TOML and generic mcpServers JSON, not a guessed ChatGPT
-  settings format. Interrupted receipt/config updates fail closed. No installer,
-  OS service manager, system removal or destructive data purge is shipped.
+- Setup supports Codex TOML, generic mcpServers JSON and an owned local plugin
+  marketplace entry, not a guessed ChatGPT settings format. Local install/uninstall
+  manages a source-built native/plugin bundle with receipts; native system packages,
+  OS service manager, system-package removal and destructive purge are not shipped.
+  Interrupted config/install/removal can require inspection. Host cache copies
+  and enablement are handled in the host UI; changing source files does not update
+  them. Marketplace discovery/install and the installed real-host workflow remain
+  unverified. The source plugin template alone does not contain a native executable.
 - Source build/development installation only. All binary packages, stores,
   package repositories and automatic release work are deferred in TODO.md.
 
@@ -60,3 +65,11 @@ for longer work. CLI shortcut live evidence is user-attested and version-specifi
 the reviewer correlated private artifacts without independently observing the UI.
 MCP wake_me=true has fake-host automation and real process coverage, but no
 separate real-host shortcut validation.
+
+Installed/generated MCP uses shared-host mode, rejecting inherited-context wake.
+The plugin skill obtains a fresh current-terminal session key and supplies it to
+MCP. That route is tested with two callers, real installed CLI/MCP processes and
+a fake Desktop host; it needs a local terminal and is not available in a cloud
+chat without one. The next live acceptance is one real task through the installed
+plugin, without tool/state/session paths in its prompt. Prior CLI passes do not
+qualify this path, and another manual crash matrix is not a prerequisite.

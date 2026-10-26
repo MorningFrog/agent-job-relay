@@ -17,6 +17,12 @@
   or wrong control-chat notification; local proofs and binary hash cross-checked.
 - Dry-run setup, backed-up owned configuration edits, safe integration removal,
   CLI diagnostics and bilingual onboarding.
+- Stable local native/Plugin install and uninstall with owned-file SHA-256 checks,
+  retained state profiles/backups, relocatable launcher and local marketplace setup.
+- Installed shared-host MCP uses current-terminal bindings, rejecting stale process
+  identity; workflow skill hides tool/state/session paths from everyday prompts.
+- Separate configuration, daemon, bounded stdio self-check and real tool-connectivity
+  diagnostics. Installed/plugin UI live acceptance remains pending.
 - Linux behavior tests and compile/test CI definition; future packaging roadmap.
 
 No packages published or Windows/macOS runtime support claimed. Basic live wake

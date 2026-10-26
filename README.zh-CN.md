@@ -24,13 +24,38 @@ Run durable background commands and route completion events to explicitly regist
 | Codex CLI 集成 | MCP 配置与通知收件箱；**不能自动恢复 Agent** |
 | Desktop 唤醒 | 实验性 Unix Socket 适配器；自动化假宿主测试，以及 ChatGPT Desktop 26.1021.22027 / Ubuntu 26.04 上**用户确认通过的真实端到端测试**，覆盖显式登记和 CLI `--wake` 首次启动、复用、空闲 Daemon 重启 |
 | setup、doctor、移除所属 MCP 项 | 隔离配置测试；没有修改真实用户设置 |
+| 一次安装的本地 Desktop Plugin + MCP | 原生程序包、稳定启动器/状态配置、所属 marketplace 配置及移除、真实共享 MCP 已通过隔离测试；Desktop 插件界面与安装后的真实流程待验收 |
 | Windows/macOS 运行时 | **尚未实现/验证**，明确返回不支持 |
 
 任务完成、`notification_recorded`、`accepted_by_host` 与观察到 Agent 真正继续执行是不同状态。
 当前没有适配器能够自动确认 Agent 已恢复。Desktop 的 `can_resume` 表示配置的请求机制，不能视为真实端到端验证。
 用户确认通过的实测及本地证据核对见[真实端到端验证记录](docs/live-e2e.md)。CLI 快捷入口三轮均在无人发消息时自动续接，对照聊天未收到错误通知。任务运行中 Daemon 中断、Desktop 重启和重新绑定仍需单独验证。
 
-## 一分钟源码快速开始
+## 安装一次，从聊天直接使用
+
+源码构建后，将原生程序和 Desktop 插件安装到稳定的私有目录。下面是用户主动选择的**个人安装**；没有 `--apply` 的命令只预览。开发测试使用仓库内隔离的 `.tmp/` 路径。
+
+```bash
+cargo build --release --locked
+AJR_INSTALL_ROOT="$HOME/.local/share/agent-job-relay"
+./target/release/agent-job-relay install --root "$AJR_INSTALL_ROOT"
+./target/release/agent-job-relay install --root "$AJR_INSTALL_ROOT" --apply
+"$AJR_INSTALL_ROOT/relay" setup plugin --dry-run
+"$AJR_INSTALL_ROOT/relay" setup plugin --apply
+"$AJR_INSTALL_ROOT/relay" doctor --client plugin --check-mcp
+```
+
+重启 Desktop，在 Plugins 中选择个人本地 marketplace（新建时名为 `AgentJobRelay Local`），安装 AgentJobRelay。打开新的本地聊天，按需选择插件，然后直接说：
+
+> 后台执行这个项目的测试，完成后告诉我结果。
+
+日常提示词无需工具路径、状态目录或会话 ID。插件技能取得当前聊天绑定后通过 MCP 提交任务，提交后结束回合，完成时读取结果。任务工作目录由已选项目确定。Desktop 唤醒仍是实验性机制。**插件界面发现/安装和安装后的真实宿主流程尚未单独实测**，先前 CLI 通过不能代替这项验收。详见[安装说明](docs/installation.md)。
+
+安装不修改 PATH、不配置系统服务、不公开发布插件。状态数据与程序目录独立，复制到插件缓存后仍使用同一状态配置。插件固定该配置，不受已导出 AJR_STATE_DIR 的影响；仍可主动用 CLI `--state-dir` 覆盖。省略 `--root` 时使用 `$XDG_DATA_HOME/agent-job-relay`，否则默认上述路径；个人 marketplace 请使用 HOME 内的安装目录。源码构建仍需 Rust，原生安装包和公开目录上架继续延期。
+
+如只配置独立 MCP，可将已安装启动器的 `setup plugin` 改为 `setup codex`。服务器指引同样包含当前终端绑定流程。不必在同一宿主/状态目录重复登记两种入口。
+
+## 仅使用源码的开发快速开始
 
 需要 Rust stable（包声明的最低版本为 1.89）、Cargo 和用于编译内置 SQLite 的 C 工具链。
 运行时不依赖 Python、Node、Go、Docker 或外部数据库。从项目根目录执行：
@@ -107,7 +132,7 @@ CLI、MCP 必须使用同一目录，已有目录须属于当前用户且权限�
 
 配置真实 Codex 时，选择实际 `--config` 路径；省略后使用 `$CODEX_HOME/config.toml` 或 `$HOME/.codex/config.toml`。
 先查看 `setup codex --dry-run`，再自行选择 `--apply`；修改后重启 MCP 客户端。
-生成项指向**当前可执行文件**及状态目录，移动二进制后应重新 setup。setup 不安装系统服务，提交任务时会自动启动 Daemon。
+生成项指向**当前可执行文件**及状态目录；使用已安装的启动器即可保持位置稳定。setup 不安装系统服务，提交任务时会自动启动 Daemon。
 
 使用 `mcpServers` JSON 格式的通用客户端可以执行：
 
@@ -122,7 +147,7 @@ CLI、MCP 必须使用同一目录，已有目录须属于当前用户且权限�
 ```json
 {
   "command": "/absolute/path/to/agent-job-relay",
-  "args": ["--state-dir", "/absolute/private/state", "mcp"]
+  "args": ["--state-dir", "/absolute/private/state", "mcp", "--shared-host"]
 }
 ```
 
@@ -138,29 +163,25 @@ CLI、MCP 必须使用同一目录，已有目录须属于当前用户且权限�
 
 ## 会话与唤醒
 
-日常 MCP 使用直接在启动参数中选择唤醒：
+安装的插件及生成的 MCP 配置使用 `mcp --shared-host`。Agent 从**当前聊天的终端工具**调用插件内启动器的 `session connect --brief`，再将刚得到的 `session_key` 传给 MCP。这由插件工作流程完成，无需用户复制 ID。
 
 ```json
 {
-  "wake_me": true,
   "spec": {
     "command": { "kind": "exec", "program": "cargo", "args": ["check"] },
-    "cwd": "/absolute/workdir"
+    "cwd": "/absolute/workdir",
+    "session": "<Agent 从当前终端绑定取得的新 key>"
   }
 }
 ```
 
-`job_start` 自动启动 Daemon；wake_me=true 还会根据 MCP 进程继承的 Desktop 上下文自动登记、刷新和探测。
-之后 Agent 可结束当前回合，等待任务完成消息。`job_connect_session` 是可选的无参数诊断工具，正常启动不必预先调用。
-wake_me 不应与显式 spec.session 同时使用，CLI 的 `--wake` 和 `--session` 也互斥。
+共享模式拒绝 `wake_me=true` 和 `job_connect_session`，因为服务器环境无法证明具体哪个聊天发起了调用。终端绑定会先探测真实当前会话能力，再提交需要唤醒的任务。若 MCP 不可用，技能可在同一终端用已安装启动器的 `start --wake`。缺少上下文时明确报错，不会选择其他聊天。
 
-自动绑定要求每会话独立的 MCP 进程实际获得上述两个宿主环境变量。共享 MCP 进程无法判断哪个聊天发起了调用。
-如果变量没有传给 MCP，让 Agent 从当前 Desktop 的终端工具直接执行 `start --wake`，或显式提供已授权的 spec.session。
-正常终端工具路径无需人工复制任何身份参数。
+对于已明确隔离到单会话的 MCP 进程，手工运行不带 `--shared-host` 的 `mcp` 仍保留基于继承上下文的 `wake_me=true` 和 `job_connect_session`。wake_me 与 spec.session 不能同时提供，CLI 的 `--wake` 和 `--session` 也互斥。这是高级入口，不是安装插件后的默认流程。
 
 自动登记租期为 24 小时，用 Socket 指纹标识宿主实例；每次请求唤醒都会刷新。
 端点替换会产生新绑定，不会迁移已有任务。超过该租期的任务需要显式刷新或重新绑定。
-宿主接受请求仍不代表 Agent 已恢复。CLI 快捷入口的首次启动、复用和空闲 Daemon 重启已在记录的 Desktop 版本与系统上通过用户确认的真实测试。MCP `wake_me=true` 已有自动化假宿主覆盖，尚未单独验证其真实宿主路径。
+宿主接受请求仍不代表 Agent 已恢复。CLI 快捷入口的首次启动、复用和空闲 Daemon 重启已在记录的 Desktop 版本与系统上通过用户确认的真实测试。安装后的共享 MCP 与两个终端绑定、单会话 MCP `wake_me=true` 均有自动化假宿主覆盖，尚未单独验证这些真实宿主入口。
 
 高级手工登记仍保留，用于其他宿主或诊断。本地收件箱演示使用显式身份注册：
 
@@ -190,6 +211,8 @@ Desktop 失败不会启动另一个 CLI 会话。稳定投递 ID 供接收方去
 
 ## 恢复、安全与卸载
 
+对于受管理的本地安装，先通过 Desktop 移除/禁用插件，预览并应用 `relay integration remove plugin`（独立 MCP 使用 codex/json）。检查活动任务，按需等待完成或取消，再执行 `relay daemon stop`。预览并应用 `relay uninstall --root <相同安装目录>` 只移除未改动的所属安装文件，保留任务数据及备份。宿主管理的插件缓存由宿主移除；安装目录中有用户修改或未知内容时会拒绝卸载。
+
 SQLite 在启动前保存执行意图；每个 Runner 持有独占运行锁，只能认领一次。
 启动结果不明时标记 `orphaned`，不会静默重复执行。Daemon 停止期间，Runner 仍可保存终态、事件和 Outbox。
 Runner 或启动身份消失不代表成功。关机停止进程，持久状态只支持恢复分类，不代表跨断电继续执行。
@@ -208,7 +231,7 @@ cargo uninstall --root "$PWD/.tmp/install" agent-job-relay
 移除或替换二进制前，先检查活动任务，按需停止任务，并对相同状态目录执行 `agent-job-relay daemon stop`，或用 Ctrl-C 退出前台 Daemon。
 卸载软件、移除 MCP 集成、移除系统服务和删除用户数据是不同操作。
 手动复制的二进制也应在检查进程后只删除该文件。**普通移除保留状态数据。**
-当前没有 `data purge` 或系统卸载器，不要删除未知目录或其他项目数据。未来安装器卸载也必须默认保留历史、日志和用户配置。
+当前没有 `data purge` 或系统安装包卸载器，不要删除未知目录或其他项目数据。未来安装器卸载也必须默认保留历史、日志和用户配置。
 
 ## 常见问题与开发验证
 
@@ -216,7 +239,7 @@ cargo uninstall --root "$PWD/.tmp/install" agent-job-relay
   自动启动失败时，用前台 `daemon` 查看诊断；没有安装系统服务。
 - **看不到 MCP：** 预览并应用正确客户端配置，再重启客户端。
   `doctor --client codex --config ...` 检查所属配置，不代表已验证真实 MCP 连接。
-- **Agent 没有唤醒：** 在当前 Desktop 上下文中使用 `start --wake` 或 wake_me=true，`session connect` 可诊断连接。
+- **Agent 没有唤醒：** 插件使用当前聊天终端的 `session connect --brief` 绑定，然后向共享 MCP 传 spec.session。`start --wake` 是当前终端的 CLI 入口；wake_me=true 只用于专属单会话 MCP。
   对已有任务检查会话租期、投递状态和尝试记录。
   Inbox 不具备恢复能力；Desktop 接受请求不代表 Agent 已执行。
 - **orphaned：** 先审计外部副作用，再决定是否以新任务重跑。不会自动重放；逃逸的孙进程可能需要人工检查。

@@ -132,7 +132,7 @@ pub fn default_root() -> Result<PathBuf> {
         .context("HOME/XDG_DATA_HOME unavailable; pass --root")?
         .join("agent-job-relay"))
 }
-fn artifacts() -> Result<BTreeMap<String, Artifact>> {
+fn artifacts(config: &Config) -> Result<BTreeMap<String, Artifact>> {
     let mut files = BTreeMap::new();
     let entries: &[(&str, &[u8], bool)] = &[
         (
@@ -170,6 +170,22 @@ fn artifacts() -> Result<BTreeMap<String, Artifact>> {
             },
         );
     }
+    let mut mcp: Value =
+        serde_json::from_slice(include_bytes!("../plugins/agent-job-relay/mcp.json"))?;
+    mcp["mcpServers"]["agent-job-relay"]["args"] =
+        json!(["--state-dir", config.root, "mcp", "--shared-host"]);
+    files.get_mut("mcp.json").unwrap().bytes = serde_json::to_vec_pretty(&mcp)?;
+    let quoted_state = format!(
+        "'{}'",
+        config
+            .root
+            .to_str()
+            .context("installed state path must be UTF-8")?
+            .replace('\'', "'\"'\"'")
+    );
+    files.get_mut("relay").unwrap().bytes = include_str!("../plugins/agent-job-relay/relay")
+        .replace("__AJR_INSTALLED_STATE__", &quoted_state)
+        .into_bytes();
     files.insert(
         "bin/agent-job-relay".into(),
         Artifact {
@@ -308,7 +324,7 @@ pub fn change(config: &Config, root: PathBuf, remove: bool, apply: bool) -> Resu
     let files = if remove {
         BTreeMap::new()
     } else {
-        artifacts()?
+        artifacts(config)?
     };
     let desired = Receipt {
         format: 1,

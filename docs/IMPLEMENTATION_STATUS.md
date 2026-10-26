@@ -12,7 +12,7 @@ Declared Rust 1.89 MSRV is not independently tested.
 |---|---|---|
 | 0: reference/design | Completed; full spec/ancestor instruction audit, read-only Vanth audit, architecture/ADR, compiled Cargo package | No reference implementation copied |
 | 1: core | Implemented and tested on Linux: CLI, private IPC, SQLite Job/Run/Event, independent runner, capture, cancel/timeout, conservative restart recovery | Windows/macOS native runtime and escaped-daemon containment pending |
-| 2: MCP/delivery/setup | Implemented and tested: real rmcp stdio, sessions, targets, atomic outbox, lease fencing, retries/TTL/dead letters, setup/removal/backups | No Tasks/subscriptions; no guessed ChatGPT config format |
+| 2: MCP/delivery/setup | Implemented and tested: real rmcp stdio, sessions, targets, atomic outbox, lease fencing, retries/TTL/dead letters, native/Plugin local install, marketplace setup/removal/backups and safe shared-MCP binding | No Tasks/subscriptions; Desktop Plugin browser and installed real-host workflow pending; no guessed ChatGPT config format |
 | 3: Agent integration | Codex CLI MCP + notification inbox implemented/tested; Desktop fake-host automation plus **user-confirmed explicit-registration and CLI shortcut live same-session E2E** on ChatGPT Desktop 26.1021.22027 / Ubuntu 26.04; CLI first start, reuse and idle-daemon restart passed; proofs cross-checked | Live in-flight interruption, Desktop restart/rebind/failure matrix and MCP shortcut pending; no automatic resume confirmation, public app-server writer or Windows pipe adapter |
 | 4: local quality/docs | Local fmt/strict Clippy/full tests/release build and onboarding passed; complete bilingual READMEs, security/protocol/testing/install/release docs, maintenance AGENTS, changelog, CI matrix | GitHub Actions not executed; macOS/Windows build/runtime not locally verified; native platform gates remain open |
 
@@ -61,6 +61,15 @@ integration, deployment, diagnostics, config, platform. SQLite schema **v4**, lo
 - Default preview setup; --apply writes only owned Codex TOML or mcpServers JSON,
   with adjacent receipts/backups. Idempotent removal refuses modified entries,
   preserves foreign settings and all job data. No PATH/service mutations.
+- Stable local install/uninstall contains the native program, portable Desktop
+  Plugin/MCP manifests, relative launcher, workflow skill, icon and SHA-256 receipt.
+  State remains separate and pinned across MCP/terminal/cache entry points;
+  modified/foreign files and active runtime block replacement/removal. Marketplace
+  setup/removal preserves other plugins. Shared-host MCP refuses inherited caller
+  identity and takes an exact key obtained from the current terminal's brief binding.
+- Doctor separates stopped daemon, configured entry, private bounded stdio self-check
+  and an actual host tool invocation. No diagnostic sends a host message or launches
+  a workload. The installed UI/live route still needs its own real-task acceptance.
 
 ## Final local validation
 
@@ -86,6 +95,7 @@ integration, deployment, diagnostics, config, platform. SQLite schema **v4**, lo
 | `cargo uninstall --root "$PWD/.tmp/install" agent-job-relay` | Passed; local test install removed, state retained |
 | Basic live Desktop wake | User confirmed pass on ChatGPT Desktop 26.1021.22027 / Ubuntu 26.04; proof/token/thread/delivery correlation checked read-only; see live-e2e.md |
 | CLI shortcut live Desktop wake | A first start, B session reuse, C idle-daemon stop/auto-start all passed on the same client/OS; user confirmed no manual continuation or wrong control-chat notification; all three proofs, database and binary identity cross-checked read-only |
+| Installed release onboarding smoke | 22 successful CLI calls across install preview/apply/idempotence, doctor/stdio, marketplace and standalone MCP setup, real workload/logs/events, removal/data retention and reinstall; quoted/spaced paths and stale state export exercised; no host contacted |
 | `git diff --check` | Passed before commits |
 
 Onboarding covered help/version, first daemon start, explicit sessions, job/run
@@ -134,16 +144,20 @@ crash. Stable delivery IDs do not prove receiver-side exactly-once behavior.
 
 ## Handoff priorities
 
-1. Extend the live CLI passes to in-flight daemon interruption/offline completion,
+1. Qualify one real task through the installed Plugin/MCP UI entry point, without
+   tool/state/session paths in its user prompt. Verify the actual route; fix
+   demonstrated onboarding failures. Existing CLI results do not need repetition
+   or an artificial manual crash matrix.
+2. Extend the live CLI passes to in-flight daemon interruption/offline completion,
    Desktop restart, explicit rebind, temporary delivery failure and concurrent
    exact routing; validate real-host MCP wake_me=true separately. Replace private
    interfaces with public ones when available; preserve version-specific evidence.
-2. Stronger Linux containment and fault/soak/real disk-full testing.
-3. Windows SID/DACL/named pipe/Job Objects and macOS process identity/native tests.
-4. More migration fault tests, backup/export, retention preview and explicit
+3. Stronger Linux containment and fault/soak/real disk-full testing.
+4. Windows SID/DACL/named pipe/Job Objects and macOS process identity/native tests.
+5. More migration fault tests, backup/export, retention preview and explicit
    purge design; richer active-runner/host health and configurable budgets.
-5. Public Codex app-server writer integration only for explicitly owned sessions.
-6. Follow **Distribution & Packaging — Deferred / Not implemented** in TODO.md
+6. Public Codex app-server writer integration only for explicitly owned sessions.
+7. Follow **Distribution & Packaging — Deferred / Not implemented** in TODO.md
    for all .deb/.rpm/.AppImage/.exe/.dmg/Flatpak/uv/GitHub/repository publishing.
    No packaging or publication was implemented in this turn.
 
@@ -167,6 +181,8 @@ English Conventional Commits, no pushes, no remote created, no history rewrite:
 - 3d68313 `docs: update README and add icon for AgentJobRelay`
 - 18ccdef `docs: record user-confirmed same-session Desktop wake validation`
 - f8dc8dd `feat(ux): automate current-session wake binding and daemon startup`
+- 09077b9 `docs: record user-confirmed CLI shortcut live acceptance`
+- d95587b `feat(integration): install local plugins with safe shared-session binding`
 
 Live-test documentation was updated after the user confirmed the basic pass;
 see `git log` for the subsequent evidence-recording commit.
@@ -238,7 +254,17 @@ and separate daemon/configuration/stdio/host-connectivity diagnostics (ADR 0003)
 All 18 selected tests passed (9 convenience, 4 integration, 5 new onboarding);
 then fmt, strict Clippy, all 45 tests and the locked release build passed.
 Skill-creator quick validation passed. Automated tests use isolated repository
-state and fake Desktop only. User documentation synchronization is the next
-increment. No actual host plugin installation,
+state and fake Desktop only. Both READMEs and installation/testing/protocol/security/
+limitations/TODO/ADR/changelog now describe the install-once workflow and evidence
+boundaries. No actual host plugin installation,
 real configuration change or new real-host workflow has been performed. The prior
 CLI live evidence remains valid and separate. Distribution/publication stays deferred.
+
+Final refinement pins MCP arguments and launcher profile independently of inherited
+AJR_STATE_DIR or management receipt import into host caches. Tests also exercise
+runtime cache copies without the management receipt. Final fmt, strict Clippy,
+all 45 tests and locked release build passed after that change. The actual release
+program passed 22 isolated onboarding CLI calls, including paths with spaces and
+apostrophes, a real workload, self-uninstall retaining data and reinstall. The
+review bundle remains dormant under ignored .tmp/; the daemon is stopped. Original
+live-test artifacts, real configuration and existing services remain untouched.

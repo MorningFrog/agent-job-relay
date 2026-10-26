@@ -53,3 +53,19 @@ A missing context/capability is an error, not a weaker notification fallback.
 On-demand launch uses a private startup lock and a detached daemon boundary;
 only absent/refused sockets trigger launch. No system service is installed.
 Shutdown remains owner-only IPC and is excluded from MCP discovery.
+
+Installed plugins and generated MCP entries enforce shared-host mode: no inherited
+chat environment can authorize an implicit wake. A fresh exact session key comes
+from the current terminal's inherited context and is passed explicitly over MCP.
+This remains the trusted local-user model, not cryptographic caller attestation.
+The CLI binding's --brief form omits private endpoint/registration details.
+
+Local installation stores a state-only profile and SHA-256 ownership receipt,
+not live host identity or credentials. The wrapper and MCP pin the same profile
+despite unrelated AJR_STATE_DIR exports. Replacements stage new files and retain
+backups; modified or foreign contents and symlink paths are refused. Data cannot
+be nested in the install tree. Runtime locks and active jobs block binary changes.
+Two-rename upgrades and multi-file removals are not crash-atomic; after interruption
+inspect the private backup/receipt. Host plugin caches and user enablement are
+managed by the host, never scanned or purged by this CLI. Marketplace setup edits
+only the owned entry and preserves the existing catalogue and other plugins.

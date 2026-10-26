@@ -188,7 +188,7 @@ async fn installed_shared_mcp_uses_each_terminal_binding_and_never_its_inherited
                 .iter()
                 .map(|v| v.as_str().unwrap()),
         )
-        .env_remove("AJR_STATE_DIR")
+        .env("AJR_STATE_DIR", r.dir.path().join("wrong-state"))
         .env("CODEX_THREAD_ID", "stale-server-thread")
         .env("CODEX_APP_TOOLS_PIPE_PATH", &host.endpoint)
         .stdin(Stdio::piped())
@@ -242,7 +242,7 @@ async fn installed_shared_mcp_uses_each_terminal_binding_and_never_its_inherited
     for (i, thread) in ["thread-a", "thread-b"].iter().enumerate() {
         let bind = tokio::process::Command::new(install.join("relay"))
             .args(["session", "connect", "--brief"])
-            .env_remove("AJR_STATE_DIR")
+            .env("AJR_STATE_DIR", r.dir.path().join("wrong-state"))
             .env("CODEX_THREAD_ID", thread)
             .env("CODEX_APP_TOOLS_PIPE_PATH", &host.endpoint)
             .output()
@@ -291,6 +291,7 @@ async fn installed_shared_mcp_uses_each_terminal_binding_and_never_its_inherited
     .await
     .unwrap();
     assert_eq!(sessions["sessions"].as_array().unwrap().len(), 2);
+    assert!(!r.dir.path().join("wrong-state").exists());
 }
 
 #[tokio::test]

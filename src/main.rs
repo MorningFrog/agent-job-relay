@@ -17,7 +17,7 @@ struct Cli {
         long,
         global = true,
         env = "AJR_STATE_DIR",
-        help = "Private state directory (default: XDG state / agent-job-relay)"
+        help = "Private state directory (default: installed profile or XDG state)"
     )]
     state_dir: Option<PathBuf>,
     #[command(subcommand)]
@@ -77,7 +77,7 @@ enum Commands {
         #[command(subcommand)]
         command: TargetCommand,
     },
-    /// Preview MCP configuration; write only with --apply
+    /// Preview MCP or local plugin marketplace configuration; write only with --apply
     Setup {
         client: agent_job_relay::integration::Client,
         #[arg(long)]
@@ -87,7 +87,7 @@ enum Commands {
         #[arg(long)]
         apply: bool,
     },
-    /// Remove only an unchanged, owned MCP entry; job history is preserved
+    /// Remove only an unchanged, owned integration entry; job history is preserved
     Integration {
         #[command(subcommand)]
         command: IntegrationCommand,
