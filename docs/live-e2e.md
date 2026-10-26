@@ -1,6 +1,6 @@
 # Current live verification
 
-Latest applicable version: **0.1.4**, reviewed on **2026-10-26 (Asia/Shanghai)**. This summary distinguishes user observations from persisted-record checks; it does not provide an automatic `confirmed_resumed` capability. Raw reports, IDs and logs remain in ignored local storage. Earlier runs are available in Git history.
+Latest applicable version: **0.1.5**, reviewed on **2026-10-26 (Asia/Shanghai)**. This summary distinguishes user observations from persisted-record checks; it does not provide an automatic `confirmed_resumed` capability. Raw reports, IDs and logs remain in ignored local storage. Earlier runs are available in Git history.
 
 ## Installed MCP workflow
 
@@ -10,13 +10,13 @@ This qualifies the installed MCP submission/continuation workflow for that user-
 
 ## Desktop UI/restart acceptance
 
-The requested acceptance remains incomplete against the unchanged installed **0.1.4** runtime; source **0.1.5** has separate isolated loader/recovery evidence. Available computer tools expose browsers but no native Desktop window, so plugin-browser installation, app version and normal restart require operator observation. No personal installation/configuration, daemon or other plugin has been replaced or stopped for this check.
+The user reports **Desktop 26.1021.22027** and AgentJobRelay **0.1.5** visibly enabled in the Plugins interface. This qualifies UI enablement for that user-attested environment, not an independently observed clean installation. Read-only checks confirm installed native version 0.1.5, matching recorded/active state and a responding real MCP call. The daemon was stopped before this retry; submission starts it normally. Native/cache hashes and upgrade preservation were not independently audited.
 
-The developer-only FIFO probe reached its one-hour deadline without an explicit post-restart release and exited with code 1. Its failure notification triggered this chat to inspect the matching status/events/logs. This establishes failure-result continuation for that probe, not a Desktop restart or recovered binding. The isolated FIFO handshake passed. Real old/new host identity comparison, recovered target correlation and UI/restart acceptance remain pending; the failed job and private artifacts/IDs are retained in ignored repository-local storage. No command replay or automatic replacement probe was performed. Follow [manual acceptance](manual-testing.md#desktop-restart-and-same-chat-rebinding). This check does not establish a 0.1.5 live upgrade or a result completed while the host was closed.
+A new coordinated restart/rebind attempt is in progress at the user's request. The bounded FIFO command is submitted through installed MCP with a fresh current-chat binding; after normal Desktop restart, compare host identities, recover the retained target, release that existing command and observe its same-chat result. The prior expired job is retained without replay. Private artifacts/IDs remain ignored and local. Real restart, changed bridge identity, recovered target correlation and completion-triggered continuation remain pending. See [manual acceptance](manual-testing.md#desktop-restart-and-same-chat-rebinding). This active-job check does not establish a result completed while the host was closed or receiver deduplication.
 
 ## Remaining scope
 
-- The current Desktop version, OS distribution, plugin-browser installation and native/cache upgrade integrity were not independently rechecked.
+- Desktop version and plugin enablement are user-attested; OS distribution, clean UI installation and native/cache upgrade integrity remain independently unverified.
 - Real Desktop restart/rebind, multi-day renewal, receiver deduplication and additional host/platform versions remain unqualified.
 - Keep passed runs complete; collect new evidence only for a relevant change or suitable use case, without repeating equivalent workloads or requiring a manual crash matrix.
 
