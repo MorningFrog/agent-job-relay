@@ -14,6 +14,8 @@ The project specification governs scope; report limitations honestly.
 - Installed plugins use shared-host MCP and a fresh current-terminal binding;
   never infer a tool caller from a shared process environment. Test installed
   entry points, not just the source binary; keep profiles separate from binaries.
+- Explicit upgrade stops must select the installed profile and verify the original
+  peer before any legacy signal; never use process-name/group kills or PID alone.
 - Preserve modified/foreign install and marketplace content. Plugin browser
   discovery and same-chat live execution need separate real-host evidence.
 - Distribute through Agent plugins (Codex/Desktop, Claude Code, OpenCode targets).

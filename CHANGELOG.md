@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.2 — 2026-10-26 (unreleased upgrade repair)
+
+- Add `daemon stop --install-root` to select the recorded installation profile
+  regardless of stale shell state exports.
+- Gracefully stop verified early 0.1.0 daemons that reject IPC shutdown, using
+  their existing Ctrl-C handler with PID-reuse-safe Linux pidfds. Refuse unknown
+  peers, stale identities and unrelated errors; never use a group signal/force kill.
+- Wait for daemon lock release before successful stop returns, allowing immediate
+  update; improve active-install errors with a concrete profile-aware command.
+- Add legacy-upgrade, unrelated-peer and non-shutdown-error regression coverage.
+
 ## 0.1.1 — 2026-10-26 (unreleased development repair)
 
 - Fix Linux Runner/daemon spawning after a rebuild unlinks the executable, using

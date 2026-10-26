@@ -20,6 +20,10 @@ come first. An installable local plugin is not an official directory listing.
   not call MCP. Version 0.1.1 fixes loaded-image Runner spawning, rejects the
   affected legacy daemon before another job, and emits the explicit Codex
   compatibility manifest. Isolated Codex CLI 0.164.0 now discovers all 19 tools.
+  The subsequent 0.1.2 upgrade repair gracefully stops pre-shutdown daemons via
+  verified Linux pidfds and selects state with daemon stop --install-root. All
+  50 tests passed; the user authorized upgrading the actual personal install and
+  host plugin cache to 0.1.2. Installed/cache MCP self-check finds 19 tools.
   Actual updated Desktop tool discovery/call remains separately unverified.
 - Implemented baseline: no-override local updates retain the configured state;
   regressions cover this and replaced-image Runner launch. Keep configuration,

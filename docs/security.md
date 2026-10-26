@@ -81,3 +81,11 @@ installation, not an unexpanded plugin-root variable. Cached MCP depends on this
 path remaining present. Local real-loader checks run in isolated HOME/CODEX_HOME,
 without model requests, credentials or real Desktop endpoints. Independent OS
 packages are cancelled; no online plugin submission/upload is performed now.
+
+Legacy shutdown is only reached after the original peer rejects the exact IPC
+shutdown operation. Same-UID/socket/root ownership, the original boot/start
+identity, native daemon executable/mode and a healthy known legacy response are
+rechecked before SIGINT. A pidfd pins the process against PID reuse; the signal
+never targets a process group. No broad kill, force kill or process-name scan is
+used. The trusted local-user model remains; this is not cryptographic product
+attestation. Explicit stop authorization is separate from install --apply.

@@ -20,7 +20,7 @@ AJR_INSTALL_ROOT="$HOME/.local/share/agent-job-relay"
 "$AJR_INSTALL_ROOT/relay" doctor --client plugin --check-mcp
 ```
 
-The v0.1.1 bundle contains `bin/agent-job-relay`, a relative `relay` launcher,
+The v0.1.2 bundle contains `bin/agent-job-relay`, a relative `relay` launcher,
 `.codex-plugin/plugin.json`, `.mcp.json`, a background-jobs skill, icon and an
 owner-only install receipt. It is independent of the source checkout after
 installation. Updating source does not update an installed or host-cached copy.
@@ -105,17 +105,40 @@ for native CLI development; it does not generate this plugin bundle/profile.
 
 ## Update and remove safely
 
-Before replacing or removing binaries, inspect active jobs, let them complete or
-explicitly cancel selected jobs, then use the installed launcher with `daemon
-stop`. Active daemon/startup locks and unfinished persisted jobs block replacement
-or removal. No unrelated process is stopped automatically.
+Before replacing or removing binaries, inspect active jobs and let them complete
+or explicitly cancel selected jobs. Active daemon/startup locks and unfinished
+persisted jobs block replacement/removal. For early-version upgrades use the
+updated source command below; current installed launchers also support ordinary
+`daemon stop`. No unrelated process is stopped automatically.
+
+Rebuild source, then stop the installation's recorded runtime using the **new
+source executable**, not an old launcher that may lack these options:
+
+```bash
+cargo build --release --locked
+./target/release/agent-job-relay daemon stop --install-root "$AJR_INSTALL_ROOT"
+./target/release/agent-job-relay install --root "$AJR_INSTALL_ROOT" --dry-run
+./target/release/agent-job-relay install --root "$AJR_INSTALL_ROOT" --apply
+```
+
+`--install-root` selects the owned receipt's state, overriding the stop command's
+`--state-dir`/AJR_STATE_DIR. It errors if that installation is absent. The stop
+waits for daemon lock release, so immediate update does not race the shutdown
+ack. For the observed early 0.1.0 daemon without IPC `shutdown`, only that specific
+remote error enables compatibility handling: recheck the original peer PID and
+boot/start identity, owned socket/root, executable name, daemon arguments and
+healthy legacy Doctor response, then send SIGINT through a Linux pidfd and wait
+for exit. This invokes the old Ctrl-C handler and reports `legacy_sigint`; no
+process search, group signal or force kill is used. Unknown peers, changed
+identities, other errors and unavailable pidfd support fail explicitly. Renamed
+legacy executables require manual review rather than relaxed matching.
 
 Rebuild source and repeat install at the same root to update. Without an explicit
 `--state-dir` or AJR_STATE_DIR override, the previous receipt's state profile is
 retained even when updating from a source binary. Unset unrelated exported state
 overrides before updating. Unchanged installs are no-ops. Updates stage a full
-private tree and retain the old one as the reported backup. These two renames are not a crash/power-loss transaction; keep
-the backup and inspect it after an interrupted update. Refresh/reinstall the
+private tree and retain the old one as the reported backup. These two renames are
+not a crash/power-loss transaction; keep the backup and inspect it after an interrupted update. Refresh/reinstall the
 host's cached plugin separately after updating its marketplace source.
 
 Current Linux daemons spawn from their mapped image even if a rebuild unlinks

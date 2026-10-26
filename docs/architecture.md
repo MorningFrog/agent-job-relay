@@ -63,3 +63,11 @@ without a state override retains its receipt's profile. One Rust/MCP core is the
 basis for host-specific plugins; Claude Code and OpenCode are future adapters,
 not current implementations. Independent OS installers/repositories are cancelled;
 official plugin platforms are future work, with no publication during development.
+
+Explicit stop can select the installation receipt via `--install-root`, independently
+of source defaults or shell state exports. For early 0.1.0 peers lacking IPC
+shutdown, compatibility code retains the original peer identity and uses Linux
+pidfds to invoke only that daemon's Ctrl-C handler after revalidation. It waits
+for process exit/lock release; install never stops a daemon on its own. The legacy
+path requires proc/pidfd support and refuses unknown/renamed peers. Modern IPC
+shutdown also waits for lock release before returning success.

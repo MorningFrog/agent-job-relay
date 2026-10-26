@@ -200,3 +200,14 @@ coverage. The reviewer did not change real HOME/config/services, update actual
 host caches or stop real daemons. The earlier user task used an existing install.
 The bundled skill passed skill-creator's quick_validate.py; that validates
 structure, not agent judgment or browser discovery.
+
+## Legacy update regression
+
+`cargo test --test legacy_upgrade` compiles a small std-only pre-shutdown IPC
+fixture using the current Rust toolchain, under ignored repository-local state.
+It is never shipped. Tests verify profile-aware graceful stop, actual process
+exit/lock release before immediate owned-binary replacement, retained history,
+stale process-identity refusal, unrelated socket-peer refusal and no signal on
+other shutdown errors. Existing modern daemon/Runner lifecycle tests continue to
+cover active-workload independence. This is automated upgrade behavior, not a
+request for another manual fault matrix or a claim of Desktop MCP wake evidence.

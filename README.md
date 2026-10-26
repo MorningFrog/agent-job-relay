@@ -10,7 +10,7 @@ Run durable background commands and route completion events to explicitly regist
 </div>
 
 A native Rust CLI, independent runner and stdio MCP server for one trusted local
-user. **v0.1.1 is an unreleased development milestone, tested on Linux x86_64.**
+user. **v0.1.2 is an unreleased development milestone, tested on Linux x86_64.**
 Delivery is moving to Agent plugins. Independent OS installers and package
 repositories are cancelled; no official plugin publication is planned during development.
 
@@ -328,9 +328,23 @@ do not delete unknown directories or another project's data. Plugin updates and
 removal must preserve history/logs/user config by default.
 
 When updating at the same install root without a state override, the existing
-state profile is retained. Finish active jobs, stop that state's daemon, rebuild,
-repeat install and refresh the host's cached plugin. Unset unrelated AJR_STATE_DIR
-exports before updating; an explicit override intentionally selects another profile.
+state profile is retained. Finish active jobs, rebuild source, stop that state's
+daemon, repeat install and refresh the host's cached plugin. The updated source executable
+can stop the correct daemon directly from the installation profile, regardless
+of an unrelated exported AJR_STATE_DIR:
+
+```bash
+cargo build --release --locked
+./target/release/agent-job-relay daemon stop --install-root "$AJR_INSTALL_ROOT"
+./target/release/agent-job-relay install --root "$AJR_INSTALL_ROOT" --apply
+```
+
+The stop command waits for the daemon lock to be released. For a verified early
+0.1.0 daemon that rejects `shutdown`, it uses that exact process's existing Ctrl-C
+handler through a Linux pidfd and reports `method=legacy_sigint`. It never signals
+a process group or force-kills a process. Install itself does not stop daemons.
+Unset unrelated AJR_STATE_DIR exports before updating; an explicit install state
+override intentionally selects another profile.
 Current Linux daemons launch runners from their loaded image even after a source
 rebuild. An already-running legacy daemon with a removed executable still needs
 an explicit idle restart; it is never silently restarted or given a new state.

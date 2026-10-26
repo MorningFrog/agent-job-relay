@@ -1,4 +1,4 @@
-# Current limitations (0.1.1 development milestone)
+# Current limitations (0.1.2 development milestone)
 
 - Linux x86_64 is the only locally compiled and process-tested runtime. Windows
   named-pipe ACLs/Job Objects and macOS instance identity/lifecycle are not
@@ -90,3 +90,10 @@ chat without one. The next live acceptance first checks updated Desktop MCP
 exposure/doctor, then qualifies the next naturally long real MCP task without
 internal paths in its prompt. Prior CLI passes do not qualify this path, and
 another manual crash matrix is not a prerequisite.
+
+Early 0.1.0 daemons without IPC shutdown can be stopped by the 0.1.2 client's
+verified Linux pidfd/SIGINT path. It requires proc access, pidfd support and a
+recognized `agent-job-relay` executable in daemon mode. Renamed binaries or failed
+identity/health checks are refused, with no force-kill fallback. Use the updated
+source executable with `daemon stop --install-root` to avoid an old installed
+launcher or wrong shell state; the real install still needs an explicit update.

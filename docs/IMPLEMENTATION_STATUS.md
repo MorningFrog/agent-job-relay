@@ -203,6 +203,7 @@ English Conventional Commits, no pushes, no remote created, no history rewrite:
 - d44654d `fix(plugin): pin installed profiles and document install-once usage`
 - fb70d5c `fix(plugin): restore MCP discovery and resilient runner startup`
 - 381c6e7 `docs: adopt plugin delivery and record real task evidence`
+- 740d21f `fix(upgrade): stop verified legacy daemons by installed profile`
 
 Live-test documentation was updated after the user confirmed the basic pass;
 see `git log` for the subsequent evidence-recording commit.
@@ -367,6 +368,7 @@ The real Codex CLI loader check passed again with 19 tools. The user explicitly
 authorized direct installation, then declined retained recovery backups.
 
 Performed the authorized personal upgrade after rechecking zero active jobs:
+
 - The actual early 0.1.0 daemon stopped via verified pidfd/SIGINT compatibility;
   the response reported stopped/legacy_sigint and its lock was released.
 - The owned stable native/plugin installation and host-managed plugin cache were

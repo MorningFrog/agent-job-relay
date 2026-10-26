@@ -10,7 +10,7 @@ Run durable background commands and route completion events to explicitly regist
 </div>
 
 面向单个可信本机用户的 Rust 原生 CLI、独立 Runner 和 stdio MCP Server。
-**v0.1.1 是尚未发布的开发里程碑，已在 Linux x86_64 验证。**
+**v0.1.2 是尚未发布的开发里程碑，已在 Linux x86_64 验证。**
 交付方向统一转向 Agent Plugin，独立系统安装包及软件仓库计划已取消；开发阶段暂不发布到官方插件平台。
 
 ## 当前能力
@@ -236,7 +236,17 @@ cargo uninstall --root "$PWD/.tmp/install" agent-job-relay
 手动复制的二进制也应在检查进程后只删除该文件。**普通移除保留状态数据。**
 当前没有 `data purge` 或系统安装包卸载器，不要删除未知目录或其他项目数据。插件升级与移除须默认保留历史、日志和用户配置。
 
-在同一安装目录更新且没有覆盖状态配置时，会保留原有状态目录。先等待活动任务结束、停止该状态的 Daemon，再构建、重新安装并刷新宿主缓存。更新前取消无关 AJR_STATE_DIR 导出；显式覆盖会主动选择另一份状态。新版 Linux Daemon 即使程序文件被源码构建替换，也能从已加载程序启动 Runner；已有旧 Daemon 若原文件已删除，仍须显式空闲重启，不会自动重启或切换状态绕过。
+在同一安装目录更新且没有覆盖状态配置时，会保留原有状态目录。先等待活动任务结束，再构建、停止该状态的 Daemon、重新安装并刷新宿主缓存。新构建的源码程序可直接按安装记录停止正确的 Daemon，不受无关 AJR_STATE_DIR 导出的影响：
+
+```bash
+cargo build --release --locked
+./target/release/agent-job-relay daemon stop --install-root "$AJR_INSTALL_ROOT"
+./target/release/agent-job-relay install --root "$AJR_INSTALL_ROOT" --apply
+```
+
+停止命令会等待 Daemon 释放锁。若已核实的早期 0.1.0 Daemon 不认识 `shutdown`，会通过 Linux pidfd 向原进程发送其已有 Ctrl-C 退出信号，并报告 `method=legacy_sigint`；不会向进程组发送信号或强制杀进程。install 本身不会停止 Daemon。更新前取消无关 AJR_STATE_DIR 导出；显式安装状态覆盖会主动选择另一份状态。
+
+新版 Linux Daemon 即使程序文件被源码构建替换，也能从已加载程序启动 Runner；已有旧 Daemon 若原文件已删除，仍须显式空闲重启，不会自动重启或切换状态绕过。
 
 ## 常见问题与开发验证
 

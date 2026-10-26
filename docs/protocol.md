@@ -122,3 +122,17 @@ The local Codex bundle uses `.codex-plugin/plugin.json` + `.mcp.json` and an
 absolute stable installation command. Actual CLI loader discovery (19 tools on
 0.164.0), standalone stdio self-check, host `job_doctor`, job execution and live
 wake remain separate evidence levels. Portable source templates are not installed.
+
+## Legacy shutdown compatibility (0.1.2 client)
+
+Early v0.1.0 daemons use IPC v1 but reject the later `shutdown` operation. The
+client preserves the responding same-UID peer PID and boot/start identity inside
+a typed remote error. Only that specific unknown-operation error activates legacy
+shutdown: recheck the original peer and healthy v0.1.0 Doctor, recognize the native
+daemon executable/arguments, open a Linux pidfd, signal SIGINT and await exit.
+Other errors, changed identities and unrecognized peers are not signalled. The
+response reports `daemon=stopped`, `method=legacy_sigint` and data preservation.
+No new operation/version is required in the old daemon; no MCP shutdown tool is
+introduced. All successful stops now wait for daemon-lock release. Installation
+profile selection is CLI-only (`daemon stop --install-root`), not a job caller
+identity or a state migration. PID/name matching alone cannot authorize a signal.
