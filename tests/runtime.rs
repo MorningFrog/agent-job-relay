@@ -578,15 +578,46 @@ async fn daemon_graceful_shutdown_keeps_runner_and_restart_dispatches_outbox() {
         })
         .await;
     let key = registered["session"]["key"].as_str().unwrap().to_string();
-    let mut spec = r.spec("sleep 0.5; echo survived");
+    let mut spec = r.spec("while [ ! -f release ]; do sleep 0.02; done; echo survived");
     spec.session = Some(key.clone());
     let v = r.call(Request::Start { spec }).await;
     let j = v["job"]["job_id"].as_str().unwrap().to_string();
     r.state(&j, &["running"]).await;
-    let mut daemon = r.daemon.take().unwrap();
+    // Queue reconciliation behind a real SQLite writer, then interrupt while
+    // the daemon is awaiting that work rather than polling its select loop.
+    let db = rusqlite::Connection::open(r.config.root.join("relay.sqlite3")).unwrap();
+    db.busy_timeout(Duration::from_secs(5)).unwrap();
+    db.execute_batch("BEGIN IMMEDIATE").unwrap();
+    let daemon_pid = r.daemon.as_ref().unwrap().id();
+    assert_eq!(unsafe { libc::kill(daemon_pid as i32, libc::SIGSTOP) }, 0);
+    db.execute_batch("ROLLBACK").unwrap();
+    Store::new(r.config.clone())
+        .start(r.spec("true"))
+        .await
+        .unwrap();
+    db.execute_batch("BEGIN IMMEDIATE").unwrap();
+    assert_eq!(unsafe { libc::kill(daemon_pid as i32, libc::SIGCONT) }, 0);
+    tokio::time::timeout(Duration::from_secs(2), async {
+        loop {
+            if tokio::time::timeout(
+                Duration::from_millis(100),
+                ipc::call(&r.config, Request::Doctor),
+            )
+            .await
+            .is_err()
+            {
+                break;
+            }
+        }
+    })
+    .await
+    .unwrap();
     unsafe {
-        libc::kill(daemon.id() as i32, libc::SIGINT);
+        assert_eq!(libc::kill(daemon_pid as i32, libc::SIGINT), 0);
     }
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    db.execute_batch("ROLLBACK").unwrap();
+    let daemon = r.daemon.as_mut().unwrap();
     tokio::time::timeout(Duration::from_secs(3), async {
         loop {
             if daemon.try_wait().unwrap().is_some() {
@@ -597,6 +628,8 @@ async fn daemon_graceful_shutdown_keeps_runner_and_restart_dispatches_outbox() {
     })
     .await
     .unwrap();
+    r.daemon.take();
+    std::fs::write(r.dir.path().join("release"), b"ready").unwrap();
     let store = Store::new(r.config.clone());
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {

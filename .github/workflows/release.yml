@@ -14,6 +14,9 @@ on:
         options: [artifacts, draft]
 permissions:
   contents: read
+env:
+  CARGO_PROFILE_DEV_DEBUG: '0'
+  CARGO_PROFILE_TEST_DEBUG: '0'
 concurrency:
   group: release-${{ inputs.version }}
   cancel-in-progress: false
@@ -22,8 +25,8 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.12'
       - name: Check requested version against this commit
@@ -39,8 +42,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
-      - uses: actions/setup-node@v4
+      - uses: Swatinem/rust-cache@v2.9.3
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: '24'
       - run: cargo fmt --check
@@ -55,7 +58,7 @@ jobs:
         run: python3 scripts/check_release.py --release .tmp/release-candidate --opencode .tmp/opencode-toolchain/node_modules/opencode-linux-x64/bin/opencode --codex "$PWD/.tmp/opencode-toolchain/node_modules/.bin/codex"
       - name: Check Claude framework without claiming a Claude host test
         run: python3 scripts/check_claude_scaffold.py --binary "$PWD/target/release/agent-job-relay"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: agent-job-relay-${{ inputs.version }}-linux-x64
           path: .tmp/release-candidate/*
@@ -68,8 +71,8 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/download-artifact@v8.0.2
         with:
           name: agent-job-relay-${{ inputs.version }}-linux-x64
           path: .tmp/release-candidate

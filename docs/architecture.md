@@ -9,7 +9,7 @@ One package and executable; CLI, stdio MCP, daemon and runner modes.
 - Runner → SQLite final state + event + delivery outbox in one transaction.
 - Daemon → capability adapter → explicit session endpoint → host acceptance.
 
-SQLite WAL, FULL synchronous, foreign keys, busy timeout, versioned schema. Each operation runs on a bounded blocking worker and uses its own connection; short IMMEDIATE write transactions serialize across daemon and runner processes. No SQLite lock crosses await. Stable UUID job/run/event/target IDs, event sequence is an SQLite monotonic integer. No external broker, HTTP listener or telemetry.
+SQLite WAL, FULL synchronous, foreign keys, busy timeout, versioned schema. Each operation runs on a bounded blocking worker and uses its own connection; short IMMEDIATE write transactions serialize across daemon and runner processes. No SQLite lock crosses await. Stable UUID job/run/event/target IDs, event sequence is an SQLite monotonic integer. No external broker, HTTP listener or telemetry. The daemon retains its SIGINT receiver across reconciliation/database awaits, so a graceful-stop request is not lost between select-loop polls.
 
 Job: queued → launching → running → completed/failed/cancelled/timeout/orphaned. Run records attempt=1, runner identity, workload identity, exit code/signal. Retrying a submission with the same key and identical spec returns the original; a changed spec conflicts. Execution is never replayed after launching uncertainty.
 

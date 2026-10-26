@@ -93,13 +93,16 @@ pub async fn serve(config: Config) -> Result<()> {
         }
         let listener = tokio::net::UnixListener::bind(&path).context("cannot bind relay socket")?;
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))?;
+        // Keep the receiver alive while reconciliation awaits database work.
+        // Recreating ctrl_c() inside select loses signals in that interval.
+        let mut interrupt = crate::platform::interrupt_signal()?;
         let delivery_task = tokio::spawn(crate::delivery::worker(store.clone()));
         let mut tick = tokio::time::interval(Duration::from_millis(100));
         let slots = std::sync::Arc::new(tokio::sync::Semaphore::new(32));
         let mut tasks = tokio::task::JoinSet::new();
         loop {
             tokio::select! {
-                _=tokio::signal::ctrl_c()=>break,
+                _=interrupt.recv()=>break,
                 _=tick.tick()=>{if let Err(e)=self::tick(&store).await {tracing::error!(error=%e,"reconciliation failed");}},
                 r=listener.accept()=>{let (s,_)=r?;let permit=match slots.clone().try_acquire_owned(){Ok(p)=>p,Err(_)=>continue};
                     let service=store.clone();tasks.spawn(async move{let _permit=permit;match crate::ipc::handle(s,service).await {Ok(shutdown)=>shutdown,Err(e)=>{tracing::debug!(error=%e,"IPC request rejected");false}}});},

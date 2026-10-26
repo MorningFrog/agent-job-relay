@@ -6,7 +6,7 @@ Last verified: **2026-10-26 (Asia/Shanghai)**. Source version **0.1.6**, unrelea
 
 One Rust package/executable provides CLI, stdio MCP, daemon and runner modes. SQLite schema is **v6**, local IPC is **v1**. Read [PROJECT_SPEC.md](../PROJECT_SPEC.md), [architecture](architecture.md) and [AGENTS.md](../AGENTS.md) before changing behavior. Historical increments/results remain in Git; concise current live verification is in [live-e2e.md](live-e2e.md).
 
-Stages 0–2 have locally verified design, Linux execution, MCP/delivery and setup implementations. Stage 3 has the version-specific host evidence described below; Stage 4 has passed local quality/documentation gates. Native Windows/macOS runtime and remaining live-host acceptance are still open. The prior remote CI failed on Windows unused-field compilation and Linux installation-test timeouts; fixes are included, but updated workflows have not run remotely.
+Stages 0–2 have locally verified design, Linux execution, MCP/delivery and setup implementations. Stage 3 has the version-specific host evidence described below; Stage 4 has passed local quality/documentation gates. Native Windows/macOS runtime and remaining live-host acceptance are still open. Windows/macOS remote checks passed; the Linux run exposed a SIGINT-during-reconciliation race. Current source retains the receiver and passes a deterministic real-SQLite regression; full remote retry is pending.
 
 ## Implemented and tested
 
@@ -71,7 +71,7 @@ Source development does not update installed/running programs or modify real con
 
 ## Host-plugin handoff
 
-Source packages, official API research, reproducible checks and community acceptance are in [host plugins](host-plugins.md), [ADR 0009](adr/0009-public-host-plugin-bridge.md) and [CONTRIBUTING.md](../CONTRIBUTING.md). OpenCode uses actual V1 1.19.4 interfaces with a simulated model; Claude is inbox-only with no maintainer account and needs community tests/PRs. V2 has a researched migration map, not a runnable entry. Linux CI now packages candidates and checks the actual installed OpenCode entry; manual release also checks the Codex catalog. The old remote run failed before host checks; updated workflows need a remote run. The existing Codex offline bundle does not include these source packages; personal installed/running 0.1.5 is unchanged. SQLite v6/IPC v1 remain, while older binaries cannot interpret plugin_bridge records.
+Source packages, official API research, reproducible checks and community acceptance are in [host plugins](host-plugins.md), [ADR 0009](adr/0009-public-host-plugin-bridge.md) and [CONTRIBUTING.md](../CONTRIBUTING.md). OpenCode uses actual V1 1.19.4 interfaces with a simulated model; Claude is inbox-only with no maintainer account and needs community tests/PRs. V2 has a researched migration map, not a runnable entry. Linux CI now packages candidates and checks the actual installed OpenCode entry; manual release also checks the Codex catalog. Remote Windows/macOS checks passed, while Linux needs the current SIGINT fix rerun before host checks are qualified remotely. The existing Codex offline bundle does not include these source packages; personal installed/running 0.1.5 is unchanged. SQLite v6/IPC v1 remain, while older binaries cannot interpret plugin_bridge records.
 
 ## Release handoff
 

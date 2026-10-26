@@ -308,3 +308,9 @@ pub async fn stop_legacy_daemon(root: &Path, pid: u32, expected_identity: &str) 
         anyhow::bail!("verified legacy daemon shutdown is only implemented on Linux")
     }
 }
+/// Retain pending SIGINT while the daemon is busy outside its select loop.
+pub fn interrupt_signal() -> Result<tokio::signal::unix::Signal> {
+    Ok(tokio::signal::unix::signal(
+        tokio::signal::unix::SignalKind::interrupt(),
+    )?)
+}
