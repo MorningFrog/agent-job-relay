@@ -4,9 +4,9 @@
 
 [English](README.md) | 简体中文
 
-Run durable background commands and route completion events to explicitly registered AI agent sessions.
+Tasks run in the background. Agents pick up when needed.
 
-持久执行后台命令, 将完成事件可靠地路由到明确注册的 AI Agent 会话.
+任务在后台运行，Agent 在需要时接棒。
 </div>
 
 让长时间命令独立于 Agent 连接运行，保存结果，并在宿主支持时通知发起任务的聊天。**v0.1.4 是尚未发布的 Linux x86_64 开发版本。** Desktop 唤醒使用实验性接口；目前不支持 Windows/macOS、Claude Code 和 OpenCode。

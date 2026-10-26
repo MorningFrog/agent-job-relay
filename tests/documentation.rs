@@ -5,8 +5,8 @@ fn readmes_have_bilingual_introductions_and_valid_local_links() {
     for name in ["README.md", "README.zh-CN.md"] {
         let text = std::fs::read_to_string(root.join(name)).unwrap();
         let intro = text.lines().take(9).collect::<Vec<_>>().join("\n");
-        assert!(intro.contains("Run durable background commands"));
-        assert!(intro.contains("持久执行后台命令"));
+        assert!(intro.contains("Tasks run in the background. Agents pick up when needed."));
+        assert!(intro.contains("任务在后台运行，Agent 在需要时接棒。"));
         // The active language can be plain text; the other language must be linked.
         assert!(intro.contains("English") && intro.contains("简体中文"));
         let other_language = if name == "README.md" {

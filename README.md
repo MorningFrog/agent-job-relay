@@ -4,9 +4,9 @@
 
 English | [简体中文](README.zh-CN.md)
 
-Run durable background commands and route completion events to explicitly registered AI agent sessions.
+Tasks run in the background. Agents pick up when needed.
 
-持久执行后台命令, 将完成事件可靠地路由到明确注册的 AI Agent 会话.
+任务在后台运行，Agent 在需要时接棒。
 </div>
 
 Run long commands independently of the Agent connection, keep their results, and notify the initiating chat when the host supports it. **v0.1.4 is an unreleased Linux x86_64 development version.** Desktop wake uses an experimental interface; Windows/macOS, Claude Code and OpenCode are not supported yet.
