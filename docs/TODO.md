@@ -6,14 +6,15 @@ Distribute through Agent plugins around one Rust/MCP runtime, targeting ChatGPT 
 
 ## Current baseline
 
-- Source **0.1.3**, Linux only: local Codex/Desktop plugin, pinned profiles, safe owned-file/configuration management, shared-MCP terminal binding, TTL-bounded temporary retries, same-chat recovery and verified delivery-time renewal are implemented and tested.
-- The isolated actual Codex CLI 0.164.0 loader discovers **20 tools**. The last verified personal installation is **0.1.2**, whose Desktop MCP connectivity is user-confirmed; source 0.1.3 has not been personally installed.
+- Source **0.1.4**, Linux only: offline native plugin export/bootstrap/update, explicit checked cache refresh, pinned profiles, owned configuration, shared-MCP terminal binding, TTL-bounded retries, same-chat recovery and verified delivery-time renewal are implemented and tested.
+- The isolated actual Codex CLI 0.164.0 loader bootstraps a relocated offline bundle, checks its actual cache and discovers **20 tools**. The last verified personal installation is **0.1.2**, whose Desktop MCP connectivity is user-confirmed; source 0.1.4 has not been personally installed.
 - CLI live wake and the installed skill/CLI fallback task passed. Real installed MCP submission/wake and plugin browser discovery/install remain separate open checks. Detailed evidence belongs in [implementation status](IMPLEMENTATION_STATUS.md) and [live E2E](live-e2e.md), not this backlog.
 
 ## Host integration and plugin delivery
 
 - **P0:** use the next naturally long real MCP task to qualify submission and same-chat continuation. Do not repeat passed connectivity/CLI workloads or require an artificial manual crash matrix. Keep configuration, local stdio self-check, host discovery and observed continuation separate.
-- **P1:** implement plugin-managed native runtime bootstrap/update/cache handling so users need neither Rust nor manual executable paths. Native artifacts inside plugins do not revive the cancelled OS-package plan.
+- **Completed local increment:** offline `plugin pack/bootstrap/update`, version/profile preservation, managed cache launchers and explicit snapshot inspection/refresh. Recipients need no Rust; no personal installation was updated. See [ADR 0007](adr/0007-offline-plugin-runtime.md).
+- **P1:** extend offline bootstrap to verified host-driven installation and portable local launch paths as loaders support them; design authenticated native artifact download/provenance before any online installer. The tested loader still requires a stable original installation, and legacy caches need host refresh first. Native artifacts inside plugins do not revive OS packages; no download/publication is implemented.
 - **P1:** add Claude Code's actual manifest/MCP/skills layout and locally verify installation, exact caller identity and supported completion/continuation. Reuse the Rust runtime; the Desktop socket is not a Claude adapter.
 - **P1:** choose and document OpenCode V1/V2, then implement its supported plugin mechanism, MCP bridge and owned-session routing. Verify notification versus continuation independently; ship no placeholder support claims.
 - **P1:** generate host descriptors from shared metadata where useful, but test each real loader. The current Codex development bundle requires `.codex-plugin/plugin.json`, `.mcp.json` and a stable absolute native command.

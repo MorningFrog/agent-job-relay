@@ -40,9 +40,25 @@ async def run(binary, codex):
         return result.stdout
 
     version = command([codex, "--version"], "version").strip()
-    command([binary, "--state-dir", state, "install", "--root", bundle, "--apply"], "install")
-    command([bundle / "relay", "setup", "plugin", "--apply"], "marketplace")
-    command([codex, "plugin", "add", "agent-job-relay@agent-job-relay-local", "--json"], "plugin-add")
+    exported = root / "offline-export"
+    relocated = root / "relocated-offline-bundle"
+    command([binary, "plugin", "pack", "--output", exported, "--apply"], "pack")
+    exported.rename(relocated)
+    command([relocated / "relay", "--state-dir", state, "plugin", "bootstrap",
+             "--root", bundle, "--apply"], "bootstrap")
+    shutil.rmtree(relocated)  # The owned installation must outlive its delivery artifact.
+    added = json.loads(command([codex, "plugin", "add", "agent-job-relay@agent-job-relay-local", "--json"], "plugin-add"))
+    cache = Path(added["installedPath"])
+    if not cache.is_relative_to(codex_home):
+        raise RuntimeError("isolated loader returned a cache outside its disposable CODEX_HOME")
+    cache_report = json.loads(command([bundle / "relay", "plugin", "status", "--root", bundle,
+                                      "--cache", cache], "cache-status"))
+    if not cache_report["caches"][0]["matches_installed"]:
+        raise RuntimeError("actual loader cache differs from the bootstrapped installation")
+    refreshed = json.loads(command([bundle / "relay", "plugin", "cache", "refresh", "--root", bundle,
+                                   "--path", cache, "--apply"], "cache-refresh"))
+    if refreshed["changed"]:
+        raise RuntimeError("newly installed loader cache should already be current")
     with (root / "app-server.stderr").open("wb") as errors:
         child = await asyncio.create_subprocess_exec(
             codex, "app-server", "--stdio", cwd=home, env=env,
@@ -87,6 +103,7 @@ async def run(binary, codex):
             report = {"result": "passed", "codex": version,
                       "binary_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(),
                       "tools": sorted(server["tools"]), "model_turn_started": False,
+                      "offline_bootstrap": "passed", "cache_status": cache_report,
                       "real_host_contacted": False, "real_configuration_changed": False}
             (root / "report.json").write_text(json.dumps(report, indent=2) + "\n")
             print(json.dumps({"result": "passed", "tools": len(server["tools"]), "report": str(root / "report.json")}))

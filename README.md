@@ -9,7 +9,7 @@ Run durable background commands and route completion events to explicitly regist
 持久执行后台命令, 将完成事件可靠地路由到明确注册的 AI Agent 会话.
 </div>
 
-A native Rust CLI, independent runner and stdio MCP server for one trusted local user. **v0.1.3 is an unreleased development milestone, tested on Linux x86_64.** Delivery is moving to Agent plugins. Independent OS installers and package repositories are cancelled; no official plugin publication is planned during development.
+A native Rust CLI, independent runner and stdio MCP server for one trusted local user. **v0.1.4 is an unreleased development milestone, tested on Linux x86_64.** Delivery is moving to Agent plugins. Independent OS installers and package repositories are cancelled; no official plugin publication is planned during development.
 
 ## What works today
 
@@ -23,7 +23,8 @@ A native Rust CLI, independent runner and stdio MCP server for one trusted local
 | Codex CLI integration | MCP configuration and notification inbox; **no automatic resume** |
 | Desktop wake | Experimental Unix socket; fake-host tests and user-confirmed explicit-registration/CLI same-chat wake |
 | Setup, doctor and owned MCP removal | Isolated configuration tests; no real user settings changed |
-| Local Desktop Plugin + MCP | Source 0.1.3: Codex CLI 0.164.0 loader discovers 20 tools in isolation; installed MCP task/wake and plugin-browser evidence pending |
+| Local Desktop Plugin + MCP | Source 0.1.4: Codex CLI 0.164.0 loader discovers 20 tools in isolation; installed MCP task/wake and plugin-browser evidence pending |
+| Plugin runtime management | Offline native bundle, profile-preserving update, explicit cache inspection/refresh; recipients need no Rust compiler |
 | Windows/macOS runtime | **Not implemented/verified**; requests fail explicitly |
 
 Job completion, `notification_recorded`, `accepted_by_host` and observed Agent execution are distinct. No adapter automatically confirms resume; Desktop `can_resume` describes the request mechanism. On ChatGPT Desktop 26.1021.22027 / Ubuntu 26.04, the user confirmed explicit-registration and CLI shortcut same-chat wake, including a quiet control chat and idle-daemon restart. An installed skill/CLI fallback task also resumed, and v0.1.2 MCP connectivity was user-confirmed without a new reviewed transcript. These results do not qualify installed MCP task/wake, Desktop restart/rebind or browser installation; see [live evidence](docs/live-e2e.md).
@@ -48,11 +49,22 @@ Restart Desktop, open Plugins and select your personal local marketplace (`Agent
 
 Everyday prompts need no tool path, state directory or session ID. The skill binds the current chat, submits through MCP when available and explicitly reports CLI fallback. It uses the chosen project's working directory, ends the turn after submission and reads results on completion.
 
-The local bundle uses `.codex-plugin/plugin.json` and `.mcp.json`. Source 0.1.3 includes `job_recover_session` among its 20 tools; updating source does not update a personal install or cache. `doctor --check-mcp` checks local stdio, while an actual host `job_doctor` call checks MCP connectivity. See [installation](docs/installation.md).
+The local bundle uses `.codex-plugin/plugin.json` and `.mcp.json`. Source 0.1.4 includes `job_recover_session` among its 20 tools; updating source does not update a personal install or cache. `doctor --check-mcp` checks local stdio, while an actual host `job_doctor` call checks MCP connectivity. See [installation](docs/installation.md).
 
-Installation leaves PATH and services unchanged. State is separate from binaries and pinned across plugin-cache copies; exported AJR_STATE_DIR is ignored by the plugin, while explicit CLI `--state-dir` can override it. The default root is `$XDG_DATA_HOME/agent-job-relay` or the path above; use a HOME-contained root for a personal marketplace. Cached MCP needs the stable absolute native path, so retain the original installation.
+Installation leaves PATH and services unchanged. State is separate from binaries and pinned across plugin-cache copies; exported AJR_STATE_DIR is ignored by the plugin, while explicit CLI `--state-dir` can override it. The default root is `$XDG_DATA_HOME/agent-job-relay` or the path above; use a HOME-contained root for a personal marketplace. Cached MCP and terminal launchers both use the managed native installation, which must remain present.
 
 For a standalone MCP configuration, use the installed launcher's `setup codex` instead of `setup plugin`. The server advertises the same terminal-binding workflow. Avoid registering both routes for the same host/state unnecessarily.
+
+To provide a compatible Linux user with an offline bundle, build once and export it locally:
+
+```bash
+AJR_BUNDLE="$PWD/.tmp/agent-job-relay-offline"
+./target/release/agent-job-relay plugin pack --output "$AJR_BUNDLE" --apply
+"$AJR_BUNDLE/relay" plugin bootstrap --dry-run
+"$AJR_BUNDLE/relay" plugin bootstrap --apply
+```
+
+The received directory can be moved before bootstrap; its `relay plugin bootstrap` installs the native runtime and owned local marketplace entry without Rust, Python or Node. It validates file hashes and the OS/architecture/ABI label, uses the recipient's state profile and preserves existing history. Use a trusted bundle: local hashes check integrity, not publisher identity. The export is a local development artifact, not a directly installable marketplace ZIP or published release.
 
 ## Source-only development quick start
 
@@ -222,6 +234,8 @@ cargo build --release --locked
 
 The stop command waits for the daemon lock to be released. For a verified early 0.1.0 daemon that rejects `shutdown`, it uses that exact process's existing Ctrl-C handler through a Linux pidfd and reports `method=legacy_sigint`. It never signals a process group or force-kills a process. Install itself does not stop daemons. Unset unrelated AJR_STATE_DIR exports before updating; an explicit install state override intentionally selects another profile. Current Linux daemons launch runners from their loaded image even after a source rebuild. An already-running legacy daemon with a removed executable still needs an explicit idle restart; it is never silently restarted or given a new state.
 
+For later offline updates, use `relay plugin update --from "$AJR_BUNDLE" --root "$AJR_INSTALL_ROOT" --dry-run`, then `--apply` after the same-profile runtime is idle. This path always retains the recorded state, rejects downgrades and does not stop daemons. Add repeated `--cache <absolute-cache-directory>` arguments to preflight and refresh selected snapshots. `plugin status --root ... --cache ...` reports staleness; `plugin cache refresh --root ... --path ... --apply` refreshes separately. Modified/foreign caches are refused, backups retained, and legacy caches without the new runtime profile must first be refreshed through the host. No cache scan or deletion occurs; reconnect MCP after updating.
+
 ## Troubleshooting and development
 
 - **Daemon unavailable:** submissions auto-start it using the same state root. `doctor` intentionally checks without starting it. For startup failures run foreground `daemon` to see diagnostics; no OS service is installed.
@@ -243,7 +257,7 @@ Tests create isolated state under `.tmp/`, exercise real processes on Linux, and
 
 ## Plugin roadmap
 
-Use one Rust/MCP core with host-specific plugins. Codex/Desktop has a local Linux development bundle; Claude Code/OpenCode, native runtime bootstrap/update and task output monitoring/interruption remain future work. Output monitoring is recorded only: current log reads/follow and manual stop do not implement it.
+Use one Rust/MCP core with host-specific plugins. Codex/Desktop has a local Linux development bundle with offline bootstrap/update and explicit cache refresh. Automatic download, host-driven bootstrap, Claude Code/OpenCode and task output monitoring/interruption remain future work. Output monitoring is recorded only: current log reads/follow and manual stop do not implement it.
 
 Future delivery should use each Agent's officially supported plugin platform or installation mechanism. The project remains in development: **no platform submission, package upload or public release now**. Independent OS installers, package repositories and their publication pipelines are cancelled. Native runtime artifacts inside plugins may still be needed per OS/architecture. See the [Plugin roadmap](docs/TODO.md) for actual support and future work.
 

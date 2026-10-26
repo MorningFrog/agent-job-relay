@@ -1,4 +1,4 @@
-//! Private local plugin installation; cached MCP keeps a stable original command.
+//! Private local installation and shared, ownership-checked plugin artifacts.
 use crate::{config::Config, core::id};
 use anyhow::{Context, Result, bail, ensure};
 use serde::{Deserialize, Serialize};
@@ -11,22 +11,34 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-const RECEIPT: &str = ".agent-job-relay-install.json";
+pub(crate) const RECEIPT: &str = ".agent-job-relay-install.json";
+pub(crate) const PROFILE: &str = ".agent-job-relay-runtime.json";
 const MAX_FILE: u64 = 128 * 1024 * 1024;
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Receipt {
-    format: u32,
-    product: String,
-    root: PathBuf,
-    state_dir: PathBuf,
-    files: BTreeMap<String, String>,
+pub(crate) struct Receipt {
+    pub(crate) format: u32,
+    pub(crate) product: String,
+    pub(crate) root: PathBuf,
+    pub(crate) state_dir: PathBuf,
+    pub(crate) files: BTreeMap<String, String>,
 }
-struct Artifact {
-    bytes: Vec<u8>,
-    executable: bool,
+#[derive(Clone)]
+pub(crate) struct Artifact {
+    pub(crate) bytes: Vec<u8>,
+    pub(crate) executable: bool,
 }
-fn checked_path(path: &Path) -> Result<()> {
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct RuntimeProfile {
+    pub(crate) format: u32,
+    pub(crate) install_root: PathBuf,
+    pub(crate) state_dir: PathBuf,
+    pub(crate) version: String,
+    pub(crate) platform: String,
+    pub(crate) files: BTreeMap<String, String>,
+}
+pub(crate) fn checked_path(path: &Path) -> Result<()> {
     ensure!(
         path.is_absolute() && path.parent().is_some(),
         "use an absolute, non-root install path"
@@ -48,7 +60,7 @@ fn checked_path(path: &Path) -> Result<()> {
     }
     Ok(())
 }
-fn read_file(path: &Path) -> Result<Vec<u8>> {
+pub(crate) fn read_file(path: &Path) -> Result<Vec<u8>> {
     let m = std::fs::symlink_metadata(path)?;
     ensure!(
         m.is_file() && !m.file_type().is_symlink() && m.len() <= MAX_FILE,
@@ -65,10 +77,10 @@ fn read_file(path: &Path) -> Result<Vec<u8>> {
     }
     Ok(std::fs::read(path)?)
 }
-fn digest(bytes: &[u8]) -> String {
+pub(crate) fn digest(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
-fn read_receipt(root: &Path) -> Result<Receipt> {
+pub(crate) fn read_receipt(root: &Path) -> Result<Receipt> {
     let r: Receipt = serde_json::from_slice(&read_file(&root.join(RECEIPT))?)
         .context("invalid installation receipt; nothing was changed")?;
     ensure!(
@@ -134,6 +146,17 @@ pub fn default_root() -> Result<PathBuf> {
         .context("HOME/XDG_DATA_HOME unavailable; pass --root")?
         .join("agent-job-relay"))
 }
+/// Management launched through a custom installation defaults to that install,
+/// rather than asking users to repeat its path or selecting another profile.
+pub fn plugin_root() -> Result<PathBuf> {
+    let exe = std::env::current_exe()?;
+    if let Some(root) = exe.parent().and_then(Path::parent)
+        && root.join(RECEIPT).try_exists()?
+    {
+        return installed_root();
+    }
+    default_root()
+}
 /// An update without a state override must keep the installation's existing
 /// history, rather than switch to the source executable's default directory.
 pub fn installation_state(root: &Path) -> Result<Option<PathBuf>> {
@@ -149,7 +172,7 @@ pub fn installation_state(root: &Path) -> Result<Option<PathBuf>> {
         Ok(None)
     }
 }
-fn artifacts(config: &Config, root: &Path) -> Result<BTreeMap<String, Artifact>> {
+pub(crate) fn payload() -> Result<BTreeMap<String, Artifact>> {
     let mut files = BTreeMap::new();
     let entries: &[(&str, &[u8], bool)] = &[
         (
@@ -177,6 +200,7 @@ fn artifacts(config: &Config, root: &Path) -> Result<BTreeMap<String, Artifact>>
             include_bytes!("../assets/icons/agent-job-relay.svg"),
             false,
         ),
+        ("LICENSE", include_bytes!("../LICENSE"), false),
     ];
     for (name, bytes, executable) in entries {
         files.insert(
@@ -187,26 +211,10 @@ fn artifacts(config: &Config, root: &Path) -> Result<BTreeMap<String, Artifact>>
             },
         );
     }
-    // The tested Codex loader needs the explicit compatibility manifest. Its
-    // stdio transport does not expand PLUGIN_ROOT: configure the stable local
-    // installation once, rather than depending on an unverified placeholder.
-    let mut mcp: Value =
-        serde_json::from_slice(include_bytes!("../plugins/agent-job-relay/.mcp.json"))?;
-    mcp["mcpServers"]["agent-job-relay"]["command"] = json!(root.join("bin/agent-job-relay"));
-    mcp["mcpServers"]["agent-job-relay"]["args"] =
-        json!(["--state-dir", config.root, "mcp", "--shared-host"]);
-    files.get_mut(".mcp.json").unwrap().bytes = serde_json::to_vec_pretty(&mcp)?;
-    let quoted_state = format!(
-        "'{}'",
-        config
-            .root
-            .to_str()
-            .context("installed state path must be UTF-8")?
-            .replace('\'', "'\"'\"'")
-    );
-    files.get_mut("relay").unwrap().bytes = include_str!("../plugins/agent-job-relay/relay")
-        .replace("__AJR_INSTALLED_STATE__", &quoted_state)
-        .into_bytes();
+    let mut identity: Value = serde_json::from_slice(&files[".codex-plugin/plugin.json"].bytes)?;
+    identity["version"] = json!(env!("CARGO_PKG_VERSION"));
+    files.get_mut(".codex-plugin/plugin.json").unwrap().bytes =
+        serde_json::to_vec_pretty(&identity)?;
     files.insert(
         "bin/agent-job-relay".into(),
         Artifact {
@@ -216,7 +224,71 @@ fn artifacts(config: &Config, root: &Path) -> Result<BTreeMap<String, Artifact>>
     );
     Ok(files)
 }
-fn actual_files(root: &Path, dir: &Path, files: &mut BTreeSet<String>) -> Result<()> {
+pub(crate) fn render(
+    config: &Config,
+    root: &Path,
+    mut files: BTreeMap<String, Artifact>,
+) -> Result<BTreeMap<String, Artifact>> {
+    // The tested Codex loader needs the explicit compatibility manifest. Its
+    // stdio transport does not expand PLUGIN_ROOT: configure the stable local
+    // installation once, rather than depending on an unverified placeholder.
+    let mut mcp: Value = serde_json::from_slice(&files[".mcp.json"].bytes)?;
+    ensure!(
+        mcp.is_object()
+            && mcp["mcpServers"].is_object()
+            && mcp["mcpServers"]["agent-job-relay"].is_object(),
+        "invalid bundled MCP configuration"
+    );
+    mcp["mcpServers"]["agent-job-relay"]["command"] = json!(root.join("bin/agent-job-relay"));
+    mcp["mcpServers"]["agent-job-relay"]["args"] =
+        json!(["--state-dir", config.root, "mcp", "--shared-host"]);
+    files.get_mut(".mcp.json").unwrap().bytes = serde_json::to_vec_pretty(&mcp)?;
+    let launcher = std::str::from_utf8(&files["relay"].bytes)?;
+    ensure!(
+        launcher.contains("__AJR_INSTALLED_STATE__")
+            && launcher.contains("__AJR_INSTALLED_EXECUTABLE__"),
+        "bundled launcher lacks installation placeholders"
+    );
+    files.get_mut("relay").unwrap().bytes = launcher
+        .replace("__AJR_INSTALLED_STATE__", &shell_quote(&config.root)?)
+        .replace(
+            "__AJR_INSTALLED_EXECUTABLE__",
+            &shell_quote(&root.join("bin/agent-job-relay"))?,
+        )
+        .into_bytes();
+    let identity: Value = serde_json::from_slice(&files[".codex-plugin/plugin.json"].bytes)?;
+    let profile = RuntimeProfile {
+        format: 1,
+        install_root: root.into(),
+        state_dir: config.root.clone(),
+        version: identity["version"]
+            .as_str()
+            .context("missing plugin version")?
+            .into(),
+        platform: crate::platform::runtime_target(),
+        files: files
+            .iter()
+            .map(|(name, f)| (name.clone(), digest(&f.bytes)))
+            .collect(),
+    };
+    files.insert(
+        PROFILE.into(),
+        Artifact {
+            bytes: serde_json::to_vec_pretty(&profile)?,
+            executable: false,
+        },
+    );
+    Ok(files)
+}
+fn shell_quote(path: &Path) -> Result<String> {
+    Ok(format!(
+        "'{}'",
+        path.to_str()
+            .context("installed path must be UTF-8")?
+            .replace('\'', "'\"'\"'")
+    ))
+}
+pub(crate) fn actual_files(root: &Path, dir: &Path, files: &mut BTreeSet<String>) -> Result<()> {
     for item in std::fs::read_dir(dir)? {
         let path = item?.path();
         let m = std::fs::symlink_metadata(&path)?;
@@ -244,7 +316,7 @@ fn actual_files(root: &Path, dir: &Path, files: &mut BTreeSet<String>) -> Result
     }
     Ok(())
 }
-fn verify_owned(root: &Path, receipt: &Receipt) -> Result<()> {
+pub(crate) fn verify_owned(root: &Path, receipt: &Receipt) -> Result<()> {
     ensure!(
         receipt.root == root,
         "installation was moved; use a fresh install root instead of replacing it"
@@ -309,7 +381,7 @@ fn idle_guards(state: &Path, install_root: &Path) -> Result<Vec<File>> {
     }
     Ok(locks)
 }
-fn write_artifact(path: &Path, file: &Artifact) -> Result<()> {
+pub(crate) fn write_artifact(path: &Path, file: &Artifact) -> Result<()> {
     crate::platform::secure_dir(path.parent().context("install parent missing")?)?;
     let mut out = crate::platform::private_file(path)?;
     out.write_all(&file.bytes)?;
@@ -325,6 +397,20 @@ fn write_artifact(path: &Path, file: &Artifact) -> Result<()> {
     Ok(())
 }
 pub fn change(config: &Config, root: PathBuf, remove: bool, apply: bool) -> Result<Value> {
+    let files = if remove {
+        BTreeMap::new()
+    } else {
+        render(config, &root, payload()?)?
+    };
+    change_artifacts(config, root, remove, apply, files)
+}
+pub(crate) fn change_artifacts(
+    config: &Config,
+    root: PathBuf,
+    remove: bool,
+    apply: bool,
+    files: BTreeMap<String, Artifact>,
+) -> Result<Value> {
     crate::platform::require_runtime()?;
     checked_path(&root)?;
     checked_path(&config.root)?;
@@ -344,12 +430,10 @@ pub fn change(config: &Config, root: PathBuf, remove: bool, apply: bool) -> Resu
     };
     if let Some(old) = &existing {
         verify_owned(&root, old)?;
+        if !remove {
+            crate::plugin::guard_downgrade(&root, &files)?;
+        }
     }
-    let files = if remove {
-        BTreeMap::new()
-    } else {
-        artifacts(config, &root)?
-    };
     let desired = Receipt {
         format: 1,
         product: "agent-job-relay".into(),
@@ -384,6 +468,9 @@ pub fn change(config: &Config, root: PathBuf, remove: bool, apply: bool) -> Resu
         let mut guards = Vec::new();
         if let Some(old) = &existing {
             verify_owned(&root, old)?;
+            if !remove {
+                crate::plugin::guard_downgrade(&root, &files)?;
+            }
             guards.extend(idle_guards(&old.state_dir, &root)?);
         }
         if remove {

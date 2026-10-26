@@ -50,6 +50,17 @@ pub fn require_runtime() -> Result<()> {
     }
     Ok(())
 }
+/// Bundle compatibility is explicit; a plugin does not add native OS support.
+pub fn runtime_target() -> String {
+    let abi = if cfg!(target_env = "musl") {
+        "musl"
+    } else if cfg!(target_env = "gnu") {
+        "gnu"
+    } else {
+        "native"
+    };
+    format!("{}-{}-{abi}", std::env::consts::ARCH, std::env::consts::OS)
+}
 /// Execute the mapped image even after a rebuild or cache refresh unlinks its path.
 pub fn self_image() -> Result<std::path::PathBuf> {
     require_runtime()?;

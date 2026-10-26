@@ -44,9 +44,17 @@ fn checked_read(path: &Path) -> Result<Option<String>> {
         Err(e) => Err(e.into()),
     }
 }
-fn desired(config: &Config, client: Client, path: &Path) -> Result<Value> {
+fn desired(
+    config: &Config,
+    client: Client,
+    path: &Path,
+    plugin_root: Option<&Path>,
+) -> Result<Value> {
     if client == Client::Plugin {
-        let root = crate::deployment::installed_root()?;
+        let root = plugin_root
+            .map(Path::to_path_buf)
+            .map(Ok)
+            .unwrap_or_else(crate::deployment::installed_root)?;
         let marketplace = path
             .parent()
             .and_then(Path::parent)
@@ -202,13 +210,31 @@ pub fn configure(
     remove: bool,
     apply: bool,
 ) -> Result<Value> {
+    configure_inner(config, client, path, remove, apply, None)
+}
+/// Bootstrap can validate marketplace ownership before creating its installation.
+pub fn configure_plugin_at(
+    config: &Config,
+    root: &Path,
+    path: PathBuf,
+    apply: bool,
+) -> Result<Value> {
+    configure_inner(config, Client::Plugin, path, false, apply, Some(root))
+}
+fn configure_inner(
+    config: &Config,
+    client: Client,
+    path: PathBuf,
+    remove: bool,
+    apply: bool,
+    plugin_root: Option<&Path>,
+) -> Result<Value> {
     ensure!(
         path.is_absolute() && path.file_name().is_some(),
         "--config must be an absolute file path"
     );
-    let receipt_path = receipt(&path)?;
     if !apply {
-        return plan(config, client, &path, &receipt_path, remove, false);
+        return plan(config, client, &path, remove, false, plugin_root);
     }
     std::fs::create_dir_all(path.parent().context("config parent missing")?)?;
     let lock_path = path.with_file_name(format!(
@@ -218,19 +244,20 @@ pub fn configure(
     let lock = crate::platform::private_file(&lock_path)?;
     lock.try_lock()
         .context("another setup/removal is editing this configuration")?;
-    plan(config, client, &path, &receipt_path, remove, true)
+    plan(config, client, &path, remove, true, plugin_root)
 }
 fn plan(
     config: &Config,
     client: Client,
     path: &Path,
-    receipt_path: &Path,
     remove: bool,
     apply: bool,
+    plugin_root: Option<&Path>,
 ) -> Result<Value> {
+    let receipt_path = receipt(path)?;
     let existing = checked_read(path)?;
     let raw = existing.as_deref().unwrap_or("");
-    let receipt = checked_read(receipt_path)?
+    let receipt = checked_read(&receipt_path)?
         .map(|s| serde_json::from_str::<Receipt>(&s))
         .transpose()
         .context("invalid ownership receipt; inspect it before changing configuration")?;
@@ -244,7 +271,7 @@ fn plan(
     let desired = if remove {
         Value::Null
     } else {
-        desired(config, client, path)?
+        desired(config, client, path, plugin_root)?
     };
     let replacement = if remove { None } else { Some(&desired) };
     let (output, current) = edit(client, raw, replacement)?;
@@ -282,7 +309,7 @@ fn plan(
                 config_path: path.into(),
                 entry: desired.clone(),
             };
-            atomic_write(receipt_path, &serde_json::to_vec_pretty(&r)?)?;
+            atomic_write(&receipt_path, &serde_json::to_vec_pretty(&r)?)?;
         }
         atomic_write(path, output.as_bytes())?;
         if remove && receipt.is_some() {

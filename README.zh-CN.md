@@ -9,7 +9,7 @@ Run durable background commands and route completion events to explicitly regist
 持久执行后台命令, 将完成事件可靠地路由到明确注册的 AI Agent 会话.
 </div>
 
-面向单个可信本机用户的 Rust 原生 CLI、独立 Runner 和 stdio MCP Server。 **v0.1.3 是尚未发布的开发里程碑，已在 Linux x86_64 验证。** 交付方向统一转向 Agent Plugin，独立系统安装包及软件仓库计划已取消；开发阶段暂不发布到官方插件平台。
+面向单个可信本机用户的 Rust 原生 CLI、独立 Runner 和 stdio MCP Server。 **v0.1.4 是尚未发布的开发里程碑，已在 Linux x86_64 验证。** 交付方向统一转向 Agent Plugin，独立系统安装包及软件仓库计划已取消；开发阶段暂不发布到官方插件平台。
 
 ## 当前能力
 
@@ -23,7 +23,8 @@ Run durable background commands and route completion events to explicitly regist
 | Codex CLI 集成 | MCP 配置与通知收件箱；**不能自动恢复 Agent** |
 | Desktop 唤醒 | 实验性 Unix Socket；假宿主测试，以及用户确认的显式登记/CLI 同聊天唤醒 |
 | setup、doctor、移除所属 MCP 项 | 隔离配置测试；没有修改真实用户设置 |
-| 本地 Desktop Plugin + MCP | 源码 0.1.3 的 Codex CLI 0.164.0 隔离加载检查发现 20 个工具；安装后 MCP 任务/唤醒及插件界面证据待验收 |
+| 本地 Desktop Plugin + MCP | 源码 0.1.4 的 Codex CLI 0.164.0 隔离加载检查发现 20 个工具；安装后 MCP 任务/唤醒及插件界面证据待验收 |
+| 插件运行时管理 | 离线原生程序包、保留状态的更新、显式缓存检查/刷新；接收端无需 Rust 编译器 |
 | Windows/macOS 运行时 | **尚未实现/验证**，明确返回不支持 |
 
 任务完成、`notification_recorded`、`accepted_by_host` 与观察到 Agent 真正继续执行是不同状态。没有适配器能自动确认恢复；Desktop 的 `can_resume` 只描述请求机制。在 ChatGPT Desktop 26.1021.22027 / Ubuntu 26.04 上，用户确认显式登记和 CLI 快捷入口能够同聊天唤醒，覆盖对照聊天无错投及空闲 Daemon 重启。安装后的技能/CLI 降级任务也已唤醒；0.1.2 MCP 连通性获用户确认，但未独立审阅新的调用记录。这些结果不证明安装后 MCP 任务/唤醒、Desktop 重启/重绑或插件界面安装，详见[真实验证记录](docs/live-e2e.md)。
@@ -48,11 +49,22 @@ AJR_INSTALL_ROOT="$HOME/.local/share/agent-job-relay"
 
 日常提示词无需工具路径、状态目录或会话 ID。技能绑定当前聊天，在 MCP 可用时通过 MCP 提交，否则明确报告 CLI 降级。工作目录来自所选项目；提交后结束回合，完成时读取结果。
 
-本地程序包使用 `.codex-plugin/plugin.json` 和 `.mcp.json`。源码 0.1.3 的 20 个工具包含 `job_recover_session`；更新源码不会更新个人安装或缓存。`doctor --check-mcp` 检查本地 stdio，宿主内实际调用 `job_doctor` 才能检查 MCP 连通性。详见[安装说明](docs/installation.md)。
+本地程序包使用 `.codex-plugin/plugin.json` 和 `.mcp.json`。源码 0.1.4 的 20 个工具包含 `job_recover_session`；更新源码不会更新个人安装或缓存。`doctor --check-mcp` 检查本地 stdio，宿主内实际调用 `job_doctor` 才能检查 MCP 连通性。详见[安装说明](docs/installation.md)。
 
-安装不修改 PATH 或服务。状态数据与程序分离，插件缓存副本使用固定配置，不受已导出 AJR_STATE_DIR 影响；显式 CLI `--state-dir` 仍可覆盖。默认安装根目录为 `$XDG_DATA_HOME/agent-job-relay` 或上述路径；个人 marketplace 应使用 HOME 内的目录。缓存中的 MCP 依赖稳定的原生程序绝对路径，须保留原安装目录。
+安装不修改 PATH 或服务。状态数据与程序分离，插件缓存副本使用固定配置，不受已导出 AJR_STATE_DIR 影响；显式 CLI `--state-dir` 仍可覆盖。默认安装根目录为 `$XDG_DATA_HOME/agent-job-relay` 或上述路径；个人 marketplace 应使用 HOME 内的目录。缓存中的 MCP 和终端启动器都使用受管理的原生程序，须保留该安装目录。
 
 如只配置独立 MCP，可将已安装启动器的 `setup plugin` 改为 `setup codex`。服务器指引同样包含当前终端绑定流程。不必在同一宿主/状态目录重复登记两种入口。
+
+为兼容的 Linux 用户提供离线包时，构建一次后在本地导出：
+
+```bash
+AJR_BUNDLE="$PWD/.tmp/agent-job-relay-offline"
+./target/release/agent-job-relay plugin pack --output "$AJR_BUNDLE" --apply
+"$AJR_BUNDLE/relay" plugin bootstrap --dry-run
+"$AJR_BUNDLE/relay" plugin bootstrap --apply
+```
+
+接收的目录可在初始化前搬移；其中的 `relay plugin bootstrap` 会安装原生运行时和所属本地 marketplace 条目，无需 Rust、Python 或 Node。它校验文件摘要和系统/架构/ABI 标签，使用接收端的状态配置并保留已有历史。仅使用可信来源的包：本地摘要校验完整性，不能认证发布者。导出物是本地开发产物，不是可直接导入 marketplace 的 ZIP 或已发布版本。
 
 ## 仅使用源码的开发快速开始
 
@@ -224,6 +236,8 @@ cargo build --release --locked
 
 新版 Linux Daemon 即使程序文件被源码构建替换，也能从已加载程序启动 Runner；已有旧 Daemon 若原文件已删除，仍须显式空闲重启，不会自动重启或切换状态绕过。
 
+后续离线更新使用 `relay plugin update --from "$AJR_BUNDLE" --root "$AJR_INSTALL_ROOT" --dry-run`，待同一状态的运行时空闲后再用 `--apply`。此入口始终保留安装记录中的状态配置，拒绝降级，不会停止 Daemon。可重复添加 `--cache <缓存绝对目录>`，预检并刷新指定副本。`plugin status --root ... --cache ...` 报告缓存是否过期；`plugin cache refresh --root ... --path ... --apply` 可单独刷新。拒绝已修改或外来缓存，保留备份；缺少新运行时配置的旧缓存须先通过宿主刷新。不扫描或删除缓存，更新后需重新连接 MCP。
+
 ## 常见问题与开发验证
 
 - **Daemon unavailable：** 提交任务会自动启动相同状态目录的 Daemon；`doctor` 只检查，不会主动启动。 自动启动失败时，用前台 `daemon` 查看诊断；没有安装系统服务。
@@ -245,7 +259,7 @@ cargo build --release --locked
 
 ## Plugin 路线图
 
-复用一个 Rust/MCP 核心，分别适配宿主插件。Codex/Desktop 已有本地 Linux 开发程序包；Claude Code/OpenCode、原生运行时引导/升级和任务输出监视/中断仍待后续实现。输出监视目前仅记录需求，现有日志查询、跟随和手动停止并不提供该能力。
+复用一个 Rust/MCP 核心，分别适配宿主插件。Codex/Desktop 已有本地 Linux 开发程序包，支持离线初始化/更新及显式缓存刷新。自动下载、宿主驱动的初始化、Claude Code/OpenCode 和任务输出监视/中断仍待后续实现。输出监视目前仅记录需求，现有日志查询、跟随和手动停止并不提供该能力。
 
 未来优先使用各 Agent 官方支持的插件平台或安装机制。当前仍在开发阶段，**暂不向平台提交、不上传包、不公开发布**。独立系统安装包、软件仓库及其发布流水线已取消；插件内部仍可能需要按系统/架构提供原生运行时。实际支持范围及后续工作见 [Plugin 路线图](docs/TODO.md)。
 

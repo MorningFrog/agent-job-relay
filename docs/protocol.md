@@ -44,7 +44,7 @@ CLI doctor can report a stopped daemon without creating state. Its optional `--c
 
 Current Linux Doctor reports `runner_launch_from_loaded_image=true` when its mapped image is available via `/proc/self/exe`. The IPC client adds `daemon_executable_path_available` from the actual connected peer's `/proc` image pathname, if accessible. Missing evidence is not fabricated. A removed path plus absence of the new capability identifies the affected legacy daemon; submission fails before creating a job. CLI Doctor adds `runner_readiness` with status `restart_required` and idle-restart guidance. It does not restart the daemon. Neither field is a claim of new code being loaded or Agent continuation.
 
-The local Codex bundle uses `.codex-plugin/plugin.json` + `.mcp.json` and an absolute stable installation command. Actual CLI loader discovery (19 tools on 0.164.0), standalone stdio self-check, host `job_doctor`, job execution and live wake remain separate evidence levels. Portable source templates are not installed.
+The local Codex bundle uses `.codex-plugin/plugin.json` + `.mcp.json` and an absolute stable installation command. Actual CLI loader discovery (20 tools on 0.164.0), standalone stdio self-check, host `job_doctor`, job execution and live wake remain separate evidence levels. Portable source templates are not installed. Offline bundle/bootstrap/update and explicit cache status/refresh are CLI management operations; they add no MCP tools or IPC/schema version. Cached launchers use the same managed native image as MCP (ADR 0007).
 
 ## Legacy shutdown compatibility (0.1.2 client)
 

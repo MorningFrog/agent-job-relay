@@ -10,6 +10,7 @@ Read `PROJECT_SPEC.md`, `docs/architecture.md` and `docs/IMPLEMENTATION_STATUS.m
 - Add regression tests for state-machine, recovery and delivery changes. Process trees, SQLite transactions and IPC permissions require behavioral tests.
 - `accepted_by_host` never means `confirmed_resumed` without external evidence. Distinguish simulated tests, host connectivity, plugin browser discovery and observed same-chat execution.
 - Installed plugins use shared-host MCP and a fresh current-terminal binding; never infer a caller from the shared process environment. Test installed entry points and keep state profiles separate from binaries.
+- Offline plugin bundles carry no selected user profile. Preserve recorded state on plugin updates, reject downgrades, and verify explicit cache snapshots before replacement; never scan/delete host caches or stop daemons implicitly.
 - Same-chat notification recovery must preserve valid delivery IDs, expiry and attempt history, fence stale claims and exclude accepted/expired events. Renew opted-in leases only after verifying the original endpoint and current claim; never move targets implicitly.
 - Explicit upgrade stops must select the installed profile and revalidate the original peer before any legacy signal; never use process-name/group kills or PID alone.
 - Prefer documented public host interfaces and document private API compatibility risks. Preserve practical CLI/setup/doctor/removal and modified or foreign installation/marketplace content.

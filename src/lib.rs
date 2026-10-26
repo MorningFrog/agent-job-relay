@@ -10,6 +10,7 @@ pub mod integration;
 pub mod ipc;
 pub mod mcp;
 pub mod platform;
+pub mod plugin;
 pub mod recovery;
 pub mod renewal;
 pub mod runner;

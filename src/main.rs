@@ -25,6 +25,11 @@ struct Cli {
 }
 #[derive(Subcommand)]
 enum Commands {
+    /// Export, bootstrap or update a plugin runtime and explicitly refresh caches
+    Plugin {
+        #[command(subcommand)]
+        command: PluginCommand,
+    },
     /// Run in foreground, or stop the daemon; start auto-launches it when needed
     Daemon {
         #[command(subcommand)]
@@ -173,6 +178,69 @@ enum Commands {
     Runner { job_id: String, nonce: String },
 }
 #[derive(Subcommand)]
+enum PluginCommand {
+    /// Export an offline Linux bundle with native runtime; no recipient Rust toolchain
+    Pack {
+        #[arg(long)]
+        output: PathBuf,
+        #[arg(long, conflicts_with = "apply")]
+        dry_run: bool,
+        #[arg(long)]
+        apply: bool,
+    },
+    /// From a bundle's relay: install runtime and register the local marketplace
+    Bootstrap {
+        #[arg(long)]
+        root: Option<PathBuf>,
+        #[arg(long)]
+        config: Option<PathBuf>,
+        #[arg(long, conflicts_with = "apply")]
+        dry_run: bool,
+        #[arg(long)]
+        apply: bool,
+    },
+    /// Import a checked bundle; keep the installed profile and refuse downgrades
+    Update {
+        #[arg(long)]
+        root: Option<PathBuf>,
+        #[arg(long = "from")]
+        bundle: PathBuf,
+        /// Explicit host cache directory; repeat for multiple caches
+        #[arg(long)]
+        cache: Vec<PathBuf>,
+        #[arg(long, conflicts_with = "apply")]
+        dry_run: bool,
+        #[arg(long)]
+        apply: bool,
+    },
+    /// Inspect the managed installation and caller-specified cache snapshots
+    Status {
+        #[arg(long)]
+        root: Option<PathBuf>,
+        #[arg(long)]
+        cache: Vec<PathBuf>,
+    },
+    /// Manage only explicitly selected cache directories, never scan host storage
+    Cache {
+        #[command(subcommand)]
+        command: CacheCommand,
+    },
+}
+#[derive(Subcommand)]
+enum CacheCommand {
+    /// Replace an unchanged cache snapshot from the installed plugin; retain a backup
+    Refresh {
+        #[arg(long)]
+        root: Option<PathBuf>,
+        #[arg(long)]
+        path: PathBuf,
+        #[arg(long, conflicts_with = "apply")]
+        dry_run: bool,
+        #[arg(long)]
+        apply: bool,
+    },
+}
+#[derive(Subcommand)]
 enum IntegrationCommand {
     Remove {
         client: agent_job_relay::integration::Client,
@@ -295,6 +363,20 @@ async fn main() {
 async fn run(cli: Cli) -> Result<()> {
     let remove_install = matches!(&cli.command, Commands::Uninstall { .. });
     let mut state = cli.state_dir;
+    if let Commands::Plugin {
+        command: PluginCommand::Bootstrap { root, .. },
+    } = &cli.command
+    {
+        let root = root
+            .clone()
+            .map(Ok)
+            .unwrap_or_else(agent_job_relay::deployment::plugin_root)?;
+        // A lifecycle operation cannot switch an existing profile through an
+        // unrelated exported AJR_STATE_DIR. Fresh bootstrap may select a state.
+        if let Some(installed) = agent_job_relay::deployment::installation_state(&root)? {
+            state = Some(installed);
+        }
+    }
     if let Commands::Daemon {
         command: Some(DaemonCommand::Stop {
             install_root: Some(root),
@@ -315,6 +397,51 @@ async fn run(cli: Cli) -> Result<()> {
     }
     let config = Config::new(state)?;
     let req = match cli.command {
+        Commands::Plugin { command } => {
+            let result = tokio::task::spawn_blocking(move || -> Result<serde_json::Value> {
+                use agent_job_relay::{deployment, plugin};
+                let root =
+                    |path: Option<PathBuf>| path.map(Ok).unwrap_or_else(deployment::plugin_root);
+                match command {
+                    PluginCommand::Pack { output, apply, .. } => plugin::pack(output, apply),
+                    PluginCommand::Bootstrap {
+                        root: path,
+                        config: marketplace,
+                        apply,
+                        ..
+                    } => {
+                        let marketplace = marketplace.map(Ok).unwrap_or_else(|| {
+                            agent_job_relay::integration::default_path(
+                                agent_job_relay::integration::Client::Plugin,
+                            )
+                        })?;
+                        plugin::bootstrap(&config, root(path)?, marketplace, apply)
+                    }
+                    PluginCommand::Update {
+                        root: path,
+                        bundle,
+                        cache,
+                        apply,
+                        ..
+                    } => plugin::update(root(path)?, bundle, cache, apply),
+                    PluginCommand::Status { root: path, cache } => {
+                        plugin::status(root(path)?, cache)
+                    }
+                    PluginCommand::Cache {
+                        command:
+                            CacheCommand::Refresh {
+                                root: path,
+                                path: cache,
+                                apply,
+                                ..
+                            },
+                    } => plugin::refresh_cache(root(path)?, cache, apply),
+                }
+            })
+            .await??;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+            return Ok(());
+        }
         Commands::Doctor {
             client,
             config: path,
