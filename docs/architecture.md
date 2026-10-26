@@ -41,3 +41,12 @@ per-state daemon on demand. Opted-in wake resolves only the CLI/MCP process's
 current inherited host identity, registers/refreshes and probes before submitting.
 No latest-session lookup or daemon-owned caller inference is used. `daemon stop`
 stops dispatch only; runner and result persistence lifetimes remain independent.
+
+Installed entry points (ADR 0003) are handled by deployment.rs and diagnostics.rs.
+A private native/plugin bundle carries a persistent state profile, never a chat
+identity. The relative launcher and `${PLUGIN_ROOT}` manifest survive plugin-cache
+copying. Setup/removal also owns one local marketplace entry. Shared MCP rejects
+implicit inherited identity; the plugin obtains a fresh session key from the
+calling chat's terminal and supplies it to job_start explicitly. Runtime/outbox
+semantics stay unchanged. Configuration, stdio self-check, actual host tool
+connectivity and observed continuation are separate evidence levels.

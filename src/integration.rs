@@ -12,6 +12,7 @@ use std::{
 pub enum Client {
     Codex,
     Json,
+    Plugin,
 }
 #[derive(Serialize, Deserialize)]
 struct Receipt {
@@ -43,13 +44,73 @@ fn checked_read(path: &Path) -> Result<Option<String>> {
         Err(e) => Err(e.into()),
     }
 }
-fn desired(config: &Config) -> Result<Value> {
+fn desired(config: &Config, client: Client, path: &Path) -> Result<Value> {
+    if client == Client::Plugin {
+        let root = crate::deployment::installed_root()?;
+        let marketplace = path
+            .parent()
+            .and_then(Path::parent)
+            .and_then(Path::parent)
+            .context(
+                "plugin --config must be <marketplace-root>/.agents/plugins/marketplace.json",
+            )?;
+        ensure!(
+            path.ends_with(".agents/plugins/marketplace.json"),
+            "plugin --config must be <marketplace-root>/.agents/plugins/marketplace.json"
+        );
+        let relative = root.strip_prefix(marketplace).context("installation must be inside the marketplace root; use an installation under HOME for a personal marketplace, or a repo-local installation for a repo marketplace")?;
+        let source = format!(
+            "./{}",
+            relative.to_str().context("plugin path is not UTF-8")?
+        );
+        return Ok(
+            json!({"name":"agent-job-relay","source":{"source":"local","path":source},"policy":{"installation":"AVAILABLE","authentication":"ON_INSTALL"},"category":"Productivity"}),
+        );
+    }
     Ok(
-        json!({"command":std::env::current_exe()?.canonicalize()?,"args":["--state-dir",config.root,"mcp"]}),
+        json!({"command":std::env::current_exe()?.canonicalize()?,"args":["--state-dir",config.root,"mcp","--shared-host"]}),
     )
 }
 fn edit(client: Client, raw: &str, replacement: Option<&Value>) -> Result<(String, Option<Value>)> {
     match client {
+        Client::Plugin => {
+            let mut doc: Value = if raw.trim().is_empty() {
+                json!({"name":"agent-job-relay-local","interface":{"displayName":"AgentJobRelay Local"},"plugins":[]})
+            } else {
+                serde_json::from_str(raw).context("invalid marketplace JSON; nothing changed")?
+            };
+            ensure!(
+                doc.is_object() && doc["name"].as_str().is_some_and(|s| !s.trim().is_empty()),
+                "marketplace must have a name"
+            );
+            let plugins = doc["plugins"]
+                .as_array_mut()
+                .context("marketplace plugins must be an array")?;
+            ensure!(
+                plugins.iter().all(Value::is_object),
+                "marketplace entries must be objects"
+            );
+            let matching: Vec<_> = plugins
+                .iter()
+                .enumerate()
+                .filter(|(_, v)| v["name"] == "agent-job-relay")
+                .map(|(i, _)| i)
+                .collect();
+            ensure!(
+                matching.len() <= 1,
+                "duplicate agent-job-relay marketplace entries; review manually"
+            );
+            let old = matching.first().map(|i| plugins[*i].clone());
+            match (matching.first(), replacement) {
+                (Some(i), Some(v)) => plugins[*i] = v.clone(),
+                (Some(i), None) => {
+                    plugins.remove(*i);
+                }
+                (None, Some(v)) => plugins.push(v.clone()),
+                (None, None) => {}
+            }
+            Ok((format!("{}\n", serde_json::to_string_pretty(&doc)?), old))
+        }
         Client::Json => {
             let mut doc: Value = if raw.trim().is_empty() {
                 json!({})
@@ -179,7 +240,12 @@ fn plan(
             "ownership receipt does not match this client/config path"
         );
     }
-    let desired = desired(config)?;
+    // Removal does not depend on the binary or original plugin still existing.
+    let desired = if remove {
+        Value::Null
+    } else {
+        desired(config, client, path)?
+    };
     let replacement = if remove { None } else { Some(&desired) };
     let (output, current) = edit(client, raw, replacement)?;
     if let Some(current) = &current {
@@ -224,7 +290,7 @@ fn plan(
         }
     }
     Ok(
-        json!({"client":client,"config_path":path,"mode":if apply{"apply"}else{"dry_run"},"changed":changed,"action":if remove{"remove owned MCP entry"}else{"set owned MCP entry"},"managed_entry":if remove{Value::Null}else{desired},"backup":backup,"data":"preserved; no service/PATH changes","next_step":if apply{"Restart the MCP client. Task submissions auto-start the daemon. Use wake_me=true for automatic binding to inherited Desktop context (experimental)."}else{"Review this preview; repeat with --apply to write. Backups are made before modifying an existing file."}}),
+        json!({"client":client,"config_path":path,"mode":if apply{"apply"}else{"dry_run"},"changed":changed,"action":if remove{"remove owned integration entry"}else{"set owned integration entry"},"managed_entry":if remove{Value::Null}else{desired},"backup":backup,"data":"preserved; no service/PATH changes","next_step":if apply{if client==Client::Plugin{"Restart Desktop; find AgentJobRelay in the local marketplace, install it, then open a new local chat. Removing this entry does not remove host-managed cache copies; uninstall the plugin in the host as well."}else{"Restart the MCP client. For wake in shared-host mode use the current terminal binding described by server instructions; the plugin automates this workflow."}}else{"Review this preview; repeat with --apply to write. Backups are made before modifying an existing file."}}),
     )
 }
 pub fn default_path(client: Client) -> Result<PathBuf> {
@@ -239,5 +305,9 @@ pub fn default_path(client: Client) -> Result<PathBuf> {
         Client::Json => {
             bail!("JSON clients use different paths; provide --config /absolute/path/to/mcp.json")
         }
+        Client::Plugin => Ok(PathBuf::from(
+            std::env::var_os("HOME").context("HOME unavailable; pass --config")?,
+        )
+        .join(".agents/plugins/marketplace.json")),
     }
 }

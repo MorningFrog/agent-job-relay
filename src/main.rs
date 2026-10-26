@@ -31,7 +31,29 @@ enum Commands {
         command: Option<DaemonCommand>,
     },
     /// Serve MCP on stdio; submissions automatically start the daemon
-    Mcp,
+    Mcp {
+        /// Ignore inherited chat identity; use a current-terminal session binding
+        #[arg(long)]
+        shared_host: bool,
+    },
+    /// Preview/install a stable native executable and local Desktop plugin
+    Install {
+        #[arg(long)]
+        root: Option<PathBuf>,
+        #[arg(long, conflicts_with = "apply")]
+        dry_run: bool,
+        #[arg(long)]
+        apply: bool,
+    },
+    /// Preview/remove unchanged owned install files; preserve all task data
+    Uninstall {
+        #[arg(long)]
+        root: Option<PathBuf>,
+        #[arg(long, conflicts_with = "apply")]
+        dry_run: bool,
+        #[arg(long)]
+        apply: bool,
+    },
     /// Register, refresh, probe or invalidate an exact Agent session
     Session {
         #[command(subcommand)]
@@ -143,6 +165,9 @@ enum Commands {
         client: Option<agent_job_relay::integration::Client>,
         #[arg(long, requires = "client")]
         config: Option<PathBuf>,
+        /// Exercise stdio initialize/tools discovery without contacting a Desktop host
+        #[arg(long)]
+        check_mcp: bool,
     },
     #[command(hide = true)]
     Runner { job_id: String, nonce: String },
@@ -162,7 +187,11 @@ enum IntegrationCommand {
 #[derive(Subcommand)]
 enum SessionCommand {
     /// Register and probe the current Desktop context (experimental opt-in)
-    Connect,
+    Connect {
+        /// Return only the binding key and capability, without private host paths
+        #[arg(long)]
+        brief: bool,
+    },
     Register {
         #[arg(long)]
         agent: String,
@@ -246,13 +275,19 @@ async fn main() {
     }
 }
 async fn run(cli: Cli) -> Result<()> {
+    let remove_install = matches!(&cli.command, Commands::Uninstall { .. });
     let config = Config::new(cli.state_dir)?;
     let req = match cli.command {
         Commands::Doctor {
             client,
             config: path,
+            check_mcp,
         } => {
-            let mut report = agent_job_relay::client::call(&config, Request::Doctor).await?;
+            let mut report = agent_job_relay::diagnostics::report(&config, true).await?;
+            if check_mcp {
+                report["stdio_self_check"] =
+                    agent_job_relay::diagnostics::check_mcp(&config).await?;
+            }
             report["mcp_registration"] = serde_json::json!(
                 "not checked; use doctor --client codex --config <absolute-path>"
             );
@@ -313,13 +348,14 @@ async fn run(cli: Cli) -> Result<()> {
             return Ok(());
         }
         Commands::Session { command } => match command {
-            SessionCommand::Connect => {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(
-                        &agent_job_relay::client::connect(&config).await?
-                    )?
-                );
+            SessionCommand::Connect { brief } => {
+                let value = agent_job_relay::client::connect(&config).await?;
+                let value = if brief {
+                    serde_json::json!({"session_key":value["session"]["key"],"probe":"passed","can_resume":true,"can_confirm_resume":false})
+                } else {
+                    value
+                };
+                println!("{}", serde_json::to_string_pretty(&value)?);
                 return Ok(());
             }
             SessionCommand::Register {
@@ -440,7 +476,20 @@ async fn run(cli: Cli) -> Result<()> {
             return Ok(());
         }
 
-        Commands::Mcp => return agent_job_relay::mcp::serve(config).await,
+        Commands::Mcp { shared_host } => {
+            return agent_job_relay::mcp::serve(config, shared_host).await;
+        }
+        Commands::Install { root, apply, .. } | Commands::Uninstall { root, apply, .. } => {
+            let root = root
+                .map(Ok)
+                .unwrap_or_else(agent_job_relay::deployment::default_root)?;
+            let result = tokio::task::spawn_blocking(move || {
+                agent_job_relay::deployment::change(&config, root, remove_install, apply)
+            })
+            .await??;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+            return Ok(());
+        }
         Commands::Request { json } => serde_json::from_str(&json)?,
         Commands::Daemon { command: None } => return agent_job_relay::daemon::serve(config).await,
         Commands::Daemon {

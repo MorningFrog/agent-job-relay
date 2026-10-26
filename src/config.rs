@@ -9,9 +9,10 @@ pub struct Config {
 }
 impl Config {
     pub fn new(root: Option<PathBuf>) -> Result<Self> {
-        let root = root
-            .or_else(|| std::env::var_os("AJR_STATE_DIR").map(PathBuf::from))
-            .unwrap_or_else(|| {
+        let explicit = root.or_else(|| std::env::var_os("AJR_STATE_DIR").map(PathBuf::from));
+        let root = match explicit {
+            Some(path) => path,
+            None => crate::deployment::runtime_state()?.unwrap_or_else(|| {
                 if let Some(p) = std::env::var_os("XDG_STATE_HOME") {
                     PathBuf::from(p).join("agent-job-relay")
                 } else if let Some(p) = std::env::var_os("LOCALAPPDATA") {
@@ -20,7 +21,8 @@ impl Config {
                     PathBuf::from(std::env::var_os("HOME").unwrap_or_default())
                         .join(".local/state/agent-job-relay")
                 }
-            });
+            }),
+        };
         ensure!(
             root.is_absolute(),
             "state directory must be absolute (use --state-dir)"

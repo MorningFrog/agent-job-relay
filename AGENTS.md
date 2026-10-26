@@ -11,6 +11,11 @@ The project specification governs scope; report limitations honestly.
 - Use UTF-8, isolated test state inside this repository; never touch Vanth state.
 - Prefer documented public host interfaces. Document private API compatibility risks.
 - Maintain practical CLI/setup/doctor/removal and synchronized bilingual READMEs.
+- Installed plugins use shared-host MCP and a fresh current-terminal binding;
+  never infer a tool caller from a shared process environment. Test installed
+  entry points, not just the source binary; keep profiles separate from binaries.
+- Preserve modified/foreign install and marketplace content. Plugin browser
+  discovery and same-chat live execution need separate real-host evidence.
 - Packaging, package repositories and release automation are deferred in docs/TODO.md.
 - Do not modify real user configuration/services, publish, push or rewrite history.
 - Commit verifiable increments with English Conventional Commit titles and bodies.

@@ -24,7 +24,7 @@ is not a failed current milestone gate.
 
 One Rust package/executable with daemon, runner, mcp and user CLI modes.
 Modules: client, core, storage, runner, daemon, ipc, session, delivery, adapters,
-integration, config, platform. SQLite schema **v4**, local IPC **v1**.
+integration, deployment, diagnostics, config, platform. SQLite schema **v4**, local IPC **v1**.
 
 - Explicit Exec argv or Shell interpreter/script; canonical cwd, validated
   arguments/env/timeout; UUID identities and durable idempotent submit.
@@ -68,13 +68,14 @@ integration, config, platform. SQLite schema **v4**, local IPC **v1**.
 |---|---|
 | `cargo fmt --check` | Passed |
 | `cargo clippy --all-targets -- -D warnings` | Passed, no warnings suppressed |
-| `cargo test --all-targets` | **39 passed, 0 failed, 0 ignored** |
+| `cargo test --all-targets` | **45 passed, 0 failed, 0 ignored** |
 | └ library/schema tests | 1 passed |
-| └ automatic connection/startup/shutdown tests | 8 passed (real CLI/MCP, fake Desktop host) |
+| └ automatic connection/startup/shutdown and shared-MCP tests | 9 passed (real CLI/MCP, fake Desktop host) |
 | └ delivery/persistence/migration tests | 8 passed |
 | └ Desktop fake-host tests | 4 passed (**simulated**) |
 | └ README acceptance tests | 1 passed |
 | └ setup/removal/clean HOME tests | 4 passed |
+| └ installed plugin/onboarding/ownership tests | 5 passed |
 | └ actual Linux runtime/MCP/recovery tests | 13 passed |
 | `cargo build --release --locked` | Passed; native binary at target/release/agent-job-relay |
 | `cargo run -- --help` | Passed; actual CLI help inspected |
@@ -224,3 +225,20 @@ Documentation-review gates rerun: cargo fmt --check, strict all-target Clippy,
 cargo test --all-targets (39 passed, 0 failed) and locked release build all passed.
 Only sanitized documentation changed; original live evidence remains untouched
 and ignored. No real user configuration/service change or remote operation occurred.
+
+## Installed Plugin/MCP entry point increment (2026-10-26)
+
+Implemented in response to the user's requirement to configure once
+and omit tool/state/session paths from everyday prompts. Added local native/plugin
+install preview/apply, owned-file hashes and safe removal/replacement, a relocatable
+state profile, portable plugin assets and workflow skill, owned marketplace setup,
+shared-host MCP with explicit current-terminal binding and private brief output,
+and separate daemon/configuration/stdio/host-connectivity diagnostics (ADR 0003).
+
+All 18 selected tests passed (9 convenience, 4 integration, 5 new onboarding);
+then fmt, strict Clippy, all 45 tests and the locked release build passed.
+Skill-creator quick validation passed. Automated tests use isolated repository
+state and fake Desktop only. User documentation synchronization is the next
+increment. No actual host plugin installation,
+real configuration change or new real-host workflow has been performed. The prior
+CLI live evidence remains valid and separate. Distribution/publication stays deferred.

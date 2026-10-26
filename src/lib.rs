@@ -4,6 +4,8 @@ pub mod config;
 pub mod core;
 pub mod daemon;
 pub mod delivery;
+pub mod deployment;
+pub mod diagnostics;
 pub mod integration;
 pub mod ipc;
 pub mod mcp;

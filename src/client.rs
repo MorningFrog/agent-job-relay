@@ -48,7 +48,7 @@ pub fn context_summary() -> Value {
         Err(e) => json!({"available":false,"reason":format!("{e:#}"),"can_resume":false}),
     }
 }
-fn unavailable(error: &anyhow::Error) -> bool {
+pub(crate) fn unavailable(error: &anyhow::Error) -> bool {
     error.downcast_ref::<std::io::Error>().is_some_and(|e| {
         matches!(
             e.kind(),

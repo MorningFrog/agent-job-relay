@@ -116,9 +116,14 @@ fn cli_preview_clean_home_and_doctor_are_actionable() {
         .arg("doctor")
         .output()
         .unwrap();
-    assert!(!out.status.success());
-    assert!(
-        String::from_utf8_lossy(&out.stderr).contains("daemon unavailable")
-            || !cfg!(target_os = "linux")
-    );
+    if cfg!(target_os = "linux") {
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let report: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+        assert_eq!(report["daemon"], "stopped");
+        assert!(!d.path().join("no-daemon").exists());
+    }
 }

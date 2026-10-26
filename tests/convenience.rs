@@ -162,6 +162,138 @@ fn success(out: std::process::Output) -> Value {
 }
 
 #[tokio::test]
+async fn installed_shared_mcp_uses_each_terminal_binding_and_never_its_inherited_thread() {
+    let r = Rig::new();
+    let mut host = Host::new(&r, true);
+    let install = r.dir.path().join("plugin");
+    success(
+        r.cli(
+            &["install", "--root", install.to_str().unwrap(), "--apply"],
+            None,
+        )
+        .await,
+    );
+    let manifest: Value =
+        serde_json::from_slice(&std::fs::read(install.join("mcp.json")).unwrap()).unwrap();
+    let server = &manifest["mcpServers"]["agent-job-relay"];
+    let program = server["command"]
+        .as_str()
+        .unwrap()
+        .replace("${PLUGIN_ROOT}", install.to_str().unwrap());
+    let mut child = tokio::process::Command::new(program)
+        .args(
+            server["args"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v.as_str().unwrap()),
+        )
+        .env_remove("AJR_STATE_DIR")
+        .env("CODEX_THREAD_ID", "stale-server-thread")
+        .env("CODEX_APP_TOOLS_PIPE_PATH", &host.endpoint)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .kill_on_drop(true)
+        .spawn()
+        .unwrap();
+    let mut input = child.stdin.take().unwrap();
+    let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
+    async fn rpc(
+        input: &mut tokio::process::ChildStdin,
+        lines: &mut tokio::io::Lines<BufReader<tokio::process::ChildStdout>>,
+        v: Value,
+    ) -> Value {
+        input.write_all(format!("{v}\n").as_bytes()).await.unwrap();
+        let text = tokio::time::timeout(Duration::from_secs(8), lines.next_line())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        serde_json::from_str(&text).unwrap()
+    }
+    let init = rpc(&mut input, &mut lines, json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"installed-plugin-test","version":"1"}}})).await;
+    assert!(
+        init["result"]["instructions"]
+            .as_str()
+            .unwrap()
+            .contains("shared MCP process")
+    );
+    input
+        .write_all(b"{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}\n")
+        .await
+        .unwrap();
+    let refused = rpc(&mut input, &mut lines, json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"job_start","arguments":{"wake_me":true,"spec":{"command":{"kind":"exec","program":"/bin/true","args":[]},"cwd":r.dir.path()}}}})).await;
+    assert_eq!(refused["result"]["isError"], true);
+    assert!(!r.config.root.exists());
+    let doctor = rpc(&mut input, &mut lines, json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"job_doctor","arguments":{}}})).await;
+    let doctor: Value =
+        serde_json::from_str(doctor["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    assert_eq!(doctor["daemon"], "stopped");
+    assert!(
+        doctor["mcp_host_connection"]
+            .as_str()
+            .unwrap()
+            .starts_with("responding")
+    );
+    assert_eq!(doctor["desktop_context"]["available"], false);
+    assert!(!r.config.root.exists());
+    let mut jobs = Vec::new();
+    for (i, thread) in ["thread-a", "thread-b"].iter().enumerate() {
+        let bind = tokio::process::Command::new(install.join("relay"))
+            .args(["session", "connect", "--brief"])
+            .env_remove("AJR_STATE_DIR")
+            .env("CODEX_THREAD_ID", thread)
+            .env("CODEX_APP_TOOLS_PIPE_PATH", &host.endpoint)
+            .output()
+            .await
+            .unwrap();
+        let binding = success(bind);
+        assert!(binding.get("session").is_none()); // Brief responses never expose endpoints.
+        assert_eq!(binding["probe"], "passed");
+        let started = rpc(&mut input, &mut lines, json!({"jsonrpc":"2.0","id":4+i,"method":"tools/call","params":{"name":"job_start","arguments":{"spec":{"command":{"kind":"shell","interpreter":"/bin/sh","script":"sleep 0.2; echo installed MCP"},"cwd":r.dir.path(),"session":binding["session_key"]}}}})).await;
+        assert_ne!(started["result"]["isError"], true, "{started}");
+        let result: Value =
+            serde_json::from_str(started["result"]["content"][0]["text"].as_str().unwrap())
+                .unwrap();
+        jobs.push(result["job"]["job_id"].as_str().unwrap().to_string());
+    }
+    drop(input);
+    assert!(
+        tokio::time::timeout(Duration::from_secs(5), child.wait())
+            .await
+            .unwrap()
+            .unwrap()
+            .success()
+    );
+    for j in jobs {
+        assert_eq!(r.terminal(&j).await.status, "completed");
+    }
+    let mut destinations = vec![
+        host.delivery().await["params"]["arguments"]["threadId"]
+            .as_str()
+            .unwrap()
+            .to_string(),
+        host.delivery().await["params"]["arguments"]["threadId"]
+            .as_str()
+            .unwrap()
+            .to_string(),
+    ];
+    destinations.sort();
+    assert_eq!(destinations, vec!["thread-a", "thread-b"]);
+    let sessions = ipc::call(
+        &r.config,
+        Request::Sessions {
+            after: 0,
+            limit: 20,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(sessions["sessions"].as_array().unwrap().len(), 2);
+}
+
+#[tokio::test]
 async fn cli_wake_automatically_starts_registers_probes_and_deduplicates() {
     let r = Rig::new();
     let mut host = Host::new(&r, true);
