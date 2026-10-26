@@ -13,7 +13,7 @@ cargo test --all-targets
 cargo build --release --locked
 ```
 
-The current suite contains 81 behavioral tests; current results, toolchain/version and limitations are in [implementation status](IMPLEMENTATION_STATUS.md). CI defines full Linux behavior tests plus macOS/Windows compilation and portable library checks. The prior remote run failed on Windows unused-field compilation and Linux installation-test timeouts; those source fixes are included, but the updated workflow still needs a remote run. A matrix does not establish native OS runtime support. The declared Rust 1.89 minimum is not independently verified.
+The current suite contains 81 behavioral tests; current results, toolchain/version and limitations are in [implementation status](IMPLEMENTATION_STATUS.md). CI defines full Linux behavior tests plus macOS/Windows compilation and portable library checks. [Current remote CI](https://github.com/MorningFrog/agent-job-relay/actions/runs/40356375386) passed all three jobs, including the Linux packaged OpenCode and Claude-framework checks. A matrix does not establish native OS runtime support. The declared Rust 1.89 minimum is not independently verified.
 
 ## Test selection and artifacts
 
@@ -70,7 +70,7 @@ The developer-only `scripts/check_desktop_restart.py` provides a bounded FIFO ha
 
 ## Account-free host-package checks
 
-[Host plugins](host-plugins.md) provides dependency/setup commands for `scripts/check_opencode_plugin.py` and `scripts/check_claude_scaffold.py`. OpenCode 1.19.4 uses the actual loader/MCP/session API and agent loop with a local simulated model, checking a completed response and an untouched second session. Claude uses synthetic callers and the actual MCP launcher only; its loader/skill substitution/account/model remain untested. Linux CI defines both checks; this is not remote CI evidence. Docker recipes/version matrices and account-backed Claude tests are welcome through [community contributions](../CONTRIBUTING.md).
+[Host plugins](host-plugins.md) provides dependency/setup commands for `scripts/check_opencode_plugin.py` and `scripts/check_claude_scaffold.py`. OpenCode 1.19.4 uses the actual loader/MCP/session API and agent loop with a local simulated model, checking a completed response and an untouched second session. Claude uses synthetic callers and the actual MCP launcher only; its loader/skill substitution/account/model remain untested. Both checks passed in the current remote Linux CI; the simulated-model and absent-Claude-account boundaries still apply. Docker recipes/version matrices and account-backed Claude tests are welcome through [community contributions](../CONTRIBUTING.md).
 
 ## Installed release-candidate checks
 
