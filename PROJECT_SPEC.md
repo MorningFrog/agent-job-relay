@@ -1,10 +1,6 @@
 # AgentJobRelay — 从零实现的工程任务规范
 
-> 用途：将本文件放入新项目的根目录（建议命名 `PROJECT_SPEC.md`），交由 AI 在具有本机文件/终端权限的 Codex 或 Work 环境执行。
-> 项目根目录：`/data/Projects/Agents/agent-job-relay`
-> 仅供研究的参考目录：`/data/Projects/Agents/vanth-fork`
-> 状态：工程实施规范，不代表以下功能已经完成。
-> **交付优先级：可靠性 + 用户体验。** 本阶段必须实现可靠的后台运行时、便捷的本地开发/测试入口、清晰的 `setup` / `doctor` / 集成移除、双语 README 和阶段性英文 Conventional Commits。**交付方向现已修订为 Plugin，独立系统安装包计划取消；当前不向任何官方平台发布。**
+> 用途：将本文件放入新项目的根目录（建议命名 `PROJECT_SPEC.md`），交由 AI 在具有本机文件/终端权限的 Codex 或 Work 环境执行。 项目根目录：`/data/Projects/Agents/agent-job-relay` 仅供研究的参考目录：`/data/Projects/Agents/vanth-fork` 状态：工程实施规范，不代表以下功能已经完成。 **交付优先级：可靠性 + 用户体验。** 本阶段必须实现可靠的后台运行时、便捷的本地开发/测试入口、清晰的 `setup` / `doctor` / 集成移除、双语 README 和阶段性英文 Conventional Commits。**交付方向现已修订为 Plugin，独立系统安装包计划取消；当前不向任何官方平台发布。**
 
 > **2026-10-26 用户修订（优先于原发行要求）：** 取消各系统独立安装包、包管理器及软件仓库发布计划，统一以 Agent Plugin 交付为目标，期望覆盖 ChatGPT Desktop/Codex、Claude Code、OpenCode，并尽可能通过各 Agent 官方支持的插件平台便捷安装。当前仍在开发阶段，暂不发布到官方平台，也不上传或配置发布凭证。保留一个 Rust/MCP 核心，各宿主分别实现插件入口和可验证的会话适配；Plugin 安装不等于已经支持自动唤醒。此修订替代旧的多格式安装包 TODO，详见新版 §16 和 docs/TODO.md。
 
