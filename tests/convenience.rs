@@ -76,7 +76,15 @@ impl Rig {
             c.env("CODEX_THREAD_ID", thread)
                 .env("CODEX_APP_TOOLS_PIPE_PATH", endpoint);
         }
-        tokio::time::timeout(Duration::from_secs(15), c.output())
+        // Installation hashes/copies the debug image several times. Shared CI
+        // CPUs can take longer than an ordinary IPC command; runtime deadlines
+        // must not be relaxed along with this filesystem-heavy operation.
+        let seconds = if args.first() == Some(&"install") {
+            90
+        } else {
+            15
+        };
+        tokio::time::timeout(Duration::from_secs(seconds), c.output())
             .await
             .unwrap()
             .unwrap()

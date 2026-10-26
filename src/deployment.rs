@@ -383,6 +383,11 @@ pub(crate) fn idle_guards(state: &Path, install_root: &Path) -> Result<Vec<File>
     Ok(locks)
 }
 pub(crate) fn write_artifact(path: &Path, file: &Artifact) -> Result<()> {
+    #[cfg(not(unix))]
+    ensure!(
+        !file.executable,
+        "native executable installation is not implemented on this platform"
+    );
     crate::platform::secure_dir(path.parent().context("install parent missing")?)?;
     let mut out = crate::platform::private_file(path)?;
     out.write_all(&file.bytes)?;
