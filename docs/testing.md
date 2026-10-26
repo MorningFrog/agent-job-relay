@@ -152,7 +152,7 @@ explicit-registration basic result; retain per-path provenance in live-e2e.md.
 The installed real release task passed via **skill + CLI fallback**, after a
 failed initial launch and a separate-state workaround. It ran the prior 45-test
 release suite and resumed the correct chat; see live-e2e.md for exact provenance.
-It did not call MCP. The current v0.1.2 runtime/upgrade repair has 50 passing Rust tests.
+It did not call MCP. The earlier v0.1.2 runtime/upgrade repair passed 50 Rust tests; source 0.1.3 passes 62.
 Do not repeat passed CLI workloads or require a manual artificial crash matrix.
 
 For an optional developer real-loader check, after the release build run:
@@ -164,7 +164,7 @@ python3 scripts/check_codex_plugin.py
 This needs the actual Codex CLI (tested 0.164.0) and Python for the check only.
 It installs into a fresh repository-local HOME/CODEX_HOME, adds the local plugin,
 queries actual app-server `plugin/read` and MCP tool status, requires core tools
-among the 19 discovered tools, and asserts no runtime state was created. It
+including job_recover_session among the 20 discovered tools, and asserts no runtime state was created. It
 starts no model turn and touches no real user config or Desktop endpoint. Logs
 and report.json stay ignored in the printed `.tmp/loader-...` directory. A loader
 check is not a Desktop UI or live MCP task/wake result.
@@ -220,3 +220,16 @@ stale process-identity refusal, unrelated socket-peer refusal and no signal on
 other shutdown errors. Existing modern daemon/Runner lifecycle tests continue to
 cover active-workload independence. This is automated upgrade behavior, not a
 request for another manual fault matrix or a claim of Desktop MCP wake evidence.
+
+## Notification recovery and long-job renewal (0.1.3)
+
+Run cargo test --test delivery --test recovery --test desktop --test convenience
+for classified TTL retries, v4 delivery/attempt migration, scoped recovery,
+pagination, rollback/audits, live-claim exclusion, stale-ack fencing and canonical
+duplicate coalescing. Installed entry points cover CLI preview/apply after fake
+host replacement, shared MCP recovery, pinned state and a long job whose session
+expiry is fault-injected 48 hours into the past. These tests do not wait multiple
+days or prove real-host restart/continuation. Renewal tests include opt-out,
+invalidated/replaced endpoints, invalidation/claim revocation during the probe and
+audit-write rollback. An older healthy daemon is refused before registration/job
+mutation. Use only isolated repository-local state/fake sockets.

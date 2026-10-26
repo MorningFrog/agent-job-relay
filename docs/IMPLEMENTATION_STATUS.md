@@ -5,8 +5,8 @@ missing beyond existing bounded log queries/follow and manual cancellation.
 Recorded in TODO.md for a later design/implementation increment; the current
 notification-recovery work does not implement or claim this capability.
 
-Last verified: **2026-10-26 (Asia/Shanghai)**. Version **0.1.2**, unreleased
-source-build/local Plugin development repair. Host: Linux x86_64, kernel
+Last verified: **2026-10-26 (Asia/Shanghai)**. Version **0.1.3**, unreleased
+source-build/local Plugin notification recovery. Host: Linux x86_64, kernel
 7.0.0-38-generic; Rust 1.99.1 / Cargo 1.99.1, edition 2024. Cargo.lock pins
 resolved dependencies including rmcp 3.7.0, Tokio 1.54.1, rusqlite 0.41.0.
 Declared Rust 1.89 MSRV is not independently tested.
@@ -30,7 +30,7 @@ publication during development. Claude Code/OpenCode are planned, not implemente
 
 One Rust package/executable with daemon, runner, mcp and user CLI modes.
 Modules: client, core, storage, runner, daemon, ipc, session, delivery, adapters,
-integration, deployment, diagnostics, config, platform. SQLite schema **v6**, local IPC **v1**.
+integration, deployment, diagnostics, recovery, renewal, config, platform. SQLite schema **v6**, local IPC **v1**.
 
 - Explicit Exec argv or Shell interpreter/script; canonical cwd, validated
   arguments/env/timeout; UUID identities and durable idempotent submit.
@@ -40,7 +40,7 @@ integration, deployment, diagnostics, config, platform. SQLite schema **v6**, lo
   claim fences delayed/duplicate runners. Uncertain launch is orphaned after
   five seconds and never replayed. Linux boot ID/start ticks supplement PID.
 - WAL, FULL synchronous, foreign keys, busy timeout; bounded blocking DB workers,
-  IMMEDIATE transactions, no SQLite lock held over await. v1→v4 migration and
+  IMMEDIATE transactions, no SQLite lock held over await. v1/v4→v6 migration and
   newer-schema refusal tested.
 - Per-run stdout/stderr raw capture capped at 16 MiB each; bounded chunk memory,
   binary/UTF-8-lossy queries and byte cursors. Output write failures stop the
@@ -50,6 +50,10 @@ integration, deployment, diagnostics, config, platform. SQLite schema **v6**, lo
   routing keys, explicit refresh/invalidation/rebind, stable delivery IDs,
   fenced 10-second claims, three-second transport deadline, TTL-bounded temporary retries,
   classified identity/permanent failures, bounded exponential backoff+jitter, 24-hour TTL, dead letter and audit.
+- Scoped same-chat recovery previews/applies unexpired unresolved notifications
+  with atomic audit, original IDs/history/TTL and claim fencing. Automatic
+  bindings opt into same-endpoint capability-verified delivery-time lease renewal;
+  no periodic host scan or command replay. Old daemons fail capability preflight.
 - Inbox yields `notification_recorded`; experimental Desktop yields only
   `accepted_by_host`. No confirmed-resume state can be fabricated via API.
 - Owner-only Unix socket/directories and peer checks, size/page/concurrency
@@ -78,7 +82,8 @@ integration, deployment, diagnostics, config, platform. SQLite schema **v6**, lo
   identity and takes an exact key obtained from the current terminal's brief binding.
 - Doctor separates stopped daemon, configured entry, private bounded stdio self-check
   and an actual host tool invocation. No diagnostic sends a host message or launches
-  a workload. An actual isolated Codex CLI 0.164.0 loader discovers 19 tools.
+  a workload. An actual isolated Codex CLI 0.164.0 loader discovers 20 tools
+  including job_recover_session in source 0.1.3.
   Updated v0.1.2 Desktop MCP connectivity is user-confirmed following the requested
   job_doctor procedure; no new transcript reviewed. MCP task/wake and plugin
   browser installation remain separately unverified.
@@ -93,15 +98,16 @@ integration, deployment, diagnostics, config, platform. SQLite schema **v6**, lo
 |---|---|
 | `cargo fmt --check` | Passed |
 | `cargo clippy --all-targets -- -D warnings` | Passed, no warnings suppressed |
-| `cargo test --all-targets` | **50 passed, 0 failed, 0 ignored** |
+| `cargo test --all-targets` | **62 passed, 0 failed, 0 ignored** |
 | └ library/schema and legacy-readiness tests | 2 passed |
-| └ automatic connection/startup/shutdown, removed-image and shared-MCP tests | 10 passed (real CLI/MCP, fake Desktop host) |
-| └ delivery/persistence/migration tests | 8 passed |
-| └ Desktop fake-host tests | 4 passed (**simulated**) |
+| └ automatic connection/startup/shutdown, installed recovery/renewal and shared-MCP tests | 13 passed (real CLI/MCP, fake Desktop host) |
+| └ delivery/persistence/migration tests | 10 passed |
+| └ Desktop fake-host/renewal tests | 7 passed (**simulated**) |
 | └ README acceptance tests | 1 passed |
 | └ setup/removal/clean HOME tests | 4 passed |
 | └ installed plugin/onboarding/ownership tests | 5 passed |
 | └ legacy upgrade/profile/peer-signal tests | 3 passed |
+| └ scoped recovery/pagination/claim/audit tests | 4 passed |
 | └ actual Linux runtime/MCP/recovery tests | 13 passed |
 | `cargo build --release --locked` | Passed; native binary at target/release/agent-job-relay |
 | `cargo run -- --help` | Passed; actual CLI help inspected |
@@ -115,7 +121,7 @@ integration, deployment, diagnostics, config, platform. SQLite schema **v6**, lo
 | Installed release onboarding smoke | 22 successful CLI calls across install preview/apply/idempotence, doctor/stdio, marketplace and standalone MCP setup, real workload/logs/events, removal/data retention and reinstall; quoted/spaced paths and stale state export exercised; no host contacted |
 | Real removed-image regression | Reproduced ENOENT before the fix; after fix, the same daemon launches exactly one completed workload after pathname replacement |
 | User's installed release-test task | Prior v0.1.0, `cargo test --release --all-targets`: 45 passed, exit 0; first submission failed, separate-state retry succeeded; skill + CLI fallback, correct same-chat wake |
-| `python3 scripts/check_codex_plugin.py` | Passed on actual Codex CLI 0.164.0; 19 MCP tools discovered in isolated HOME; no model turn, daemon/workload or real host/config change |
+| `python3 scripts/check_codex_plugin.py` | Passed on actual Codex CLI 0.164.0; 20 MCP tools discovered in isolated HOME; no model turn, daemon/workload or real host/config change |
 | Updated Desktop MCP connectivity | User confirmed the requested post-install host job_doctor test passed; no new tool transcript independently reviewed; no MCP job/wake claim |
 | `git diff --check` | Passed before commits |
 
@@ -456,3 +462,33 @@ uses the pinned profile despite foreign state exports; fake host replacement
 restores only thread A, retains callId, leaves thread B untouched, and records
 an audit. Shared installed MCP successfully invokes job_recover_session for each
 fresh caller key without using its inherited stale thread.
+
+## Long-job renewal and final 0.1.3 verification (2026-10-26)
+
+Automatic current-terminal bindings opt into delivery-time renewal. When a result
+is due and the session lease is near expiry/expired, the same endpoint owner,
+fingerprint and advertised capability are probed. The transaction rechecks
+registration/expiry, connected flag, active target and current claim before
+renewing its configured lease and writing an audit. No periodic host polling,
+implicit host migration, command replay or confirmed-resume claim was added.
+Manual/legacy records default to opted out; inbox cannot enable this behavior.
+
+Doctor exposes recovery/renewal capabilities. Automatic binding refuses an old
+healthy daemon before registration/job mutation, retaining its original state.
+Version 0.1.3 and schema v6 are source/local development only; the personal 0.1.2
+installation, host cache and services were not updated or stopped.
+
+All four gates passed: cargo fmt --check, cargo clippy --all-targets -- -D warnings,
+cargo test --all-targets (62 passed, 0 failed, 0 ignored), cargo build --release.
+Plugin skill quick validation passed. The real Codex CLI 0.164.0 loader passed
+again in isolated HOME/CODEX_HOME with 20 tools including job_recover_session;
+no model turn, runtime daemon/workload or real host/configuration was used.
+
+New tests cover completion after fault-injected 48-hour session expiry through
+an installed launcher, same-ID accepted delivery, opt-out/invalidation/endpoint
+replacement refusal, invalidation or claim revocation during the probe and audit
+rollback. Recovery pagination excludes foreign hosts/callers and new targets.
+These are simulated lifecycle conditions, not a real multi-day or Desktop-restart
+acceptance. Updated live MCP job/wake, browser discovery and host restart remain
+separate evidence requirements. The output monitoring/interruption request is
+recorded only in TODO.md for later implementation. No publication or push.

@@ -30,6 +30,7 @@ fn registration(endpoint: PathBuf, session: &str, instance: &str) -> Registratio
         caller_thread_id: Some("explicit-caller".into()),
         lease_seconds: 3600,
         experimental: true,
+        renew_on_delivery: false,
     }
 }
 async fn claim(s: &Store, key: String, cwd: PathBuf) -> agent_job_relay::delivery::Claim {
@@ -178,4 +179,155 @@ async fn opt_in_and_caller_identity_are_required() {
     r.experimental = true;
     r.caller_thread_id = None;
     assert!(s.register(r).await.is_err());
+}
+
+#[tokio::test]
+async fn expired_owned_binding_renews_after_probe_then_delivers_with_original_id() {
+    let (d, s) = store().await;
+    let ep = d.path().join("host.sock");
+    let listener = tokio::net::UnixListener::bind(&ep).unwrap();
+    let mut r = registration(ep, "thread-a", "original");
+    r.caller_thread_id = Some(r.session_id.clone());
+    r.renew_on_delivery = true;
+    let a = s.register(r).await.unwrap();
+    let mut c = claim(&s, a.key.clone(), d.path().into()).await;
+    s.call(|db| {
+        db.execute("UPDATE sessions SET expires=0", [])?;
+        Ok(())
+    })
+    .await
+    .unwrap();
+    c.session = s.session(a.key.clone()).await.unwrap();
+    let expected = c.delivery.id.clone();
+    let fake = tokio::spawn(async move {
+        for renewal in [true, false] {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let v = ipc::read_frame(&mut stream, 65536).await.unwrap();
+            assert_eq!(v["method"], "tools/list");
+            ipc::write_frame(&mut stream,&json!({"jsonrpc":"2.0","id":v["id"],"result":{"tools":[{"namespace":"codex_app","name":"send_message_to_thread"}]}})).await.unwrap();
+            if renewal {
+                assert!(ipc::read_frame(&mut stream, 65536).await.is_err());
+            } else {
+                let v = ipc::read_frame(&mut stream, 65536).await.unwrap();
+                assert_eq!(v["params"]["callId"], expected);
+                ipc::write_frame(
+                    &mut stream,
+                    &json!({"jsonrpc":"2.0","id":v["id"],"result":{"success":true}}),
+                )
+                .await
+                .unwrap();
+            }
+        }
+    });
+    s.renew_delivery_session(&mut c).await.unwrap();
+    assert_eq!(c.session.key, a.key);
+    assert_eq!(c.session.endpoint_identity, a.endpoint_identity);
+    assert!(c.session.expires_at > now());
+    let outcome = adapters::deliver(&s.config, &c).await;
+    s.complete_claim(c, outcome).await.unwrap();
+    fake.await.unwrap();
+    assert_eq!(
+        s.deliveries(None, 0, 100).await.unwrap()["deliveries"][0]["status"],
+        "accepted_by_host"
+    );
+    let audits = s
+        .call(|db| {
+            Ok(
+                db.query_row("SELECT count(*) FROM target_recoveries", [], |r| {
+                    r.get::<_, i64>(0)
+                })?,
+            )
+        })
+        .await
+        .unwrap();
+    assert_eq!(audits, 1);
+}
+
+#[tokio::test]
+async fn renewal_never_revives_opted_out_invalidated_or_replaced_bindings() {
+    for mode in ["opted_out", "invalidated", "replaced"] {
+        let (d, s) = store().await;
+        let ep = d.path().join("host.sock");
+        let listener = tokio::net::UnixListener::bind(&ep).unwrap();
+        let mut r = registration(ep.clone(), "thread-a", "original");
+        r.caller_thread_id = Some(r.session_id.clone());
+        r.renew_on_delivery = mode != "opted_out";
+        let a = s.register(r).await.unwrap();
+        let mut c = claim(&s, a.key.clone(), d.path().into()).await;
+        s.call(|db| {
+            db.execute("UPDATE sessions SET expires=0", [])?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+        if mode == "invalidated" {
+            s.invalidate(a.key.clone()).await.unwrap();
+        }
+        c.session = s.session(a.key.clone()).await.unwrap();
+        drop(listener);
+        std::fs::remove_file(&ep).unwrap();
+        let replacement = tokio::net::UnixListener::bind(ep).unwrap();
+        let result = s.renew_delivery_session(&mut c).await;
+        if mode == "opted_out" {
+            result.unwrap();
+            assert!(adapters::deliver(&s.config, &c).await.is_err());
+        } else {
+            assert!(result.is_err());
+        }
+        assert_eq!(s.session(a.key).await.unwrap().expires_at, 0);
+        assert!(
+            tokio::time::timeout(Duration::from_millis(30), replacement.accept())
+                .await
+                .is_err()
+        );
+    }
+}
+
+#[tokio::test]
+async fn renewal_fences_changes_during_probe_and_rolls_back_if_audit_fails() {
+    for mode in ["invalidate", "revoke_claim", "audit_failure"] {
+        let (d, s) = store().await;
+        let ep = d.path().join("host.sock");
+        let listener = tokio::net::UnixListener::bind(&ep).unwrap();
+        let mut r = registration(ep, "thread-a", "original");
+        r.caller_thread_id = Some(r.session_id.clone());
+        r.renew_on_delivery = true;
+        let a = s.register(r).await.unwrap();
+        let mut c = claim(&s, a.key.clone(), d.path().into()).await;
+        s.call(|db| {
+            db.execute("UPDATE sessions SET expires=0", [])?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+        c.session = s.session(a.key.clone()).await.unwrap();
+        let store = s.clone();
+        let key = a.key.clone();
+        let fake = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let v = ipc::read_frame(&mut stream, 65536).await.unwrap();
+            if mode == "invalidate" {
+                store.invalidate(key).await.unwrap();
+            } else {
+                store.call(move|db| {
+                if mode=="revoke_claim" {db.execute("UPDATE deliveries SET status='cancelled',token=NULL",[])?;}
+                else {db.execute_batch("CREATE TRIGGER fail_renewal BEFORE INSERT ON target_recoveries BEGIN SELECT RAISE(ABORT,'audit failure'); END;")?;}
+                Ok(())
+            }).await.unwrap();
+            }
+            ipc::write_frame(&mut stream,&json!({"jsonrpc":"2.0","id":v["id"],"result":{"tools":[{"namespace":"codex_app","name":"send_message_to_thread"}]}})).await.unwrap();
+            assert!(ipc::read_frame(&mut stream, 65536).await.is_err());
+        });
+        assert!(s.renew_delivery_session(&mut c).await.is_err());
+        fake.await.unwrap();
+        assert_eq!(s.session(a.key).await.unwrap().expires_at, 0);
+        assert_eq!(
+            s.call(|db| Ok(db
+                .query_row("SELECT count(*) FROM target_recoveries", [], |r| r
+                    .get::<_, i64>(0))?))
+                .await
+                .unwrap(),
+            0
+        );
+    }
 }

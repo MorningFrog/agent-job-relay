@@ -89,3 +89,9 @@ rechecked before SIGINT. A pidfd pins the process against PID reuse; the signal
 never targets a process group. No broad kill, force kill or process-name scan is
 used. The trusted local-user model remains; this is not cryptographic product
 attestation. Explicit stop authorization is separate from install --apply.
+
+Notification recovery uses trusted explicit caller identity, the same endpoint
+owner/fingerprint/capability checks, and exact logical/caller/host matching.
+Delivery-time renewal is opted in and rechecks invalidation and the current claim
+after its network probe. Audits commit with the state change. Neither mechanism
+adds host attestation, endpoint discovery or confirmed Agent-resume evidence.

@@ -220,6 +220,9 @@ enum SessionCommand {
         experimental: bool,
         #[arg(long, default_value_t = 3600)]
         lease_seconds: u32,
+        /// Renew this owned Desktop binding after a same-endpoint probe at delivery
+        #[arg(long)]
+        renew_on_delivery: bool,
     },
     List {
         #[arg(long, default_value_t = 0)]
@@ -411,6 +414,7 @@ async fn run(cli: Cli) -> Result<()> {
                 caller_thread_id,
                 experimental,
                 lease_seconds,
+                renew_on_delivery,
             } => Request::RegisterSession {
                 registration: agent_job_relay::session::Registration {
                     agent_kind: agent,
@@ -426,6 +430,7 @@ async fn run(cli: Cli) -> Result<()> {
                     caller_thread_id,
                     experimental,
                     lease_seconds,
+                    renew_on_delivery,
                 },
             },
             SessionCommand::List { after, limit } => Request::Sessions { after, limit },

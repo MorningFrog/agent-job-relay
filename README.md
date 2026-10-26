@@ -10,7 +10,7 @@ Run durable background commands and route completion events to explicitly regist
 </div>
 
 A native Rust CLI, independent runner and stdio MCP server for one trusted local
-user. **v0.1.2 is an unreleased development milestone, tested on Linux x86_64.**
+user. **v0.1.3 is an unreleased development milestone, tested on Linux x86_64.**
 Delivery is moving to Agent plugins. Independent OS installers and package
 repositories are cancelled; no official plugin publication is planned during development.
 
@@ -26,7 +26,7 @@ repositories are cancelled; no official plugin publication is planned during dev
 | Codex CLI integration | MCP configuration and notification inbox; **no automatic resume** |
 | Desktop wake | Experimental Unix socket adapter; automated fake-host tests and **user-confirmed live E2E** for explicit registration and CLI `--wake` first start, reuse and idle-daemon restart on ChatGPT Desktop 26.1021.22027 / Ubuntu 26.04 |
 | Setup, doctor and owned MCP removal | Isolated configuration tests; no real user settings changed |
-| Install-once local Desktop Plugin + MCP | Installed skill + CLI fallback completed a real release-test task and resumed the same chat; repaired Codex CLI 0.164.0 loader discovers 19 MCP tools in isolation; v0.1.2 Desktop MCP connectivity user-confirmed; MCP task/wake route pending |
+| Install-once local Desktop Plugin + MCP | Installed skill + CLI fallback completed a real release-test task and resumed the same chat; source 0.1.3 Codex CLI 0.164.0 loader check discovers 20 MCP tools in isolation; v0.1.2 Desktop MCP connectivity user-confirmed; MCP task/wake route pending |
 | Windows/macOS runtime | **Not implemented/verified**; requests fail explicitly |
 
 Job completion, `notification_recorded`, `accepted_by_host` and observed Agent
@@ -69,7 +69,8 @@ and resumed the correct chat after completion. Its initial runtime failure and
 workaround are recorded in [live evidence](docs/live-e2e.md).
 
 The repaired local bundle uses `.codex-plugin/plugin.json` and `.mcp.json`.
-An isolated check with the actual Codex CLI 0.164.0 discovers all 19 MCP tools.
+The isolated actual Codex CLI 0.164.0 loader check discovers all 20 MCP tools
+in source 0.1.3, including `job_recover_session`.
 The user confirmed the updated v0.1.2 Desktop MCP connectivity test passed
 following the host `job_doctor` procedure. This is user-attested; no new tool
 transcript was independently reviewed. MCP task submission/wake and plugin browser
@@ -187,6 +188,8 @@ attempt history. Accepted or expired events are excluded; in-flight attempts are
 skipped. Commands are never rerun. Responses include a bounded recovery audit and
 `next_cursor`; use `--after` for more pages. Shared MCP offers
 `job_recover_session(session_key, apply)` using a fresh current-terminal binding.
+Preview/apply requires the updated runtime; older live daemons are refused before
+a wake-dependent submission, with explicit same-profile update guidance.
 This has isolated installed CLI/MCP and fake-host coverage; real Desktop restart
 and continuation remain unverified. Private host identity is trusted caller input.
 
@@ -273,8 +276,12 @@ conflict). This advanced path is not the default installed plugin workflow.
 
 Automatic registration uses a 24-hour lease and a socket fingerprint as host
 instance identity. Each wake-enabled submission refreshes it; a replacement
-endpoint produces a new binding without moving existing jobs. Jobs exceeding
-that lease need explicit refresh/rebind. A host acknowledgement still does not
+endpoint produces a new binding without moving existing jobs. Automatic bindings
+opt into renewal when a result is due: near-expired/expired leases renew only after
+a same-endpoint owner/fingerprint and capability probe. No periodic host polling
+is added. Changed endpoints and invalidated registrations need explicit recovery;
+manual registrations default to no renewal (`--renew-on-delivery` opts in for an
+owned Desktop caller/destination). A host acknowledgement still does not
 confirm Agent execution. The CLI shortcut also passed user-confirmed live first
 start, reuse and idle-daemon restart on the recorded Desktop version/OS. Installed
 shared MCP with two terminal bindings and per-session MCP `wake_me=true` have

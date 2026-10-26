@@ -573,6 +573,7 @@ async fn daemon_graceful_shutdown_keeps_runner_and_restart_dispatches_outbox() {
                 caller_thread_id: None,
                 lease_seconds: 3600,
                 experimental: false,
+                renew_on_delivery: false,
             },
         })
         .await;

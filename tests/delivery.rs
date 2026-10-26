@@ -33,6 +33,7 @@ impl Fixture {
                 caller_thread_id: None,
                 lease_seconds: 3600,
                 experimental: false,
+                renew_on_delivery: false,
             })
             .await
             .unwrap()

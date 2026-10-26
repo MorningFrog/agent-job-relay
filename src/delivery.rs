@@ -139,11 +139,11 @@ fn read_delivery(r: &rusqlite::Row<'_>) -> rusqlite::Result<Delivery> {
 pub async fn worker(store: Store) {
     loop {
         let result = async {
-            if let Some(claim) = store.claim().await? {
-                let outcome = tokio::time::timeout(
-                    std::time::Duration::from_secs(3),
-                    crate::adapters::deliver(&store.config, &claim),
-                )
+            if let Some(mut claim) = store.claim().await? {
+                let outcome = tokio::time::timeout(std::time::Duration::from_secs(3), async {
+                    store.renew_delivery_session(&mut claim).await?;
+                    crate::adapters::deliver(&store.config, &claim).await
+                })
                 .await
                 .context("host delivery deadline exceeded (3s)")
                 .and_then(|r| r);

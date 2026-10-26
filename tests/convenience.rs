@@ -10,6 +10,42 @@ use serde_json::{Value, json};
 use std::{path::PathBuf, process::Stdio, time::Duration};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
+#[tokio::test]
+async fn old_notification_runtime_is_refused_before_registration_or_workload() {
+    let r = Rig::new();
+    let host = Host::new(&r, true);
+    r.config.prepare().unwrap();
+    let listener = tokio::net::UnixListener::bind(r.config.socket()).unwrap();
+    let old = tokio::spawn(async move {
+        for _ in 0..2 {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let v = ipc::read_frame(&mut stream, 65536).await.unwrap();
+            assert_eq!(v["request"]["op"], "doctor");
+            ipc::write_frame(&mut stream,&json!({"protocol_version":1,"ok":true,"result":{"runner_launch_from_loaded_image":true,"version":"0.1.2"}})).await.unwrap();
+        }
+    });
+    let out = r
+        .cli(
+            &[
+                "start",
+                "--wake",
+                "--cwd",
+                r.dir.path().to_str().unwrap(),
+                "--shell",
+                "touch must-not-run",
+            ],
+            Some(("thread-a", &host.endpoint)),
+        )
+        .await;
+    assert!(!out.status.success());
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("predates notification recovery/renewal")
+    );
+    assert!(!r.config.root.join("relay.sqlite3").exists());
+    assert!(!r.dir.path().join("must-not-run").exists());
+    old.await.unwrap();
+}
+
 struct Rig {
     dir: tempfile::TempDir,
     config: Config,
@@ -430,6 +466,68 @@ async fn installed_recovery_previews_then_rebinds_only_current_chat_after_host_r
     let history = success(recover(false).output().await.unwrap());
     assert_eq!(history["recent_recoveries"].as_array().unwrap().len(), 1);
     assert!(!r.dir.path().join("wrong-state").exists());
+}
+
+#[tokio::test]
+async fn installed_long_job_renews_expired_binding_only_when_completion_is_due() {
+    let r = Rig::new();
+    let mut host = Host::new(&r, true);
+    let install = r.dir.path().join("plugin");
+    success(
+        r.cli(
+            &["install", "--root", install.to_str().unwrap(), "--apply"],
+            None,
+        )
+        .await,
+    );
+    let out = tokio::process::Command::new(install.join("relay"))
+        .args([
+            "start",
+            "--wake",
+            "--timeout",
+            "10",
+            "--cwd",
+            r.dir.path().to_str().unwrap(),
+            "--shell",
+            "while [ ! -f release ]; do sleep 0.02; done; echo long-job",
+        ])
+        .env("CODEX_THREAD_ID", "thread-a")
+        .env("CODEX_APP_TOOLS_PIPE_PATH", &host.endpoint)
+        .output()
+        .await
+        .unwrap();
+    let started = success(out);
+    let job = started["job"]["job_id"].as_str().unwrap();
+    let store = Store::new(r.config.clone());
+    store
+        .call(|db| {
+            db.execute("UPDATE sessions SET expires=?", [now() - 172_800_000])?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+    assert!(
+        tokio::time::timeout(Duration::from_millis(50), host.received.recv())
+            .await
+            .is_err()
+    );
+    std::fs::write(r.dir.path().join("release"), b"go").unwrap();
+    assert_eq!(r.terminal(job).await.status, "completed");
+    let message = host.delivery().await;
+    assert_eq!(message["params"]["arguments"]["threadId"], "thread-a");
+    let key = started["job"]["session"].as_str().unwrap().to_owned();
+    assert!(store.session(key).await.unwrap().expires_at > now());
+    let renewal_count = store
+        .call(|db| {
+            Ok(
+                db.query_row("SELECT count(*) FROM target_recoveries", [], |r| {
+                    r.get::<_, i64>(0)
+                })?,
+            )
+        })
+        .await
+        .unwrap();
+    assert_eq!(renewal_count, 1);
 }
 
 #[tokio::test]

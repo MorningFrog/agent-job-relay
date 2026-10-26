@@ -20,7 +20,7 @@ AJR_INSTALL_ROOT="$HOME/.local/share/agent-job-relay"
 "$AJR_INSTALL_ROOT/relay" doctor --client plugin --check-mcp
 ```
 
-The v0.1.2 bundle contains `bin/agent-job-relay`, a relative `relay` launcher,
+The v0.1.3 source-built bundle contains `bin/agent-job-relay`, a relative `relay` launcher,
 `.codex-plugin/plugin.json`, `.mcp.json`, a background-jobs skill, icon and an
 owner-only install receipt. It is independent of the source checkout after
 installation. Updating source does not update an installed or host-cached copy.
@@ -29,7 +29,7 @@ The MCP command is the stable absolute executable path in this local install,
 with explicit state arguments. Codex CLI 0.164.0 did not discover the previous
 portable root MCP declaration or expand plugin-root command variables; retaining
 both manifests also failed. Therefore portable root templates are not installed.
-An isolated real-loader check now discovers all 19 tools (ADR 0004). The cached
+The 0.1.3 isolated real-loader check discovers all 20 tools including job_recover_session (ADR 0004). The cached
 terminal launcher remains relative, but **cached MCP still requires the original
 installation**. This local development solution is not a qualified public plugin
 bootstrap mechanism.
@@ -179,3 +179,9 @@ Official plugin/marketplace references:
 - https://developers.openai.com/plugins/build/plugins
 - https://developers.openai.com/plugins/deploy/desktop-only
 - https://learn.chatgpt.com/docs/extend/mcp
+
+The 0.1.3 source increment adds session recover preview/--apply and completion-time
+lease renewal. It does not upgrade an existing personal install or host cache by
+itself. Automatic binding requires the updated daemon capability flags; finish
+active work, then explicitly stop/update using the existing installed profile.
+State schema v6 is additive but older executables refuse to initialize it.

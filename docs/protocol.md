@@ -159,3 +159,24 @@ are never reset. Target/delivery changes and target_recoveries audit commit in o
 transaction. The response includes recent audits and bounded target pagination.
 Low-level target rebind/replay remains an explicit advanced API with its existing
 semantics; this conservative recovery operation does not renew expired TTLs.
+
+## Long-job lease renewal (0.1.3)
+
+Registration optionally sets renew_on_delivery=true (default false for old/manual
+records). Automatic terminal bindings opt in. Only an owned Desktop registration
+with identical caller/destination may enable it; inbox is excluded. When an
+actual delivery claim has a lease expiring within one hour, the dispatcher probes
+the original endpoint fingerprint/owner and tools/list capability, including when
+the session lease already expired during a long job. There is no periodic host
+scan. The existing three-second attempt deadline includes this optional probe.
+
+Before extending the session by its configured lease duration, a transaction
+rechecks the unchanged registration/expiry, connected flag and active target with
+the current unexpired claim token. Renewal and its audit commit together. The
+original delivery ID and event TTL remain unchanged. Changed/invalidated endpoints
+never renew automatically; concurrent refresh retries from the new snapshot.
+The probe provides endpoint/capability evidence, not Agent execution confirmation.
+Doctor exposes same_chat_recovery and delivery_time_renewal capability flags;
+automatic binding refuses an older daemon before registration/job mutation and
+requires an explicit same-profile stop/update. Manual opted-out registration
+omits the new false field for older wire compatibility. Schema v6 is unchanged.

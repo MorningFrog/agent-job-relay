@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — notification recovery
+## 0.1.3 — 2026-10-26 (unreleased notification recovery)
 
 - Add preview/apply same-chat recovery through CLI/MCP with atomic audits,
   preserved delivery IDs/history/TTL, and no accepted-event or command replay.
@@ -8,7 +8,11 @@
 - Retry temporary delivery failures until TTL with jitter capped at five minutes;
   pause changed identities for explicit recovery and stop permanent failures.
 - Preserve delivery IDs/history and expose failure kind and next-attempt time;
-  migrate existing delivery records to schema v5 without data loss.
+  migrate existing delivery records to schema v6 without data loss.
+
+- Renew opted-in long-job session leases at delivery only after a same-endpoint
+  capability probe and fenced transaction/audit; refuse old daemons before binding.
+- Keep task output monitoring/interruption recorded for a later increment.
 
 ## 0.1.2 — 2026-10-26 (unreleased upgrade repair)
 

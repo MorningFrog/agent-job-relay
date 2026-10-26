@@ -11,6 +11,7 @@ pub mod ipc;
 pub mod mcp;
 pub mod platform;
 pub mod recovery;
+pub mod renewal;
 pub mod runner;
 pub mod session;
 pub mod storage;

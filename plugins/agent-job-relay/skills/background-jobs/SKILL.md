@@ -75,3 +75,9 @@ commands or replays accepted/expired events. In-flight targets are skipped;
 report them and inspect later rather than polling. Results are paginated with
 `next_cursor`/`after`; an empty target page completes the scan. Never recover
 another chat by guessing its key or switch state directories to hide a failure.
+
+Automatic bindings opt into capability-verified lease renewal when a result is
+due, allowing jobs longer than 24 hours without polling. Renewal keeps the same
+endpoint identity; a replaced host or invalidated registration needs explicit
+recovery. An older daemon is refused before binding/submission: report the
+same-profile update guidance instead of silently restarting it or switching state.

@@ -83,16 +83,21 @@ manual crash matrix.
   scenarios must be defined in that later increment. Record only for now; do not
   fold implementation into the notification-recovery work.
 
-- P1: normal host restart/rebind and temporarily unavailable delivery recovery;
-  concurrent exact routing, version-specific compatibility and event deduplication.
+- Implemented locally in 0.1.3: TTL-bounded temporary delivery retries, scoped
+  session recover preview/apply with atomic audit and original delivery IDs, and
+  same-endpoint delivery-time renewal. Installed CLI/MCP and fake-host behavior
+  tests cover these paths; real Desktop restart/rebind and multi-day execution
+  remain unverified. Receiver-side deduplication and host-version compatibility
+  remain follow-up work.
 - P1: Linux containment for descendants escaping process groups and runner death;
   longer soak and controlled disk/power-loss tests. Existing process-group
   cancellation is for trusted, non-daemonizing workloads.
 - P1: Windows SID/DACL, named pipes and Job Objects; macOS native process identity,
   lifecycle and IPC. OS runtime support still requires native verification even
   when distribution uses plugins.
-- P1: leases beyond 24 hours and authenticated per-call identity for shared hosts;
-  never infer the caller from a global latest-session record.
+- P1: stronger authenticated per-call identity for shared hosts. Automatic
+  bindings now support capability-verified delivery-time renewal beyond 24 hours;
+  caller identity remains trusted input. Never infer it from a latest-session record.
 - P1: backup/export, migrations, retention previews and configurable budgets.
   Data purge remains a separate explicit design, not part of plugin uninstall.
 - P2: negotiated standard MCP Tasks, richer progress, optional public Codex writer

@@ -1,4 +1,4 @@
-# Current limitations (0.1.2 development milestone)
+# Current limitations (0.1.3 development milestone)
 
 - Linux x86_64 is the only locally compiled and process-tested runtime. Windows
   named-pipe ACLs/Job Objects and macOS instance identity/lifecycle are not
@@ -54,7 +54,7 @@
   and enablement are handled in the host UI; changing source files does not update
   them. The user's installed skill + CLI fallback real release task passed wake,
   after an initial failed launch and separate-state workaround. It did not call
-  MCP. The repaired Codex CLI 0.164.0 loader discovers 19 tools in isolation;
+  MCP. The source 0.1.3 Codex CLI 0.164.0 loader check discovers 20 tools in isolation;
   the user confirmed updated v0.1.2 Desktop MCP connectivity following the
   job_doctor procedure, without new independently reviewed tool evidence. MCP
   task submission/wake and browser discovery/install remain separately unverified. Source templates alone contain no native executable.
@@ -77,11 +77,15 @@
 Convenience support: `start --wake` / MCP wake_me=true remove manual registration
 when current host context is inherited. They cannot infer identity in an ordinary
 terminal or shared MCP process. Use the current Desktop Agent terminal tool when
-MCP lacks those variables. Automatic sessions lease for 24 hours and need refresh
-for longer work. CLI shortcut live evidence is user-attested and version-specific;
+MCP lacks those variables. Automatic sessions lease for 24 hours and opt into delivery-time renewal
+after probing the same endpoint fingerprint/owner/capability. No periodic host
+polling is added. Changed endpoints or invalidation need explicit same-chat
+recovery; manual/legacy registrations default to no renewal. CLI shortcut live evidence is user-attested and version-specific;
 the reviewer correlated private artifacts without independently observing the UI.
 MCP wake_me=true has fake-host automation and real process coverage, but no
-separate real-host shortcut validation.
+separate real-host shortcut validation. Same-chat recovery and delivery-time renewal
+have isolated fake-host/installed-process evidence only; no new real restart or
+multi-day execution is claimed. Multi-day expiry is fault-injected in tests.
 
 Installed/generated MCP uses shared-host mode, rejecting inherited-context wake.
 The plugin skill obtains a fresh current-terminal session key and supplies it to

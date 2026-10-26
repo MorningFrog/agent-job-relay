@@ -77,3 +77,10 @@ checks the unchanged session snapshot inside a transaction, and scopes old targe
 to identical agent/logical/host/caller identities. It transfers only unexpired
 unresolved deliveries, retaining IDs/history/TTL; accepted events and live claims
 are excluded. New immutable targets and the recovery audit commit atomically.
+
+Automatic bindings opt into delivery-time renewal (renewal.rs). Only an actual
+result claim can trigger a same-endpoint owner/fingerprint/capability probe; no
+periodic host polling is needed. Near-expired/expired sessions extend only after
+an unchanged-snapshot/current-claim check, atomically with a renewal audit.
+Invalidation or host replacement requires explicit recovery. Manual/old bindings
+remain opted out. Capability preflight rejects old daemons before automatic binding.

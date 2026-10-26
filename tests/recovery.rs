@@ -8,6 +8,54 @@ use agent_job_relay::{
 };
 use serde_json::Value;
 
+#[tokio::test]
+async fn recovery_pagination_does_not_rescan_new_targets_or_take_over_other_callers() {
+    let f = Fixture::new().await;
+    let old = f.session("a", "old").await;
+    let first = f.job(&old, false).await;
+    let second = f.job(&old, false).await;
+    let mut foreign = old.registration.clone();
+    foreign.instance_id = "foreign-host".into();
+    foreign.host_id = "other-host".into();
+    let foreign = f.store.register(foreign).await.unwrap();
+    f.job(&foreign, false).await;
+    let mut wrong_caller = old.registration.clone();
+    wrong_caller.instance_id = "different-caller".into();
+    wrong_caller.caller_thread_id = Some("b".into());
+    let wrong_caller = f.store.register(wrong_caller).await.unwrap();
+    f.job(&wrong_caller, false).await;
+    let current = f.session("a", "new").await;
+    let a = f
+        .store
+        .recover_session(current.clone(), true, 0, 1)
+        .await
+        .unwrap();
+    assert_eq!(a["targets"][0]["job_id"], first.job_id);
+    let b = f
+        .store
+        .recover_session(current.clone(), true, a["next_cursor"].as_i64().unwrap(), 1)
+        .await
+        .unwrap();
+    assert_eq!(b["targets"][0]["job_id"], second.job_id);
+    let end = f
+        .store
+        .recover_session(
+            current.clone(),
+            false,
+            b["next_cursor"].as_i64().unwrap(),
+            100,
+        )
+        .await
+        .unwrap();
+    assert!(end["targets"].as_array().unwrap().is_empty());
+    assert!(
+        f.store
+            .recover_session(wrong_caller, true, 0, 100)
+            .await
+            .is_err()
+    );
+}
+
 struct Fixture {
     dir: tempfile::TempDir,
     store: Store,
@@ -39,6 +87,7 @@ impl Fixture {
                 caller_thread_id: Some(logical.into()),
                 lease_seconds: 86400,
                 experimental: true,
+                renew_on_delivery: false,
             })
             .await
             .unwrap()

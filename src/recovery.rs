@@ -99,7 +99,7 @@ impl Store {
                 targets.push(result);
             }
             let mut q=tx.prepare("SELECT id,at,from_target,to_target,details FROM target_recoveries WHERE session_key=? ORDER BY rowid DESC LIMIT ?")?;
-            let history=q.query_map(params![s.key,limit],|row|Ok(json!({"recovery_id":row.get::<_,String>(0)?,"at":row.get::<_,i64>(1)?,"from_target":row.get::<_,String>(2)?,"to_target":row.get::<_,String>(3)?,"deliveries":serde_json::from_str::<Value>(&row.get::<_,String>(4)?).unwrap_or_default()})))?
+            let history=q.query_map(params![s.key,limit],|row|Ok(json!({"recovery_id":row.get::<_,String>(0)?,"at":row.get::<_,i64>(1)?,"from_target":row.get::<_,String>(2)?,"to_target":row.get::<_,String>(3)?,"deliveries":serde_json::from_str::<Value>(&row.get::<_,String>(4)?).map_err(|e|rusqlite::Error::FromSqlConversionFailure(4,rusqlite::types::Type::Text,Box::new(e)))?})))?
                 .collect::<rusqlite::Result<Vec<_>>>()?;
             drop(q);
             tx.commit()?;

@@ -24,6 +24,9 @@ pub struct Registration {
     pub lease_seconds: u32,
     #[serde(default)]
     pub experimental: bool,
+    /// Opt in to same-endpoint capability-verified renewal when delivering results.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub renew_on_delivery: bool,
 }
 fn default_lease() -> u32 {
     3600
@@ -76,6 +79,12 @@ impl Store {
         ensure!(
             (1..=86400).contains(&r.lease_seconds),
             "lease must be 1..86400 seconds"
+        );
+        ensure!(
+            !r.renew_on_delivery
+                || (r.adapter == Adapter::DesktopExperimental
+                    && r.caller_thread_id.as_deref() == Some(r.session_id.as_str())),
+            "delivery-time renewal requires an owned Desktop caller/destination binding"
         );
         match r.adapter {
             Adapter::Inbox => ensure!(

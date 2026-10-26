@@ -36,6 +36,7 @@ fn desktop_registration() -> Result<(Registration, String)> {
         lease_seconds: 86400,
         // --wake / wake_me=true is explicit opt-in, described as experimental.
         experimental: true,
+        renew_on_delivery: true,
     };
     Ok((registration, fingerprint))
 }
@@ -133,6 +134,8 @@ async fn connect_registration(
     registration: Registration,
     fingerprint: String,
 ) -> Result<Value> {
+    let health = ipc::call(config, Request::Doctor).await?;
+    verify_notification_runtime(&health)?;
     let result = ipc::call(config, Request::RegisterSession { registration }).await?;
     ensure!(
         result["session"]["endpoint_identity"].as_str() == Some(&fingerprint),
@@ -147,6 +150,13 @@ async fn connect_registration(
     result["probe"] = probe["probe"].clone();
     result["connection_source"] = json!("current process inherited host context");
     Ok(result)
+}
+fn verify_notification_runtime(info: &Value) -> Result<()> {
+    ensure!(
+        info["delivery_time_renewal"] == true && info["same_chat_recovery"] == true,
+        "existing daemon predates notification recovery/renewal. No registration or job was changed. Let active jobs finish, explicitly stop/update the daemon for the same installed profile, then retry; no state directory was switched"
+    );
+    Ok(())
 }
 /// Explicitly opt into the experimental adapter using current host identity.
 pub async fn connect(config: &Config) -> Result<Value> {

@@ -1,6 +1,6 @@
 # Plugin delivery and publication policy
 
-Version 0.1.2 is an unreleased development milestone. The user's 2026-10-26 scope
+Version 0.1.3 is an unreleased development milestone. The user's 2026-10-26 scope
 revision cancels independent OS installers/package repositories in favor of
 Agent plugin delivery. See TODO.md; the old system-package roadmap is superseded.
 
