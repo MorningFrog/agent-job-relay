@@ -116,6 +116,6 @@ Choose a new output directory for each export. Then use that directory's `relay 
 | Design and API details | [Architecture](docs/architecture.md), [protocol](docs/protocol.md) |
 | Planned work and changes | [Roadmap](docs/TODO.md), [changelog](CHANGELOG.md) |
 
-Linux execution, offline plugin management and the Codex CLI 0.164.0 loader have isolated automated coverage. Desktop CLI wake and installed MCP submission/same-chat continuation have user-confirmed live evidence, with matching job/log/delivery records reviewed read-only. Plugin-browser installation and current host-version compatibility remain separate checks. Automatic native downloads, official plugin publication and output monitoring/interruption are pending. Independent OS installers and package repositories are cancelled.
+Linux execution, offline plugin management and the Codex CLI 0.164.0 loader have isolated automated coverage. Desktop 26.1021.22027 with plugin 0.1.5 passed a coordinated active-job restart, rebind and same-chat continuation check, with matching recovery/event/delivery records. UI enablement/version/restart are user-attested; bridge changes were measured and Agent continuation observed. Clean UI installation and other host versions remain unverified. Automatic native downloads, official plugin publication and output monitoring/interruption are pending. Independent OS installers and package repositories are cancelled.
 
 MIT licensed. Independently implemented; Vanth was studied read-only for behavior requirements. See [reference audit](docs/reference-audit.md).
