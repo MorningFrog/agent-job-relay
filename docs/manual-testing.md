@@ -20,7 +20,7 @@ Keep the original root/profile if you previously chose a custom one. For an exis
 "$AJR_BUNDLE/relay" plugin update --root "$AJR_INSTALL_ROOT" --from "$AJR_BUNDLE" --apply
 ```
 
-Expected: preview reports the intended original installation/state; apply preserves that state and history, reports any backup, and installs 0.1.4. Use the new launcher even if the old installation predates `plugin update`. An active-job/ownership error is a stop-and-diagnose result, not a reason to choose a fresh state directory.
+Expected: preview reports the intended original installation/state; apply preserves that state and history, reports any backup, and installs 0.1.5. Use the new launcher even if the old installation predates `plugin update`. An active-job/ownership error is a stop-and-diagnose result, not a reason to choose a fresh state directory.
 
 For a first installation only, replace the update sequence with:
 
@@ -36,7 +36,7 @@ Then check:
 "$AJR_INSTALL_ROOT/relay" doctor --client plugin --check-mcp
 ```
 
-Expected: version 0.1.4, owned marketplace entry matches, and `stdio_self_check.status=passed` with 20 tools. `daemon=stopped` is normal before a submission; the check must not start a workload. This result establishes local installation/configuration/stdio only.
+Expected: version 0.1.5, owned marketplace entry matches, and `stdio_self_check.status=passed` with 20 tools. `daemon=stopped` is normal before a submission; the check must not start a workload. This result establishes local installation/configuration/stdio only.
 
 ## 2. Refresh the plugin in Desktop
 
@@ -84,7 +84,7 @@ Expected: the original state path is retained; the same unmodified bundle report
 
 | Item | Passing evidence |
 |---|---|
-| Runtime installation/update | 0.1.4 and original state/profile retained |
+| Runtime installation/update | 0.1.5 and original state/profile retained |
 | Local MCP | Owned configuration match and 20-tool stdio self-check |
 | Host UI | Plugin visibly discovered and installed/refreshed |
 | Host MCP connection | Actual `job_doctor` tool response |
@@ -92,7 +92,19 @@ Expected: the original state path is retained; the same unmodified bundle report
 | Continuation | Matching result consumed in a new same-chat turn without another human message |
 | Cache handling | Host refresh observed, or an explicitly tested snapshot result |
 
-Use pass/fail/not tested for each item. Record host/app version, OS, actual submission route and job/delivery IDs privately; do not publish endpoints, credentials, databases or raw private logs. Keep the runtime delivery state separate from your observation of continuation. Host restart/rebind and real multi-day renewal are separate future checks, not prerequisites for this run.
+Use pass/fail/not tested for each item. Record host/app version, OS, actual submission route and job/delivery IDs privately; do not publish endpoints, credentials, databases or raw private logs. Keep the runtime delivery state separate from your observation of continuation. Use the restart/rebind procedure below only when explicitly testing that scenario. Real multi-day renewal remains a separate check.
+
+## Desktop restart and same-chat rebinding
+
+This separate acceptance checks a changed real host endpoint and an existing job target. It does not repeat the passed ordinary MCP continuation test. Native Desktop UI/restart needs a human operator when computer tools expose browsers only; record that limit instead of claiming an observed UI action.
+
+1. Record the actual app version and whether AgentJobRelay is visibly installed/enabled in the Plugins interface. Preserve existing configuration and other plugins. Keep the installed runtime/profile unchanged unless an update is separately needed.
+2. From this chat's terminal, obtain a fresh binding with the installed plugin launcher. Privately retain the session/instance fingerprint and submit `python3 /absolute/repository/scripts/check_desktop_restart.py wait --directory /absolute/repository/.tmp/live-restart-UNIQUE --timeout 1800` through MCP `job_start`, with the repository cwd, that exact binding and a bounded job timeout. Use a fresh path; the script creates it. Retain the returned job/target IDs. The script's ready marker establishes only a waiting test command, not a Desktop result. End the submitting turn.
+3. Quit/reopen Desktop normally, reopen this same chat and confirm that the plugin is still available. Report the app version and actual restart; no assistant process kill or configuration rewrite is needed.
+4. In the reopened chat, use the installed launcher's `session recover` preview. Compare the new host instance with the private baseline and match the pending target to the retained job. Apply only the same-chat recovery requested for this test, preserving job/target/delivery history. An unchanged host instance establishes reconnect only, not a restarted bridge. An in-flight target is skipped; inspect its recorded outcome rather than polling or replaying the command.
+5. After successful recovery, release the existing command with `python3 scripts/check_desktop_restart.py release --directory <the-same-absolute-path>` from the repository. End the turn. The same chat should continue from its completion notification, read the matching result and correlate the recovered target/event/delivery. The command is never resubmitted. The FIFO uses an OS wait with a deadline, not Agent polling.
+
+Record UI/restart as observed or user-attested, old/new bridge identity comparison, recovered job/target correlation, host acceptance and actual continuation separately. Do not expose private endpoints or session keys. A timeout, missing tools or failed rebind is a failed/incomplete acceptance with preserved state. The script's `ui_restart_observed=false` deliberately cannot attest to the UI. This active-job scenario does not establish recovery of an event that completed while Desktop was closed, receiver deduplication or multi-day renewal.
 
 ## Optional: isolated installation and cache protection
 

@@ -8,6 +8,12 @@ The user confirmed that a real background task was submitted through MCP, the su
 
 This qualifies the installed MCP submission/continuation workflow for that user-confirmed run. The originating tool calls and actual UI continuation were not independently observed. Runtime delivery remains `accepted_by_host`; user-attested continuation is separate evidence. No workload replay, delivery retry or host message was used during review.
 
+## Desktop UI/restart acceptance
+
+The requested acceptance is in progress against the unchanged installed **0.1.4** runtime; source **0.1.5** has separate isolated loader/recovery evidence. Available computer tools expose browsers but no native Desktop window, so plugin-browser installation, app version and normal restart require operator observation. No personal installation/configuration, daemon or other plugin has been replaced or stopped for this check.
+
+A developer-only bounded FIFO probe stages an existing MCP job for same-chat recovery after reopening Desktop, then explicit release and completion-triggered continuation. The isolated FIFO handshake passed. Real old/new host identity comparison, recovered target correlation, UI/restart and continuation remain pending; private probe artifacts/IDs stay in ignored repository-local storage. Follow [manual acceptance](manual-testing.md#desktop-restart-and-same-chat-rebinding). This check does not establish a 0.1.5 live upgrade or a result completed while the host was closed.
+
 ## Remaining scope
 
 - The current Desktop version, OS distribution, plugin-browser installation and native/cache upgrade integrity were not independently rechecked.
