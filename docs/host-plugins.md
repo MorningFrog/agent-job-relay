@@ -1,6 +1,6 @@
 # Host plugins and community verification
 
-One Rust/MCP runtime remains responsible for jobs, results, outbox attempts, recovery and leases. Host packages supply actual caller identity and translate a completion request to that host's public API. These are local development packages, not published plugins or official marketplace listings. Linux is the verified runtime.
+One Rust/MCP runtime remains responsible for jobs, results, outbox attempts, recovery and leases. Host packages supply actual caller identity and translate a completion request to that host's public API. Shared runtime/OpenCode npm candidates and a self-hosted ChatGPT marketplace are prepared but unpublished; final npm names/account verification are pending. They are not official directory listings. Linux is the verified runtime.
 
 ## Current evidence
 
@@ -17,27 +17,24 @@ One Rust/MCP runtime remains responsible for jobs, results, outbox attempts, rec
 
 The selected target is **OpenCode 1.19.4** and `@opencode-ai/plugin`/SDK **1.19.4**. V1 loads an exported plugin function and uses singular `plugin` configuration. Do not combine it with V2's plural `plugins`/`Plugin.define` interface. See the official [V1 plugin guide](https://opencode.ai/docs/plugins/), [custom-tool caller context](https://opencode.ai/docs/custom-tools/) and [SDK](https://opencode.ai/docs/sdk/).
 
-Build the core and stage the plugin/dependencies under ignored local storage:
+For candidate package builds and the no-source-checkout installed-tarball check, follow [release preparation](release.md). To stage an installed development copy after preparing `.tmp/release-candidate`:
 
 ```bash
-cargo build --release --locked
-mkdir -p .tmp/host-plugins
-cp -R plugins/opencode-v1 .tmp/host-plugins/opencode-v1
-npm install --prefix .tmp/host-plugins/opencode-v1 --cache .tmp/npm-cache --ignore-scripts --no-audit --no-fund
+npm install --prefix .tmp/host-plugins --cache .tmp/npm-cache --ignore-scripts --no-audit --no-fund ./.tmp/release-candidate/agent-job-relay-runtime-0.1.6.tgz ./.tmp/release-candidate/agent-job-relay-opencode-v1-0.1.6.tgz
 ```
 
 Use a new staging path for another copy rather than nesting copies. Configure the following once in your chosen OpenCode project, replacing the absolute paths with the built/staged paths and a short separate persistent state path:
 
 ```json
 {
-  "plugin": [["file:///absolute/repository/.tmp/host-plugins/opencode-v1/index.mjs", {
+  "plugin": [["file:///absolute/repository/.tmp/host-plugins/node_modules/agent-job-relay-opencode-v1/index.mjs", {
     "executable": "/absolute/repository/target/release/agent-job-relay",
     "stateDir": "/absolute/short/path/relay-state"
   }]]
 }
 ```
 
-The plugin configures only its `agent_job_relay` MCP name and refuses an existing entry with that name. It requires native >=0.1.6; an older running daemon must be updated/stopped explicitly for the same profile, never silently replaced. A long socket path fails clearly; it does not switch profiles or use a shared temporary directory. Keep state outside plugin/cache directories.
+Published candidates default to their bundled runtime and persistent opencode profile; the tuple above demonstrates explicit development overrides. Normal npm-name installation is unavailable until publication. The plugin configures only its `agent_job_relay` MCP name and refuses an existing entry with that name. It requires native >=0.1.6; an older running daemon must be updated/stopped explicitly for the same profile, never silently replaced. A long socket path fails clearly; it does not switch profiles or use a shared temporary directory. Keep state outside plugin/cache directories.
 
 The `tool.execute.before` hook obtains the real `sessionID`, verifies it through the public session API, registers/probes an owned bridge, then supplies `spec.session` to the actual MCP `job_start`. It overrides model-supplied caller keys. The plugin adds workflow guidance; everyday prompts need no internal path or session key. Other MCP tools stay available from the same core. Do not use Desktop `session connect`/`wake_me` in this host.
 
@@ -47,14 +44,14 @@ After a plugin/server replacement, ask the Agent to use `relay_recover` with `ap
 
 ### Account-free actual-loader check
 
-Run from this repository with Node, npm and Python available:
+Prepare the candidate tarballs as in [release preparation](release.md), then run from this repository with Node, npm and Python available:
 
 ```bash
 npm install --prefix .tmp/opencode-toolchain --cache .tmp/npm-cache --ignore-scripts --no-audit --no-fund opencode-ai@1.19.4 @opencode-ai/plugin@1.19.4 @opencode-ai/sdk@1.19.4
-python3 scripts/check_opencode_plugin.py --binary "$PWD/target/release/agent-job-relay"
+python3 scripts/check_release.py --release .tmp/release-candidate --opencode .tmp/opencode-toolchain/node_modules/opencode-linux-x64/bin/opencode
 ```
 
-Expected: `result=passed`, OpenCode 1.19.4, a completed single-attempt command, one accepted delivery, a subsequent response in the correct session and no message in an unrelated session. The checker runs the real headless server and MCP with an isolated HOME/config/cache/state under `.tmp/`, uses a deterministic local model fixture, and stops only its own test processes. It needs no provider account, real API key or Docker installation. Reports stay ignored. The fixture proves interface routing and agent-loop invocation, not natural-language model judgment or a paid provider integration.
+Expected: `result=passed`, OpenCode 1.19.4, a completed single-attempt command, one accepted delivery, a subsequent response in the correct session and no message in an unrelated session. The candidate checker installs the actual npm tarballs, then runs the real headless server and bundled native MCP with an isolated HOME/config/cache/state under `.tmp/`, uses a deterministic local model fixture, and stops only its own test processes. It needs no provider account, real API key or Docker installation. Reports stay ignored. The fixture proves interface routing and agent-loop invocation, not natural-language model judgment or a paid provider integration.
 
 ## Claude Code development framework
 

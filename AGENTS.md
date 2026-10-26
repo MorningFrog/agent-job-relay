@@ -46,5 +46,5 @@ cargo build --release
 
 - Follow Conventional Commits: `<type>[optional scope]: <description>`, using appropriate types such as `feat`, `fix`, `docs`, `refactor`, `test` and `chore`. Write concise, descriptive subjects and any bodies in English.
 - Commit each verifiable increment locally. Check `git status` and `git diff --check`, stage specific paths, and keep generated artifacts, private logs, databases and secrets out of Git.
-- Do not modify real user configuration/services, publish, push or rewrite history during development. Never touch Vanth state; any reference repository is read-only.
-- Distribute through Agent plugins around one Rust/MCP core, targeting Codex/Desktop, Claude Code and OpenCode. Independent OS installers/package repositories are cancelled; official plugin platforms remain future work with no publication/submission now.
+- Do not modify real user configuration/services or rewrite history. Release preparation is authorized; pushing, publishing and submission still require final user confirmation. Explicitly requested Windows VM toolchain installation is allowed for verification. Never touch Vanth state; any reference repository is read-only.
+- Distribute through Agent plugins around one Rust/MCP core, targeting Codex/Desktop, Claude Code and OpenCode. Independent OS installers/package repositories are cancelled; prepare OpenCode npm delivery and a ChatGPT self-hosted marketplace; official directory submissions remain future work. GitHub release operations must use a manual workflow, never push/tag triggers.

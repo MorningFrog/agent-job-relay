@@ -9,9 +9,15 @@ Tasks run in the background. Agents pick up when needed.
 任务在后台运行，Agent 在需要时接棒。
 </div>
 
-让长时间命令独立于 Agent 连接运行，保存结果，并在宿主支持时通知发起任务的聊天。**v0.1.6 是尚未发布的 Linux x86_64 开发版本。** Desktop 唤醒使用实验性接口；目前不支持 Windows/macOS。OpenCode V1 提供实验性本地插件；Claude Code 提供仅收件箱通知的开发框架，需要社区验证。
+让长时间命令独立于 Agent 连接运行，保存结果，并在宿主支持时通知发起任务的聊天。**v0.1.6 是尚未发布的 Linux x86_64 开发版本。** Desktop 唤醒使用实验性接口；目前不支持 Windows/macOS。OpenCode V1 提供实验性插件候选包；Claude Code 提供仅收件箱通知的开发框架，需要社区验证。
 
 OpenCode/Claude 的开发安装及验证边界见[宿主插件指南](docs/host-plugins.md)。
+
+## 插件发布候选版
+
+源码已公开在 [GitHub](https://github.com/MorningFrog/agent-job-relay)。OpenCode npm 插件、共用运行时包和 ChatGPT 自建插件市场已提供候选实现；**npm 账号等待验证、包名尚未最终确认，目前不能使用正常的在线安装命令。** 现有安装继续按下方离线方式维护。
+
+GitHub 的 **Release candidate** 工作流只能手动运行：默认生成候选文件，也可选择创建待人工发布的预发行草稿；提交、PR 和 tag 不会自动发布。构建、安装验证及未来在线安装步骤见[发布指南](docs/release.md)。自建市场与 OpenAI 官方插件库是不同渠道。
 
 ## 快速安装
 
@@ -117,9 +123,10 @@ AJR_BUNDLE="$PWD/.tmp/agent-job-relay-offline"
 | 安全和运行限制 | [安全说明](docs/security.md)、[限制](docs/limitations.md) |
 | 设计和接口细节 | [架构](docs/architecture.md)、[协议](docs/protocol.md) |
 | 宿主框架及社区测试 | [宿主插件](docs/host-plugins.md)、[参与贡献](CONTRIBUTING.md) |
+| 发布候选包和手动 Actions | [发布指南](docs/release.md) |
 | 计划及变更 | [路线图](docs/TODO.md)、[变更记录](CHANGELOG.md) |
 
-Linux 执行、离线插件管理和 Codex CLI 0.164.0 加载器已有隔离自动化验证。Desktop 26.1021.22027 与插件 0.1.5 已通过运行中任务的重启、重绑定和同聊天续聊验证，恢复、事件及投递记录一致。界面启用、版本和重启由用户确认；桥接身份变化已测量，并已观察到 Agent 续聊。全新界面安装及其他宿主版本仍未验证。原生程序自动下载、官方插件发布及输出监控/中断尚未实现。独立系统安装包和软件仓库计划已取消。
+Linux 执行、离线插件管理和 Codex CLI 0.164.0 加载器已有隔离自动化验证。Desktop 26.1021.22027 与插件 0.1.5 已通过运行中任务的重启、重绑定和同聊天续聊验证，恢复、事件及投递记录一致。界面启用、版本和重启由用户确认；桥接身份变化已测量，并已观察到 Agent 续聊。全新界面安装及其他宿主版本仍未验证。共用 npm 原生运行时和自建市场候选包已准备但尚未发布；官方目录投稿及输出监控/中断仍待实施。独立系统安装包和软件仓库计划已取消。
 
 OpenCode 1.19.4 已使用真实加载器、MCP 和会话 API 配合本地模拟模型验证；真实模型服务及 V2 仍需验证。Claude Code 仅完成模拟调用者助手与实际 MCP 启动入口检查，没有 Claude 账号、加载器或模型会话实测。**欢迎社区协助测试和提交 PR，尤其是 Claude Code 与容器化版本验证。** 参与方式见[贡献指南](CONTRIBUTING.md)。
 

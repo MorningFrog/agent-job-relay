@@ -23,3 +23,9 @@ Saved before/after bindings show a changed bridge instance, endpoint fingerprint
 See [manual acceptance](manual-testing.md#desktop-restart-and-same-chat-rebinding) for the procedure and [implementation status](IMPLEMENTATION_STATUS.md) for automated results and operating limits.
 
 The source 0.1.6 OpenCode actual-host/simulated-model checks and Claude synthetic scaffold checks are separate evidence in [host plugins](host-plugins.md). They do not replace this Desktop 0.1.5 live result or establish a real provider/account session.
+
+## Current package and Windows qualification
+
+Source 0.1.6 candidate: real npm tarball installation/native execution, retained history after package relocation and corrupt-payload refusal passed. OpenCode 1.19.4 installed the unpublished package by exact npm name/version through a loopback registry and completed the owned-session agent-loop response using a simulated model; the control session stayed untouched. Codex 0.164.0 installed the self-hosted catalog, executed its cached terminal launcher and discovered 20 MCP tools through the same fixture registry, without Desktop contact or a model turn. These are package/interface checks, not public npm availability or clean Desktop UI acceptance.
+
+Windows 11 VM/Rust MSVC 1.99.1 passed fmt, all-target Clippy, 2 portable library tests, release build/help and explicit Linux-only daemon refusal. Linux remains the only verified background runtime. The current GitHub workflow definitions have not run remotely after these changes; release is manual-only and no npm publication, remote push or official directory submission was performed.

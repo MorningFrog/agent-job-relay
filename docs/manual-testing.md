@@ -129,3 +129,14 @@ printf '\nmanual cache edit\n' >> "$AJR_CHECK/cache/skills/background-jobs/SKILL
 ```
 
 Expected: the last command fails with a modified-file error, leaving your edit and original installation intact. This expected refusal is the passing result. Retain the isolated directory for inspection; no manual crash matrix or real cache edits are needed. Automated cross-version/resource-change coverage remains in [testing](testing.md).
+
+## Self-hosted marketplace candidate
+
+The npm packages are unpublished and their names are provisional. First run the isolated [candidate checks](release.md#build-and-verify-locally); do not treat a loopback-registry pass as a normal online installation. After the exact reviewed runtime npm version and marketplace commit are publicly available, manually qualify a clean supported Linux Desktop profile:
+
+1. Confirm Node.js 20+/npm are on the Desktop/terminal PATH. Add `MorningFrog/agent-job-relay` with `codex plugin marketplace add`, restart Desktop and choose the **AgentJobRelay** marketplace. Expected: one AgentJobRelay entry with the correct version and an explicit experimental/Linux-only description.
+2. Install/enable it in a new local chat and invoke `job_doctor`. Expected: actual MCP connectivity and the reviewed packaged version; no developer executable path is requested. CLI loader discovery alone is insufficient.
+3. Ask for a harmless short background command and completion in that chat. Expected: a fresh current-terminal binding, one job/run, correct result and correlated completion/continuation. Distinguish admission from observed execution. An unrelated chat must receive nothing.
+4. Inspect the selected persistent profile before and after host refresh/removal. Expected: state stays outside caches and history is retained; no daemon is stopped implicitly. If migrating an offline installation, explicitly review its recorded state rather than accepting a new profile as a repair.
+
+Clean Desktop UI installation/public-registry acceptance remains open. The earlier installed 0.1.5 active-job restart/continuation scenario is already qualified separately and need not be repeated merely to refill evidence. OpenCode real-provider/restart and Claude account-backed checks remain in [host plugins](host-plugins.md).

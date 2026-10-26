@@ -9,9 +9,15 @@ Tasks run in the background. Agents pick up when needed.
 任务在后台运行，Agent 在需要时接棒。
 </div>
 
-Run long commands independently of the Agent connection, keep their results, and notify the initiating chat when the host supports it. **v0.1.6 is an unreleased Linux x86_64 development version.** Desktop wake uses an experimental interface; Windows/macOS are not supported. OpenCode V1 has an experimental local plugin; Claude Code has an inbox-only development framework that needs community verification.
+Run long commands independently of the Agent connection, keep their results, and notify the initiating chat when the host supports it. **v0.1.6 is an unreleased Linux x86_64 development version.** Desktop wake uses an experimental interface; Windows/macOS are not supported. OpenCode V1 has an experimental plugin package candidate; Claude Code has an inbox-only development framework that needs community verification.
 
 For OpenCode/Claude development setup and evidence boundaries, see [host plugins](docs/host-plugins.md).
+
+## Plugin release candidates
+
+Source is public on [GitHub](https://github.com/MorningFrog/agent-job-relay). Candidate implementations provide the OpenCode npm plugin, shared runtime package and ChatGPT self-hosted marketplace; **npm account verification and final package names are pending, so normal online installation is not available yet.** Maintain existing installations through the offline route below.
+
+The GitHub **Release candidate** workflow runs manually only: it builds artifacts by default or optionally creates a prerelease draft for manual publication. Pushes, PRs and tags never publish. See [release preparation](docs/release.md) for builds, installed-package checks and future online installation. A self-hosted marketplace is separate from OpenAI's official directory.
 
 ## Quick install
 
@@ -117,9 +123,10 @@ Choose a new output directory for each export. Then use that directory's `relay 
 | Safety and operational limits | [Security](docs/security.md), [limitations](docs/limitations.md) |
 | Design and API details | [Architecture](docs/architecture.md), [protocol](docs/protocol.md) |
 | Host frameworks and community testing | [Host plugins](docs/host-plugins.md), [Contributing](CONTRIBUTING.md) |
+| Release candidates and manual Actions | [Release](docs/release.md) |
 | Planned work and changes | [Roadmap](docs/TODO.md), [changelog](CHANGELOG.md) |
 
-Linux execution, offline plugin management and the Codex CLI 0.164.0 loader have isolated automated coverage. Desktop 26.1021.22027 with plugin 0.1.5 passed a coordinated active-job restart, rebind and same-chat continuation check, with matching recovery/event/delivery records. UI enablement/version/restart are user-attested; bridge changes were measured and Agent continuation observed. Clean UI installation and other host versions remain unverified. Automatic native downloads, official plugin publication and output monitoring/interruption are pending. Independent OS installers and package repositories are cancelled.
+Linux execution, offline plugin management and the Codex CLI 0.164.0 loader have isolated automated coverage. Desktop 26.1021.22027 with plugin 0.1.5 passed a coordinated active-job restart, rebind and same-chat continuation check, with matching recovery/event/delivery records. UI enablement/version/restart are user-attested; bridge changes were measured and Agent continuation observed. Clean UI installation and other host versions remain unverified. Shared npm runtime/self-hosted marketplace candidates are prepared but unpublished; official directory submission and output monitoring/interruption remain pending. Independent OS installers and package repositories are cancelled.
 
 OpenCode 1.19.4 was checked with its actual loader, MCP and session API using a local simulated model; real-provider sessions and V2 still need verification. Claude Code was checked only through synthetic caller helpers and the actual MCP launcher; no Claude account/loader/model run is claimed. **Community testing and PRs are welcome, especially for Claude Code and container-based version checks.**
 

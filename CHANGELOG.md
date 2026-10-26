@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.1.6 — 2026-10-26 (unreleased host-plugin framework)
+## 0.1.6 — 2026-10-26 (unreleased plugin delivery candidate)
+
+- Prepare shared native-runtime/OpenCode npm tarballs and a self-hosted ChatGPT marketplace with matching version pins, external persistent profiles, native integrity/glibc checks and no install scripts. Package names/account verification and publication remain pending.
+- Check installed tarballs with actual OpenCode and Codex loaders using simulated-model/loopback-registry fixtures; verify history after package relocation and corrupt-native refusal.
+- Add manual-only GitHub candidate artifacts/optional prerelease draft workflow; no push/tag release or npm publishing. Fix Windows unused executable metadata and separate installation-test deadlines from runtime deadlines.
 
 - Add owner-checked, bounded plugin bridge transport with exact session/instance/delivery echoes; reuse fenced renewal and adapter-scoped recovery. Explicit registrations start an absent daemon without starting a job.
 - Add OpenCode V1 caller-context binding to the existing MCP core and public session continuation. Target 1.19.4; actual loader/MCP/agent-loop checks use a local simulated model, with real-provider/restart/V2 evidence still open.

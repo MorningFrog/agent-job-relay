@@ -1,0 +1,94 @@
+name: Release candidate
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Exact source version, without the v prefix
+        required: true
+        type: string
+      destination:
+        description: Build downloadable artifacts, or also create a draft GitHub release
+        required: true
+        default: artifacts
+        type: choice
+        options: [artifacts, draft]
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ inputs.version }}
+  cancel-in-progress: false
+jobs:
+  package:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check requested version against this commit
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          python3 - <<'PY'
+          import os, re, tomllib
+          version = os.environ['REQUESTED_VERSION']
+          assert re.fullmatch(r'\d+\.\d+\.\d+', version), 'Use a numeric x.y.z version'
+          assert tomllib.load(open('Cargo.toml', 'rb'))['package']['version'] == version, 'Version does not match the selected commit'
+          PY
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets --locked -- -D warnings
+      - run: cargo test --all-targets --locked
+      - run: cargo build --release --locked
+      - name: Install isolated host test tools
+        run: npm install --prefix .tmp/opencode-toolchain --cache .tmp/npm-cache --ignore-scripts --no-audit --no-fund opencode-ai@1.19.4 @opencode-ai/plugin@1.19.4 @opencode-ai/sdk@1.19.4 @openai/codex@0.164.0
+      - name: Build candidates on the glibc 2.35 baseline
+        run: python3 scripts/prepare_release.py --output .tmp/release-candidate
+      - name: Verify installed packages and both actual loaders
+        run: python3 scripts/check_release.py --release .tmp/release-candidate --opencode .tmp/opencode-toolchain/node_modules/opencode-linux-x64/bin/opencode --codex "$PWD/.tmp/opencode-toolchain/node_modules/.bin/codex"
+      - name: Check Claude framework without claiming a Claude host test
+        run: python3 scripts/check_claude_scaffold.py --binary "$PWD/target/release/agent-job-relay"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agent-job-relay-${{ inputs.version }}-linux-x64
+          path: .tmp/release-candidate/*
+          if-no-files-found: error
+          retention-days: 14
+  draft:
+    needs: package
+    if: inputs.destination == 'draft'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: agent-job-relay-${{ inputs.version }}-linux-x64
+          path: .tmp/release-candidate
+      - name: Create a new draft only; never replace a release or publish npm packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          if gh release view "v$RELEASE_VERSION" >/dev/null 2>&1; then
+            echo 'This release already exists. Review it manually; existing assets are preserved.' >&2
+            exit 1
+          fi
+          python3 - <<'PY'
+          import os, subprocess
+          tag = 'refs/tags/v' + os.environ['RELEASE_VERSION']
+          lines = subprocess.run(['git', 'ls-remote', 'origin', tag, tag + '^{}'], check=True, capture_output=True, text=True).stdout.splitlines()
+          refs = dict(line.split()[::-1] for line in lines)
+          target = refs.get(tag + '^{}', refs.get(tag))
+          assert target in (None, os.environ['GITHUB_SHA']), 'Existing tag points to another commit; select its ref or use a new version'
+          PY
+          (cd .tmp/release-candidate && sha256sum --check SHA256SUMS)
+          gh release create "v$RELEASE_VERSION" .tmp/release-candidate/* --target "$GITHUB_SHA" --draft --prerelease --title "AgentJobRelay $RELEASE_VERSION (experimental)" --notes-file docs/release-notes.md

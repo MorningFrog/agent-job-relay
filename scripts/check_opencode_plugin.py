@@ -25,6 +25,9 @@ def main():
     parser.add_argument("--opencode", type=Path, default=REPO / ".tmp/opencode-toolchain/node_modules/opencode-linux-x64/bin/opencode")
     parser.add_argument("--node-modules", type=Path, default=REPO / ".tmp/opencode-toolchain/node_modules")
     parser.add_argument("--binary", type=Path, default=REPO / "target/debug/agent-job-relay")
+    parser.add_argument("--plugin-dir", type=Path, help="Use an npm-installed plugin instead of source files")
+    parser.add_argument("--plugin-spec", help="Install the exact npm name/version through the actual Bun loader")
+    parser.add_argument("--registry", help="Loopback unpublished-package registry")
     args = parser.parse_args()
     for path in [args.opencode, args.binary, args.node_modules / "@opencode-ai/plugin"]:
         if not path.exists():
@@ -36,14 +39,19 @@ def main():
     os.chmod(root, 0o700)
     home, project, state = root / "home", root / "project", root / "relay"
     home.mkdir(); project.mkdir()
-    plugin = root / "plugin"
-    shutil.copytree(REPO / "plugins/opencode-v1", plugin)
-    (plugin / "node_modules").symlink_to(args.node_modules.resolve(), target_is_directory=True)
+    plugin = args.plugin_dir.resolve() if args.plugin_dir else root / "plugin"
+    if not args.plugin_dir and not args.plugin_spec:
+        shutil.copytree(REPO / "plugins/opencode-v1", plugin)
+        (plugin / "node_modules").symlink_to(args.node_modules.resolve(), target_is_directory=True)
     env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": str(home),
            "XDG_DATA_HOME": str(root / "data"), "XDG_STATE_HOME": str(root / "state"),
            "XDG_CONFIG_HOME": str(root / "config"), "XDG_CACHE_HOME": str(root / "cache"),
            "OPENCODE_DISABLE_MODELS_FETCH": "1", "OPENCODE_DISABLE_DEFAULT_PLUGINS": "1",
            "OPENCODE_DISABLE_SHARE": "1"}
+    if args.registry:
+        if not args.registry.startswith("http://127.0.0.1:"):
+            parser.error("only a loopback fixture registry is permitted")
+        env.update(npm_config_registry=args.registry, NPM_CONFIG_REGISTRY=args.registry)
     resumed = threading.Event()
     model_requests = []
     fixture_errors = []
@@ -89,7 +97,10 @@ def main():
 
     model = ThreadingHTTPServer(("127.0.0.1", 0), Model)
     threading.Thread(target=model.serve_forever, daemon=True).start()
-    config = {"$schema": "https://opencode.ai/config.json", "plugin": [[plugin.joinpath("index.mjs").as_uri(), {"executable": str(args.binary.resolve()), "stateDir": str(state)}]],
+    options = {"stateDir": str(state)}
+    if not args.plugin_dir and not args.plugin_spec:
+        options["executable"] = str(args.binary.resolve())
+    config = {"$schema": "https://opencode.ai/config.json", "plugin": [[args.plugin_spec or plugin.joinpath("index.mjs").as_uri(), options]],
               "model": "relayfixture/relay-fixture", "small_model": "relayfixture/relay-fixture", "enabled_providers": ["relayfixture"],
               "provider": {"relayfixture": {"npm": "@ai-sdk/openai-compatible", "name": "Isolated test fixture", "options": {"baseURL": f"http://127.0.0.1:{model.server_port}/v1", "apiKey": "isolated-fixture"}, "models": {"relay-fixture": {"name": "Relay fixture", "limit": {"context": 32768, "output": 1024}}}}},
               "permission": {"*": "deny", "agent_job_relay_*": "allow"}}
@@ -163,7 +174,7 @@ def main():
                 raise RuntimeError("workload outcome mismatch")
             if len(deliveries["deliveries"]) != 1 or deliveries["deliveries"][0]["status"] != "accepted_by_host":
                 raise RuntimeError("host acceptance was not persisted")
-            report = {"result": "passed", "opencode": version, "loader": "actual", "submission": "actual MCP with caller hook", "continuation": "actual session API and agent loop", "model": "local simulated fixture; no real provider/account", "other_session_untouched": True, "resumed_turn_completed": True, "job": status, "deliveries": deliveries}
+            report = {"result": "passed", "opencode": version, "loader": "actual", "package": "Bun name/version install from loopback registry and bundled native" if args.plugin_spec else "npm-installed tarball and bundled native" if args.plugin_dir else "source", "submission": "actual MCP with caller hook", "continuation": "actual session API and agent loop", "model": "local simulated fixture; no real provider/account", "other_session_untouched": True, "resumed_turn_completed": True, "job": status, "deliveries": deliveries}
             (root / "report.json").write_text(json.dumps(report, indent=2) + "\n")
             print(json.dumps({"result": "passed", "opencode": version, "model": "simulated", "report": str(root / "report.json")}))
     finally:

@@ -37,4 +37,4 @@ Use disposable repository-local `.tmp/` state and cleanly stop only your test in
 
 ## PR scope and history
 
-Use concise English Conventional Commits and describe the concrete behavior change, validation and material limits. Keep generated artifacts under ignored `.tmp/` or `target/`. Preserve modified/foreign installation content and default data retention. No official platform submission, package publication, independent OS installer or release credentials are part of this development phase.
+Use concise English Conventional Commits and describe the concrete behavior change, validation and material limits. Keep generated artifacts under ignored `.tmp/` or `target/`. Preserve modified/foreign installation content and default data retention. Release preparation and the manual-only GitHub candidate/draft workflow are in scope; see [release guidance](docs/release.md). Actual pushes/publication still need maintainer confirmation. Do not add automatic push/tag publication, release credentials, independent OS installers or official directory submissions.

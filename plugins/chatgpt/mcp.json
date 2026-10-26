@@ -1,0 +1,19 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "agent-job-relay": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "--yes",
+        "--ignore-scripts",
+        "--registry=https://registry.npmjs.org",
+        "--package=agent-job-relay-runtime@0.1.6",
+        "agent-job-relay",
+        "codex",
+        "mcp",
+        "--shared-host"
+      ]
+    }
+  }
+}

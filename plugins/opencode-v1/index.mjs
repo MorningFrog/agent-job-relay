@@ -1,13 +1,16 @@
 import { tool } from "@opencode-ai/plugin";
 import { createBridge } from "./bridge.mjs";
+import { resolveExecutable, defaultStateDir } from "agent-job-relay-runtime";
 
 export const AgentJobRelay = async ({ client, directory }, options = {}) => {
-  const bridge = await createBridge({ client, directory, executable: options.executable, stateDir: options.stateDir });
+  const executable = options.executable ?? resolveExecutable();
+  const stateDir = options.stateDir ?? defaultStateDir("opencode");
+  const bridge = await createBridge({ client, directory, executable, stateDir });
   return {
     config: async (config) => {
       config.mcp ??= {};
       if (config.mcp.agent_job_relay) { await bridge.close();throw new Error("MCP name agent_job_relay is already configured; preserve/review it before enabling this plugin"); }
-      config.mcp.agent_job_relay = { type: "local", command: [options.executable, "--state-dir", options.stateDir, "mcp", "--shared-host"], enabled: true };
+      config.mcp.agent_job_relay = { type: "local", command: [executable, "--state-dir", stateDir, "mcp", "--shared-host"], enabled: true };
     },
     "tool.execute.before": async (input, output) => {
       if (input.tool !== "agent_job_relay_job_start") return;

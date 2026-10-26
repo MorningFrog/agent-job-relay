@@ -13,7 +13,7 @@ cargo test --all-targets
 cargo build --release --locked
 ```
 
-The current suite contains 81 behavioral tests; current results, toolchain/version and limitations are in [implementation status](IMPLEMENTATION_STATUS.md). CI defines full Linux behavior tests plus macOS/Windows compilation and portable library checks. A configured matrix does not establish that remote CI ran or those runtimes work. The declared Rust 1.89 minimum is not independently verified.
+The current suite contains 81 behavioral tests; current results, toolchain/version and limitations are in [implementation status](IMPLEMENTATION_STATUS.md). CI defines full Linux behavior tests plus macOS/Windows compilation and portable library checks. The prior remote run failed on Windows unused-field compilation and Linux installation-test timeouts; those source fixes are included, but the updated workflow still needs a remote run. A matrix does not establish native OS runtime support. The declared Rust 1.89 minimum is not independently verified.
 
 ## Test selection and artifacts
 
@@ -71,3 +71,11 @@ The developer-only `scripts/check_desktop_restart.py` provides a bounded FIFO ha
 ## Account-free host-package checks
 
 [Host plugins](host-plugins.md) provides dependency/setup commands for `scripts/check_opencode_plugin.py` and `scripts/check_claude_scaffold.py`. OpenCode 1.19.4 uses the actual loader/MCP/session API and agent loop with a local simulated model, checking a completed response and an untouched second session. Claude uses synthetic callers and the actual MCP launcher only; its loader/skill substitution/account/model remain untested. Linux CI defines both checks; this is not remote CI evidence. Docker recipes/version matrices and account-backed Claude tests are welcome through [community contributions](../CONTRIBUTING.md).
+
+## Installed release-candidate checks
+
+Follow [release preparation](release.md) for `prepare_release.py` and `check_release.py`. Unlike a source-linked import check, they install the real npm tarballs, use their packaged native executable, preserve job history across runtime relocation and refuse a corrupt payload. OpenCode uses its actual loader/MCP/agent loop with a simulated model. Codex adds the extracted self-hosted catalog through its real CLI and discovers the tools through a loopback fixture registry; it does not claim public npm availability or Desktop UI installation. The manual Release candidate workflow repeats both host checks; push/PR CI performs the installed OpenCode check. Generated artifacts/reports remain ignored.
+
+## Windows compile verification
+
+The maintainer's Windows 11 x64 VM was checked with Rust MSVC 1.99.1 installed normally through winget, using an isolated source snapshot/test directory and the existing Visual Studio C++ toolchain. `cargo fmt --check`, `cargo clippy --all-targets --locked -- -D warnings`, `cargo test --lib --locked` (2 tests), `cargo build --release --locked` and CLI help passed. A daemon request explicitly failed as Linux-only. This verifies the Windows compilation fix and honest capability refusal, not native Windows IPC/process/job support. Raw build logs remain under ignored `.tmp/`; no personal project/state configuration was changed. The normal compiler installation is retained as requested.

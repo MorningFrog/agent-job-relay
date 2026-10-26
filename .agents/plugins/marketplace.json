@@ -1,0 +1,12 @@
+{
+  "name": "agent-job-relay",
+  "interface": { "displayName": "AgentJobRelay" },
+  "plugins": [
+    {
+      "name": "agent-job-relay",
+      "source": { "source": "local", "path": "./plugins/chatgpt" },
+      "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+      "category": "Productivity"
+    }
+  ]
+}
