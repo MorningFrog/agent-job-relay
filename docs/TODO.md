@@ -12,7 +12,7 @@ Distribute through Agent plugins around one Rust/MCP runtime, targeting ChatGPT 
 
 ## Host integration and plugin delivery
 
-- **P0:** use the next naturally long real MCP task to qualify submission and same-chat continuation. Do not repeat passed connectivity/CLI workloads or require an artificial manual crash matrix. Keep configuration, local stdio self-check, host discovery and observed continuation separate.
+- **P0:** follow [manual acceptance](manual-testing.md) with the next naturally long real MCP task to qualify submission and same-chat continuation. Do not repeat passed connectivity/CLI workloads or require an artificial manual crash matrix. Keep configuration, local stdio self-check, host discovery and observed continuation separate.
 - **Completed local increment:** offline `plugin pack/bootstrap/update`, version/profile preservation, managed cache launchers and explicit snapshot inspection/refresh. Recipients need no Rust; no personal installation was updated. See [ADR 0007](adr/0007-offline-plugin-runtime.md).
 - **P1:** extend offline bootstrap to verified host-driven installation and portable local launch paths as loaders support them; design authenticated native artifact download/provenance before any online installer. The tested loader still requires a stable original installation, and legacy caches need host refresh first. Native artifacts inside plugins do not revive OS packages; no download/publication is implemented.
 - **P1:** add Claude Code's actual manifest/MCP/skills layout and locally verify installation, exact caller identity and supported completion/continuation. Reuse the Rust runtime; the Desktop socket is not a Claude adapter.

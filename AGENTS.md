@@ -27,6 +27,7 @@ cargo build --release
 ## Documentation
 
 - Keep documentation concise, focused and logically structured with meaningful headings. Remove redundant explanations and filler while retaining evidence and operational limits.
+- Write reader-facing guides in task order. Present the quickest working installation before source builds; keep README focused on getting started and navigation, put detailed usage/maintenance in their guides, and give manual test steps explicit expected results. Keep historical evidence out of installation instructions.
 - Keep each Markdown paragraph on one source line; do not hard-wrap prose at fixed widths. Preserve line breaks required by lists, tables, code blocks and other Markdown syntax. Use UTF-8.
 - After code changes, check `AGENTS.md`, both READMEs, `docs/TODO.md`, `docs/IMPLEMENTATION_STATUS.md` and other affected docs. Synchronize functionality, APIs, configuration, dependencies, architecture and workflows; change only relevant documentation.
 - Keep the English and Chinese READMEs semantically aligned, including their bilingual introductions, language links, runnable commands and actual support boundaries.

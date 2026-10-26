@@ -1,124 +1,147 @@
-# Install once, use from your Agent
+# Installation and maintenance
 
-This Linux development milestone supports local native/Plugin installation and an offline runtime bundle. The bundle author needs Rust stable/C tools once; recipients need a compatible Linux system and `/bin/sh`, with no Rust, Python, Node or external database. No system packages, public plugin listing or online downloader exist.
+Use the offline bundle for the quickest installation. It includes the native executable and needs no Rust, Python or Node on the recipient's machine. Current support is Linux x86_64 with a compatible libc and `/bin/sh`; there is no public download, online installer or official plugin listing yet. Use a trusted build: its hashes check integrity, not publisher identity.
 
-## Offline bundle and bootstrap
+Already installed? Follow [Updating an existing installation](#updating-an-existing-installation). For a first install, use the quick path below. Source builds and standalone MCP are under [Alternative installation routes](#alternative-installation-routes).
 
-The author exports a new directory containing the native executable, unbound plugin templates, license, launcher and SHA-256 manifest. No selected state, host identity, personal configuration or credentials are exported. Transfer the complete directory, preserving executable permissions; it may be renamed or moved before use.
+## Quick install from an offline bundle
+
+Open a terminal in the received bundle directory:
+
+```bash
+./relay plugin bootstrap --dry-run
+./relay plugin bootstrap --apply
+```
+
+The preview shows the native installation and local marketplace entry. Apply installs the runtime and registers that entry. It preserves other marketplace entries and refuses modified or unowned content. The bundle directory can be moved before bootstrap and is no longer needed afterward.
+
+Restart Desktop, open Plugins, select the local marketplace and install/enable AgentJobRelay. A new marketplace is named **AgentJobRelay Local**; an existing one retains its label. Open a new local chat and select the plugin. Availability and UI behavior depend on the host version/account; use the [manual acceptance procedure](manual-testing.md) to verify them.
+
+Check the default installation:
+
+```bash
+AJR_INSTALL_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/agent-job-relay"
+"$AJR_INSTALL_ROOT/relay" --version
+"$AJR_INSTALL_ROOT/relay" doctor --client plugin --check-mcp
+```
+
+For a custom installation, use its actual root in all following commands. The local check verifies configuration and stdio, not the actual host connection or chat continuation. Both cached terminal launchers and MCP use this managed installation; keep it present.
+
+## Updating an existing installation
+
+Use the new offline bundle's launcher, including when upgrading a version too old to recognize `plugin update`. Set AJR_BUNDLE to the new bundle's absolute directory and AJR_INSTALL_ROOT to the original installation root. Finish active jobs before applying the update.
+
+```bash
+"$AJR_BUNDLE/relay" plugin update --root "$AJR_INSTALL_ROOT" --from "$AJR_BUNDLE" --dry-run
+"$AJR_BUNDLE/relay" daemon stop --install-root "$AJR_INSTALL_ROOT"
+"$AJR_BUNDLE/relay" plugin update --root "$AJR_INSTALL_ROOT" --from "$AJR_BUNDLE" --apply
+"$AJR_INSTALL_ROOT/relay" --version
+"$AJR_INSTALL_ROOT/relay" doctor --client plugin --check-mcp
+```
+
+Review the preview first. Update retains the installation's recorded state despite unrelated shell overrides, refuses downgrades, and preserves the previous installation as the reported backup. An unchanged update is a no-op. The explicit stop selects the original profile and waits for daemon-lock release; update itself never stops a daemon, and active locks/jobs block replacement.
+
+Refresh/reinstall the plugin through the host and reconnect MCP afterward. Already loaded processes keep their old image until reconnected/restarted. Source rebuilds do not update installed binaries or host caches. Do not switch state directories to work around an upgrade failure. Early legacy shutdown handling is described in [ADR 0005](adr/0005-legacy-shutdown-upgrade.md).
+
+## Cache inspection and refresh
+
+Prefer the host's refresh/reinstall for normal plugin updates: the host owns its version registry, cache selection and enabled state. Legacy caches without `.agent-job-relay-runtime.json` need this host refresh before using managed cache repair.
+
+For a known cache directory belonging to this plugin, set AJR_CACHE to that exact absolute directory:
+
+```bash
+"$AJR_INSTALL_ROOT/relay" plugin status --cache "$AJR_CACHE"
+"$AJR_INSTALL_ROOT/relay" plugin cache refresh --path "$AJR_CACHE" --dry-run
+"$AJR_INSTALL_ROOT/relay" plugin cache refresh --path "$AJR_CACHE" --apply
+```
+
+Commands run through a custom installed launcher default to its own root. Refresh validates the original installation/state/platform, complete file set and hashes. It supports host copies with or without the management receipt, refuses altered/unknown/missing/symlinked/foreign files, retains the previous snapshot as a backup and is idempotent. It does not scan/delete caches or change the host's registry/enabled state. Do not pass a parent containing other plugins. Reconnect MCP after a change.
+
+To preflight and refresh several known snapshots during runtime update, repeat `--cache <absolute-directory>` on `plugin update`. All selected caches are checked before runtime replacement. Cache refresh alone does not stop the daemon. File replacement and multi-directory updates are not crash-atomic; on partial failure inspect the reported result and retry the indicated cache operation rather than automatically rolling back a runtime that may have opened newer data.
+
+## Custom directories and stored data
+
+| Setting | Behavior |
+|---|---|
+| Installation root | Default `$XDG_DATA_HOME/agent-job-relay`, else `$HOME/.local/share/agent-job-relay`; select another with bootstrap `--root` |
+| Fresh bootstrap state | Select global `--state-dir`; otherwise AJR_STATE_DIR, then XDG state/HOME defaults |
+| Existing bootstrap/update state | Always retain the recorded installation profile |
+| Ordinary CLI state | Explicit `--state-dir`, then AJR_STATE_DIR, then installed profile, then XDG state/HOME default |
+| Plugin CLI/MCP state | Both pin the installed profile; deliberate ordinary CLI `--state-dir` can override it |
+| Marketplace | Default `$HOME/.agents/plugins/marketplace.json`; bootstrap `--config` may select `<marketplace-root>/.agents/plugins/marketplace.json` |
+
+Installation and state must be separate, not nested. Keep installation/state/configuration outside the delivery bundle, and marketplace configuration outside the installation. Personal marketplace sources must be inside HOME; if XDG_DATA_HOME is elsewhere, pass a HOME-contained `--root`. Repo-local authoring may use a repo-contained root and marketplace config. State directories require owner-only permissions; keep Unix socket paths shorter than 104 bytes.
+
+The installation contains the native program, launcher, Codex manifest/MCP configuration, workflow skill, icon, license, runtime profile and ownership receipt. Profiles contain state/installation paths, not host sockets, chat identities, session keys or credentials. Keep backups private. See [security](security.md) for data and command-output boundaries.
+
+## Alternative installation routes
+
+### Build a bundle from source
+
+The author needs Rust stable, Cargo and a C toolchain for bundled SQLite. Run from the repository root:
 
 ```bash
 cargo build --release --locked
 AJR_BUNDLE="$PWD/.tmp/agent-job-relay-offline"
 ./target/release/agent-job-relay plugin pack --output "$AJR_BUNDLE" --dry-run
 ./target/release/agent-job-relay plugin pack --output "$AJR_BUNDLE" --apply
-"$AJR_BUNDLE/relay" plugin bootstrap --dry-run
-"$AJR_BUNDLE/relay" plugin bootstrap --apply
 ```
 
-On the recipient's machine, run that received directory's `relay plugin bootstrap`. It validates the package, previews installation and marketplace ownership before writing, then installs the runtime and registers the local marketplace. Optional `--root` and `--config` select the stable installation and `<marketplace-root>/.agents/plugins/marketplace.json`; a fresh bootstrap accepts global `--state-dir`. An existing installation always keeps its recorded state, even with an unrelated AJR_STATE_DIR export or `--state-dir` override. Management launched through a custom installed launcher defaults to that installation. Install and state must remain separate; the delivery directory cannot contain installation/state/config destinations, and marketplace configuration stays outside the installation. A personal marketplace requires an installation inside HOME. After bootstrap, install/enable the plugin through the host as described below. The delivery directory is no longer needed.
+Choose a new output directory. Then use its `relay plugin bootstrap` as in Quick install, or transfer the whole directory while preserving executable permissions. The export is a local delivery artifact, not a marketplace ZIP. It validates declared version/platform and hashes; no download, signature verification or automatic host installation hook is implemented.
 
-Bundles declare the authoring version and OS/architecture/ABI label; mismatches, unsafe/missing/extra paths, changed bytes, unsupported formats and downgrades are refused. Same-version development rebuilds may differ and are updated by hash. Hashes detect local changes, not publisher authenticity or minimum glibc compatibility: use a trusted compatible build. The exported directory is an offline delivery artifact, not a directly installable marketplace ZIP. Bootstrap is explicit; this milestone does not implement an online download or automatic host install hook. Install and marketplace writes are separate operations; if registration fails after install, the error says so and a checked retry can finish it.
+### Install directly from a source build
 
-## Personal Desktop Plugin installation
-
-These are user-chosen writes to a personal installation/configuration. Start with the previews. Development automation uses only isolated repository paths.
+After building, the native development entry remains available:
 
 ```bash
-cargo build --release --locked
-AJR_INSTALL_ROOT="$HOME/.local/share/agent-job-relay"
 ./target/release/agent-job-relay install --root "$AJR_INSTALL_ROOT" --dry-run
 ./target/release/agent-job-relay install --root "$AJR_INSTALL_ROOT" --apply
 "$AJR_INSTALL_ROOT/relay" setup plugin --dry-run
 "$AJR_INSTALL_ROOT/relay" setup plugin --apply
-"$AJR_INSTALL_ROOT/relay" doctor --client plugin --check-mcp
 ```
 
-The v0.1.4 installation contains `bin/agent-job-relay`, a `relay` launcher, `.codex-plugin/plugin.json`, `.mcp.json`, a background-jobs skill, icon, license, runtime profile and an owner-only install receipt. It is independent of the source checkout and delivery bundle after installation. Updating source does not update an installed or host-cached copy.
+Direct `install` preserves an existing profile only when no explicit state override is supplied; unset unrelated AJR_STATE_DIR values first. `plugin update` is the recommended profile-preserving update route. `cargo install --path . --root ...` is CLI development tooling and does not generate the plugin bundle/profile.
 
-Both MCP and terminal launchers use the stable managed native executable, with the same pinned state; cached terminal workflows no longer execute their historical bundled native copy. Codex CLI 0.164.0 did not discover the previous portable root MCP declaration or expand plugin-root variables; this increment also reproduced failures in args/cwd. Therefore portable root templates are not installed and the stable installation must remain present. The 0.1.4 isolated real-loader check bootstraps a relocated offline bundle, checks the actual host-created cache and discovers all 20 tools including job_recover_session. Official documentation lists the placeholder, but this tested loader still needs the local compatibility layout (ADRs 0004/0007). No public directory approval or arbitrary host-version compatibility is claimed.
+### Configure standalone MCP
 
-`setup plugin` preserves existing marketplace metadata and other plugins. For an absent personal file it creates `~/.agents/plugins/marketplace.json` with the marketplace label **AgentJobRelay Local**. Restart Desktop, select that local marketplace in Plugins, install AgentJobRelay and start a new local chat. An existing marketplace keeps its own name/label. Select AgentJobRelay when needed and describe a real task, for example:
+Use this instead of enabling the plugin's MCP in the same host/state:
 
-> Run this project's release tests in the background and report the result.
+```bash
+"$AJR_INSTALL_ROOT/relay" setup codex --dry-run
+"$AJR_INSTALL_ROOT/relay" setup codex --apply
+```
 
-The plugin skill resolves the bundled launcher itself, obtains a current-terminal binding, submits with MCP when available and ends its turn. If MCP is unavailable, it reports the installed CLI fallback explicitly. On completion it reads bounded logs and summarizes the result. No executable/state/session paths belong in everyday user prompts. The task's working directory remains explicit in the tool request, filled by the Agent from the chosen project.
-
-The user's installed skill + CLI fallback release-test task completed and woke the correct chat, after a failed first submission and a separate-state workaround. It did not call MCP; see live-e2e.md. After the authorized 0.1.2 update, the user confirmed the Desktop MCP connectivity test passed following the host job_doctor procedure. That is user-attested, without a new independently reviewed transcript. MCP task submission/wake and browser discovery/install UI still need separate evidence. Plugin availability can depend on host version, surface and account policies. A local executor and current-chat terminal context are required for this Desktop wake workflow; no web/remote execution API is provided. See ADR 0003 and limitations.md.
-
-## State and alternate configuration
-
-Without `--root`, install uses `$XDG_DATA_HOME/agent-job-relay`, else `$HOME/.local/share/agent-job-relay`. Install and state directories must be separate and not nested. The install receipt stores the selected absolute state directory; `--state-dir` at installation can select an isolated or custom one. The original source default remains XDG state/HOME. A native binary uses explicit `--state-dir`, AJR_STATE_DIR, then its installed profile, then the source default.
-
-The plugin's MCP configuration pins the installed state explicitly. Its `relay` launcher sets AJR_STATE_DIR to that same profile, so an unrelated exported demo state cannot split MCP and terminal binding across databases. A deliberate CLI `--state-dir` still overrides it. Cached plugin copies retain the profile, but never a socket path, host identity, session key or credential.
-
-Personal marketplace sources must remain within HOME; use a HOME-contained `--root` if XDG_DATA_HOME is elsewhere. For repo-local authoring, install under that repository and pass `setup plugin --config /absolute/repo/.agents/plugins/marketplace.json`. Paths are relative to the marketplace root (repo or HOME), not its `.agents/plugins` subdirectory.
-
-For standalone MCP instead of Plugin installation in the host, run the installed launcher's `setup codex` preview/apply. Generic mcpServers JSON still uses `setup json --config <absolute-file>`. Do not register both routes unnecessarily. Generated configurations use `mcp --shared-host`. Server instructions include a current-terminal binding command for an Agent that has no plugin skill.
-
-Only the owned entry is edited, with adjacent private receipt/lock/backup files; foreign entries and TOML comments are retained, modified/unowned entries refused. Restart the MCP client after applying. No unsupported ChatGPT settings location is guessed. Source-level `cargo install --path . --root ...` remains supported for native CLI development; it does not generate this plugin bundle/profile.
+Codex uses `$CODEX_HOME/config.toml`, else `$HOME/.codex/config.toml`; `--config` selects another absolute file. Generic `mcpServers` JSON uses `setup json --config <absolute-file>`. Generated entries use the stable installed executable and `mcp --shared-host`. Only the owned AgentJobRelay entry changes; other entries/comments are preserved. Restart the client after applying. No unsupported ChatGPT settings path is guessed.
 
 ## Diagnostics
 
-- `doctor`: reports an absent daemon as stopped, without starting it or creating state. Inherited-context availability is not a host probe or live wake claim.
-- `doctor --client plugin` (or codex/json): checks the owned configuration entry. Configuration match is not proof the host has loaded it.
-- `doctor --check-mcp`: initializes a private stdio subprocess, discovers required tools and verifies clean EOF. It sends no Desktop message or workload and does not claim host connectivity.
-- `job_doctor` invoked by the actual host: proves that tool call reached MCP; shared mode explains why a current-terminal binding is still needed for wake.
+| Check | What it establishes |
+|---|---|
+| `relay --version` | Executable version |
+| `relay doctor` | Daemon/store health when available; a stopped daemon is reported without starting it |
+| `relay doctor --client plugin` | Owned marketplace entry matches this installation |
+| `relay doctor --check-mcp` | Local stdio initialization/tool discovery/EOF |
+| Host `job_doctor` | This actual tool call reached MCP |
+| Observed same-chat continuation | The Agent actually resumed to handle this task's result |
 
-## Update and remove safely
+Configuration, local stdio, host connectivity and continuation are separate checks. Missing tools require host refresh/reconnection; a loaded skill alone does not establish MCP availability.
 
-For a received new offline bundle, use the installed manager without rebuilding source. AJR_BUNDLE below is the absolute received bundle directory; select only cache paths obtained from the host for this plugin.
+## Uninstalling
 
-```bash
-"$AJR_INSTALL_ROOT/relay" plugin status --root "$AJR_INSTALL_ROOT"
-"$AJR_INSTALL_ROOT/relay" plugin update --root "$AJR_INSTALL_ROOT" --from "$AJR_BUNDLE" --dry-run
-"$AJR_INSTALL_ROOT/relay" daemon stop --install-root "$AJR_INSTALL_ROOT"
-"$AJR_INSTALL_ROOT/relay" plugin update --root "$AJR_INSTALL_ROOT" --from "$AJR_BUNDLE" --apply
-```
-
-First finish active jobs. The manager never stops a daemon and replacement still refuses active daemon/startup locks or jobs. Add repeated `--cache <absolute-path>` arguments to update to preflight all selected caches before runtime replacement. A source/bundle executable with the new management commands can also update an older installation; do not expect an old launcher to know new CLI options. Updates retain the receipt's state regardless of shell overrides, preserve configuration/history, refuse version downgrades and retain the prior installation as a backup. Running MCP processes keep their loaded image: reconnect after updating.
-
-Inspect or refresh a particular cache separately:
+Remove/disable AgentJobRelay through the host first. Finish active jobs, then preview/apply owned configuration removal:
 
 ```bash
-"$AJR_INSTALL_ROOT/relay" plugin status --root "$AJR_INSTALL_ROOT" --cache "$AJR_CACHE"
-"$AJR_INSTALL_ROOT/relay" plugin cache refresh --root "$AJR_INSTALL_ROOT" --path "$AJR_CACHE" --dry-run
-"$AJR_INSTALL_ROOT/relay" plugin cache refresh --root "$AJR_INSTALL_ROOT" --path "$AJR_CACHE" --apply
-```
-
-AJR_CACHE is an explicit absolute directory for this plugin, never a parent containing other plugins. Refresh validates its original runtime profile, installation/state/platform and every owned hash; it supports host copies with or without the management receipt. It refuses modified, missing, extra, symlinked, foreign or overlapping content, stages a complete snapshot, retains the previous cache as a backup and is idempotent. A valid cache can be refreshed without stopping a daemon; both entry points already use the managed runtime. Legacy caches without `.agent-job-relay-runtime.json` require a first refresh/reinstall through the host. This replaces a checked file snapshot only; host registry versions/paths and enablement remain host-owned, so prefer the host's refresh/reinstall for its installation bookkeeping. No cache scanning, deletion or data migration occurs. Multi-directory updates and two-rename replacements are not crash-atomic; an error identifies possible completed runtime changes and the cache refresh to retry. Do not automatically roll back a runtime that may already have opened newer data.
-
-Before replacing or removing binaries, inspect active jobs and let them complete or explicitly cancel selected jobs. Active daemon/startup locks and unfinished persisted jobs block replacement/removal. For early-version upgrades use the updated source command below; current installed launchers also support ordinary `daemon stop`. No unrelated process is stopped automatically.
-
-Rebuild source, then stop the installation's recorded runtime using the **new source executable**, not an old launcher that may lack these options:
-
-```bash
-cargo build --release --locked
-./target/release/agent-job-relay daemon stop --install-root "$AJR_INSTALL_ROOT"
-./target/release/agent-job-relay install --root "$AJR_INSTALL_ROOT" --dry-run
-./target/release/agent-job-relay install --root "$AJR_INSTALL_ROOT" --apply
-```
-
-`--install-root` selects the owned receipt's state, overriding the stop command's `--state-dir`/AJR_STATE_DIR. It errors if that installation is absent. The stop waits for daemon lock release, so immediate update does not race the shutdown ack. For the observed early 0.1.0 daemon without IPC `shutdown`, only that specific remote error enables compatibility handling: recheck the original peer PID and boot/start identity, owned socket/root, executable name, daemon arguments and healthy legacy Doctor response, then send SIGINT through a Linux pidfd and wait for exit. This invokes the old Ctrl-C handler and reports `legacy_sigint`; no process search, group signal or force kill is used. Unknown peers, changed identities, other errors and unavailable pidfd support fail explicitly. Renamed legacy executables require manual review rather than relaxed matching.
-
-Rebuild source and repeat install at the same root to update. Without an explicit `--state-dir` or AJR_STATE_DIR override, the previous receipt's state profile is retained even when updating from a source binary. Unset unrelated exported state overrides before updating. Unchanged installs are no-ops. Updates stage a full private tree and retain the old one as the reported backup. These two renames are not a crash/power-loss transaction; keep the backup and inspect it after an interrupted update. Refresh/reinstall the host's cached plugin separately after updating its marketplace source.
-
-Current Linux daemons spawn from their mapped image even if a rebuild unlinks the original file. An already-running legacy daemon does not gain that repair: Doctor reports `runner_readiness.status=restart_required` when its executable path is gone and it lacks the loaded-image capability. New submissions fail before creating another job. Finish active jobs and explicitly stop that state's daemon, then submit using the updated program. Never switch state directories and report that as an update; never silently replay the failed job.
-
-For Plugin removal, uninstall/disable the installed plugin in Desktop so its host-managed cache and enabled state are handled by the host. Then preview/apply `relay integration remove plugin`. For standalone MCP use the corresponding codex/json removal. This changes only the owned entry and preserves all task data.
-
-Finally, after the runtime is idle, preview/apply:
-
-```bash
+"$AJR_INSTALL_ROOT/relay" integration remove plugin --dry-run
+"$AJR_INSTALL_ROOT/relay" integration remove plugin --apply
+"$AJR_INSTALL_ROOT/relay" daemon stop
 "$AJR_INSTALL_ROOT/relay" uninstall --root "$AJR_INSTALL_ROOT" --dry-run
 "$AJR_INSTALL_ROOT/relay" uninstall --root "$AJR_INSTALL_ROOT" --apply
 ```
 
-SHA-256 ownership checks refuse modified/missing files, unknown content or symlinks. Only unchanged owned install files and directories are removed. An interrupted removal can need manual inspection; data, config backups and prior installation/cache backups remain. Host caches are only refreshed at explicitly selected paths, never scanned or deleted. There is no data purge command, OS service manager or destructive automatic cleanup. Independent OS installers and package repositories are cancelled. Claude Code/OpenCode integrations and future official plugin platforms are tracked in TODO.md; no submission or publication occurs during development. Never delete another project's state or unknown directories.
+For standalone MCP, replace `plugin` in integration removal with `codex`, or `json --config <same-file>`. Uninstall removes unchanged owned installation files only; modified/unknown files are refused. Task history, logs and backups remain. The host handles cache removal. There is no data purge or system-service uninstall operation.
 
-Official plugin/marketplace references:
+## Compatibility and interrupted operations
 
-- https://developers.openai.com/plugins/build/plugins
-- https://developers.openai.com/plugins/deploy/desktop-only
-- https://learn.chatgpt.com/docs/extend/mcp
+The tested Codex CLI 0.164.0 loader uses `.codex-plugin/plugin.json` and `.mcp.json` with a stable absolute native command. Its portable root and PLUGIN_ROOT behavior differed from the documented format; see [ADR 0004](adr/0004-loaded-image-and-codex-loader.md) and [ADR 0007](adr/0007-offline-plugin-runtime.md). Packaging does not establish other host/OS support.
 
-The 0.1.4 increment retains session recovery/renewal and schema v6. It does not upgrade an existing personal install or host cache by itself. Automatic binding requires the updated daemon capability flags; finish active work, then explicitly stop/update using the existing installed profile. Older executables refuse to initialize newer schemas.
+Installation/configuration/cache writes are separate operations, and staged two-rename replacements are not power-loss transactions. Errors identify possible completed work and the operation to retry. Preserve backups and inspect ownership after interruption. Current schema is v6; older executables refuse newer schemas. Support/evidence is maintained in [implementation status](IMPLEMENTATION_STATUS.md), with historical live records in [live-e2e](live-e2e.md).

@@ -36,7 +36,7 @@ Normal submissions start the per-state daemon on demand. Doctor/status do not st
 | `cargo build --release --locked` | Passed; `target/release/agent-job-relay`, version 0.1.4 |
 | Plugin loader | Actual Codex CLI 0.164.0 in isolated HOME/CODEX_HOME bootstraps a relocated offline bundle, checks the host-created cache and discovers 20 tools, including `job_recover_session`; no model turn, daemon, workload or real Desktop endpoint |
 | Plugin skill | skill-creator quick validation passed; structural validation does not prove Agent judgment |
-| Documentation | Both READMEs and affected Markdown checked for aligned behavior, single-line paragraphs and local links |
+| Documentation | Reader-facing READMEs put offline quick install before source builds; installation, usage, manual acceptance and automated verification have dedicated guides. Bilingual alignment, single-line paragraphs, local links and isolated manual command examples checked |
 | Historical local smoke | Source CLI/setup/removal and installed/cache profile/ownership/data-preservation checks passed; detailed records remain in Git and [testing.md](testing.md) |
 
 Desktop transport, host replacement, scoped recovery and lease-renewal tests use fake hosts. The long-job test injects session expiry 48 hours into the past; it does not prove a real multi-day run or Desktop restart. Tests keep state/endpoints under ignored repository-local `.tmp/` and do not touch Vanth state.
