@@ -162,6 +162,64 @@ fn success(out: std::process::Output) -> Value {
 }
 
 #[tokio::test]
+async fn daemon_launches_runner_after_its_executable_is_replaced_by_a_rebuild() {
+    let r = Rig::new();
+    let image = r.dir.path().join("native");
+    std::fs::copy(env!("CARGO_BIN_EXE_agent-job-relay"), &image).unwrap();
+    let first = success(
+        tokio::process::Command::new(&image)
+            .arg("--state-dir")
+            .arg(&r.config.root)
+            .args(["start", "--", "/bin/true"])
+            .output()
+            .await
+            .unwrap(),
+    );
+    r.terminal(first["job"]["job_id"].as_str().unwrap()).await;
+    let socket = tokio::net::UnixStream::connect(r.config.socket())
+        .await
+        .unwrap();
+    let owner = socket.peer_cred().unwrap().pid().unwrap();
+    drop(socket);
+    let replacement = r.dir.path().join("rebuilt-native");
+    std::fs::copy(env!("CARGO_BIN_EXE_agent-job-relay"), &replacement).unwrap();
+    std::fs::rename(replacement, &image).unwrap();
+    assert!(
+        std::fs::read_link(format!("/proc/{owner}/exe"))
+            .unwrap()
+            .to_string_lossy()
+            .ends_with(" (deleted)")
+    );
+    let started = success(
+        r.cli(
+            &[
+                "start",
+                "--cwd",
+                r.dir.path().to_str().unwrap(),
+                "--shell",
+                "echo once >> execution-count",
+            ],
+            None,
+        )
+        .await,
+    );
+    let job = r.terminal(started["job"]["job_id"].as_str().unwrap()).await;
+    assert_eq!(job.status, "completed", "{:?}", job.detail);
+    assert_eq!(job.exit_code, Some(0));
+    assert_eq!(
+        std::fs::read_to_string(r.dir.path().join("execution-count")).unwrap(),
+        "once\n"
+    );
+    let socket = tokio::net::UnixStream::connect(r.config.socket())
+        .await
+        .unwrap();
+    assert_eq!(socket.peer_cred().unwrap().pid(), Some(owner));
+    let health = ipc::call(&r.config, Request::Doctor).await.unwrap();
+    assert_eq!(health["daemon_executable_path_available"], false);
+    assert_eq!(health["runner_launch_from_loaded_image"], true);
+}
+
+#[tokio::test]
 async fn installed_shared_mcp_uses_each_terminal_binding_and_never_its_inherited_thread() {
     let r = Rig::new();
     let mut host = Host::new(&r, true);
@@ -174,7 +232,7 @@ async fn installed_shared_mcp_uses_each_terminal_binding_and_never_its_inherited
         .await,
     );
     let manifest: Value =
-        serde_json::from_slice(&std::fs::read(install.join("mcp.json")).unwrap()).unwrap();
+        serde_json::from_slice(&std::fs::read(install.join(".mcp.json")).unwrap()).unwrap();
     let server = &manifest["mcpServers"]["agent-job-relay"];
     let program = server["command"]
         .as_str()

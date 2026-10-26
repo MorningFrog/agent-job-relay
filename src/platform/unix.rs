@@ -96,6 +96,19 @@ pub fn signal_group(pid: u32, signal: i32) -> Result<()> {
     }
     Ok(())
 }
+pub fn process_image_path_available(pid: u32) -> Option<bool> {
+    #[cfg(target_os = "linux")]
+    {
+        std::fs::read_link(format!("/proc/{pid}/exe"))
+            .ok()
+            .map(|p| p.is_file())
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = pid;
+        None
+    }
+}
 pub fn exit_signal(s: &std::process::ExitStatus) -> Option<i32> {
     s.signal()
 }

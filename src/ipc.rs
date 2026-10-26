@@ -153,19 +153,24 @@ pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
         Request::Doctor=>store.call(|db|{let integrity:String=db.query_row("PRAGMA quick_check",[],|r|r.get(0))?;
             ensure!(integrity=="ok","SQLite integrity check failed; stop new work and inspect a backup before repair: {integrity}");
             let active:i64=db.query_row("SELECT count(*) FROM jobs WHERE status IN ('queued','launching','running')",[],|r|r.get(0))?;
-            Ok(json!({"daemon":"reachable","protocol_version":1,"version":env!("CARGO_PKG_VERSION"),"store":integrity,"active_jobs":active,"orphaned_jobs":db.query_row("SELECT count(*) FROM jobs WHERE status='orphaned'",[],|r|r.get::<_,i64>(0))?,"retrying_deliveries":db.query_row("SELECT count(*) FROM deliveries WHERE status='retry_wait'",[],|r|r.get::<_,i64>(0))?,"sessions":db.query_row("SELECT count(*) FROM sessions WHERE connected=1 AND expires>?",[now()],|r|r.get::<_,i64>(0))?,"dead_letters":db.query_row("SELECT count(*) FROM deliveries WHERE status='dead_letter'",[],|r|r.get::<_,i64>(0))?,"runtime":std::env::consts::OS,"auto_resume":"not verified","next_step":"Use start --wake or job_start with wake_me=true from the current Desktop host context; no service is installed."})) }).await
+            Ok(json!({"daemon":"reachable","runner_launch_from_loaded_image":crate::platform::self_image().is_ok(),"protocol_version":1,"version":env!("CARGO_PKG_VERSION"),"store":integrity,"active_jobs":active,"orphaned_jobs":db.query_row("SELECT count(*) FROM jobs WHERE status='orphaned'",[],|r|r.get::<_,i64>(0))?,"retrying_deliveries":db.query_row("SELECT count(*) FROM deliveries WHERE status='retry_wait'",[],|r|r.get::<_,i64>(0))?,"sessions":db.query_row("SELECT count(*) FROM sessions WHERE connected=1 AND expires>?",[now()],|r|r.get::<_,i64>(0))?,"dead_letters":db.query_row("SELECT count(*) FROM deliveries WHERE status='dead_letter'",[],|r|r.get::<_,i64>(0))?,"runtime":std::env::consts::OS,"auto_resume":"not verified","next_step":"Use start --wake or job_start with wake_me=true from the current Desktop host context; no service is installed."})) }).await
     }
 }
 pub async fn call(config: &Config, request: Request) -> Result<Value> {
     crate::platform::require_runtime()?;
     #[cfg(unix)]
     {
+        let is_doctor = matches!(&request, Request::Doctor);
         tokio::time::timeout(Duration::from_secs(40), async {
             let mut stream = tokio::net::UnixStream::connect(config.socket())
                 .await
                 .context(
                     "daemon unavailable; start/job_start auto-starts it, or run agent-job-relay --state-dir <same-path> daemon",
                 )?;
+            let image_path_available = if is_doctor {
+                stream.peer_cred().ok().and_then(|c| c.pid()).filter(|p| *p>0)
+                    .and_then(|pid| crate::platform::process_image_path_available(pid as u32))
+            } else { None };
             write_frame(
                 &mut stream,
                 &json!({"protocol_version":1,"request":request}),
@@ -177,7 +182,12 @@ pub async fn call(config: &Config, request: Request) -> Result<Value> {
                 "unsupported daemon protocol; restart daemon with this executable"
             );
             if response["ok"] == true {
-                Ok(response["result"].clone())
+                let mut result = response["result"].clone();
+                if let Some(available) = image_path_available {
+                    ensure!(result.is_object(), "malformed doctor result");
+                    result["daemon_executable_path_available"] = json!(available);
+                }
+                Ok(result)
             } else {
                 bail!(
                     "{}",

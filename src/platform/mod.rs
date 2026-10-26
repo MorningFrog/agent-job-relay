@@ -50,6 +50,16 @@ pub fn require_runtime() -> Result<()> {
     }
     Ok(())
 }
+/// Execute the mapped image even after a rebuild or cache refresh unlinks its path.
+pub fn self_image() -> Result<std::path::PathBuf> {
+    require_runtime()?;
+    let path = std::path::PathBuf::from("/proc/self/exe");
+    anyhow::ensure!(
+        path.is_file(),
+        "loaded executable is unavailable through /proc/self/exe"
+    );
+    Ok(path)
+}
 #[cfg(not(unix))]
 pub fn endpoint_identity(_: &Path) -> Result<String> {
     bail!("native host endpoint identity is not implemented on this OS")

@@ -111,12 +111,29 @@ fn install_preview_stable_launcher_and_cached_plugin_keep_the_state_profile() {
     assert!(!r.install.exists());
     assert!(!r.state.exists());
     r.install();
+    let unchanged = ok(r
+        .command(Path::new(env!("CARGO_BIN_EXE_agent-job-relay")))
+        .args(["install", "--root", r.install.to_str().unwrap(), "--apply"])
+        .output()
+        .unwrap());
+    assert_eq!(unchanged["changed"], false);
+    assert_eq!(unchanged["state_dir"], r.state.to_str().unwrap());
     let manifest: Value =
-        serde_json::from_slice(&std::fs::read(r.install.join("mcp.json")).unwrap()).unwrap();
+        serde_json::from_slice(&std::fs::read(r.install.join(".mcp.json")).unwrap()).unwrap();
     assert_eq!(
         manifest["mcpServers"]["agent-job-relay"]["args"],
         json!(["--state-dir", r.state, "mcp", "--shared-host"])
     );
+    assert_eq!(
+        manifest["mcpServers"]["agent-job-relay"]["command"],
+        r.install.join("bin/agent-job-relay").to_str().unwrap()
+    );
+    assert!(!r.install.join("plugin.json").exists()); // No portable-root precedence over the tested Codex manifest.
+    let identity: Value = serde_json::from_slice(
+        &std::fs::read(r.install.join(".codex-plugin/plugin.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(identity["mcpServers"], "./.mcp.json");
     let report = ok(r.installed(&["doctor", "--check-mcp"]));
     assert_eq!(report["daemon"], "stopped");
     assert_eq!(report["stdio_self_check"]["status"], "passed");

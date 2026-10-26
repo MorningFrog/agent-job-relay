@@ -64,7 +64,7 @@ async fn ensure_daemon(config: &Config) -> Result<()> {
 }
 async fn ensure_daemon_inner(config: &Config) -> Result<()> {
     match ipc::call(config, Request::Doctor).await {
-        Ok(_) => return Ok(()),
+        Ok(info) => return verify_runner_launch(&info),
         Err(e) if unavailable(&e) => {}
         Err(e) => return Err(e),
     }
@@ -82,11 +82,11 @@ async fn ensure_daemon_inner(config: &Config) -> Result<()> {
     if owns_startup {
         // Another starter may have become ready while this lock was acquired.
         match ipc::call(config, Request::Doctor).await {
-            Ok(_) => return Ok(()),
+            Ok(info) => return verify_runner_launch(&info),
             Err(e) if unavailable(&e) => {}
             Err(e) => return Err(e),
         }
-        let mut command = std::process::Command::new(std::env::current_exe()?);
+        let mut command = std::process::Command::new(crate::platform::self_image()?);
         command
             .arg("--state-dir")
             .arg(&config.root)
@@ -107,7 +107,7 @@ async fn ensure_daemon_inner(config: &Config) -> Result<()> {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(8);
     loop {
         match ipc::call(config, Request::Doctor).await {
-            Ok(_) => return Ok(()),
+            Ok(info) => return verify_runner_launch(&info),
             Err(e) if unavailable(&e) => {}
             Err(e) => return Err(e),
         }
@@ -119,6 +119,15 @@ async fn ensure_daemon_inner(config: &Config) -> Result<()> {
         tokio::time::sleep(Duration::from_millis(25)).await;
     }
 }
+pub(crate) fn verify_runner_launch(info: &Value) -> Result<()> {
+    ensure!(
+        info["daemon_executable_path_available"] != false
+            || info["runner_launch_from_loaded_image"] == true,
+        "existing legacy daemon runs from a removed executable and cannot launch runners. No job was submitted. Let its active jobs finish, then run daemon stop for the same state and submit again; no daemon was restarted automatically"
+    );
+    Ok(())
+}
+
 async fn connect_registration(
     config: &Config,
     registration: Registration,
@@ -194,5 +203,23 @@ pub async fn call(config: &Config, request: Request) -> Result<Value> {
         }
         Request::Shutdown => stop_daemon(config).await,
         request => ipc::call(config, request).await,
+    }
+}
+
+#[cfg(test)]
+mod startup_tests {
+    use super::verify_runner_launch;
+    use serde_json::json;
+    #[test]
+    fn legacy_removed_image_is_rejected_but_loaded_image_capability_is_accepted() {
+        let legacy = json!({"daemon_executable_path_available":false});
+        assert!(
+            verify_runner_launch(&legacy)
+                .unwrap_err()
+                .to_string()
+                .contains("No job was submitted")
+        );
+        assert!(verify_runner_launch(&json!({"daemon_executable_path_available":false,"runner_launch_from_loaded_image":true})).is_ok());
+        assert!(verify_runner_launch(&json!({"daemon_executable_path_available":true})).is_ok());
     }
 }

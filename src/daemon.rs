@@ -18,7 +18,7 @@ pub async fn tick(store: &Store) -> Result<()> {
                     tx.execute("UPDATE runs SET status='launching' WHERE job_id=?",[&j])?;
                     let n:String=tx.query_row("SELECT nonce FROM runs WHERE job_id=?",[&j],|r|r.get(0))?;tx.commit()?;Ok(Some(n)) }).await?;
                 if let Some(nonce) = nonce {
-                    let mut c = std::process::Command::new(std::env::current_exe()?);
+                    let mut c = std::process::Command::new(crate::platform::self_image()?);
                     c.arg("--state-dir")
                         .arg(&store.config.root)
                         .arg("runner")

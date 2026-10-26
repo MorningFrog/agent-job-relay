@@ -276,7 +276,17 @@ async fn main() {
 }
 async fn run(cli: Cli) -> Result<()> {
     let remove_install = matches!(&cli.command, Commands::Uninstall { .. });
-    let config = Config::new(cli.state_dir)?;
+    let mut state = cli.state_dir;
+    if state.is_none()
+        && let Commands::Install { root, .. } | Commands::Uninstall { root, .. } = &cli.command
+    {
+        let root = root
+            .clone()
+            .map(Ok)
+            .unwrap_or_else(agent_job_relay::deployment::default_root)?;
+        state = agent_job_relay::deployment::installation_state(&root)?;
+    }
+    let config = Config::new(state)?;
     let req = match cli.command {
         Commands::Doctor {
             client,

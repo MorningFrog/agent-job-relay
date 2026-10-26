@@ -1,0 +1,16 @@
+{
+  "name": "agent-job-relay",
+  "version": "0.1.1",
+  "description": "Run durable local background jobs and continue the initiating Agent chat when they finish.",
+  "license": "MIT",
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "requires_local_executor": true,
+  "interface": {
+    "displayName": "AgentJobRelay",
+    "shortDescription": "Durable background tasks with same-chat completion",
+    "category": "Productivity",
+    "logo": "./assets/icon.svg",
+    "defaultPrompt": ["Run this project's tests in the background and tell me when they finish."]
+  }
+}

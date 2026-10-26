@@ -1,4 +1,4 @@
-//! A private local development install, also usable as a relocatable plugin.
+//! Private local plugin installation; cached MCP keeps a stable original command.
 use crate::{config::Config, core::id};
 use anyhow::{Context, Result, bail, ensure};
 use serde::{Deserialize, Serialize};
@@ -89,7 +89,9 @@ fn read_receipt(root: &Path) -> Result<Receipt> {
         );
     }
     ensure!(
-        r.files.contains_key("bin/agent-job-relay") && r.files.contains_key("plugin.json"),
+        r.files.contains_key("bin/agent-job-relay")
+            && (r.files.contains_key("plugin.json")
+                || r.files.contains_key(".codex-plugin/plugin.json")),
         "incomplete installation receipt"
     );
     Ok(r)
@@ -132,17 +134,32 @@ pub fn default_root() -> Result<PathBuf> {
         .context("HOME/XDG_DATA_HOME unavailable; pass --root")?
         .join("agent-job-relay"))
 }
-fn artifacts(config: &Config) -> Result<BTreeMap<String, Artifact>> {
+/// An update without a state override must keep the installation's existing
+/// history, rather than switch to the source executable's default directory.
+pub fn installation_state(root: &Path) -> Result<Option<PathBuf>> {
+    checked_path(root)?;
+    if root.exists() {
+        let receipt = read_receipt(root)?;
+        ensure!(
+            receipt.root == root,
+            "installation root does not match its receipt"
+        );
+        Ok(Some(receipt.state_dir))
+    } else {
+        Ok(None)
+    }
+}
+fn artifacts(config: &Config, root: &Path) -> Result<BTreeMap<String, Artifact>> {
     let mut files = BTreeMap::new();
     let entries: &[(&str, &[u8], bool)] = &[
         (
-            "plugin.json",
-            include_bytes!("../plugins/agent-job-relay/plugin.json"),
+            ".codex-plugin/plugin.json",
+            include_bytes!("../plugins/agent-job-relay/.codex-plugin/plugin.json"),
             false,
         ),
         (
-            "mcp.json",
-            include_bytes!("../plugins/agent-job-relay/mcp.json"),
+            ".mcp.json",
+            include_bytes!("../plugins/agent-job-relay/.mcp.json"),
             false,
         ),
         (
@@ -170,11 +187,15 @@ fn artifacts(config: &Config) -> Result<BTreeMap<String, Artifact>> {
             },
         );
     }
+    // The tested Codex loader needs the explicit compatibility manifest. Its
+    // stdio transport does not expand PLUGIN_ROOT: configure the stable local
+    // installation once, rather than depending on an unverified placeholder.
     let mut mcp: Value =
-        serde_json::from_slice(include_bytes!("../plugins/agent-job-relay/mcp.json"))?;
+        serde_json::from_slice(include_bytes!("../plugins/agent-job-relay/.mcp.json"))?;
+    mcp["mcpServers"]["agent-job-relay"]["command"] = json!(root.join("bin/agent-job-relay"));
     mcp["mcpServers"]["agent-job-relay"]["args"] =
         json!(["--state-dir", config.root, "mcp", "--shared-host"]);
-    files.get_mut("mcp.json").unwrap().bytes = serde_json::to_vec_pretty(&mcp)?;
+    files.get_mut(".mcp.json").unwrap().bytes = serde_json::to_vec_pretty(&mcp)?;
     let quoted_state = format!(
         "'{}'",
         config
@@ -324,7 +345,7 @@ pub fn change(config: &Config, root: PathBuf, remove: bool, apply: bool) -> Resu
     let files = if remove {
         BTreeMap::new()
     } else {
-        artifacts(config)?
+        artifacts(config, &root)?
     };
     let desired = Receipt {
         format: 1,

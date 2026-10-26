@@ -1,7 +1,7 @@
 # Implementation status
 
-Last verified: **2026-10-26 (Asia/Shanghai)**. Version **0.1.0**, unreleased
-source-build development milestone. Host: Linux x86_64, kernel
+Last verified: **2026-10-26 (Asia/Shanghai)**. Version **0.1.1**, unreleased
+source-build/local Plugin development repair. Host: Linux x86_64, kernel
 7.0.0-38-generic; Rust 1.99.1 / Cargo 1.99.1, edition 2024. Cargo.lock pins
 resolved dependencies including rmcp 3.7.0, Tokio 1.54.1, rusqlite 0.41.0.
 Declared Rust 1.89 MSRV is not independently tested.
@@ -12,13 +12,14 @@ Declared Rust 1.89 MSRV is not independently tested.
 |---|---|---|
 | 0: reference/design | Completed; full spec/ancestor instruction audit, read-only Vanth audit, architecture/ADR, compiled Cargo package | No reference implementation copied |
 | 1: core | Implemented and tested on Linux: CLI, private IPC, SQLite Job/Run/Event, independent runner, capture, cancel/timeout, conservative restart recovery | Windows/macOS native runtime and escaped-daemon containment pending |
-| 2: MCP/delivery/setup | Implemented and tested: real rmcp stdio, sessions, targets, atomic outbox, lease fencing, retries/TTL/dead letters, native/Plugin local install, marketplace setup/removal/backups and safe shared-MCP binding | No Tasks/subscriptions; Desktop Plugin browser and installed real-host workflow pending; no guessed ChatGPT config format |
-| 3: Agent integration | Codex CLI MCP + notification inbox implemented/tested; Desktop fake-host automation plus **user-confirmed explicit-registration and CLI shortcut live same-session E2E** on ChatGPT Desktop 26.1021.22027 / Ubuntu 26.04; CLI first start, reuse and idle-daemon restart passed; proofs cross-checked | Live in-flight interruption, Desktop restart/rebind/failure matrix and MCP shortcut pending; no automatic resume confirmation, public app-server writer or Windows pipe adapter |
+| 2: MCP/delivery/setup | Implemented and tested: real rmcp stdio, sessions, targets, atomic outbox, lease fencing, retries/TTL/dead letters, native/Plugin local install, marketplace setup/removal/backups and safe shared-MCP binding | No Tasks/subscriptions; updated Desktop MCP route and Plugin browser evidence pending; no guessed ChatGPT config format |
+| 3: Agent integration | Codex CLI MCP + notification inbox implemented/tested; Desktop fake-host automation plus **user-confirmed explicit-registration and CLI shortcut live same-session E2E** on ChatGPT Desktop 26.1021.22027 / Ubuntu 26.04; CLI first start, reuse and idle-daemon restart passed; installed skill/CLI real release-test task also resumed; proofs/logs cross-checked | Updated Desktop MCP job route unverified; Desktop restart/rebind remains unverified; no automatic resume confirmation, public app-server writer or Windows pipe adapter |
 | 4: local quality/docs | Local fmt/strict Clippy/full tests/release build and onboarding passed; complete bilingual READMEs, security/protocol/testing/install/release docs, maintenance AGENTS, changelog, CI matrix | GitHub Actions not executed; macOS/Windows build/runtime not locally verified; native platform gates remain open |
 
 This is a verified Linux milestone, **not completion of every cross-platform
-requirement in PROJECT_SPEC.md**. Future packaging is intentionally deferred and
-is not a failed current milestone gate.
+requirement in PROJECT_SPEC.md**. Independent OS installers/package repositories are cancelled. Agent plugins
+are the delivery target; official platform submission is future work, with no
+publication during development. Claude Code/OpenCode are planned, not implemented.
 
 ## Current implementation
 
@@ -61,15 +62,23 @@ integration, deployment, diagnostics, config, platform. SQLite schema **v4**, lo
 - Default preview setup; --apply writes only owned Codex TOML or mcpServers JSON,
   with adjacent receipts/backups. Idempotent removal refuses modified entries,
   preserves foreign settings and all job data. No PATH/service mutations.
-- Stable local install/uninstall contains the native program, portable Desktop
-  Plugin/MCP manifests, relative launcher, workflow skill, icon and SHA-256 receipt.
+- Stable local install/uninstall contains the native program, tested Codex
+  `.codex-plugin/plugin.json`/`.mcp.json`, relative terminal launcher, workflow
+  skill, icon and SHA-256 receipt. The local MCP command uses the absolute stable
+  installation path; cached MCP depends on that installation remaining present.
   State remains separate and pinned across MCP/terminal/cache entry points;
-  modified/foreign files and active runtime block replacement/removal. Marketplace
+  no-override update retains the existing receipt profile. Modified/foreign
+  files and active runtime block replacement/removal. Marketplace
   setup/removal preserves other plugins. Shared-host MCP refuses inherited caller
   identity and takes an exact key obtained from the current terminal's brief binding.
 - Doctor separates stopped daemon, configured entry, private bounded stdio self-check
   and an actual host tool invocation. No diagnostic sends a host message or launches
-  a workload. The installed UI/live route still needs its own real-task acceptance.
+  a workload. An actual isolated Codex CLI 0.164.0 loader discovers 19 tools.
+  Updated Desktop MCP tool use and plugin browser installation remain unverified.
+- Linux internal child launch uses the mapped `/proc/self/exe` so source rebuilds
+  cannot break current-daemon Runner launch. Peer-derived Doctor evidence detects
+  affected legacy deleted-image daemons before submission. No automatic restart,
+  workload replay or switch of state directory is performed (ADR 0004).
 
 ## Final local validation
 
@@ -77,9 +86,9 @@ integration, deployment, diagnostics, config, platform. SQLite schema **v4**, lo
 |---|---|
 | `cargo fmt --check` | Passed |
 | `cargo clippy --all-targets -- -D warnings` | Passed, no warnings suppressed |
-| `cargo test --all-targets` | **45 passed, 0 failed, 0 ignored** |
-| └ library/schema tests | 1 passed |
-| └ automatic connection/startup/shutdown and shared-MCP tests | 9 passed (real CLI/MCP, fake Desktop host) |
+| `cargo test --all-targets` | **47 passed, 0 failed, 0 ignored** |
+| └ library/schema and legacy-readiness tests | 2 passed |
+| └ automatic connection/startup/shutdown, removed-image and shared-MCP tests | 10 passed (real CLI/MCP, fake Desktop host) |
 | └ delivery/persistence/migration tests | 8 passed |
 | └ Desktop fake-host tests | 4 passed (**simulated**) |
 | └ README acceptance tests | 1 passed |
@@ -91,11 +100,14 @@ integration, deployment, diagnostics, config, platform. SQLite schema **v4**, lo
 | Convenience release smoke | 9 successful isolated release CLI checks; on-demand startup, completed job/log follow, doctor and idempotent safe shutdown; no real host contacted |
 | Original release onboarding smoke | **62 successful isolated CLI invocations**, daemon exited 0; source task `cargo check --offline` completed |
 | `cargo install --path . --locked --offline --root "$PWD/.tmp/install"` | Passed, repository-local installation only |
-| `./.tmp/install/bin/agent-job-relay --version` | `agent-job-relay 0.1.0` |
+| `./.tmp/install/bin/agent-job-relay --version` | `agent-job-relay 0.1.0` (earlier development smoke) |
 | `cargo uninstall --root "$PWD/.tmp/install" agent-job-relay` | Passed; local test install removed, state retained |
 | Basic live Desktop wake | User confirmed pass on ChatGPT Desktop 26.1021.22027 / Ubuntu 26.04; proof/token/thread/delivery correlation checked read-only; see live-e2e.md |
 | CLI shortcut live Desktop wake | A first start, B session reuse, C idle-daemon stop/auto-start all passed on the same client/OS; user confirmed no manual continuation or wrong control-chat notification; all three proofs, database and binary identity cross-checked read-only |
 | Installed release onboarding smoke | 22 successful CLI calls across install preview/apply/idempotence, doctor/stdio, marketplace and standalone MCP setup, real workload/logs/events, removal/data retention and reinstall; quoted/spaced paths and stale state export exercised; no host contacted |
+| Real removed-image regression | Reproduced ENOENT before the fix; after fix, the same daemon launches exactly one completed workload after pathname replacement |
+| User's installed release-test task | Prior v0.1.0, `cargo test --release --all-targets`: 45 passed, exit 0; first submission failed, separate-state retry succeeded; skill + CLI fallback, correct same-chat wake |
+| `python3 scripts/check_codex_plugin.py` | Passed on actual Codex CLI 0.164.0; 19 MCP tools discovered in isolated HOME; no model turn, daemon/workload or real host/config change |
 | `git diff --check` | Passed before commits |
 
 Onboarding covered help/version, first daemon start, explicit sessions, job/run
@@ -144,26 +156,29 @@ crash. Stable delivery IDs do not prove receiver-side exactly-once behavior.
 
 ## Handoff priorities
 
-1. Qualify one real task through the installed Plugin/MCP UI entry point, without
-   tool/state/session paths in its user prompt. Verify the actual route; fix
-   demonstrated onboarding failures. Existing CLI results do not need repetition
-   or an artificial manual crash matrix.
-2. Extend the live CLI passes to in-flight daemon interruption/offline completion,
-   Desktop restart, explicit rebind, temporary delivery failure and concurrent
-   exact routing; validate real-host MCP wake_me=true separately. Replace private
-   interfaces with public ones when available; preserve version-specific evidence.
-3. Stronger Linux containment and fault/soak/real disk-full testing.
-4. Windows SID/DACL/named pipe/Job Objects and macOS process identity/native tests.
-5. More migration fault tests, backup/export, retention preview and explicit
-   purge design; richer active-runner/host health and configurable budgets.
-6. Public Codex app-server writer integration only for explicitly owned sessions.
-7. Follow **Distribution & Packaging — Deferred / Not implemented** in TODO.md
-   for all .deb/.rpm/.AppImage/.exe/.dmg/Flatpak/uv/GitHub/repository publishing.
-   No packaging or publication was implemented in this turn.
+1. After a user-chosen idle local update/cache refresh, qualify actual updated
+   Desktop MCP tool exposure and `job_doctor`. The real release task loaded the
+   installed skill but used CLI fallback; that wake passed, not MCP. Do not repeat
+   the 45-test workload or the previous CLI rounds. Use the next naturally long
+   real task only once MCP is available. Keep plugin browser discovery separate.
+2. Implement Claude Code/OpenCode plugins around the same Rust/MCP runtime, using
+   each host's actual supported format and separately verified caller/continuation
+   interfaces. No skeleton integration is advertised as supported.
+3. Convenient native runtime bootstrap/update within plugins; preserve custom
+   profiles, histories, other plugins and modified content. Current local MCP
+   uses a stable absolute native command, not a public portable bootstrap.
+4. Normal host restart/rebind and temporary delivery recovery; exact concurrent
+   routing, longer leases, retention/backup/export and stronger Linux containment.
+   Prioritize real use cases rather than another manual artificial crash matrix.
+5. Native Windows SID/DACL/pipes/Job Objects and macOS lifecycle/identity tests.
+   Plugin delivery does not establish OS runtime support.
+6. Follow TODO.md for future official plugin platforms, only after stability and
+   explicit authorization. Independent OS installer/repository plans are
+   cancelled. No platform submission/publication is performed during development.
 
 Both READMEs contain English + Chinese opening introductions, reciprocal language
 links, matching current commands, safe removal/data retention and planned-only
-channels. Automated intro/link acceptance passed; their content was synchronized.
+Claude Code/OpenCode integrations and official plugin channels. Automated intro/link acceptance passed; their content was synchronized.
 
 ## Local Git history
 
@@ -183,6 +198,7 @@ English Conventional Commits, no pushes, no remote created, no history rewrite:
 - f8dc8dd `feat(ux): automate current-session wake binding and daemon startup`
 - 09077b9 `docs: record user-confirmed CLI shortcut live acceptance`
 - d95587b `feat(integration): install local plugins with safe shared-session binding`
+- d44654d `fix(plugin): pin installed profiles and document install-once usage`
 
 Live-test documentation was updated after the user confirmed the basic pass;
 see `git log` for the subsequent evidence-recording commit.
@@ -242,12 +258,12 @@ cargo test --all-targets (39 passed, 0 failed) and locked release build all pass
 Only sanitized documentation changed; original live evidence remains untouched
 and ignored. No real user configuration/service change or remote operation occurred.
 
-## Installed Plugin/MCP entry point increment (2026-10-26)
+## Original installed Plugin/MCP increment (2026-10-26, superseded loader assumptions)
 
 Implemented in response to the user's requirement to configure once
 and omit tool/state/session paths from everyday prompts. Added local native/plugin
 install preview/apply, owned-file hashes and safe removal/replacement, a relocatable
-state profile, portable plugin assets and workflow skill, owned marketplace setup,
+state profile, the original portable plugin assets and workflow skill, owned marketplace setup,
 shared-host MCP with explicit current-terminal binding and private brief output,
 and separate daemon/configuration/stdio/host-connectivity diagnostics (ADR 0003).
 
@@ -268,3 +284,53 @@ program passed 22 isolated onboarding CLI calls, including paths with spaces and
 apostrophes, a real workload, self-uninstall retaining data and reinstall. The
 review bundle remains dormant under ignored .tmp/; the daemon is stopped. Original
 live-test artifacts, real configuration and existing services remain untouched.
+
+## Real task review and runtime/plugin repair (2026-10-26)
+
+The user's **运行 release 全部目标测试** chat loaded the installed skill but had
+no AgentJobRelay MCP tools. It used CLI for binding, submission and result reads.
+Read-only retained-turn/report/log/SQLite correlation confirms the first job
+failed before Runner launch with ENOENT: the old daemon's source-build executable
+had been unlinked by a rebuild. The Agent selected a separate state directory,
+then ran `cargo test --release --all-targets`: **45 passed**, exit 0. This was a
+workaround, not an original-runtime repair. Both events reached the correct chat,
+once each; the successful submitting turn ended before a new completion-triggered
+turn read status/report, with no intervening human continuation. The user also
+confirmed wake worked. Sanitized times/provenance are in live-e2e.md; raw IDs and
+endpoints remain ignored. Prior Desktop/OS versions are user-reported, not newly
+reconfirmed. Neither real daemon was stopped, and installed/cache files were not
+changed by this review.
+
+Reproduced the deleted-image bug with a real daemon/native pathname replacement:
+it failed before the fix, then passed after using Linux's mapped `/proc/self/exe`
+for internal child launch. Added legacy capability/readiness refusal before new
+submission; an old live process still needs an explicit idle restart/update.
+Updates from source without state overrides now retain the installed profile.
+
+Actual Codex CLI 0.164.0 tests in isolated HOME found that portable-root plugin
+skills loaded but MCP did not. Compatibility files alongside the root manifest
+still yielded no server; plugin-root command variables also did not expand in
+the tested stdio launcher. The local installed bundle now omits portable roots,
+uses `.codex-plugin/plugin.json` + `.mcp.json` and a stable absolute native command.
+The clean real-loader check discovers all 19 MCP tools without a model turn,
+daemon or workload. Cached MCP requires the original installation path; the
+relative terminal wrapper retains the profile. See ADR 0004 and the reusable
+scripts/check_codex_plugin.py. Updated Desktop MCP execution and browser install
+are not claimed passed. The skill now explicitly reports CLI fallback and keeps
+runtime failure/workaround records instead of treating state switching as a fix.
+
+Final repair gates passed: fmt, strict all-target Clippy, **47 tests** (2 library,
+10 convenience, 8 delivery, 4 Desktop simulation, 1 documentation, 4 integration,
+5 onboarding, 13 runtime) and locked release build. The 45-test user release run
+is evidence for the old version, distinct from this new automated 47-test result.
+
+The user's distribution revision is recorded in PROJECT_SPEC.md, AGENTS.md,
+TODO/release/install docs and both READMEs: Agent plugins around one Rust core;
+Codex/Desktop local development now, Claude Code/OpenCode future adapters;
+independent OS installers/repositories cancelled. Official supported platforms
+are desired future channels, but no submissions, uploads, publication, real
+configuration/service/cache modifications or pushes are performed now.
+
+Final repair rerun: all four Rust gates passed again after documentation synchronization;
+the rebuilt v0.1.1 binary passed the clean real Codex loader check again (19 tools).
+Only repository-local ignored test installations/state were created.
