@@ -62,7 +62,7 @@ Registration optionally sets renew_on_delivery=true (default false for old/manua
 
 Before extending the session by its configured lease duration, a transaction rechecks the unchanged registration/expiry, connected flag and active target with the current unexpired claim token. Renewal and its audit commit together. The original delivery ID and event TTL remain unchanged. Changed/invalidated endpoints never renew automatically; concurrent refresh retries from the new snapshot. The probe provides endpoint/capability evidence, not Agent execution confirmation. Doctor exposes same_chat_recovery and delivery_time_renewal capability flags; automatic binding refuses an older daemon before registration/job mutation and requires an explicit same-profile stop/update. Manual opted-out registration omits the new false field for older wire compatibility. Schema v6 is unchanged.
 
-## Public plugin bridge (source 0.1.6)
+## Public plugin bridge (source 0.1.7)
 
 A `plugin_bridge` registration uses an explicit owned endpoint, identical caller/destination and experimental opt-in. The core pins the endpoint fingerprint and same-user peer, then sends one length-prefixed JSON-RPC request per connection: `relay/probe` or `relay/deliver`, with `protocol_version=1`, `agent_kind`, `session_id`, `caller_session_id`, `instance_id` and `host_id`. Delivery adds only stable `delivery_id`, `event_id`, `job_id` and terminal `kind`. No command/output is included. Responses cap at 16 KiB within three seconds.
 

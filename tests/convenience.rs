@@ -845,3 +845,24 @@ async fn existing_incompatible_daemon_is_not_replaced_or_treated_as_absent() {
     assert!(!r.config.root.join("relay.sqlite3").exists());
     drop(server.await.unwrap());
 }
+
+#[tokio::test]
+async fn explicit_daemon_start_is_idempotent_without_jobs_or_sessions() {
+    let r = Rig::new();
+    let first = success(r.cli(&["daemon", "start"], None).await);
+    let identity = agent_job_relay::platform::endpoint_identity(&r.config.socket()).unwrap();
+    let second = success(r.cli(&["daemon", "start"], None).await);
+    assert_eq!(first["daemon"], "reachable");
+    assert_eq!(second["sessions"], 0);
+    assert_eq!(
+        identity,
+        agent_job_relay::platform::endpoint_identity(&r.config.socket()).unwrap()
+    );
+    assert!(
+        success(r.cli(&["list"], None).await)["jobs"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    success(r.cli(&["daemon", "stop"], None).await);
+}

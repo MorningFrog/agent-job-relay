@@ -7,7 +7,7 @@ import { randomUUID, createHash } from "node:crypto";
 const exec = promisify(execFile);
 
 export async function createBridge({ client, executable, stateDir, directory }) {
-  if (process.platform !== "linux") throw new Error("AgentJobRelay's OpenCode bridge currently requires Linux");
+  if (!["linux", "win32"].includes(process.platform)) throw new Error("AgentJobRelay requires a verified Linux or Windows runtime");
   if (![executable, stateDir, directory].every((p) => typeof p === "string" && isAbsolute(p))) {
     throw new Error("Configure absolute executable and stateDir options once; OpenCode must provide an absolute directory");
   }
@@ -26,11 +26,19 @@ export async function createBridge({ client, executable, stateDir, directory }) 
     const s = await lstat(path);
     if (!s.isDirectory() || s.uid !== process.getuid() || (s.mode & 0o077)) throw new Error("Bridge/state directory must be owned with mode 0700");
   }
-  await privateDirectory(stateDir);
-  const parent = join(stateDir, "bridges");await privateDirectory(parent);
-  const root = await mkdtemp(join(parent, "oc-"));await chmod(root, 0o700);
-  const endpoint = join(root, "s");
-  if (Buffer.byteLength(endpoint) >= 104) { await rmdir(root);throw new Error("Bridge socket path is too long; choose a shorter explicit stateDir"); }
+  let root, endpoint;
+  if (process.platform === "win32") {
+    if (Number(match[1]) === 0 && Number(match[2]) === 1 && Number(match[3]) < 7) throw new Error("Windows bridge requires AgentJobRelay >=0.1.7");
+    const prepared = JSON.parse((await exec(executable, ["--state-dir", stateDir, "windows-bridge", "prepare"], { timeout: 5000, maxBuffer: 4096 })).stdout);
+    root = prepared.root; endpoint = prepared.endpoint;
+    if (!isAbsolute(root) || !endpoint.startsWith("\\\\.\\pipe\\AgentJobRelay-opencode-")) throw new Error("Invalid native Windows bridge preparation");
+  } else {
+    await privateDirectory(stateDir);
+    const parent = join(stateDir, "bridges");await privateDirectory(parent);
+    root = await mkdtemp(join(parent, "oc-"));await chmod(root, 0o700);
+    endpoint = join(root, "s");
+    if (Buffer.byteLength(endpoint) >= 104) { await rmdir(root);throw new Error("Bridge socket path is too long; choose a shorter explicit stateDir"); }
+  }
   const instanceID = randomUUID();
   const hostID = "opencode:" + createHash("sha256").update(directory).digest("hex").slice(0, 32);
   const owned = new Set();
@@ -88,11 +96,17 @@ export async function createBridge({ client, executable, stateDir, directory }) 
   });
   server.maxConnections = 16;
   await new Promise((resolve, reject) => { server.once("error", reject);server.listen(endpoint, resolve); });
-  await chmod(endpoint, 0o600);
+  try {
+    if (process.platform === "win32") {
+      const checked = JSON.parse((await exec(executable, ["--state-dir", stateDir, "windows-bridge", "secure", endpoint, String(process.pid)], { timeout: 5000, maxBuffer: 4096 })).stdout);
+      if (checked.secured !== true || checked.server_pid !== process.pid || checked.private_acl !== true) throw new Error("Native bridge security check failed");
+    } else await chmod(endpoint, 0o600);
+  } catch (error) { server.close();await rmdir(root).catch(() => {});throw error; }
   server.unref(); // The bridge never keeps an otherwise finished host process alive.
   async function close() {
     if (closed) return;closed = true;server.close();process.off("exit", exit);
-    await unlink(endpoint).catch(() => {});await rmdir(root).catch(() => {});
+    if (process.platform !== "win32") await unlink(endpoint).catch(() => {});
+    await rmdir(root).catch(() => {});
   }
   function exit() { server.close(); }
   process.once("exit", exit);

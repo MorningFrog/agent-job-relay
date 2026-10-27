@@ -367,3 +367,6 @@ pub fn spawn_background(mut command: Command) -> Result<()> {
     });
     Ok(())
 }
+pub fn verify_bridge_endpoint(stream: &ClientStream) -> Result<()> {
+    verify_peer(stream)
+}

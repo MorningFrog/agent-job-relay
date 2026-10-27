@@ -1,18 +1,43 @@
 {
   "name": "agent-job-relay-opencode-v1",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "type": "module",
   "main": "index.mjs",
   "exports": "./index.mjs",
-  "files": ["index.mjs", "bridge.mjs", "README.md", "LICENSE"],
-  "engines": { "node": ">=20" },
-  "os": ["linux"],
-  "cpu": ["x64"],
-  "repository": { "type": "git", "url": "git+https://github.com/MorningFrog/agent-job-relay.git", "directory": "plugins/opencode-v1" },
+  "files": [
+    "index.mjs",
+    "bridge.mjs",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "os": [
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MorningFrog/agent-job-relay.git",
+    "directory": "plugins/opencode-v1"
+  },
   "homepage": "https://github.com/MorningFrog/agent-job-relay",
-  "bugs": { "url": "https://github.com/MorningFrog/agent-job-relay/issues" },
-  "publishConfig": { "access": "public", "tag": "next", "registry": "https://registry.npmjs.org" },
+  "bugs": {
+    "url": "https://github.com/MorningFrog/agent-job-relay/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "next",
+    "registry": "https://registry.npmjs.org"
+  },
   "description": "Experimental local OpenCode V1 bridge to the AgentJobRelay Rust/MCP core",
   "license": "MIT",
-  "dependencies": { "@opencode-ai/plugin": "1.19.4", "agent-job-relay-runtime": "0.1.6" }
+  "dependencies": {
+    "@opencode-ai/plugin": "1.19.4",
+    "agent-job-relay-runtime": "0.1.7"
+  }
 }

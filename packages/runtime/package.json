@@ -1,17 +1,42 @@
 {
   "name": "agent-job-relay-runtime",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Shared Linux native runtime for AgentJobRelay host plugins",
   "type": "module",
   "exports": "./index.mjs",
-  "bin": { "agent-job-relay": "./cli.mjs" },
-  "files": ["index.mjs", "cli.mjs", "native", "README.md", "LICENSE"],
-  "engines": { "node": ">=20" },
-  "os": ["linux"],
-  "cpu": ["x64"],
+  "bin": {
+    "agent-job-relay": "./cli.mjs"
+  },
+  "files": [
+    "index.mjs",
+    "cli.mjs",
+    "native",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "os": [
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64"
+  ],
   "license": "MIT",
-  "repository": { "type": "git", "url": "git+https://github.com/MorningFrog/agent-job-relay.git", "directory": "packages/runtime" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MorningFrog/agent-job-relay.git",
+    "directory": "packages/runtime"
+  },
   "homepage": "https://github.com/MorningFrog/agent-job-relay",
-  "bugs": { "url": "https://github.com/MorningFrog/agent-job-relay/issues" },
-  "publishConfig": { "access": "public", "tag": "next", "registry": "https://registry.npmjs.org" }
+  "bugs": {
+    "url": "https://github.com/MorningFrog/agent-job-relay/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "next",
+    "registry": "https://registry.npmjs.org"
+  }
 }

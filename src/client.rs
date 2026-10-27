@@ -54,6 +54,12 @@ pub(crate) fn unavailable(error: &anyhow::Error) -> bool {
         )
     })
 }
+/// Explicitly start the selected daemon without a job, session or host identity.
+pub async fn start_daemon(config: &Config) -> Result<Value> {
+    ensure_daemon(config).await?;
+    ipc::call(config, Request::Doctor).await
+}
+
 /// Start only our own per-state daemon, without a system service or PATH edit.
 async fn ensure_daemon(config: &Config) -> Result<()> {
     tokio::time::timeout(Duration::from_secs(8), ensure_daemon_inner(config))
@@ -92,7 +98,7 @@ async fn ensure_daemon_inner(config: &Config) -> Result<()> {
             .stdout(Stdio::null())
             .stderr(Stdio::null());
         crate::platform::spawn_background(command).context(
-            "cannot auto-start daemon; run agent-job-relay daemon in a terminal for diagnostics",
+            "cannot start independent daemon; run agent-job-relay --state-dir <same-path> daemon start in a terminal outside the host; use foreground daemon for diagnostics",
         )?;
     }
     let deadline = tokio::time::Instant::now() + Duration::from_secs(8);

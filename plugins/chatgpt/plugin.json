@@ -1,9 +1,12 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "agent-job-relay",
-  "version": "0.1.6",
-  "description": "Experimental durable local background jobs for Linux Desktop/Codex chats.",
-  "author": { "name": "MorningFrog", "url": "https://github.com/MorningFrog" },
+  "version": "0.1.7",
+  "description": "Experimental durable local background jobs for Linux/Windows Desktop/Codex chats.",
+  "author": {
+    "name": "MorningFrog",
+    "url": "https://github.com/MorningFrog"
+  },
   "homepage": "https://github.com/MorningFrog/agent-job-relay",
   "repository": "https://github.com/MorningFrog/agent-job-relay",
   "license": "MIT",
@@ -13,14 +16,16 @@
       "interface": {
         "displayName": "AgentJobRelay",
         "shortDescription": "Durable background jobs",
-        "longDescription": "Run local commands independently of the chat connection and inspect durable results. Experimental same-chat completion on supported Desktop versions; requires Linux x86_64/glibc and Node.js/npm. Desktop wake uses a private host interface. Not an official OpenAI listing. Windows/macOS and cloud execution are unsupported.",
+        "longDescription": "Run local commands independently of the chat connection and inspect durable results. Experimental same-chat completion on supported Desktop versions; requires Linux x86_64/glibc or Windows x86_64 and Node.js/npm. Desktop wake uses a private host interface. Not an official OpenAI listing. Windows Desktop continuation is unverified; macOS and cloud execution are unsupported.",
         "developerName": "MorningFrog",
         "category": "Productivity",
         "websiteURL": "https://github.com/MorningFrog/agent-job-relay",
         "supportURL": "https://github.com/MorningFrog/agent-job-relay/issues",
         "composerIcon": "./assets/icon.svg",
         "logo": "./assets/icon.svg",
-        "defaultPrompt": ["Run this project's tests in the background and tell me when they finish."]
+        "defaultPrompt": [
+          "Run this project's tests in the background and tell me when they finish."
+        ]
       }
     }
   }

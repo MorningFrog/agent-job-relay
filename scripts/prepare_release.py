@@ -23,6 +23,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, default=REPO / "target/release/agent-job-relay")
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--windows-binary", type=Path, help="Windows x86_64 executable built and checked on Windows")
+    parser.add_argument("--windows-metadata", type=Path, help="Matching native build descriptor from describe_native.ps1")
     args = parser.parse_args()
     output = args.output.resolve()
     temporary = REPO / ".tmp"
@@ -38,6 +40,17 @@ def main():
         parser.error("source and native versions differ; rebuild release first")
     symbols = run(["readelf", "--version-info", binary])
     glibc = max(tuple(map(int, value.split("."))) for value in re.findall(r"\bGLIBC_(\d+\.\d+)\b", symbols))
+    windows_image = None
+    if bool(args.windows_binary) != bool(args.windows_metadata):
+        parser.error("Windows bytes and their native build descriptor must be supplied together")
+    if args.windows_binary:
+        windows_image = args.windows_binary.read_bytes()
+        descriptor = json.loads(args.windows_metadata.read_text())
+        offset = int.from_bytes(windows_image[60:64], "little") if windows_image[:2] == b"MZ" else 0
+        if not offset or windows_image[offset:offset+6] != b"PE\0\0\x64\x86" or descriptor.get("format") != 1 or descriptor.get("platform") != "win32-x64" or descriptor.get("version") != version or descriptor.get("sha256") != hashlib.sha256(windows_image).hexdigest():
+            parser.error("Windows PE/architecture/version/digest validation failed")
+        if os.environ.get("GITHUB_SHA") and descriptor.get("revision") != os.environ["GITHUB_SHA"]:
+            parser.error("Windows executable was not built from this workflow revision")
     packages = [("runtime", REPO / "packages/runtime"), ("opencode", REPO / "plugins/opencode-v1")]
     with tempfile.TemporaryDirectory(prefix="pack-", dir=temporary) as temp:
         stage = Path(temp)
@@ -50,7 +63,8 @@ def main():
                 parser.error("release package version/private/scripts mismatch")
             destination = stage / key
             destination.mkdir()
-            shutil.copy2(source / "package.json", destination)
+            package["os"] = ["linux", "win32"] if windows_image else ["linux"]
+            (destination / "package.json").write_text(json.dumps(package, indent=2) + "\n")
             for name in package["files"]:
                 if name in ("native", "LICENSE"):
                     continue
@@ -67,7 +81,13 @@ def main():
                 native.write_bytes(image)
                 native.chmod(0o755)
                 (destination / "cli.mjs").chmod(0o755)
-                (destination / "native/manifest.json").write_text(json.dumps({"format": 1, "platform": "linux-x64", "version": version, "minimumGlibc": ".".join(map(str, glibc)), "sha256": hashlib.sha256(image).hexdigest()}, indent=2) + "\n")
+                targets = {"linux-x64": {"minimumGlibc": ".".join(map(str, glibc)), "sha256": hashlib.sha256(image).hexdigest()}}
+                if windows_image:
+                    windows_native = destination / "native/win32-x64/agent-job-relay.exe"
+                    windows_native.parent.mkdir(parents=True)
+                    windows_native.write_bytes(windows_image)
+                    targets["win32-x64"] = {"sha256": hashlib.sha256(windows_image).hexdigest()}
+                (destination / "native/manifest.json").write_text(json.dumps({"format": 2, "version": version, "targets": targets}, indent=2) + "\n")
             else:
                 runtime_name = metadata["runtime"]["name"]
                 if package["dependencies"].get(runtime_name) != version:
@@ -87,12 +107,12 @@ def main():
         archive = f"agent-job-relay-marketplace-{version}.zip"
         with zipfile.ZipFile(artifacts / archive, "w", zipfile.ZIP_DEFLATED) as bundle:
             bundle.write(market, market.relative_to(REPO))
-            for name in ["plugin.json", ".codex-plugin/plugin.json", "mcp.json", ".mcp.json", "relay", "README.md", "LICENSE", "assets/icon.svg", "skills/background-jobs/SKILL.md"]:
+            for name in ["plugin.json", ".codex-plugin/plugin.json", "mcp.json", ".mcp.json", "relay", "relay.cmd", "README.md", "LICENSE", "assets/icon.svg", "skills/background-jobs/SKILL.md"]:
                 path = plugin / name
                 if not path.is_file() or any(p.is_symlink() for p in [path, *path.parents] if p.is_relative_to(plugin)):
                     parser.error("marketplace files must be regular, unsymlinked allowlisted paths")
                 bundle.write(path, path.relative_to(REPO))
-        metadata.update(version=version, platform="linux-x64", minimumGlibc=".".join(map(str, glibc)), marketplace=archive, publication="not performed")
+        metadata.update(version=version, platforms=["linux-x64", "win32-x64"] if windows_image else ["linux-x64"], platform="linux-x64", minimumGlibc=".".join(map(str, glibc)), marketplace=archive, publication="not performed")
         (artifacts / "release.json").write_text(json.dumps(metadata, indent=2) + "\n")
         (artifacts / "SHA256SUMS").write_text("".join(f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n" for p in sorted(artifacts.iterdir())))
         output.parent.mkdir(parents=True, exist_ok=True)

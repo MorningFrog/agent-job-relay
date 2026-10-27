@@ -9,7 +9,7 @@ Tasks run in the background. Agents pick up when needed.
 任务在后台运行，Agent 在需要时接棒。
 </div>
 
-让长时间命令独立于 Agent 连接运行，保存结果，并在宿主支持时通知发起任务的聊天。**v0.1.6 是尚未发布的 Linux/Windows x86_64 开发版本。** Desktop 唤醒使用实验性接口；Windows 桌面端续接尚未验证，macOS 运行时暂不支持。OpenCode V1 提供实验性插件候选包；Claude Code 提供仅收件箱通知的开发框架，需要社区验证。
+让长时间命令独立于 Agent 连接运行，保存结果，并在宿主支持时通知发起任务的聊天。**v0.1.7 是尚未发布的 Linux/Windows x86_64 开发版本。** Desktop 唤醒使用实验性接口；Windows 桌面端续接尚未验证，macOS 运行时暂不支持。OpenCode V1 提供实验性插件候选包；Claude Code 提供仅收件箱通知的开发框架，需要社区验证。
 
 OpenCode/Claude 的开发安装及验证边界见[宿主插件指南](docs/host-plugins.md)。
 
@@ -44,7 +44,7 @@ AJR_INSTALL_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/agent-job-relay"
 
 ## Windows
 
-使用可信的 Windows 离线 bundle 及其中的 `relay.cmd` 启动器。原生执行、进程树监管、MCP 与离线维护已通过 Windows 11 虚拟机验证；当前 npm 候选包仍仅携带 Linux 程序，Windows 打包正在补齐。PowerShell 安装、任务示例及运行边界见 [Windows 指南](docs/windows.md)。
+使用可信的 Windows 离线 bundle 及其中的 `relay.cmd` 启动器。原生执行、进程树监管、MCP、离线维护及 npm 安装后的宿主加载已通过 Windows 11 虚拟机验证。0.1.7 候选包同时携带 Linux 与 Windows 程序，尚未发布。Codex CLI 0.164.0 需要先在宿主外的 PowerShell 终端对同一状态目录执行 `daemon start`，然后才能通过 MCP 提交任务。安装、任务示例及运行边界见 [Windows 指南](docs/windows.md)。
 
 ## 在聊天中使用
 
@@ -130,7 +130,7 @@ AJR_BUNDLE="$PWD/.tmp/agent-job-relay-offline"
 | 发布候选包和手动 Actions | [发布指南](docs/release.md) |
 | 计划及变更 | [路线图](docs/TODO.md)、[变更记录](CHANGELOG.md) |
 
-Linux 执行、离线插件管理和 Codex CLI 0.164.0 加载器已有隔离自动化验证。当前远程 CI 已通过 Linux 运行时/候选包检查，以及 macOS/Windows 可移植代码编译检查。Desktop 26.1021.22027 与插件 0.1.5 已通过运行中任务的重启、重绑定和同聊天续聊验证，恢复、事件及投递记录一致。界面启用、版本和重启由用户确认；桥接身份变化已测量，并已观察到 Agent 续聊。全新界面安装及其他宿主版本仍未验证。共用 npm 原生运行时和自建市场候选包已准备但尚未发布；官方目录投稿及输出监控/中断仍待实施。独立系统安装包和软件仓库计划已取消。
+Linux 执行、离线插件管理和 Codex CLI 0.164.0 加载器已有隔离自动化验证。Linux 和 Windows 本地检查已通过；新增 Windows 原生 CI/Release 流程尚待远程运行，早前远程 CI 仅覆盖 Windows/macOS 可移植代码检查。Desktop 26.1021.22027 与插件 0.1.5 已通过运行中任务的重启、重绑定和同聊天续聊验证，恢复、事件及投递记录一致。界面启用、版本和重启由用户确认；桥接身份变化已测量，并已观察到 Agent 续聊。全新界面安装及其他宿主版本仍未验证。共用 npm 原生运行时和自建市场候选包已准备但尚未发布；官方目录投稿及输出监控/中断仍待实施。独立系统安装包和软件仓库计划已取消。
 
 OpenCode 1.19.4 已使用真实加载器、MCP 和会话 API 配合本地模拟模型验证；真实模型服务及 V2 仍需验证。Claude Code 仅完成模拟调用者助手与实际 MCP 启动入口检查，没有 Claude 账号、加载器或模型会话实测。**欢迎社区协助测试和提交 PR，尤其是 Claude Code 与容器化版本验证。** 参与方式见[贡献指南](CONTRIBUTING.md)。
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.7 — 2026-10-27 (unreleased Windows runtime and plugin candidate)
+
+- Add private SID/DACL named pipes, peer process-instance checks, non-inheriting native daemon/runner launch and runner-owned Job Objects for Windows x86_64; reuse durable state, delivery/recovery, bounded logs, cancellation/timeouts and offline maintenance.
+- Add explicit `daemon start [--install-root]` without a job/session side effect. Windows Codex 0.164.0 MCP forbids breakaway, so it needs same-profile startup from an outside terminal; no runtime service/WMI escape is used.
+- Bundle Linux and Windows in the shared npm runtime with per-platform integrity metadata, static Windows CRT, `.cmd` terminal support and portable pinned MCP startup. Secure OpenCode's Windows Node/Bun pipe before registering callers.
+- Verify actual Windows npm installation, Codex catalog/MCP discovery and OpenCode matching-session continuation with a simulated model. Separately verify an installed Codex MCP task through Codex-Manager using `gpt-6.1-sol`/`low` and a prestarted daemon under guest-agent SYSTEM; ordinary-user/Windows Desktop continuation remains open.
+- Extend native Windows CI and manual release preparation to assemble and check both platforms from one revision. Remote workflow acceptance and publication remain pending.
+
 ## 0.1.6 — 2026-10-26 (unreleased plugin delivery candidate)
 
 - Retain the daemon SIGINT receiver while reconciliation awaits SQLite, preventing lost graceful-stop signals; reproduce the blocked-reconciliation window with an owned-process/real-SQLite regression.

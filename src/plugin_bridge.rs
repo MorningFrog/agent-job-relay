@@ -30,6 +30,7 @@ pub async fn exchange(session: &AgentSession, claim: Option<&Claim>) -> Result<(
         );
         tokio::time::timeout(std::time::Duration::from_secs(3), async {
             let mut socket = crate::platform::connect_host(endpoint).await?;
+            crate::platform::verify_bridge_endpoint(&socket)?;
             ensure!(crate::platform::connected_endpoint_identity(&socket, endpoint).ok().as_ref()==session.endpoint_identity.as_ref(), DeliveryError(FailureKind::RebindRequired, "plugin endpoint changed while connecting"));
             let r = &session.registration;
             let mut params = json!({"protocol_version":1,"agent_kind":r.agent_kind,"session_id":r.session_id,"caller_session_id":r.caller_thread_id,"instance_id":r.instance_id,"host_id":r.host_id});

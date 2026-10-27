@@ -28,11 +28,11 @@ jobs:
       - uses: Swatinem/rust-cache@v2.9.3
       - run: cargo fmt --check
       - run: cargo clippy --all-targets --locked -- -D warnings
-      - name: Linux runtime and all behavior tests
-        if: runner.os == 'Linux'
+      - name: Linux and Windows native behavior tests
+        if: runner.os != 'macOS'
         run: cargo test --all-targets --locked
-      - name: Other platforms compile and portable schema tests only
-        if: runner.os != 'Linux'
+      - name: macOS compilation and portable schema tests only
+        if: runner.os == 'macOS'
         run: cargo test --lib --locked
       - run: cargo build --release --locked
       - run: cargo run --locked -- --help

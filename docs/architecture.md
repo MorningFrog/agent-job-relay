@@ -4,8 +4,8 @@ One package and executable; CLI, stdio MCP, daemon and runner modes.
 
 ## Runtime and storage
 
-- CLI/MCP → bounded owner-only Unix socket → daemon → SQLite intent.
-- Daemon → detached runner → separate workload process group → capped byte logs.
+- CLI/MCP → bounded private Unix socket / Windows named pipe → daemon → SQLite intent.
+- Daemon → detached runner → separate workload process group / Windows Job Object → capped byte logs.
 - Runner → SQLite final state + event + delivery outbox in one transaction.
 - Daemon → capability adapter → explicit session endpoint → host acceptance.
 
@@ -23,7 +23,7 @@ Linux and Windows x86_64 have native runtime verification. Windows uses private 
 
 ## Client and installation boundaries
 
-Client-side convenience is in client.rs (ADR 0002). Submissions and explicit session registrations launch a detached per-state daemon on demand. Opted-in wake resolves only the CLI/MCP process's current inherited host identity, registers/refreshes and probes before submitting. No latest-session lookup or daemon-owned caller inference is used. `daemon stop` stops dispatch only; runner and result persistence lifetimes remain independent.
+Client-side convenience is in client.rs (ADR 0002). Submissions and explicit session registrations launch a detached per-state daemon on demand. Opted-in wake resolves only the CLI/MCP process's current inherited host identity, registers/refreshes and probes before submitting. No latest-session lookup or daemon-owned caller inference is used. `daemon start` explicitly starts/reuses a selected daemon without creating a job/session; restrictive Windows hosts need this from an outside terminal. `daemon stop` stops dispatch only; runner and result persistence lifetimes remain independent.
 
 Installed entry points (ADR 0003) are handled by deployment.rs and diagnostics.rs. A private native/plugin bundle carries a persistent state profile, never a chat identity. The terminal launcher retains the profile across cache copies and invokes the same managed native executable as MCP, avoiding stale cached binaries. The local Codex bundle now uses `.codex-plugin/plugin.json` plus `.mcp.json`, with a stable absolute installed executable path: the tested Codex CLI 0.164.0 loader did not discover portable-root MCP or expand plugin-root variables (ADR 0004). The original installation must remain present for cached MCP. Setup/removal also owns one local marketplace entry. Shared MCP rejects implicit inherited identity. Desktop binds from the current terminal; OpenCode V1 binds from its actual tool context and supplies the key to MCP. The Claude scaffold uses explicit skill session substitution and an inbox-only registration. Runtime/outbox semantics stay unchanged. Configuration, stdio self-check, actual host tool connectivity and observed continuation are separate evidence levels.
 
@@ -37,9 +37,11 @@ Runtime snapshot profiles retain installation/state/platform and hashes independ
 
 ## Shared npm runtime and self-hosted marketplace
 
-`packages/runtime` distributes the same native executable with a version/platform/SHA-256/minimum-glibc manifest, no install scripts and no selected user profile. The CLI checks compatibility/integrity before spawning. OpenCode resolves that package directly; its explicit development executable override remains available. Default persistent `codex`/`opencode` profiles live outside npm/host caches, remain stable across versions and allow an explicit AJR_STATE_DIR override. They do not automatically migrate an offline installation or capture caller identity. Linux x86_64/glibc is the sole packaged platform.
+`packages/runtime` distributes the same native executable with a version/platform/SHA-256/minimum-glibc manifest, no install scripts and no selected user profile. The CLI checks compatibility/integrity before spawning. OpenCode resolves that package directly; its explicit development executable override remains available. Default persistent `codex`/`opencode` profiles live outside npm/host caches, remain stable across versions and allow an explicit AJR_STATE_DIR override. They do not automatically migrate an offline installation or capture caller identity. Packages can carry Linux x86_64/glibc and Windows x86_64 targets; the launcher selects and validates only its own target. Windows state defaults to `%LOCALAPPDATA%\AgentJobRelay\profiles\<host>`.
 
 `.agents/plugins/marketplace.json` points to `plugins/chatgpt`. Portable and compatibility MCP declarations plus the terminal launcher pin the same npm runtime and codex profile. Using `npx` avoids plugin-root expansion and developer absolute paths on the tested loader; scripts are disabled and the registry is explicit. First use needs Node/npm/network. An unpublished pinned runtime makes the normal online route unavailable, even if the catalog is discoverable. Existing offline managed installs/cache repair remain separate and unchanged. See [release preparation](release.md).
+
+Windows OpenCode bridges create their Node/Bun pipe, then invoke the native helper to pin its exact server process and restrict its owner/DACL before registering any session. The core verifies the pipe DACL on every bridge exchange.
 
 Only `workflow_dispatch` starts release preparation. The workflow re-runs gates and installed-package/actual-loader checks, uploads candidate artifacts, and optionally creates a prerelease draft; npm publication and public-directory approval remain separate. A loopback registry permits honest actual-loader checks of unpublished candidates, without writing a public registry or contacting Desktop. Hashes are integrity checks; they do not prove publisher provenance.
 
@@ -53,6 +55,6 @@ Automatic bindings opt into delivery-time renewal (renewal.rs). Only an actual r
 
 ## Public host plugin bridge
 
-`plugin_bridge.rs` uses the existing owner-checked Unix socket transport with project protocol v1, a 16 KiB response cap and three-second deadline. Probe/delivery echoes must match the exact agent/session/instance/host; acceptance also echoes delivery/event/job IDs. Only static completion metadata crosses into the host. The plugin admits only callers observed from tool contexts and uses its public session API; no latest-session discovery or Desktop fallback is involved.
+`plugin_bridge.rs` uses the existing owner-checked Unix socket / private Windows pipe transport with project protocol v1, a 16 KiB response cap and three-second deadline. Probe/delivery echoes must match the exact agent/session/instance/host; acceptance also echoes delivery/event/job IDs. Only static completion metadata crosses into the host. The plugin admits only callers observed from tool contexts and uses its public session API; no latest-session discovery or Desktop fallback is involved.
 
 Scoped recovery includes the exact adapter discriminator, so Desktop and plugin registrations cannot coalesce. The existing claim-fenced delivery-time renewal checks the same endpoint/caller. OpenCode V1 supports explicit recovery through its caller-owned helper, with actual OpenCode restart still needing community verification. Inbox-only Claude registrations cannot claim resume. See [ADR 0009](adr/0009-public-host-plugin-bridge.md) and [host packages](host-plugins.md).

@@ -7,6 +7,8 @@ AJR_INSTALL_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/agent-job-relay"
 AJR_RELAY="$AJR_INSTALL_ROOT/relay"
 ```
 
+Windows PowerShell commands and the Codex outside-host `daemon start` prerequisite are in the [Windows guide](windows.md). `daemon start` explicitly starts/reuses the selected runtime without a job/session; `daemon stop` leaves independent runners and history intact.
+
 ## Run a task from chat
 
 In a local Desktop chat with the plugin selected, describe the real background task. The workflow resolves the launcher relative to its skill, obtains a fresh current-chat binding, submits through MCP when available and ends the turn. Users need no executable/state/session paths in ordinary prompts. A CLI fallback must be reported explicitly.

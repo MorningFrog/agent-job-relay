@@ -64,7 +64,8 @@ fn sid_text(sid: PSID) -> Result<String> {
         Ok(String::from_utf16(std::slice::from_raw_parts(text, len))?)
     }
 }
-fn process_sid(process: HANDLE) -> Result<String> {
+fn token_sid(process: HANDLE, owner: bool) -> Result<String> {
+    let class = if owner { TokenOwner } else { TokenUser };
     let mut token = null_mut();
     unsafe {
         check(OpenProcessToken(process, TOKEN_QUERY, &mut token))?;
@@ -72,20 +73,27 @@ fn process_sid(process: HANDLE) -> Result<String> {
     let token = owned(token)?;
     let mut size = 0;
     unsafe {
-        GetTokenInformation(token.as_raw_handle(), TokenUser, null_mut(), 0, &mut size);
+        GetTokenInformation(token.as_raw_handle(), class, null_mut(), 0, &mut size);
     }
     ensure!(size > 0 && size < 65536, "invalid Windows token size");
     let mut data = vec![0usize; (size as usize).div_ceil(size_of::<usize>())];
     unsafe {
         check(GetTokenInformation(
             token.as_raw_handle(),
-            TokenUser,
+            class,
             data.as_mut_ptr().cast(),
             size,
             &mut size,
         ))?;
-        sid_text((*(data.as_ptr().cast::<TOKEN_USER>())).User.Sid)
+        sid_text(if owner {
+            (*(data.as_ptr().cast::<TOKEN_OWNER>())).Owner
+        } else {
+            (*(data.as_ptr().cast::<TOKEN_USER>())).User.Sid
+        })
     }
+}
+fn process_sid(process: HANDLE) -> Result<String> {
+    token_sid(process, false)
 }
 pub fn current_sid() -> Result<String> {
     process_sid(unsafe { GetCurrentProcess() })
@@ -710,4 +718,110 @@ pub fn rename_write_through(source: &Path, destination: &Path, replace: bool) ->
 pub fn connected_endpoint_identity(stream: &ClientStream, path: &Path) -> Result<String> {
     let (_, identity) = checked_peer(stream.as_raw_handle(), true)?;
     Ok(format!("{identity}:{}", path.display()))
+}
+
+/// Node's public pipe API does not expose a DACL option. The host plugin calls
+/// this once after listen; the native core pins/checks its exact server before
+/// restricting the named pipe's security descriptor to the current SID.
+pub fn secure_bridge_pipe(path: &Path, expected_pid: u32) -> Result<serde_json::Value> {
+    validate_pipe_path(path)?;
+    let handle = owned(unsafe {
+        CreateFileW(
+            wide(path).as_ptr(),
+            GENERIC_READ | GENERIC_WRITE | WRITE_DAC | WRITE_OWNER,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            std::ptr::null(),
+            OPEN_EXISTING,
+            SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION,
+            null_mut(),
+        )
+    })?;
+    let (pid, identity) = checked_peer(handle.as_raw_handle(), true)?;
+    ensure!(
+        pid == expected_pid,
+        "plugin pipe server PID differs; no ACL was changed"
+    );
+    let mut owner = null_mut();
+    let mut descriptor = null_mut();
+    let code = unsafe {
+        GetSecurityInfo(
+            handle.as_raw_handle(),
+            SE_FILE_OBJECT,
+            OWNER_SECURITY_INFORMATION,
+            &mut owner,
+            null_mut(),
+            null_mut(),
+            null_mut(),
+            &mut descriptor,
+        )
+    };
+    ensure!(code == 0, "cannot inspect plugin pipe owner");
+    let _owner_memory = LocalMemory(descriptor);
+    let server = process_handle(pid, PROCESS_QUERY_LIMITED_INFORMATION)?;
+    ensure!(
+        !owner.is_null()
+            && (sid_text(owner)? == current_sid()?
+                || sid_text(owner)? == token_sid(server.as_raw_handle(), true)?),
+        "plugin pipe owner differs from its verified creator token; no ACL was changed"
+    );
+    let security = Security::new(false)?;
+    let mut dacl = null_mut();
+    let mut present = 0;
+    let mut defaulted = 0;
+    unsafe {
+        check(GetSecurityDescriptorDacl(
+            security.attributes.lpSecurityDescriptor,
+            &mut present,
+            &mut dacl,
+            &mut defaulted,
+        ))?;
+    }
+    ensure!(present != 0 && !dacl.is_null(), "private pipe DACL missing");
+    let mut assigned_owner = null_mut();
+    let mut owner_defaulted = 0;
+    unsafe {
+        check(GetSecurityDescriptorOwner(
+            security.attributes.lpSecurityDescriptor,
+            &mut assigned_owner,
+            &mut owner_defaulted,
+        ))?;
+    }
+    let code = unsafe {
+        SetSecurityInfo(
+            handle.as_raw_handle(),
+            SE_FILE_OBJECT,
+            OWNER_SECURITY_INFORMATION
+                | DACL_SECURITY_INFORMATION
+                | PROTECTED_DACL_SECURITY_INFORMATION,
+            assigned_owner,
+            null_mut(),
+            dacl,
+            null_mut(),
+        )
+    };
+    ensure!(
+        code == 0,
+        "cannot restrict plugin pipe DACL: {}",
+        std::io::Error::from_raw_os_error(code as i32)
+    );
+    verify_security(handle.as_raw_handle())?;
+    ensure!(
+        checked_peer(handle.as_raw_handle(), true)?.1 == identity,
+        "plugin server changed during security setup"
+    );
+    Ok(serde_json::json!({"secured":true,"server_pid":pid,"private_acl":true}))
+}
+pub fn prepare_bridge(config: &crate::config::Config) -> Result<serde_json::Value> {
+    config.prepare()?;
+    let parent = config.root.join("bridges");
+    secure_dir(&parent)?;
+    let unique = crate::core::id();
+    let root = parent.join(format!("oc-{unique}"));
+    secure_dir(&root)?;
+    Ok(
+        serde_json::json!({"root":root,"endpoint":format!("\\\\.\\pipe\\AgentJobRelay-opencode-{unique}")}),
+    )
+}
+pub fn verify_bridge_endpoint(stream: &ClientStream) -> Result<()> {
+    verify_security(stream.as_raw_handle())
 }

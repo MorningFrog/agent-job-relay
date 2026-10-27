@@ -30,7 +30,7 @@ enum Commands {
         #[command(subcommand)]
         command: PluginCommand,
     },
-    /// Run in foreground, or stop the daemon; start auto-launches it when needed
+    /// Run in foreground, explicitly start, or stop the selected daemon
     Daemon {
         #[command(subcommand)]
         command: Option<DaemonCommand>,
@@ -40,6 +40,12 @@ enum Commands {
         /// Ignore inherited chat identity; use a current-terminal session binding
         #[arg(long)]
         shared_host: bool,
+    },
+    #[cfg(windows)]
+    #[command(hide = true)]
+    WindowsBridge {
+        #[command(subcommand)]
+        command: WindowsBridgeCommand,
     },
     #[cfg(windows)]
     #[command(hide = true)]
@@ -239,6 +245,12 @@ enum PluginCommand {
         command: CacheCommand,
     },
 }
+#[cfg(windows)]
+#[derive(Subcommand)]
+enum WindowsBridgeCommand {
+    Prepare,
+    Secure { endpoint: PathBuf, server_pid: u32 },
+}
 #[derive(Subcommand)]
 enum CacheCommand {
     /// Replace an unchanged cache snapshot from the installed plugin; retain a backup
@@ -320,6 +332,12 @@ enum SessionCommand {
 }
 #[derive(Subcommand)]
 enum DaemonCommand {
+    /// Start independently without submitting a job; use outside restrictive host jobs
+    Start {
+        /// Use this install's recorded state, overriding --state-dir/AJR_STATE_DIR
+        #[arg(long)]
+        install_root: Option<PathBuf>,
+    },
     /// Stop only this daemon; independent runners continue and data is retained
     Stop {
         /// Use this install's recorded state, overriding --state-dir/AJR_STATE_DIR
@@ -391,9 +409,15 @@ async fn run(cli: Cli) -> Result<()> {
         }
     }
     if let Commands::Daemon {
-        command: Some(DaemonCommand::Stop {
-            install_root: Some(root),
-        }),
+        command:
+            Some(
+                DaemonCommand::Stop {
+                    install_root: Some(root),
+                }
+                | DaemonCommand::Start {
+                    install_root: Some(root),
+                },
+            ),
     } = &cli.command
     {
         state = Some(agent_job_relay::deployment::installation_state(root)?
@@ -684,10 +708,31 @@ async fn run(cli: Cli) -> Result<()> {
         }
         Commands::Request { json } => serde_json::from_str(&json)?,
         #[cfg(windows)]
+        Commands::WindowsBridge { command } => {
+            let result = match command {
+                WindowsBridgeCommand::Prepare => {
+                    agent_job_relay::platform::prepare_bridge(&config)?
+                }
+                WindowsBridgeCommand::Secure {
+                    endpoint,
+                    server_pid,
+                } => agent_job_relay::platform::secure_bridge_pipe(&endpoint, server_pid)?,
+            };
+            println!("{}", serde_json::to_string(&result)?);
+            return Ok(());
+        }
+        #[cfg(windows)]
         Commands::WindowsWorkload { job_id, job_name } => {
             return agent_job_relay::runner::windows_workload(config, job_id, job_name).await;
         }
         Commands::Daemon { command: None } => return agent_job_relay::daemon::serve(config).await,
+        Commands::Daemon {
+            command: Some(DaemonCommand::Start { .. }),
+        } => {
+            let result = agent_job_relay::client::start_daemon(&config).await?;
+            println!("{}", serde_json::to_string(&result)?);
+            return Ok(());
+        }
         Commands::Daemon {
             command: Some(DaemonCommand::Stop { .. }),
         } => Request::Shutdown,

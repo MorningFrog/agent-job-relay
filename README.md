@@ -9,7 +9,7 @@ Tasks run in the background. Agents pick up when needed.
 任务在后台运行，Agent 在需要时接棒。
 </div>
 
-Run long commands independently of the Agent connection, keep their results, and notify the initiating chat when the host supports it. **v0.1.6 is an unreleased Linux/Windows x86_64 development version.** Desktop wake uses an experimental interface; Windows Desktop continuation is unverified and macOS runtime is unsupported. OpenCode V1 has an experimental plugin package candidate; Claude Code has an inbox-only development framework that needs community verification.
+Run long commands independently of the Agent connection, keep their results, and notify the initiating chat when the host supports it. **v0.1.7 is an unreleased Linux/Windows x86_64 development version.** Desktop wake uses an experimental interface; Windows Desktop continuation is unverified and macOS runtime is unsupported. OpenCode V1 has an experimental plugin package candidate; Claude Code has an inbox-only development framework that needs community verification.
 
 For OpenCode/Claude development setup and evidence boundaries, see [host plugins](docs/host-plugins.md).
 
@@ -44,7 +44,7 @@ Use your original path for a custom installation. Keep that directory: both MCP 
 
 ## Windows
 
-Use a trusted Windows offline bundle and its `relay.cmd` launcher. Native execution, process-tree supervision, MCP and offline maintenance are verified in a Windows 11 VM; current npm candidates remain Linux-only while Windows packaging is prepared. Follow the [Windows guide](docs/windows.md) for PowerShell installation, task examples and execution boundaries.
+Use a trusted Windows offline bundle and its `relay.cmd` launcher. Native execution, process-tree supervision, MCP, offline maintenance and installed npm/host-loader behavior are verified in a Windows 11 VM. The 0.1.7 candidate carries both Linux and Windows executables; publication is pending. Codex CLI 0.164.0 requires `daemon start` for the same profile from an outside PowerShell terminal before MCP submission. Follow the [Windows guide](docs/windows.md) for installation, task examples and execution boundaries.
 
 ## Use from chat
 
@@ -130,7 +130,7 @@ Choose a new output directory for each export. Then use that directory's `relay 
 | Release candidates and manual Actions | [Release](docs/release.md) |
 | Planned work and changes | [Roadmap](docs/TODO.md), [changelog](CHANGELOG.md) |
 
-Linux execution, offline plugin management and the Codex CLI 0.164.0 loader have isolated automated coverage. Current remote CI passes Linux runtime/package checks and macOS/Windows portable compilation checks. Desktop 26.1021.22027 with plugin 0.1.5 passed a coordinated active-job restart, rebind and same-chat continuation check, with matching recovery/event/delivery records. UI enablement/version/restart are user-attested; bridge changes were measured and Agent continuation observed. Clean UI installation and other host versions remain unverified. Shared npm runtime/self-hosted marketplace candidates are prepared but unpublished; official directory submission and output monitoring/interruption remain pending. Independent OS installers and package repositories are cancelled.
+Linux execution, offline plugin management and the Codex CLI 0.164.0 loader have isolated automated coverage. Local gates pass on Linux and Windows. Updated native Windows CI/release jobs await a remote run; earlier remote CI covered portable Windows/macOS checks. Desktop 26.1021.22027 with plugin 0.1.5 passed a coordinated active-job restart, rebind and same-chat continuation check, with matching recovery/event/delivery records. UI enablement/version/restart are user-attested; bridge changes were measured and Agent continuation observed. Clean UI installation and other host versions remain unverified. Shared npm runtime/self-hosted marketplace candidates are prepared but unpublished; official directory submission and output monitoring/interruption remain pending. Independent OS installers and package repositories are cancelled.
 
 OpenCode 1.19.4 was checked with its actual loader, MCP and session API using a local simulated model; real-provider sessions and V2 still need verification. Claude Code was checked only through synthetic caller helpers and the actual MCP launcher; no Claude account/loader/model run is claimed. **Community testing and PRs are welcome, especially for Claude Code and container-based version checks.**
 

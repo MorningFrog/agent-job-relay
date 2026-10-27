@@ -21,7 +21,31 @@ concurrency:
   group: release-${{ inputs.version }}
   cancel-in-progress: false
 jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2.9.3
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets --locked -- -D warnings
+      - run: cargo test --all-targets --locked
+      - run: cargo build --release --locked
+      - name: Describe the tested native executable
+        run: ./scripts/describe_native.ps1 -Binary target/release/agent-job-relay.exe -Output target/windows-native.json
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: windows-native
+          path: |
+            target/release/agent-job-relay.exe
+            target/windows-native.json
+          if-no-files-found: error
+          retention-days: 14
   package:
+    needs: windows
     runs-on: ubuntu-22.04
     timeout-minutes: 30
     steps:
@@ -52,20 +76,41 @@ jobs:
       - run: cargo build --release --locked
       - name: Install isolated host test tools
         run: npm install --prefix .tmp/opencode-toolchain --cache .tmp/npm-cache --ignore-scripts --no-audit --no-fund opencode-ai@1.19.4 @opencode-ai/plugin@1.19.4 @opencode-ai/sdk@1.19.4 @openai/codex@0.164.0
-      - name: Build candidates on the glibc 2.35 baseline
-        run: python3 scripts/prepare_release.py --output .tmp/release-candidate
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: windows-native
+          path: .tmp/windows-native
+      - name: Bundle Linux glibc 2.35 and Windows from this revision
+        run: python3 scripts/prepare_release.py --output .tmp/release-candidate --windows-binary .tmp/windows-native/release/agent-job-relay.exe --windows-metadata .tmp/windows-native/windows-native.json
       - name: Verify installed packages and both actual loaders
         run: python3 scripts/check_release.py --release .tmp/release-candidate --opencode .tmp/opencode-toolchain/node_modules/opencode-linux-x64/bin/opencode --codex "$PWD/.tmp/opencode-toolchain/node_modules/.bin/codex"
       - name: Check Claude framework without claiming a Claude host test
         run: python3 scripts/check_claude_scaffold.py --binary "$PWD/target/release/agent-job-relay"
       - uses: actions/upload-artifact@v7.0.2
         with:
-          name: agent-job-relay-${{ inputs.version }}-linux-x64
+          name: agent-job-relay-${{ inputs.version }}-plugins
           path: .tmp/release-candidate/*
           if-no-files-found: error
           retention-days: 14
-  draft:
+  windows-packages:
     needs: package
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: agent-job-relay-${{ inputs.version }}-plugins
+          path: .tmp/release-candidate
+      - name: Install isolated host tools
+        run: npm install --prefix .tmp/host-tools --cache .tmp/npm-cache --ignore-scripts --no-audit --no-fund opencode-ai@1.19.4 @openai/codex@0.164.0
+      - name: Verify installed Windows packages and actual host loaders
+        run: node scripts/check_windows_packages.mjs --release .tmp/release-candidate --codex-entry "$PWD/.tmp/host-tools/node_modules/@openai/codex/bin/codex.js" --opencode "$PWD/.tmp/host-tools/node_modules/opencode-windows-x64/bin/opencode.exe"
+  draft:
+    needs: [package, windows-packages]
     if: inputs.destination == 'draft'
     runs-on: ubuntu-latest
     permissions:
@@ -74,7 +119,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
       - uses: actions/download-artifact@v8.0.2
         with:
-          name: agent-job-relay-${{ inputs.version }}-linux-x64
+          name: agent-job-relay-${{ inputs.version }}-plugins
           path: .tmp/release-candidate
       - name: Create a new draft only; never replace a release or publish npm packages
         env:

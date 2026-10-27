@@ -1,12 +1,12 @@
 # AgentJobRelay for OpenCode V1
 
-Experimental durable background jobs with completion routed to the initiating OpenCode session through the public session API. Supports Linux x86_64/glibc, targets OpenCode **1.19.4** and uses the shared `agent-job-relay-runtime` package. No Rust compiler, binary path or install script is needed for the published package. OpenCode V2, macOS, Windows and ARM are not supported.
+Experimental durable background jobs with completion routed to the initiating OpenCode session through the public session API. Supports Linux x86_64/glibc and Windows x86_64, targets OpenCode **1.19.4** and uses the shared `agent-job-relay-runtime` package. No Rust compiler, binary path or install script is needed for the published package. OpenCode V2, macOS and ARM are not supported.
 
 After this version is published, add the pinned package to your project's `opencode.json`:
 
 ```json
 {
-  "plugin": ["agent-job-relay-opencode-v1@0.1.6"]
+  "plugin": ["agent-job-relay-opencode-v1@0.1.7"]
 }
 ```
 

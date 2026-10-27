@@ -88,11 +88,11 @@ if(!$p.WaitForExit(180000)){{$p.Kill();$p.WaitForExit()}}
     std::fs::write(&script_path, script).unwrap();
     launch_fixture_script(&script_path);
     for _ in 0..200 {
-        if let Ok(text) = std::fs::read_to_string(dir.join("daemon.pid")) {
-            let pid = text.parse().unwrap();
-            if let Some(identity) = platform::identity(pid) {
-                return DaemonProcess { pid, identity };
-            }
+        if let Ok(text) = std::fs::read_to_string(dir.join("daemon.pid"))
+            && let Ok(pid) = text.parse()
+            && let Some(identity) = platform::identity(pid)
+        {
+            return DaemonProcess { pid, identity };
         }
         std::thread::sleep(Duration::from_millis(25));
     }
@@ -1000,6 +1000,89 @@ $captured=$out.Wait(1000) -and $err.Wait(1000)
         .push(job["job_id"].as_str().unwrap().into());
     r.ready("ready").await;
     assert_eq!(r.status(&job).await["status"], "running");
+    r.release();
+    assert_eq!(r.terminal(&job).await["status"], "completed");
+}
+
+#[tokio::test]
+async fn host_pipe_security_pins_server_and_applies_to_later_instances() {
+    use tokio::net::windows::named_pipe::ServerOptions;
+    let rejected = PathBuf::from(format!(r"\\.\pipe\AJR-node-refuse-{}", id()));
+    let first = ServerOptions::new()
+        .first_pipe_instance(true)
+        .create(&rejected)
+        .unwrap();
+    assert!(platform::secure_bridge_pipe(&rejected, std::process::id().wrapping_add(1)).is_err());
+    drop(first);
+    let endpoint = PathBuf::from(format!(r"\\.\pipe\AJR-node-private-{}", id()));
+    let first = ServerOptions::new()
+        .first_pipe_instance(true)
+        .create(&endpoint)
+        .unwrap();
+    let second = ServerOptions::new().create(&endpoint).unwrap();
+    let result = platform::secure_bridge_pipe(&endpoint, std::process::id()).unwrap();
+    assert_eq!(result["private_acl"], true);
+    drop(first);
+    let third = ServerOptions::new().create(&endpoint).unwrap();
+    for _ in 0..2 {
+        let client = platform::connect_host(&endpoint).await.unwrap();
+        platform::verify_bridge_endpoint(&client).unwrap();
+        drop(client);
+    }
+    drop((second, third));
+}
+
+#[tokio::test]
+async fn outside_host_daemon_start_allows_restricted_clients_without_job_submission() {
+    let dir = tempfile::tempdir_in(common::root()).unwrap();
+    let config = Config::new(Some(dir.path().join("state"))).unwrap();
+    let mut r = Rig {
+        dir,
+        config,
+        daemon: None,
+        jobs: Mutex::new(Vec::new()),
+    };
+    let quote = |p: &Path| p.to_str().unwrap().replace('\'', "''");
+    let script = format!(
+        r#"$ErrorActionPreference='Stop';$ProgressPreference='SilentlyContinue'
+$result=& '{}' --state-dir '{}' daemon start
+if($LASTEXITCODE -ne 0){{throw 'explicit daemon start failed'}}
+[IO.File]::WriteAllText('{}',($result -join "`n"))
+"#,
+        quote(Path::new(env!("CARGO_BIN_EXE_agent-job-relay"))),
+        quote(&r.config.root),
+        quote(&r.dir.path().join("start.json"))
+    );
+    let script_path = r.dir.path().join("daemon-start.ps1");
+    std::fs::write(&script_path, script).unwrap();
+    launch_fixture_script(&script_path);
+    r.ready("start.json").await;
+    let peer = platform::connect_host(&r.config.socket()).await.unwrap();
+    let pid = platform::peer_pid(&peer).unwrap().unwrap();
+    r.daemon = Some(DaemonProcess {
+        pid,
+        identity: platform::identity(pid).unwrap(),
+    });
+    // These CLI clients inherit Cargo's cleanup job but reuse the outside daemon.
+    for _ in 0..2 {
+        let out = Command::new(env!("CARGO_BIN_EXE_agent-job-relay"))
+            .arg("--state-dir")
+            .arg(&r.config.root)
+            .args(["daemon", "start"])
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+    let store = Store::new(r.config.clone());
+    assert!(store.list(0, 20).await.unwrap().is_empty());
+    let job = r
+        .start(r.spec(&["gate", r.dir.path().to_str().unwrap()]))
+        .await;
+    r.ready("ready").await;
     r.release();
     assert_eq!(r.terminal(&job).await["status"], "completed");
 }

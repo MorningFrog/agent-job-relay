@@ -163,4 +163,4 @@ Retry the original bootstrap/update afterward to finish marketplace registration
 
 ## Other host development packages
 
-OpenCode V1 and Claude Code use separate source packages with the same >=0.1.6 core; they are not exported by the Codex offline bundle. Configure their native path/state once using [host-plugin setup](host-plugins.md). OpenCode 1.19.4 has an actual-loader/MCP/agent-loop check with a simulated model. Claude is inbox-only and needs account-backed community testing; [PRs are welcome](../CONTRIBUTING.md). No personal host configuration is changed automatically.
+OpenCode V1 and Claude Code use separate source packages with the same >=0.1.6 core (Windows OpenCode requires >=0.1.7); they are not exported by the Codex offline bundle. Configure their native path/state once using [host-plugin setup](host-plugins.md). OpenCode 1.19.4 has an actual-loader/MCP/agent-loop check with a simulated model. Claude is inbox-only and needs account-backed community testing; [PRs are welcome](../CONTRIBUTING.md). No personal host configuration is changed automatically.
