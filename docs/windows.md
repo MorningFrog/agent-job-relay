@@ -1,6 +1,6 @@
 # Windows native runtime
 
-The native x86_64 runtime supports durable background execution, bounded logs, cancellation/timeouts, daemon/runner recovery, MCP, inbox notifications and offline plugin maintenance. Windows 11 VM behavior tests pass. The local plugin is installed and enabled in ChatGPT Desktop, but real current-chat binding fails with access denied before submission; same-chat continuation remains unverified. Named-pipe transport/recovery tests use simulated hosts. Ordinary Codex CLI integration has an inbox and does not automatically resume a chat.
+The native x86_64 runtime supports durable background execution, bounded logs, cancellation/timeouts, daemon/runner recovery, MCP, inbox notifications and offline plugin maintenance. Windows 11 VM behavior tests pass. v0.1.8 is verified with ChatGPT Desktop for actual MCP submission and same-chat continuation using Full access. Named-pipe recovery/renewal tests use simulated hosts. Ordinary Codex CLI integration has an inbox and does not automatically resume a chat.
 
 ## Install a trusted Windows offline bundle
 
@@ -29,6 +29,8 @@ Actual Windows npm installation, native execution, history after relocation, cor
 ## Current-chat binding permissions
 
 Run the installed `relay.cmd session connect --brief` through the initiating ChatGPT Desktop chat's terminal. It needs access to that host's local named pipe and peer process identity, subject to the host's [Windows sandbox and approval rules](https://learn.chatgpt.com/docs/windows/windows-sandbox). A visible MCP tool does not establish terminal access. Pipe failures report whether opening the connection or authenticating its peer failed; access denied does not by itself prove that the endpoint is stale.
+
+The verified Windows ChatGPT Desktop workflow uses user-selected Full access. Restricted terminal execution returned access denied before binding; single-command authorization in that mode remains unverified. No administrator elevation or pipe-permission change was needed for the verified workflow.
 
 If access is denied, the Agent may request the host's single-command authorization for that same binding command when the active policy permits it. The command must retain the signed-in user, inherited chat identity and installed state profile. This is not Windows administrator elevation. Do not change pipe permissions or use another terminal's identity. If authorization is unavailable or binding still fails, stop before `job_start` and report the error. An external terminal can start a daemon but cannot supply the originating chat's binding.
 
@@ -70,7 +72,7 @@ If automatic startup is blocked, copy the exact `outside_terminal_command` from 
 
 The command exits once ready; repeated calls reuse the daemon. A terminal opened inside the restrictive host can inherit its restriction and may not suffice. `daemon stop` preserves independent runners/history. There is no resident restart watchdog: recovery happens on the next submission/registration.
 
-Native tests cover cold restricted-host startup, host job destruction, daemon-crash restart, environment/identity isolation and policy refusal. Real installed Codex model/MCP acceptance must start with no prestarted daemon. Native VM tests run under guest-agent SYSTEM; the cold-profile installed MCP/model workflow also passes as an ordinary interactive user. Windows ChatGPT Desktop current-chat binding and observed continuation remain separate acceptance.
+Native tests cover cold restricted-host startup, host job destruction, daemon-crash restart, environment/identity isolation and policy refusal. Real installed Codex model/MCP acceptance must start with no prestarted daemon. Native VM tests pass under guest-agent SYSTEM and the ordinary interactive user; the cold-profile installed MCP/model workflow also passes under both. Actual Windows ChatGPT Desktop continuation is verified separately; see [live evidence](live-e2e.md).
 
 ## Update, recover and remove
 

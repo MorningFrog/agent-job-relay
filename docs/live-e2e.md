@@ -20,7 +20,9 @@ Windows npm-package checks pass native execution, history after relocation, corr
 
 The official ChatGPT Desktop **26.1021.3705.0** package is installed in the VM through winget and registered for the interactive Windows user. Its bundled Codex **0.164.0-alpha.11.1** successfully installs the local AgentJobRelay plugin and discovers **20 MCP tools** in an isolated profile.
 
-The interactive user has signed in and enabled the local plugin. A real GPT-6 Luna / Low chat discovers MCP `job_start`, but current-chat `session connect --brief` fails with Windows access denied (error 5). No job was submitted and no CLI fallback was used. Terminal permission versus host-access failure remains under diagnosis; same-chat continuation is not yet verified.
+**v0.1.8 is verified with ChatGPT Desktop on Windows**, using GPT-6 Luna / Low and user-selected Full access. The signed-in user's chat binds successfully, submits one real task through MCP `job_start`, ends its turn, and automatically continues in the same chat to read the matching result without another human message or CLI fallback. The user confirmed this acceptance.
+
+The live task correctly reported a test failure caused by inherited `AJR_STATE_DIR` in the installation fixture. The fixture now isolates ambient runtime/host context; the corrected native gates are verified separately. The original live job remains failed and is not replayed. Restricted terminal access can refuse binding with error 5; single-command authorization in that mode remains unverified.
 
 ## Distribution
 

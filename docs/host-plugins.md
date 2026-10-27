@@ -1,12 +1,12 @@
 # Host plugins and community verification
 
-One Rust/MCP runtime remains responsible for jobs, results, outbox attempts, recovery and leases. Host packages supply actual caller identity and translate a completion request to that host's public API. Shared runtime/OpenCode npm candidates and a self-hosted ChatGPT marketplace are prepared but unpublished; final npm names/account verification are pending. They are not official directory listings. Linux and Windows x86_64 have verified native runtimes; Windows ChatGPT Desktop acceptance remains separate.
+One Rust/MCP runtime remains responsible for jobs, results, outbox attempts, recovery and leases. Host packages supply actual caller identity and translate a completion request to that host's public API. Shared runtime/OpenCode npm candidates and a self-hosted ChatGPT marketplace are prepared but unpublished; final npm names/account verification are pending. They are not official directory listings. Linux and Windows x86_64 have verified native runtimes and ChatGPT Desktop same-chat continuation.
 
 ## Current evidence
 
 | Host | Entry point | Verified | Still needed |
 |---|---|---|---|
-| ChatGPT Desktop/Codex | Existing offline bundle and shared MCP | Actual Codex CLI loader; v0.1.8 Linux ChatGPT Desktop same-chat continuation; Windows local plugin installation/enablement and MCP discovery | Windows current-chat binding/continuation, broader versions, real multi-day renewal |
+| ChatGPT Desktop/Codex | Existing offline bundle and shared MCP | Actual Codex CLI loader; v0.1.8 Linux/Windows ChatGPT Desktop MCP submission and same-chat continuation; Windows uses Full access | Windows restricted-mode authorization, broader versions, real multi-day renewal |
 | OpenCode V1 | `plugins/opencode-v1/index.mjs` plus core MCP | Actual Linux/Windows 1.19.4 loader, MCP submission, caller binding, completion admission and subsequent agent-loop response; local simulated model | Community real-provider/account sessions, server restart/recovery, broader versions and platforms |
 | OpenCode V2 | Research/migration map below | Official interfaces researched; no V2 entry point claimed | Implement and test against an actual V2 loader |
 | Claude Code | `.claude-plugin/plugin.json`, `.mcp.json`, skill and inbox binder | Synthetic caller separation, actual shared-MCP entry point/discovery/submission | Actual Claude loader, skill substitution and account-backed session testing; no maintainer account is available |

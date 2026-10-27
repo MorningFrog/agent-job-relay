@@ -139,7 +139,7 @@ The npm packages are unpublished and their names are provisional. First run the 
 3. Ask for a harmless short background command and completion in that chat. Expected: a fresh current-terminal binding, one job/run, correct result and correlated completion/continuation. Distinguish admission from observed execution. An unrelated chat must receive nothing.
 4. Inspect the selected persistent profile before and after host refresh/removal. Expected: state stays outside caches and history is retained; no daemon is stopped implicitly. If migrating an offline installation, explicitly review its recorded state rather than accepting a new profile as a repair.
 
-Public-registry installation of this online candidate remains to be verified after publication. The local v0.1.8 Linux ChatGPT Desktop workflow is verified separately. OpenCode real-provider/restart and Claude account-backed checks remain in [host plugins](host-plugins.md).
+Public-registry installation of this online candidate remains to be verified after publication. The local v0.1.8 Linux/Windows ChatGPT Desktop workflow is verified separately; Windows uses Full access. OpenCode real-provider/restart and Claude account-backed checks remain in [host plugins](host-plugins.md).
 
 ## Windows automatic startup
 

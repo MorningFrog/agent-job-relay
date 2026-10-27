@@ -9,7 +9,7 @@ Tasks run in the background. Agents pick up when needed.
 任务在后台运行，Agent 在需要时接棒。
 </div>
 
-Run long commands independently of the Agent connection, keep their results, and notify the initiating chat when the host supports it. **v0.1.8 is an unreleased Linux/Windows x86_64 development version.** ChatGPT Desktop wake uses an experimental interface; Windows ChatGPT Desktop continuation is unverified and macOS runtime is unsupported. OpenCode V1 has an experimental plugin package candidate; Claude Code has an inbox-only development framework that needs community verification.
+Run long commands independently of the Agent connection, keep their results, and notify the initiating chat when the host supports it. **v0.1.8 is an unreleased Linux/Windows x86_64 development version.** ChatGPT Desktop same-chat continuation is verified on Linux and Windows using an experimental interface; Windows verification uses Full access. macOS runtime is unsupported. OpenCode V1 has an experimental plugin package candidate; Claude Code has an inbox-only development framework that needs community verification.
 
 For OpenCode/Claude development setup and evidence boundaries, see [host plugins](docs/host-plugins.md).
 
@@ -114,8 +114,8 @@ The result is the native local plugin in **AgentJobRelay Local**, normally refer
 | Area | Implementation | Verification and remaining scope |
 |---|---|---|
 | Linux runtime and offline maintenance | Implemented | Automated execution, lifecycle, recovery and installation tests pass. |
-| Windows runtime and automatic startup | Implemented | Native VM tests and actual Codex MCP cold startup under an ordinary interactive user pass; ChatGPT Desktop continuation remains to be verified. |
-| ChatGPT Desktop same-chat continuation | Verified on Linux | v0.1.8 is verified with ChatGPT Desktop on Linux, including same-chat continuation after task completion. |
+| Windows runtime and automatic startup | Implemented | Native VM tests and actual Codex MCP cold startup under an ordinary interactive user pass. |
+| ChatGPT Desktop same-chat continuation | Verified on Linux and Windows | v0.1.8 continues the initiating chat after task completion. Windows verification uses Full access; see [live evidence](docs/live-e2e.md). |
 | OpenCode V1 | Experimental plugin candidate | Actual loader, MCP and session API pass with a simulated model; real-provider sessions, restart recovery and V2 remain open. |
 | Claude Code | Inbox-only scaffold | Synthetic caller and MCP launcher checks pass; actual Claude loader/account/model verification needs community help. |
 | npm runtime and self-hosted marketplace | Candidates prepared, unpublished | Installed package and loader checks pass on Linux/Windows using a loopback registry; public-registry installation remains pending. |

@@ -40,19 +40,19 @@ The binary keeps process initialization in `src/main.rs`, command syntax in `src
 | Claude scaffold | Synthetic caller separation/placeholder rejection and actual launcher/MCP discovery/submission pass; no Claude account, loader, skill substitution or model run verified |
 | Installed Linux ChatGPT Desktop | v0.1.8 verified on Linux: local plugin/MCP workflow and same-chat continuation after task completion. User-confirmed live acceptance |
 | Windows native core | Windows 11 x64/Rust MSVC 1.99.1: all-target Clippy, **35 tests** (20 Windows-specific plus 15 portable) and release build passed. Covers automatic CIM startup/refusals, process-tree lifetime, private IPC/bridge ACLs, MCP, offline maintenance and simulated ChatGPT Desktop recovery/renewal |
-| Windows real model/MCP | Installed 0.1.8 and Codex 0.164.0 through Codex-Manager, `gpt-6.1-sol`/`low`: cold profile, no prestarted daemon, one completed native Job/Run and doctor reporting `windows_cim`. Passed under SYSTEM and an ordinary interactive user; Windows ChatGPT Desktop same-chat continuation remains pending |
-| Windows ChatGPT Desktop | Official 26.1021.3705.0 installed through winget; the interactive user is signed in and the local plugin is enabled. Bundled Codex 0.164.0-alpha.11.1 discovers 20 MCP tools. Real GPT-6 Luna / Low chat sees `job_start`, but terminal binding fails with access denied (error 5), before job submission; same-chat continuation remains unverified |
+| Windows real model/MCP | Installed 0.1.8 and Codex 0.164.0 through Codex-Manager, `gpt-6.1-sol`/`low`: cold profile, no prestarted daemon, one completed native Job/Run and doctor reporting `windows_cim`. Passed under SYSTEM and an ordinary interactive user |
+| Windows ChatGPT Desktop | v0.1.8 verified with official 26.1021.3705.0/bundled Codex 0.164.0-alpha.11.1, GPT-6 Luna / Low and user-selected Full access: actual MCP submission and automatic same-chat result inspection after the submitting turn ends. The live workload correctly reports failure; the test isolation fix and native gates are checked separately |
 | Remote CI | [Earlier Linux/Windows/macOS run passed](https://github.com/MorningFrog/agent-job-relay/actions/runs/40356375386), including Linux package/host checks and portable Windows/macOS checks. Updated native Windows CI and dual-platform release steps await a remote run; the manual release workflow remains untriggered |
 
 The current v0.1.8 source passes the four delivery gates on Linux and the Windows 11 VM. Reproduction commands and behavioral coverage are in [testing](testing.md).
 
 Automated ChatGPT Desktop transport, host replacement, recovery and renewal use fake hosts. The long-job test injects expiry 48 hours into the past; real multi-day renewal is unqualified. Install-repair tests reconstruct persisted states around directory renames and verify CLI repair/history preservation; physical power-loss/ENOSPC remains unqualified. Generated state, endpoints and logs stay in ignored repository-local `.tmp/` or `target/`.
 
-`notification_recorded`, `accepted_by_host` and observed Agent execution remain distinct. No adapter automatically records `confirmed_resumed`; receiver deduplication is unproven. Linux ChatGPT Desktop completion/continuation is verified for v0.1.8. Results completed while the host is closed and real multi-day renewal remain separate scenarios. See [live evidence](live-e2e.md) and [ADR 0008](adr/0008-interrupted-plugin-replacement.md).
+`notification_recorded`, `accepted_by_host` and observed Agent execution remain distinct. No adapter automatically records `confirmed_resumed`; receiver deduplication is unproven. Linux/Windows ChatGPT Desktop completion/continuation is verified for v0.1.8. Results completed while the host is closed and real multi-day renewal remain separate scenarios. See [live evidence](live-e2e.md) and [ADR 0008](adr/0008-interrupted-plugin-replacement.md).
 
 ## Installed runtime and release handoff
 
-AgentJobRelay **v0.1.8** is verified with **ChatGPT Desktop on Linux**, including same-chat continuation after task completion. Follow the [source installation walkthrough](source-install.md) ([简体中文](source-install.zh-CN.md)) to install `agent-job-relay@agent-job-relay-local`.
+AgentJobRelay **v0.1.8** is verified with **ChatGPT Desktop on Linux and Windows**, including same-chat continuation after task completion. Windows verification uses Full access; restricted-mode binding remains a separate qualification. Follow the [source installation walkthrough](source-install.md) ([简体中文](source-install.zh-CN.md)) to install `agent-job-relay@agent-job-relay-local`.
 
 Host packages and community acceptance are described in [host plugins](host-plugins.md) and [CONTRIBUTING.md](../CONTRIBUTING.md). OpenCode V2 has a research map only; Claude needs account-backed community verification. The existing offline Codex bundle does not contain those source host packages. Older binaries cannot interpret `plugin_bridge` session records despite the unchanged schema/IPC versions.
 
@@ -62,7 +62,7 @@ Current Windows changes and this reorganization remain local pending push approv
 
 ## Material limitations and next work
 
-- Windows runners still require native breakaway. The daemon-only CIM route cannot bypass local policy/token restrictions; ChatGPT Desktop continuation acceptance remains open. macOS native execution/IPC is unimplemented.
+- Windows runners still require native breakaway. The daemon-only CIM route cannot bypass local policy/token restrictions. ChatGPT Desktop terminal binding needs host access; the verified Windows workflow uses Full access. macOS native execution/IPC is unimplemented.
 - ChatGPT Desktop uses an experimental private interface and trusted caller identity, not host attestation. Codex CLI is inbox-only; offline cached MCP requires the stable original installation path.
 - Runner death or escaped descendants can leave unknown effects. Stronger containment, controlled disk/power-loss tests, retention/backup/export and cross-file installation recovery remain pending; see [limitations](limitations.md) and [security](security.md).
 - Offline delivery is not authenticated online distribution. Cache refresh requires explicit snapshots; legacy/pre-journal remnants and interrupted uninstall need separate handling.

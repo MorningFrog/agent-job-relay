@@ -9,7 +9,7 @@ Tasks run in the background. Agents pick up when needed.
 任务在后台运行，Agent 在需要时接棒。
 </div>
 
-让长时间命令独立于 Agent 连接运行，保存结果，并在宿主支持时通知发起任务的聊天。**v0.1.8 是尚未发布的 Linux/Windows x86_64 开发版本。** ChatGPT Desktop 唤醒使用实验性接口；Windows ChatGPT Desktop 续接尚未验证，macOS 运行时暂不支持。OpenCode V1 提供实验性插件候选包；Claude Code 提供仅收件箱通知的开发框架，需要社区验证。
+让长时间命令独立于 Agent 连接运行，保存结果，并在宿主支持时通知发起任务的聊天。**v0.1.8 是尚未发布的 Linux/Windows x86_64 开发版本。** ChatGPT Desktop 同聊天续接已在 Linux 和 Windows 中完成验证，使用实验性接口；Windows 验证使用 Full access 权限。macOS 运行时暂不支持。OpenCode V1 提供实验性插件候选包；Claude Code 提供仅收件箱通知的开发框架，需要社区验证。
 
 OpenCode/Claude 的开发安装及验证边界见[宿主插件指南](docs/host-plugins.md)。
 
@@ -114,8 +114,8 @@ GitHub 的 **Release candidate** 工作流只能手动运行：默认生成候�
 | 范围 | 实现情况 | 验证结果与剩余范围 |
 |---|---|---|
 | Linux 运行时与离线维护 | 已实现 | 自动化执行、生命周期、恢复及安装测试通过。 |
-| Windows 运行时与自动启动 | 已实现 | 原生虚拟机测试及普通交互用户下的实际 Codex MCP 冷启动通过；ChatGPT Desktop 续接待验证。 |
-| ChatGPT Desktop 同聊天续接 | Linux 已验证 | v0.1.8 已在 Linux 的 ChatGPT Desktop 中完成验证，任务完成后可在同一聊天续接。 |
+| Windows 运行时与自动启动 | 已实现 | 原生虚拟机测试及普通交互用户下的实际 Codex MCP 冷启动通过。 |
+| ChatGPT Desktop 同聊天续接 | Linux 和 Windows 已验证 | v0.1.8 在任务完成后可续接发起任务的聊天。Windows 验证使用 Full access 权限，见[实测记录](docs/live-e2e.md)。 |
 | OpenCode V1 | 实验性插件候选版 | 实际加载器、MCP 和会话 API 配合模拟模型验证通过；真实服务商会话、重启恢复及 V2 仍待完成。 |
 | Claude Code | 仅收件箱通知的框架 | 合成调用者和 MCP 启动器检查通过；实际 Claude 加载器、账号及模型验证需要社区协助。 |
 | npm 运行时与自建市场 | 候选包已准备，未发布 | Linux/Windows 上使用本地回环 registry 的安装与加载器检查通过；公开 registry 安装待验证。 |

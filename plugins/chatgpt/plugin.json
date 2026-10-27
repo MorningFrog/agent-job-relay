@@ -2,7 +2,7 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "agent-job-relay",
   "version": "0.1.8",
-  "description": "Experimental durable local background jobs for Linux/Windows Desktop/Codex chats.",
+  "description": "Experimental durable local background jobs for Linux/Windows ChatGPT Desktop/Codex chats.",
   "author": {
     "name": "MorningFrog",
     "url": "https://github.com/MorningFrog"
@@ -16,7 +16,7 @@
       "interface": {
         "displayName": "AgentJobRelay",
         "shortDescription": "Durable background jobs",
-        "longDescription": "Run local commands independently of the chat connection and inspect durable results. Experimental same-chat completion on supported Desktop versions; requires Linux x86_64/glibc or Windows x86_64 and Node.js/npm. Desktop wake uses a private host interface. Not an official OpenAI listing. Windows Desktop continuation is unverified; macOS and cloud execution are unsupported.",
+        "longDescription": "Run local commands independently of the chat connection and inspect durable results. Experimental same-chat completion on supported ChatGPT Desktop versions; requires Linux x86_64/glibc or Windows x86_64 and Node.js/npm. ChatGPT Desktop wake uses a private host interface. Not an official OpenAI listing. Windows continuation is verified with Full access; macOS and cloud execution are unsupported.",
         "developerName": "MorningFrog",
         "category": "Productivity",
         "websiteURL": "https://github.com/MorningFrog/agent-job-relay",
