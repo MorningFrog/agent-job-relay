@@ -81,7 +81,7 @@ Agent 会绑定当前聊天、提交任务、结束回合，并在收到通知�
 
 源码及发布附件已公开在 [GitHub](https://github.com/MorningFrog/agent-job-relay)。安装使用 npm `latest` 及对应 GitHub Release，包内部仍固定匹配的运行时依赖。在线 marketplace/OpenCode 安装见[发布指南](docs/release.md#consumer-installation)。已有原生安装继续按[离线方式](docs/installation.md#updating-an-existing-installation)维护。
 
-发布仅限维护者通过两个手动工作流执行：**Prepare Release** 构建并验证 Cargo 版本对应的候选包，**Publish Release** 先在 dry-run 中核对 OIDC，再发布同一批文件。正式发布默认使用 `latest`，Release Notes 来自 CHANGELOG。提交、PR 和 tag 不会自动发布。代码规范见[贡献指南](CONTRIBUTING.md)，具体步骤见[维护者发布指南](docs/release.md)。自建市场与 OpenAI 官方插件库是不同渠道。
+发布仅限维护者手动执行：**Prepare Release** 构建并验证 Cargo 版本对应的候选包；**Publish Release** 预览 OIDC 或提交同一批文件；**Check Release** 独立核验公开结果。**Release All** 提供统一手动入口，默认 dry-run。正式发布使用 `latest`，Release Notes 来自 CHANGELOG。提交、PR 和 tag 不会自动发布。代码规范见[贡献指南](CONTRIBUTING.md)，具体步骤见[维护者发布指南](docs/release.md)。自建市场与 OpenAI 官方插件库是不同渠道。
 
 ## 从源码安装
 
@@ -99,7 +99,7 @@ Agent 会绑定当前聊天、提交任务、结束回合，并在收到通知�
 | OpenCode V1 | 实验性插件候选版 | 实际加载器、MCP 和会话 API 配合模拟模型验证通过；真实服务商会话、重启恢复及 V2 仍待完成。 |
 | Claude Code | 仅收件箱通知的框架 | 合成调用者和 MCP 启动器检查通过；实际 Claude 加载器、账号及模型验证需要社区协助。 |
 | npm 运行时与自建市场 | 已发布 | Linux/Windows 安装包与加载器检查及公开 registry 全新安装通过；官方目录批准属于独立流程。 |
-| CI 与发布 | 分离的手动准备与发布流程 | 原生/安装包 CI 及首次 token 暂存发布通过；下一次 OIDC 发布仍需维护者验证。 |
+| CI 与发布 | 手动准备、发布、检查及 Release All | 原生/安装包 CI 和运行时 OIDC 上传通过；完整发布检查及统一入口仍需维护者验证。 |
 | macOS 运行时 | 未实现 | 仅有可移植部分编译检查，尚不支持原生执行。 |
 | 输出监控/中断 | 已暂缓 | 等待明确的实现请求；当前可读取日志和手动停止任务。 |
 

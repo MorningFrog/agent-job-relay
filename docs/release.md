@@ -1,104 +1,92 @@
 # Maintainer release guide
 
-**Only maintainers may publish releases, and every release action is started manually.** Pushes, pull requests, tags and GitHub Release events never publish. Contributors prepare code and changelog changes through normal review; the maintainer chooses when to publish. See [CONTRIBUTING.md](../CONTRIBUTING.md) for code and review conventions.
+**Only maintainers publish, and every release starts manually.** Pushes, PRs, tags and Release events never publish. Versions come from Cargo.toml; package/plugin pins must match, and CHANGELOG supplies the reviewed notes. Publication always reuses the sealed candidate bytes. See [CONTRIBUTING.md](../CONTRIBUTING.md).
 
-## Two separate workflows
+## Choose an entry point
 
-| Workflow | File | Inputs | Result |
-|---|---|---|---|
-| **Prepare Release** | `.github/workflows/release.yml` | `channel`, default `latest` | Build/test and seal downloadable candidate files; no npm authentication or publication |
-| **Publish Release** | `.github/workflows/release-publish.yml` | Original `candidate_run_id`, `dry_run` (default checked), optional `recover_candidate` | Check the actual publishing identity, preview, then publish the same candidate bytes when dry-run is unchecked |
+| Workflow | Purpose | Main inputs |
+|---|---|---|
+| **Release All** (`release-all.yml`) | Coordinate preparation, publishing preview, publication and independent checking | dry_run=true by default; optional candidate_run_id; channel=latest for a new candidate; recover_candidate for tooling repairs |
+| **Prepare Release** (`release.yml`) | Build/test Linux and Windows, package and seal a candidate without publishing credentials | channel=latest, or next for an experimental prerelease |
+| **Publish Release** (`release-publish.yml`) | Preview OIDC access or submit npm/GitHub publication without waiting for synchronization | original candidate_run_id; dry_run=true by default; recover_candidate |
+| **Check Release** (`release-check.yml`) | Read-only public-byte/channel/install/GitHub verification | original candidate_run_id; recover_candidate |
 
-Preparation and publication intentionally use different inputs and permissions. Preparation is the build/packaging dry-run. The publication dry-run checks npm OIDC from the exact workflow identity that will publish; a green preparation alone does not establish publishing access. Versions come from `Cargo.toml`; publication inherits the candidate's sealed version/channel and never rebuilds or repacks.
+Publication and verification have separate outcomes: **Publication submitted** means npm accepted the uploads and GitHub publication completed; **Public verification passed** means the public bytes, channel and clean installation were checked. A failed check never republishes or rolls back a successful publication.
 
-`latest` is the default formal channel: npm default installation and GitHub's latest normal Release use that version. Choose `next` explicitly for an experimental prerelease; it leaves npm `latest` unchanged. Both channels retain documented platform and host limitations.
+## Quick path: Release All
 
-## One-time setup for subsequent releases
+1. Update Cargo.toml and all pins, finish that version's CHANGELOG section, pass the [delivery gates](testing.md), commit/review and push main. Keep main unchanged during the release.
+2. Open **Actions → Release All → Run workflow**, branch main. For a new unused version, leave candidate_run_id empty and channel=latest. Keep dry_run checked. The prepare job outputs the original candidate Run ID; the preview job checks credentials through the real Publish Release workflow. Download/review the candidate and notes.
+3. Run **Release All** again with that original candidate_run_id and dry_run unchecked. The candidate is reused, then preview, publication and checking run as separate jobs. Channel comes from the sealed candidate; the channel selector is ignored for reuse.
+4. A maintainer may choose dry_run unchecked with an empty candidate ID for a single manual prepare → preview → publish → check operation on a new unused version. The default remains dry-run for review. Never leave the ID empty for a partially published version.
 
-1. Keep the GitHub `release` environment restricted to `main`. Limit repository write/Actions access to maintainers; add required environment reviewers if desired. The workflow requires a maintainer's manual invocation, and only Publish Release can write release state.
-2. After the two npm packages exist, open **Settings → Trusted Publisher → GitHub Actions** for **each** package: `agent-job-relay-runtime` and `agent-job-relay-opencode-v1`.
-3. Enter the following values and save the configuration:
+Release All dispatches the existing manual workflows with the repository's automatic GitHub token; it does not publish npm itself. This preserves the configured npm identity **release-publish.yml**. Its token needs Actions write permission, but no new secret or npm Trusted Publisher is needed. Each child URL/Run ID appears in the parent Summary. Internal pipeline_key/expected_revision inputs in child workflows are filled automatically; leave them empty when operating those workflows directly.
 
-   | Field | Value |
-   |---|---|
-   | Organization or user | `MorningFrog` |
-   | Repository | `agent-job-relay` |
-   | Workflow filename | **`release-publish.yml`** |
-   | Environment | `release` |
-   | Allowed actions | Enable **npm publish** and **npm dist-tag** |
+Stable per-parent step keys recover the exact child runs after a lost dispatch response or parent re-run. Successful preparation is reused; a failed child resumes its original Run ID. Parent and child concurrency locks differ to avoid deadlock. Changes to main are fenced before dispatch and in the child before release operations. If source/tools change, start a new Release All run on main with the original candidate and recover_candidate checked. Cancelling a parent does not cancel/roll back an already dispatched child; inspect its linked run before resuming.
 
-   The filename is not `release.yml`: that workflow only prepares packages. An earlier Trusted Publisher configuration for the old combined workflow must be replaced or supplemented with this publishing workflow's identity.
-4. Configure this near the next real release: npm requires the first successful publish within two days of creating a Trusted Publisher configuration. A dry-run does not satisfy that requirement; recreate an expired configuration when needed.
-5. After the first successful OIDC release, revoke the temporary bootstrap npm token and remove `NPM_STAGE_TOKEN` from GitHub. The new workflows do not reference it or fall back to traditional publishing tokens.
+## One-time npm/GitHub setup
 
-Publish Release uses GitHub-hosted runners, Node 24, npm 11.21.1 and job-scoped `id-token: write`. Direct OIDC publication generates npm provenance for this public repository. Identity exchange and dry-run do not prove every actual upload, provenance or repository write rule; those are checked during real publication. See [npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers/).
+Keep GitHub's release environment restricted to main and repository/Actions write access limited to maintainers. Optional environment reviewers still apply to Publish Release when invoked from Release All.
 
-## Routine update
+For **each** package, agent-job-relay-runtime and agent-job-relay-opencode-v1, configure **Settings → Trusted Publisher → GitHub Actions**:
 
-### 1. Prepare source and release notes
+| Field | Value |
+|---|---|
+| Organization or user | MorningFrog |
+| Repository | agent-job-relay |
+| Workflow filename | release-publish.yml |
+| Environment | release |
+| Allowed actions | npm publish and npm dist-tag |
 
-Choose a new numeric `x.y.z` version in `Cargo.toml`. Synchronize the root package in `Cargo.lock`, both npm manifests, OpenCode's exact runtime dependency, the ChatGPT/local-plugin descriptors, both MCP declarations, both online launchers and the online skill pin. The source checker reports a mismatched path instead of changing source during Actions:
+Prepare Release, Check Release and Release All are not npm publishing identities. The publisher uses GitHub-hosted runners, Node 24, npm 11.21.1 and job-scoped id-token: write. It has no traditional-token fallback; NPM_STAGE_TOKEN is unused. Configure near the next release because npm requires a first successful publish within two days of creating a Trusted Publisher; dry-run does not satisfy that condition. After a successful complete OIDC release, revoke the bootstrap token and remove its unused secret. See [npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers/) and [GitHub workflow dispatch](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event).
+
+## Separate operations
+
+### Prepare and review
+
+Use a new numeric x.y.z in Cargo.toml. Synchronize the root Cargo.lock entry, both npm manifests, OpenCode's exact runtime dependency, plugin descriptors, both online MCP declarations/launchers and the online skill pin. Add exactly one nonempty CHANGELOG section for that version; keep unfinished work under Unreleased. Validate locally:
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 python3 scripts/release_actions.py source
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts -p test_release.py -v
 ```
 
-Add exactly one nonempty `CHANGELOG.md` section for that version, such as `## [0.1.9] - YYYY-MM-DD`. Describe actual changes and limitations; keep unfinished work under `Unreleased`. Release Notes use this version's section plus generated distribution boundaries. Missing, duplicate or unfinished entries fail preparation.
+Run **Prepare Release** on main, channel=latest for a formal release. It runs native Linux/Windows gates, Ubuntu 22.04 packaging and actual Codex/OpenCode installed-package/loader checks. OpenCode uses a simulated model; this does not establish new provider/UI acceptance. Preparation refuses a version already public or represented by a GitHub draft/release so a used version is not rebuilt.
 
-Run the four [delivery gates](testing.md), commit/review the source, then push the approved change to `main`. Keep main unchanged until publication completes. A used npm version cannot be replaced with different bytes.
+Review the **release-candidate** artifact: release-notes.md, release.json, candidate.json, SHA256SUMS and archives. It is retained for 14 days. Save the numeric **Run ID** after /actions/runs/ in this preparation URL, not a publication Run ID or run number. No npm stage/version/channel, Git tag or GitHub Release is created during preparation.
 
-### 2. Build and review the candidate
+### Preview credentials
 
-Open **Actions → Prepare Release → Run workflow**, select branch `main`, and leave `channel=latest` for a formal release. No version or credentials input is needed.
+Run **Publish Release**, branch main, original candidate_run_id, dry_run checked. Leave recover_candidate unchecked for unchanged main; check it only for allowed tooling/documentation repairs. Expect **Publication dry-run passed** after the actual publication identity exchanges OIDC tokens for both packages and previews the sealed bytes/channel. Dry-run does not prove eventual writes or public propagation and changes no remote state.
 
-Expect native Linux/Windows formatting, Clippy, tests and release builds; Ubuntu 22.04 packaging; installed-tarball execution/history/corrupt-payload checks; and actual Codex/OpenCode loader checks on both systems. OpenCode uses a simulated model. These checks do not claim new real-provider or ChatGPT Desktop UI acceptance.
+### Submit publication
 
-After every check passes, the candidate job uploads **release-candidate**, retained for 14 days. Its Summary shows the Cargo-derived version, sealed channel, source revision and original numeric **Run ID**. Download the artifact and review `release-notes.md`, `release.json`, `candidate.json`, `SHA256SUMS` and the archives. Save the number after `/actions/runs/` in this preparation run's URL, rather than its run number or a publication run ID.
+Run **Publish Release** with the same candidate ID and dry_run unchecked. It checks all visible conflicts before mutation, creates/reuses the exact GitHub draft/assets, submits runtime before OpenCode, records accepted npm uploads, and makes the GitHub Release public. It never waits for public registry metadata, downloads or installation after those writes. latest produces a normal GitHub Release; next produces a prerelease.
 
-Preparation creates no npm stage/version/placeholder/dist-tag, Git tag or GitHub Release. Build jobs receive no publishing credentials.
+Each accepted npm upload adds an immutable npm-publish-receipt-<run>-<attempt>-<package>.json asset. The receipt binds the original candidate, tarball SHA-256, version/channel and actual publisher run. These are supplemental acceptance records, not candidate payloads or proof of public availability. Existing matching receipts let retries skip accepted uploads even while public metadata is absent. Candidate notes, archives and checksums are never rewritten.
 
-### 3. Check the publishing identity without publishing
+Expect **Publication submitted**. Public synchronization is still a separate result.
 
-Open **Actions → Publish Release → Run workflow**:
+### Check public availability
 
-| Field | Value |
-|---|---|
-| Branch | `main` |
-| `candidate_run_id` | Original successful Prepare Release Run ID |
-| `dry_run` | **Checked** |
-| `recover_candidate` | Unchecked for unchanged main |
+Run **Check Release** with the same original candidate ID/recovery setting. It has only contents/actions read permissions and no npm publishing credential/OIDC permission. Only this checking phase allows a bounded two-minute read-only propagation window; byte conflicts and newer/unknown channels stop immediately. It verifies public npm integrity/tarball SHA-256, the sealed channel, isolated registry installation/native version/OpenCode import, public GitHub notes/assets and the original source tag.
 
-Expect OIDC exchange for both packages, original-run/repository/workflow/source checks, artifact inventory/SHA-256/npm integrity checks and npm publication previews using the sealed channel. Existing matching public versions are reused during a partial-release retry. The Summary must say **Publication dry-run passed**. It changes no npm package, stage, channel, Git tag or GitHub Release.
+Expect **Public verification passed**. If synchronization is pending, rerun only Check Release (or only Release All's failed check job). No publication is repeated by the checker.
 
-### 4. Publish the reviewed candidate
+## Failure and recovery
 
-Run **Publish Release** again with the same preparation Run ID and recovery setting, but **uncheck `dry_run`**. This manual invocation authorizes publication. There is no channel or authentication selector: the channel is sealed, and OIDC is required.
-
-The workflow verifies the candidate again, creates/reuses a GitHub draft, publishes the runtime before OpenCode, compares public tarballs with the candidate, performs a clean registry installation/native version/module-import check, verifies the npm channel and makes the GitHub Release public. `latest` creates a normal latest Release; `next` creates a prerelease. No npm-site 2FA approval is needed for this OIDC path.
-
-Expect **Release complete** with the version, channel and GitHub URL. For a formal release, check that both `npm view <package>@latest version` results equal the intended version and GitHub no longer marks it as a prerelease.
-
-## Failure and retry
-
-GitHub and npm are separate systems; there is no atomic multi-service publication or automatic rollback. Both workflows share a concurrency group. Retry publication with the **original preparation Run ID**, preserving matching public bytes/assets; never rebuild a different package under a used npm version.
-
-- A successful npm upload or channel update can precede public registry visibility. The workflow allows a two-minute propagation window with read-only checks every five seconds, without repeating the upload/tag write. Byte conflicts or newer/unknown channels stop immediately. A timeout preserves the upload and GitHub draft; retry the same candidate after propagation.
-- If one package publishes and another fails, correct the reported access/connectivity problem, run Publish Release with dry-run checked, then publish the same candidate. Matching versions are verified and skipped.
-- If npm succeeds but GitHub completion fails, retry the same candidate; public installation and GitHub completion repeat without uploading npm versions again.
-- Conflicting npm integrity/channels, modified or foreign Release content, unexpected tag targets and missing/expired artifacts stop. No asset is clobbered/deleted, no stage is rejected and no tag is moved.
-- Windows package failures retain bounded fixture-only status/events/output in **windows-package-diagnostics** for seven days. Databases, caches, credentials and real host state are excluded.
-- If a publication-tooling repair changes main, choose a **new Publish Release run**, check `recover_candidate`, and retain the original preparation Run ID. The original commit must be an ancestor; only exact tooling/operational-documentation paths in `RECOVERY_PATHS` may differ. Runtime/package/build/version/CHANGELOG changes require a new candidate before publication. The old notes, bytes and source identity are retained.
-- Authenticated pagination finds GitHub drafts; uploads target exact Release IDs. A matching empty duplicate from older tooling is preserved while reusing the populated original. Multiple populated drafts or foreign content stop.
-
-An old combined Release run's Re-run keeps its old workflow. Use the current named workflows for subsequent versions.
+- Preserve the **original successful preparation Run ID** and candidate bytes. Never rebuild, change source payloads or bump a partially published version as a repair.
+- In Release All, use **Re-run failed jobs** to resume failed children; completed prepare/publish jobs are retained. A check-only failure requires only the check job. Standalone Publish Release also safely reuses matching public packages, acceptance receipts and GitHub assets.
+- If npm accepted an upload but its receipt response was interrupted, the next run can recover from matching public metadata. If neither proof is available yet, a duplicate-version error remains a stop: inspect/wait and retry the same candidate; never overwrite, reject or unpublish it.
+- If tooling changes main, use a **new** manual run on main with the original candidate_run_id and recover_candidate checked. The original source must be an ancestor, and only exact operational paths in RECOVERY_PATHS may differ. Runtime, package, build, version and CHANGELOG changes are refused. Old run re-runs keep their old code.
+- Foreign/modified notes, assets, receipts or tags, multiple populated releases, newer/unknown channels, integrity conflicts and expired candidates stop without deletion or replacement. Matching empty duplicate drafts are preserved while the populated original is reused. Uploads target exact Release IDs.
+- GitHub/npm are independent services with no atomic transaction or automatic rollback. A published Release can briefly precede npm public availability; checker failure is reported separately and never retracts publication.
+- Windows package failures retain bounded fixture-only diagnostics for seven days. Databases, credentials, caches and real host state are excluded.
 
 ## First-package bootstrap
 
-If the package names do not yet exist, a maintainer may download a reviewed Prepare Release artifact and publish those tarballs interactively with an npm account and 2FA. Verify `SHA256SUMS`, then publish the runtime before OpenCode using `npm publish <tarball> --access public --ignore-scripts --tag latest`. Configure Trusted Publishing afterward. This bootstrap exception is maintainer-only; subsequent updates use the two workflows above.
+If a name does not yet exist, a maintainer may download reviewed candidate tarballs, verify SHA256SUMS and publish interactively with npm login/2FA using npm publish <tarball> --access public --ignore-scripts --tag latest, runtime before OpenCode. Configure Trusted Publishing afterward. Subsequent updates use the manual workflows above.
 
 ## Consumer installation
 
-Users install the latest published versions through the [quick installation guide](installation.md#quick-install-the-latest-release): npm latest selects the matching released GitHub marketplace, and OpenCode uses `agent-job-relay-opencode-v1@latest`. The GitHub Release ZIP is an alternative catalog source; both routes keep exact runtime/plugin dependencies together. No source checkout or Rust compiler is needed.
-
-Node/npm and network are needed for online installation. Existing offline installations keep their recorded profiles; updates never implicitly stop daemons, replay commands or migrate profiles. Official directory submission is separate from publication.
+Users follow [latest published installation](installation.md#quick-install-the-latest-release). npm latest selects the matching released GitHub marketplace; OpenCode uses agent-job-relay-opencode-v1@latest. No source checkout or Rust compiler is needed. Existing offline profiles remain separate; updates never implicitly stop daemons, replay commands or migrate profiles. Official-directory approval is separate from publication.

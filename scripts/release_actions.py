@@ -11,7 +11,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
 from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 
@@ -25,6 +25,8 @@ REPOSITORY = "MorningFrog/agent-job-relay"
 # Recovery is opt-in and still verifies the original candidate and every asset.
 RECOVERY_PATHS = frozenset({
     ".github/workflows/release.yml", ".github/workflows/release-publish.yml",
+    ".github/workflows/release-check.yml", ".github/workflows/release-all.yml",
+    "scripts/release_pipeline.py",
     "scripts/release_actions.py", "scripts/test_release.py", "CONTRIBUTING.md",
     "README.md", "README.zh-CN.md", "docs/release.md", "docs/testing.md",
     "docs/architecture.md", "docs/IMPLEMENTATION_STATUS.md", "docs/TODO.md",
@@ -39,6 +41,8 @@ class NoCredentialRedirect(HTTPRedirectHandler):
 
 def request(url, token=None, method="GET", payload=None, binary=False, missing=False, context="Release API request"):
     headers = {"Accept": "application/octet-stream" if binary else "application/json", "User-Agent": "AgentJobRelay-release"}
+    if url.startswith("https://api.github.com/"):
+        headers["X-GitHub-Api-Version"] = "2026-03-10"
     if token:
         headers["Authorization"] = "Bearer " + token
     data = None
@@ -51,12 +55,14 @@ def request(url, token=None, method="GET", payload=None, binary=False, missing=F
             # Do not persist/log credential responses or unbounded registry output.
             content = response.read(128 * 1024 * 1024 + 1 if binary else 8 * 1024 * 1024 + 1)
             require(len(content) <= (128 if binary else 8) * 1024 * 1024, "Remote response exceeded release limit")
-            return content if binary else json.loads(content)
+            return content if binary else (json.loads(content) if content else None)
     except HTTPError as error:
         error.close()
         if missing and error.code == 404:
             return None
         raise RuntimeError(f"{context} failed with HTTP {error.code} ({method}); no credential response was logged") from None
+    except (URLError, TimeoutError):
+        raise RuntimeError(f"{context} transport failed; no credential response was logged") from None
 
 
 def github(path, **kwargs):
@@ -95,6 +101,8 @@ def actions_context():
     require(os.environ.get("GITHUB_REPOSITORY") == REPOSITORY and os.environ.get("GITHUB_REF") == "refs/heads/main", "Release runs must select this repository's main branch")
     revision = os.environ.get("GITHUB_SHA", "")
     require(re.fullmatch(r"[0-9a-f]{40}", revision), "Invalid source revision")
+    expected = os.environ.get("EXPECTED_RELEASE_REVISION")
+    require(not expected or expected == revision, "main changed after the release pipeline started; no release operation was authorized for this revision")
     return revision
 
 
@@ -164,6 +172,8 @@ def prepare():
     repo = github("")
     require(repo["full_name"] == REPOSITORY, "Unexpected GitHub repository")
     check_tag(source["tag"], revision)
+    require(not any(release["tag_name"] == source["tag"] for release in github_list("releases")), "This version already has a GitHub release/draft; reuse its original candidate_run_id instead of rebuilding")
+    require(all(registry_version({"name": name, "version": source["version"]}) is None for name in PACKAGES.values()), "This version is already partially/publicly published; reuse the original candidate_run_id instead of rebuilding")
     output("version", source["version"])
     summary(f"Preparing **{source['version']}** from Cargo.toml with matching pins and CHANGELOG. Build jobs receive no publishing credentials. After reviewing the candidate, use **Publish Release** with dry-run enabled to check the actual publishing identity.")
 
@@ -199,17 +209,21 @@ def preflight(auth):
 
 
 def preview(directory, auth, channel, run_id=""):
+    accepted = set()
     if run_id:
         candidate = validate(directory, run_id)
         channel = candidate["channel"]
+        if auth == "oidc":
+            release = find_release(directory, candidate)
+            accepted = release.get("_accepted_npm_packages", set()) if release else set()
     meta = check_candidate(directory)
     with npm_environment(auth) as env:
         for key in PACKAGES:
             entry = meta[key]
             published = public_package(entry)
             check_channel(entry["name"], channel, entry["version"])
-            if published is not None:
-                summary(f"`{entry['name']}@{entry['version']}` already has matching public integrity; preview upload skipped.")
+            if published is not None or key in accepted:
+                summary(f"`{entry['name']}@{entry['version']}` has matching public integrity or a verified acceptance receipt; preview upload skipped.")
                 continue
             argv = ["npm", "stage", "publish"] if auth == "stage" else ["npm", "publish"]
             command([*argv, directory / entry["tarball"], "--dry-run", "--ignore-scripts", "--access=public", f"--tag={channel}", f"--registry={REGISTRY}"], env=env)
@@ -225,6 +239,7 @@ def check_tag(tag, revision):
                 break
             obj = github(f"git/tags/{obj['sha']}")["object"]
         require(obj["type"] == "commit" and obj["sha"] == revision, "Existing tag targets another commit; it will not be moved")
+    return ref is not None
 
 
 def check_recovery_source(original, current):
@@ -269,16 +284,48 @@ def github_list(path):
     raise ValueError("GitHub inventory exceeds the bounded release listing; nothing was changed")
 
 
-def verify_release_assets(directory, assets):
+RECEIPT_NAME = re.compile(r"npm-publish-receipt-([1-9]\d*)-([1-9]\d*)-(runtime|opencode)\.json")
+
+
+def receipt_fields(candidate, key):
+    entry = PACKAGES[key]
+    return {"format": 1, "kind": "npm_publish_accepted", "repository": REPOSITORY,
+            "candidate_run_id": candidate["run_id"], "revision": candidate["revision"],
+            "version": candidate["version"], "channel": candidate["channel"],
+            "package_name": entry, "tarball_sha256": candidate["assets"][f"{entry}-{candidate['version']}.tgz"]}
+
+
+def read_receipt(asset, candidate, match):
+    require(asset.get("size", 0) <= 16384, "Publication receipt is too large")
+    data = command(["gh", "api", "-H", "Accept: application/octet-stream", f"repos/{REPOSITORY}/releases/assets/{asset['id']}"], binary=True)
+    require(len(data) <= 16384 and (not asset.get("digest") or asset["digest"] == "sha256:" + hashlib.sha256(data).hexdigest()), "Publication receipt digest mismatch")
+    receipt = json.loads(data)
+    revision = receipt.get("publisher_revision") if isinstance(receipt, dict) else None
+    require(isinstance(revision, str) and re.fullmatch(r"[0-9a-f]{40}", revision), "Invalid publication receipt")
+    expected = {**receipt_fields(candidate, match[3]), "publisher_run_id": match[1], "publisher_run_attempt": match[2], "publisher_revision": receipt.get("publisher_revision")}
+    require(receipt == expected, "Publication receipt does not match this sealed candidate")
+    run = github(f"actions/runs/{match[1]}")
+    require(str(run["id"]) == match[1] and run["event"] == "workflow_dispatch" and run["path"] == ".github/workflows/release-publish.yml" and run["head_branch"] == "main" and run["head_sha"] == receipt["publisher_revision"] and run["repository"]["full_name"] == REPOSITORY and run["head_repository"]["full_name"] == REPOSITORY and int(match[2]) <= run["run_attempt"], "Publication receipt does not belong to the publishing workflow")
+    return match[3]
+
+
+def verify_release_assets(directory, assets, candidate=None):
     local = {p.name: p for p in directory.iterdir()}
-    require(len(assets) == len({a['name'] for a in assets}) and all(a["name"] in local for a in assets), "Existing Release has foreign/duplicate assets; nothing will be overwritten")
+    require(len(assets) == len({a['name'] for a in assets}), "Existing Release has foreign/duplicate assets; nothing will be overwritten")
+    accepted = set()
     for asset in assets:
+        if asset["name"] not in local:
+            match = RECEIPT_NAME.fullmatch(asset["name"])
+            require(candidate is not None and match is not None, "Existing Release has foreign/duplicate assets; nothing will be overwritten")
+            accepted.add(read_receipt(asset, candidate, match))
+            continue
         expected = sha256(local[asset["name"]])
         if asset.get("digest"):
             require(asset["digest"] == "sha256:" + expected, "Existing Release asset differs from reviewed candidate")
         else:
             data = command(["gh", "api", "-H", "Accept: application/octet-stream", f"repos/{REPOSITORY}/releases/assets/{asset['id']}"], binary=True)
             require(hashlib.sha256(data).hexdigest() == expected, "Existing Release asset differs from reviewed candidate")
+    return accepted
 
 
 def upload_release_asset(release_id, path):
@@ -290,7 +337,7 @@ def upload_release_asset(release_id, path):
     verify_release_assets(path.parent, [asset])
 
 
-def draft_release(directory, candidate):
+def find_release(directory, candidate):
     tag = "v" + candidate["version"]
     check_tag(tag, candidate["revision"])
     marker = f"<!-- AgentJobRelay candidate {candidate['run_id']} {candidate['revision']} {candidate['channel']} -->"
@@ -299,10 +346,11 @@ def draft_release(directory, candidate):
     # and upload to an exact ID rather than gh's potentially ambiguous tag lookup.
     matches = [r for r in github_list("releases") if r["tag_name"] == tag]
     inventories = {}
+    accepted = {}
     for release in matches:
         require(release["body"] == body and release["target_commitish"] == candidate["revision"] and release["prerelease"] == (candidate["channel"] == "next"), "Existing Release is foreign/modified; preserve it and stop")
         inventories[release["id"]] = github_list(f"releases/{release['id']}/assets")
-        verify_release_assets(directory, inventories[release["id"]])
+        accepted[release["id"]] = verify_release_assets(directory, inventories[release["id"]], candidate)
     published = [r for r in matches if not r["draft"]]
     populated = [r for r in matches if inventories[r["id"]]]
     require(len(published) <= 1 and len(populated) <= 1, "Multiple populated/published Releases claim this candidate; preserve them and stop")
@@ -312,17 +360,34 @@ def draft_release(directory, candidate):
             if duplicate["id"] != release["id"]:
                 require(duplicate["draft"] and not inventories[duplicate["id"]], "Conflicting duplicate Release; preserve it and stop")
                 summary(f"Preserving matching empty duplicate draft `{duplicate['id']}`; using Release `{release['id']}` without deleting or replacing anything.")
-    else:
-        release = github("releases", method="POST", payload={"tag_name": tag, "target_commitish": candidate["revision"], "name": f"AgentJobRelay {candidate['version']}", "body": body, "draft": True, "prerelease": candidate["channel"] == "next"})
-        inventories[release["id"]] = []
-    require(release["body"] == body and release["target_commitish"] == candidate["revision"] and release["prerelease"] == (candidate["channel"] == "next"), "Existing Release is foreign/modified; preserve it and stop")
-    assets = inventories[release["id"]]
+        return {**release, "_assets": inventories[release["id"]], "_accepted_npm_packages": accepted[release["id"]]}
+    return None
+
+
+def draft_release(directory, candidate):
+    release = find_release(directory, candidate)
+    if release is None:
+        marker = f"<!-- AgentJobRelay candidate {candidate['run_id']} {candidate['revision']} {candidate['channel']} -->"
+        body = (directory / "release-notes.md").read_text() + "\n" + marker
+        release = github("releases", method="POST", payload={"tag_name": "v" + candidate["version"], "target_commitish": candidate["revision"], "name": f"AgentJobRelay {candidate['version']}", "body": body, "draft": True, "prerelease": candidate["channel"] == "next"})
+        require(release["body"] == body and release["target_commitish"] == candidate["revision"] and release["prerelease"] == (candidate["channel"] == "next"), "Existing Release is foreign/modified; preserve it and stop")
+    assets = release.get("_assets", [])
     local = {p.name: p for p in directory.iterdir()}
     missing = sorted(set(local) - {a["name"] for a in assets})
     require(release["draft"] or not missing, "Published Release has missing assets; preserve it and stop")
     for name in missing:
         upload_release_asset(release["id"], local[name])
     return release
+
+
+def record_publish_acceptance(candidate, release, key):
+    run_id, attempt = os.environ.get("GITHUB_RUN_ID", ""), os.environ.get("GITHUB_RUN_ATTEMPT", "")
+    require(run_id.isdigit() and attempt.isdigit(), "Missing publication run identity for acceptance receipt")
+    receipt = {**receipt_fields(candidate, key), "publisher_run_id": run_id, "publisher_run_attempt": attempt, "publisher_revision": actions_context()}
+    with tempfile.TemporaryDirectory(prefix="release-receipt-", dir=REPO / ".tmp") as temp:
+        path = Path(temp) / f"npm-publish-receipt-{run_id}-{attempt}-{key}.json"
+        path.write_text(json.dumps(receipt, sort_keys=True, indent=2) + "\n")
+        upload_release_asset(release["id"], path)
 
 
 def stage_package(entry, tarball, channel, env):
@@ -359,21 +424,33 @@ def publish(directory, run_id, auth):
     meta = check_candidate(directory)
     # Check every existing package before the first external mutation.
     existing = {key: public_package(meta[key]) for key in PACKAGES}
-    for name in PACKAGES.values():
-        check_channel(name, candidate["channel"], candidate["version"])
+    channels = {key: check_channel(name, candidate["channel"], candidate["version"]) for key, name in PACKAGES.items()}
     release = draft_release(directory, candidate)
+    accepted = release.get("_accepted_npm_packages", set())
     verified_stages = True
     with npm_environment(auth) as env:
         for key in PACKAGES:
             entry = meta[key]
             if existing[key] is not None:
                 summary(f"`{entry['name']}@{entry['version']}` already has the reviewed public bytes; upload skipped.")
+                if auth == "oidc" and channels[key].get(candidate["channel"]) != candidate["version"]:
+                    command(["npm", "dist-tag", "add", f"{entry['name']}@{candidate['version']}", candidate["channel"], f"--registry={REGISTRY}"], env=env)
+                continue
+            if auth == "oidc" and key in accepted:
+                summary(f"`{entry['name']}@{entry['version']}` has a verified prior acceptance receipt; upload skipped even while public metadata is propagating.")
                 continue
             if auth == "stage":
                 verified_stages = stage_package(entry, directory / entry["tarball"], candidate["channel"], env) and verified_stages
             else:
                 command(["npm", "publish", directory / entry["tarball"], "--ignore-scripts", "--access=public", f"--tag={candidate['channel']}", "--json", f"--registry={REGISTRY}"], env=env)
-                wait_for_registry(lambda: public_package(entry), lambda value: value is not None, f"{entry['name']}@{entry['version']}")
+                record_publish_acceptance(candidate, release, key)
+                summary(f"`{entry['name']}@{entry['version']}` upload accepted and receipt retained. Public synchronization is checked separately.")
+    if auth == "oidc":
+        if release["draft"]:
+            github(f"releases/{release['id']}", method="PATCH", payload={"draft": False, "make_latest": "true" if candidate["channel"] == "latest" else "false"})
+        output("submitted", "true")
+        summary(f"**Publication submitted:** https://github.com/{REPOSITORY}/releases/tag/v{candidate['version']} — channel `{candidate['channel']}`, original candidate `{run_id}`. npm accepted the uploads and GitHub publication completed; public registry synchronization/installability has not been asserted. Run **Check Release** separately.")
+        return release
     ready = all(public_package(meta[key]) is not None for key in PACKAGES)
     output("ready", str(ready).lower())
     if not ready and not verified_stages:
@@ -424,9 +501,27 @@ def finalize(directory, run_id, auth):
     summary(f"**Release complete:** https://github.com/{REPOSITORY}/releases/tag/v{candidate['version']} — npm channel `{candidate['channel']}`, candidate run `{run_id}`. Existing matching uploads were retained.")
 
 
+def check_publication(directory, run_id):
+    candidate = validate(directory, run_id)
+    meta = check_candidate(directory)
+
+    def visible():
+        packages = {key: public_package(meta[key]) for key in PACKAGES}
+        channels = {key: check_channel(name, candidate["channel"], candidate["version"]) for key, name in PACKAGES.items()}
+        return all(packages[key] is not None and channels[key].get(candidate["channel"]) == candidate["version"] for key in PACKAGES)
+
+    wait_for_registry(visible, bool, "both public package versions and their sealed channel; rerun Check Release only")
+    verify_public(directory)
+    release = find_release(directory, candidate)
+    require(release is not None and not release["draft"], "GitHub Release is not public; resume Publish Release with the same candidate")
+    require({p.name for p in directory.iterdir()} <= {a["name"] for a in release["_assets"]}, "Public GitHub Release lacks candidate assets; preserve it and inspect")
+    require(check_tag("v" + candidate["version"], candidate["revision"]), "Public GitHub Release tag is missing")
+    summary(f"**Public verification passed:** npm bytes, channel, clean installation and GitHub Release match candidate `{run_id}`. This read-only check changed no package, tag, receipt or Release.")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("operation", choices=["source", "prepare", "preflight", "run", "seal", "validate", "preview", "publish", "finalize"])
+    parser.add_argument("operation", choices=["source", "prepare", "preflight", "run", "seal", "validate", "preview", "publish", "finalize", "check"])
     parser.add_argument("--release", type=Path, default=REPO / ".tmp/release-candidate")
     parser.add_argument("--candidate-run-id", default="")
     parser.add_argument("--channel", choices=["latest", "next"], default="latest")
@@ -456,6 +551,8 @@ def main():
             preview(args.release, args.auth, args.channel, args.candidate_run_id)
         elif args.operation == "publish":
             publish(args.release.resolve(), args.candidate_run_id, args.auth)
+        elif args.operation == "check":
+            check_publication(args.release.resolve(), args.candidate_run_id)
         else:
             finalize(args.release.resolve(), args.candidate_run_id, args.auth)
     except (ValueError, RuntimeError, KeyError) as error:

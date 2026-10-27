@@ -1,0 +1,101 @@
+name: Release All
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Prepare/reuse and preview only; uncheck to publish and check
+        type: boolean
+        default: true
+      candidate_run_id:
+        description: Reuse an original candidate; leave empty only for a new unused version
+        type: string
+        default: ''
+      channel:
+        description: Used only when preparing a new candidate
+        type: choice
+        default: latest
+        options: [latest, next]
+      recover_candidate:
+        description: Allow release-tooling/documentation repairs for the reused candidate
+        type: boolean
+        default: false
+permissions:
+  contents: read
+  actions: write
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+  RELEASE_CHANNEL: ${{ inputs.channel }}
+  RECOVER_CANDIDATE: ${{ inputs.recover_candidate }}
+concurrency:
+  # Different from child workflows: holding their lock here would deadlock them.
+  group: agent-job-relay-pipeline
+  cancel-in-progress: false
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 95
+    outputs:
+      candidate_run_id: ${{ steps.coordinate.outputs.candidate_run_id }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Prepare or reuse the exact candidate
+        id: coordinate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+        run: python3 scripts/release_pipeline.py prepare
+  preview:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 95
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Preview through the actual Trusted Publisher workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN_ID: ${{ needs.prepare.outputs.candidate_run_id }}
+        run: python3 scripts/release_pipeline.py preview
+  publish:
+    needs: [prepare, preview]
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 95
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Submit publication without waiting for registry synchronization
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN_ID: ${{ needs.prepare.outputs.candidate_run_id }}
+        run: python3 scripts/release_pipeline.py publish
+  check:
+    needs: [prepare, publish]
+    if: ${{ !inputs.dry_run && needs.publish.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 95
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Check independently after publication; retry this job if propagation is pending
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN_ID: ${{ needs.prepare.outputs.candidate_run_id }}
+        run: python3 scripts/release_pipeline.py check

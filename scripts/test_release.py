@@ -17,6 +17,7 @@ from unittest.mock import patch
 sys.dont_write_bytecode = True
 import release_actions as actions
 import release_metadata as metadata
+import release_pipeline as pipeline
 
 
 class ReleaseTests(unittest.TestCase):
@@ -155,7 +156,7 @@ class ReleaseTests(unittest.TestCase):
                 self.assertNotIn("fake", Path(env["npm_config_userconfig"]).read_text())
 
     def test_prepare_checks_source_without_publishing_credentials(self):
-        with patch.object(actions, "actions_context", return_value=self.revision), patch.object(actions, "github", return_value={"full_name": actions.REPOSITORY}), patch.object(actions, "check_tag") as tag, patch.object(actions, "command") as npm, patch.object(actions, "request") as exchange, patch.object(actions, "output"), patch.object(actions, "summary"):
+        with patch.object(actions, "actions_context", return_value=self.revision), patch.object(actions, "github", return_value={"full_name": actions.REPOSITORY}), patch.object(actions, "check_tag") as tag, patch.object(actions, "github_list", return_value=[]), patch.object(actions, "registry_version", return_value=None), patch.object(actions, "command") as npm, patch.object(actions, "request") as exchange, patch.object(actions, "output"), patch.object(actions, "summary"):
             actions.prepare()
             tag.assert_called_once_with("v" + self.version, self.revision)
             npm.assert_not_called()
@@ -180,7 +181,7 @@ class ReleaseTests(unittest.TestCase):
     def test_oidc_preview_uses_the_sealed_channel_and_never_uploads(self):
         candidate = {**self.candidate, "channel": "latest"}
         before = {p.name: p.read_bytes() for p in self.directory.iterdir()}
-        with patch.object(actions, "validate", return_value=candidate) as validate, patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "public_package", return_value=None), patch.object(actions, "check_channel", return_value={}), patch.object(actions, "command", return_value="{}") as commands, patch.object(actions, "summary"), patch.dict(os.environ, {"NPM_STAGE_TOKEN": "fake", "NODE_AUTH_TOKEN": "fake"}):
+        with patch.object(actions, "validate", return_value=candidate) as validate, patch.object(actions, "find_release", return_value=None), patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "public_package", return_value=None), patch.object(actions, "check_channel", return_value={}), patch.object(actions, "command", return_value="{}") as commands, patch.object(actions, "summary"), patch.dict(os.environ, {"NPM_STAGE_TOKEN": "fake", "NODE_AUTH_TOKEN": "fake"}):
             actions.preview(self.directory, "oidc", "next", "123")
         validate.assert_called_once_with(self.directory, "123")
         self.assertEqual(commands.call_count, 2)
@@ -193,69 +194,57 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(before, {p.name: p.read_bytes() for p in self.directory.iterdir()})
 
     def test_publication_preview_reuses_a_matching_partially_published_version(self):
-        with patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "public_package", side_effect=[{}, None]), patch.object(actions, "check_channel", return_value={}), patch.object(actions, "command", return_value="{}") as commands, patch.object(actions, "github") as github, patch.object(actions, "summary"):
+        with patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "public_package", side_effect=[{}, None]), patch.object(actions, "find_release", return_value=None), patch.object(actions, "check_channel", return_value={}), patch.object(actions, "command", return_value="{}") as commands, patch.object(actions, "github") as github, patch.object(actions, "summary"):
             actions.preview(self.directory, "oidc", "latest", "123")
         self.assertEqual(commands.call_count, 1)
         self.assertIn(self.directory / self.meta["opencode"]["tarball"], commands.call_args.args[0])
         github.assert_not_called()
 
-    def test_oidc_publication_waits_for_propagation_and_reuses_partial_uploads(self):
+    def test_oidc_publication_never_polls_and_reuses_matching_public_uploads(self):
         for runtime_exists in (False, True):
             with self.subTest(runtime_exists=runtime_exists):
                 uploaded = []
-                visible = {metadata.PACKAGES["runtime"]} if runtime_exists else set()
-                pending = {name: 2 for name in metadata.PACKAGES.values()}
 
                 def publish(argv, **_kwargs):
                     self.assertEqual(argv[:2], ["npm", "publish"])
-                    entry = next(entry for entry in self.meta.values() if isinstance(entry, dict) and self.directory / entry["tarball"] == argv[2])
-                    self.assertNotIn(entry["name"], uploaded)
-                    uploaded.append(entry["name"])
+                    uploaded.append(Path(argv[2]).name)
                     return "{}"
 
                 def lookup(entry):
-                    name = entry["name"]
-                    if name not in visible:
-                        if name not in uploaded:
-                            return None
-                        if pending[name]:
-                            pending[name] -= 1
-                            return None
-                        visible.add(name)
-                    return {"name": name, "version": self.version, "dist": {"integrity": entry["integrity"]}}
+                    self.assertFalse(uploaded, "Publication must not read registry visibility after a write")
+                    if runtime_exists and entry["name"] == metadata.PACKAGES["runtime"]:
+                        return {"name": entry["name"], "version": self.version, "dist": {"integrity": entry["integrity"]}}
+                    return None
 
-                with self.registry_clock() as sleep, patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "registry_version", side_effect=lookup), patch.object(actions, "check_channel", return_value={}), patch.object(actions, "draft_release", return_value=self.draft()), patch.object(actions, "command", side_effect=publish), patch.object(actions, "output") as output, patch.object(actions, "summary"):
+                with patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "registry_version", side_effect=lookup), patch.object(actions, "check_channel", return_value={"next": self.version}), patch.object(actions, "draft_release", return_value=self.draft()), patch.object(actions, "command", side_effect=publish), patch.object(actions, "record_publish_acceptance") as receipt, patch.object(actions, "github") as github, patch.object(actions.time, "sleep") as sleep, patch.object(actions, "output") as output, patch.object(actions, "summary"):
                     actions.publish(self.directory, "123", "oidc")
-                self.assertEqual(uploaded, [metadata.PACKAGES["opencode"]] if runtime_exists else list(metadata.PACKAGES.values()))
-                self.assertEqual(sleep.call_count, 2 * len(uploaded))
-                output.assert_called_once_with("ready", "true")
+                keys = ["opencode"] if runtime_exists else list(metadata.PACKAGES)
+                self.assertEqual(uploaded, [self.meta[key]["tarball"] for key in keys])
+                self.assertEqual([call.args[2] for call in receipt.call_args_list], keys)
+                sleep.assert_not_called()
+                output.assert_called_once_with("submitted", "true")
+                github.assert_called_once_with("releases/1", method="PATCH", payload={"draft": False, "make_latest": "false"})
 
-    def test_oidc_propagation_timeout_preserves_upload_without_publishing_dependency(self):
-        with self.registry_clock() as sleep, patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "registry_version", return_value=None), patch.object(actions, "check_channel", return_value={}), patch.object(actions, "draft_release", return_value=self.draft()), patch.object(actions, "command", return_value="{}") as command, patch.object(actions, "output") as output, patch.object(actions, "summary"):
-            with self.assertRaisesRegex(ValueError, "same original candidate"):
-                actions.publish(self.directory, "123", "oidc")
+    def test_acceptance_receipt_skips_upload_while_public_metadata_is_missing(self):
+        release = {**self.draft(), "_accepted_npm_packages": {"runtime"}}
+        with patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "public_package", return_value=None), patch.object(actions, "check_channel", return_value={}), patch.object(actions, "draft_release", return_value=release), patch.object(actions, "command", return_value="{}") as command, patch.object(actions, "record_publish_acceptance") as receipt, patch.object(actions, "github"), patch.object(actions.time, "sleep") as sleep, patch.object(actions, "output") as output, patch.object(actions, "summary"):
+            actions.publish(self.directory, "123", "oidc")
         command.assert_called_once()
-        self.assertEqual(command.call_args.args[0][2], self.directory / self.meta["runtime"]["tarball"])
-        self.assertEqual(sum(call.args[0] for call in sleep.call_args_list), 120)
-        output.assert_not_called()
-
-    def test_oidc_post_upload_integrity_conflict_is_not_retried(self):
-        uploaded = False
-
-        def publish(*_args, **_kwargs):
-            nonlocal uploaded
-            uploaded = True
-            return "{}"
-
-        def lookup(entry):
-            return {"name": entry["name"], "version": self.version, "dist": {"integrity": "foreign"}} if uploaded else None
-
-        with self.registry_clock() as sleep, patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "registry_version", side_effect=lookup), patch.object(actions, "check_channel", return_value={}), patch.object(actions, "draft_release", return_value=self.draft()), patch.object(actions, "command", side_effect=publish) as command, patch.object(actions, "output") as output:
-            with self.assertRaisesRegex(ValueError, "conflict"):
-                actions.publish(self.directory, "123", "oidc")
-        command.assert_called_once()
+        self.assertEqual(command.call_args.args[0][2], self.directory / self.meta["opencode"]["tarball"])
+        receipt.assert_called_once_with(self.candidate, release, "opencode")
         sleep.assert_not_called()
-        output.assert_not_called()
+        output.assert_called_once_with("submitted", "true")
+
+    def test_check_rejects_conflicting_public_bytes_without_mutation(self):
+        entry = self.meta["runtime"]
+        foreign = {"name": entry["name"], "version": self.version, "dist": {"integrity": "foreign"}}
+        with self.registry_clock() as sleep, patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "registry_version", return_value=foreign), patch.object(actions, "verify_public") as install, patch.object(actions, "github") as github, patch.object(actions, "command") as command:
+            with self.assertRaisesRegex(ValueError, "conflict"):
+                actions.check_publication(self.directory, "123")
+        sleep.assert_not_called()
+        install.assert_not_called()
+        github.assert_not_called()
+        command.assert_not_called()
 
     def test_matching_stage_is_reused_only_after_byte_and_tag_check(self):
         entry = self.meta["runtime"]
@@ -482,6 +471,10 @@ class ReleaseTests(unittest.TestCase):
                 pass
 
             def do_POST(self):
+                if self.path.endswith("/empty"):
+                    self.send_response(204)
+                    self.end_headers()
+                    return
                 received["content_type"] = self.headers["Content-Type"]
                 received["body"] = self.rfile.read(int(self.headers["Content-Length"]))
                 self.send_response(200)
@@ -501,10 +494,15 @@ class ReleaseTests(unittest.TestCase):
             payload = b"\x00binary\xff\x00"
             self.assertEqual(self.real_request(url, token="fake-fixture-token", method="POST", payload=payload), {"uploaded": True})
             self.assertEqual(received, {"content_type": "application/octet-stream", "body": payload})
+            self.assertIsNone(self.real_request(url + "/empty", token="fake-fixture-token", method="POST"))
             with self.assertRaisesRegex(RuntimeError, "npm staged tarball download failed with HTTP 404") as error:
                 self.real_request(url, token="fake-fixture-token", context="npm staged tarball download")
             self.assertNotIn("fake-private", str(error.exception))
             self.assertNotIn("fake-fixture-token", str(error.exception))
+            with patch.object(actions, "urlopen", side_effect=actions.URLError("fake-private-signed-url")):
+                with self.assertRaisesRegex(RuntimeError, "transport failed") as error:
+                    self.real_request(url)
+            self.assertNotIn("fake-private", str(error.exception))
         finally:
             server.shutdown()
             server.server_close()
@@ -565,6 +563,181 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(command.call_count, 2)
         self.assertEqual(sleep.call_count, 4)
         github.assert_called_once_with("releases/1", method="PATCH", payload={"draft": False, "make_latest": "false"})
+
+    def test_check_waits_read_only_and_verifies_the_published_release(self):
+        pending = {name: 2 for name in metadata.PACKAGES.values()}
+
+        def lookup(entry):
+            if pending[entry["name"]]:
+                pending[entry["name"]] -= 1
+                return None
+            return {"dist": {"integrity": entry["integrity"]}}
+
+        release = {**self.draft(), "draft": False, "_assets": [{"name": p.name} for p in self.directory.iterdir()]}
+        with self.registry_clock() as sleep, patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "public_package", side_effect=lookup), patch.object(actions, "check_channel", return_value={"next": self.version}), patch.object(actions, "verify_public") as install, patch.object(actions, "find_release", return_value=release), patch.object(actions, "check_tag", return_value=True), patch.object(actions, "github") as mutation, patch.object(actions, "command") as command, patch.object(actions, "summary") as summary:
+            actions.check_publication(self.directory, "123")
+        self.assertEqual(sleep.call_count, 2)
+        install.assert_called_once_with(self.directory)
+        mutation.assert_not_called()
+        command.assert_not_called()
+        self.assertIn("Public verification passed", summary.call_args.args[0])
+
+    def test_check_timeout_never_republishes_or_completes_github(self):
+        with self.registry_clock() as sleep, patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "public_package", return_value=None), patch.object(actions, "check_channel", return_value={}), patch.object(actions, "verify_public") as install, patch.object(actions, "find_release") as release, patch.object(actions, "github") as mutation, patch.object(actions, "command") as command, patch.object(actions, "summary"):
+            with self.assertRaisesRegex(ValueError, "rerun Check Release only"):
+                actions.check_publication(self.directory, "123")
+        self.assertEqual(sum(call.args[0] for call in sleep.call_args_list), 120)
+        install.assert_not_called()
+        release.assert_not_called()
+        mutation.assert_not_called()
+        command.assert_not_called()
+
+    def test_receipt_is_bound_to_candidate_bytes_and_actual_publisher_run(self):
+        receipt = {**actions.receipt_fields(self.candidate, "runtime"), "publisher_run_id": "456", "publisher_run_attempt": "1", "publisher_revision": self.revision}
+        run = {**self.run, "id": 456, "path": ".github/workflows/release-publish.yml", "run_attempt": 1, "conclusion": "failure"}
+        name = "npm-publish-receipt-456-1-runtime.json"
+        match = actions.RECEIPT_NAME.fullmatch(name)
+
+        def asset(data):
+            return {"name": name, "id": 7, "size": len(data), "digest": "sha256:" + actions.hashlib.sha256(data).hexdigest()}
+
+        data = json.dumps(receipt).encode()
+        with patch.object(actions, "command", return_value=data), patch.object(actions, "github", return_value=run):
+            self.assertEqual(actions.verify_release_assets(self.directory, [asset(data)], self.candidate), {"runtime"})
+        for field, value in [("candidate_run_id", "999"), ("tarball_sha256", "0" * 64), ("channel", "latest"), ("package_name", "foreign")]:
+            foreign = json.dumps({**receipt, field: value}).encode()
+            with self.subTest(field=field), patch.object(actions, "command", return_value=foreign), patch.object(actions, "github") as github:
+                with self.assertRaisesRegex(ValueError, "sealed candidate"):
+                    actions.read_receipt(asset(foreign), self.candidate, match)
+                github.assert_not_called()
+        with patch.object(actions, "command", return_value=data), patch.object(actions, "github", return_value={**run, "path": ".github/workflows/release-all.yml"}):
+            with self.assertRaisesRegex(ValueError, "publishing workflow"):
+                actions.read_receipt(asset(data), self.candidate, match)
+
+    def test_receipt_writer_keeps_candidate_inventory_unchanged(self):
+        before = {p.name: p.read_bytes() for p in self.directory.iterdir()}
+        recorded = []
+
+        def upload(release_id, path):
+            self.assertEqual(release_id, 1)
+            self.assertEqual(path.name, "npm-publish-receipt-456-2-opencode.json")
+            recorded.append(json.loads(path.read_text()))
+
+        with patch.dict(os.environ, {"GITHUB_RUN_ID": "456", "GITHUB_RUN_ATTEMPT": "2"}), patch.object(actions, "actions_context", return_value=self.revision), patch.object(actions, "upload_release_asset", side_effect=upload):
+            actions.record_publish_acceptance(self.candidate, self.draft(), "opencode")
+        self.assertEqual(recorded, [{**actions.receipt_fields(self.candidate, "opencode"), "publisher_run_id": "456", "publisher_run_attempt": "2", "publisher_revision": self.revision}])
+        self.assertEqual(before, {p.name: p.read_bytes() for p in self.directory.iterdir()})
+
+    def test_receipt_failure_stops_before_next_upload_and_public_metadata_allows_recovery(self):
+        with patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "public_package", return_value=None), patch.object(actions, "check_channel", return_value={}), patch.object(actions, "draft_release", return_value=self.draft()), patch.object(actions, "command", return_value="{}") as command, patch.object(actions, "record_publish_acceptance", side_effect=RuntimeError("receipt response lost")), patch.object(actions, "github") as github:
+            with self.assertRaisesRegex(RuntimeError, "receipt response lost"):
+                actions.publish(self.directory, "123", "oidc")
+        command.assert_called_once()
+        github.assert_not_called()
+        with patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "public_package", side_effect=[{}, None]), patch.object(actions, "check_channel", return_value={"next": self.version}), patch.object(actions, "draft_release", return_value=self.draft()), patch.object(actions, "command", return_value="{}") as command, patch.object(actions, "record_publish_acceptance") as receipt, patch.object(actions, "github"), patch.object(actions, "output"), patch.object(actions, "summary"):
+            actions.publish(self.directory, "123", "oidc")
+        command.assert_called_once()
+        self.assertEqual(command.call_args.args[0][2], self.directory / self.meta["opencode"]["tarball"])
+        self.assertEqual(receipt.call_args.args[2], "opencode")
+
+    def test_completed_publication_is_idempotent_without_any_remote_write(self):
+        with patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "public_package", return_value={}), patch.object(actions, "check_channel", return_value={"next": self.version}), patch.object(actions, "draft_release", return_value={**self.draft(), "draft": False}), patch.object(actions, "command") as command, patch.object(actions, "record_publish_acceptance") as receipt, patch.object(actions, "github") as github, patch.object(actions, "output"), patch.object(actions, "summary"):
+            actions.publish(self.directory, "123", "oidc")
+        command.assert_not_called()
+        receipt.assert_not_called()
+        github.assert_not_called()
+
+    def child(self, step="publish", **overrides):
+        filename, name = pipeline.WORKFLOWS[step]
+        return {**self.run, "id": 456, "path": ".github/workflows/" + filename, "display_title": f"{name} [release-789-{step}]", "run_attempt": 1, **overrides}
+
+    def test_pipeline_lost_dispatch_response_recovers_exact_child_without_second_post(self):
+        posts = []
+        created = False
+        child = self.child()
+
+        def api(path, **kwargs):
+            nonlocal created
+            if path == "git/ref/heads/main":
+                return {"object": {"sha": self.revision}}
+            if "/dispatches" in path:
+                posts.append((path, kwargs["payload"]))
+                created = True
+                raise RuntimeError("dispatch response lost")
+            if "/runs?" in path:
+                return {"workflow_runs": [child] if created else []}
+            self.assertEqual(path, "actions/runs/456")
+            return child
+
+        with patch.dict(os.environ, {"GITHUB_RUN_ID": "789"}), patch.object(pipeline, "github", side_effect=api), patch.object(pipeline, "output"), patch.object(pipeline, "summary"):
+            self.assertEqual(pipeline.dispatch_and_wait("publish", {"candidate_run_id": "123", "dry_run": "false"}, self.revision), "456")
+        self.assertEqual(len(posts), 1)
+        self.assertEqual(posts[0][0], "actions/workflows/release-publish.yml/dispatches")
+        self.assertEqual(posts[0][1]["inputs"]["expected_revision"], self.revision)
+        self.assertEqual(posts[0][1]["inputs"]["pipeline_key"], "release-789-publish")
+
+    def test_pipeline_retries_failed_check_only_using_its_original_run_id(self):
+        failed = self.child("check", conclusion="failure")
+        runs = iter([failed, self.child("check", status="in_progress", conclusion=None, run_attempt=2), self.child("check", run_attempt=2)])
+        posts = []
+
+        def api(path, **kwargs):
+            if path == "git/ref/heads/main":
+                return {"object": {"sha": self.revision}}
+            if "/runs?" in path:
+                return {"workflow_runs": [failed]}
+            if kwargs.get("method") == "POST":
+                posts.append(path)
+                return None
+            self.assertEqual(path, "actions/runs/456")
+            return next(runs)
+
+        with self.registry_clock(), patch.dict(os.environ, {"GITHUB_RUN_ID": "789"}), patch.object(pipeline, "github", side_effect=api), patch.object(pipeline, "output"), patch.object(pipeline, "summary"):
+            self.assertEqual(pipeline.dispatch_and_wait("check", {"candidate_run_id": "123"}, self.revision), "456")
+        self.assertEqual(posts, ["actions/runs/456/rerun-failed-jobs"])
+
+    def test_pipeline_reuses_selected_candidate_without_preparing_again(self):
+        with patch.dict(os.environ, {"GITHUB_WORKFLOW_REF": f"{actions.REPOSITORY}/.github/workflows/release-all.yml@refs/heads/main"}), patch.object(pipeline, "actions_context", return_value=self.revision), patch.object(pipeline, "candidate_run") as candidate, patch.object(pipeline, "dispatch_and_wait") as dispatch, patch.object(pipeline, "output") as output, patch.object(pipeline, "summary"):
+            self.assertEqual(pipeline.run_step("prepare", "123", "latest", True), "123")
+        candidate.assert_called_once_with("123")
+        dispatch.assert_not_called()
+        output.assert_called_once_with("candidate_run_id", "123")
+
+    def test_pipeline_source_change_and_ambiguous_children_stop_without_dispatch(self):
+        for changed in (False, True):
+            writes = []
+
+            def api(path, **kwargs):
+                if kwargs.get("method") == "POST":
+                    writes.append(path)
+                if path == "git/ref/heads/main":
+                    return {"object": {"sha": "b" * 40 if changed else self.revision}}
+                return {"workflow_runs": [self.child(), self.child(id=457)]}
+
+            with self.subTest(main_changed=changed), patch.dict(os.environ, {"GITHUB_RUN_ID": "789"}), patch.object(pipeline, "github", side_effect=api):
+                with self.assertRaises(ValueError):
+                    pipeline.dispatch_and_wait("publish", {"candidate_run_id": "123"}, self.revision)
+            self.assertEqual(writes, [])
+
+    def test_pipeline_child_ref_race_is_rejected_by_the_child_context(self):
+        env = {"GITHUB_ACTIONS": "true", "GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_REPOSITORY": actions.REPOSITORY, "GITHUB_REF": "refs/heads/main", "GITHUB_SHA": "b" * 40, "EXPECTED_RELEASE_REVISION": self.revision}
+        with patch.dict(os.environ, env), patch.object(actions, "request") as request:
+            with self.assertRaisesRegex(ValueError, "main changed"):
+                actions.actions_context()
+        request.assert_not_called()
+
+    def test_pipeline_preview_dispatches_only_the_actual_publisher_dry_run(self):
+        env = {"GITHUB_WORKFLOW_REF": f"{actions.REPOSITORY}/.github/workflows/release-all.yml@refs/heads/main"}
+        with patch.dict(os.environ, env), patch.object(pipeline, "actions_context", return_value=self.revision), patch.object(pipeline, "candidate_run") as candidate, patch.object(pipeline, "dispatch_and_wait", return_value="456") as dispatch:
+            self.assertEqual(pipeline.run_step("preview", "123", "next", True), "456")
+        candidate.assert_called_once_with("123")
+        dispatch.assert_called_once_with("preview", {"candidate_run_id": "123", "recover_candidate": "true", "dry_run": "true"}, self.revision)
+
+    def test_prepare_refuses_a_partially_published_version_before_any_build(self):
+        with patch.object(actions, "actions_context", return_value=self.revision), patch.object(actions, "github", return_value={"full_name": actions.REPOSITORY}), patch.object(actions, "check_tag"), patch.object(actions, "github_list", return_value=[]), patch.object(actions, "registry_version", return_value={}), patch.object(actions, "command") as command:
+            with self.assertRaisesRegex(ValueError, "original candidate_run_id"):
+                actions.prepare()
+        command.assert_not_called()
 
 
 if __name__ == "__main__":

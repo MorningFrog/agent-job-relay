@@ -1,4 +1,5 @@
 name: Prepare Release
+run-name: ${{ inputs.pipeline_key && format('Prepare Release [{0}]', inputs.pipeline_key) || 'Prepare Release' }}
 on:
   workflow_dispatch:
     inputs:
@@ -7,12 +8,21 @@ on:
         type: choice
         default: latest
         options: [latest, next]
+      pipeline_key:
+        description: Internal Release All correlation key; leave empty for manual use
+        type: string
+        default: ''
+      expected_revision:
+        description: Internal Release All source fence; leave empty for manual use
+        type: string
+        default: ''
 permissions:
   contents: read
 env:
   CARGO_PROFILE_DEV_DEBUG: '0'
   CARGO_PROFILE_TEST_DEBUG: '0'
   PYTHONDONTWRITEBYTECODE: '1'
+  EXPECTED_RELEASE_REVISION: ${{ inputs.expected_revision }}
 concurrency:
   group: agent-job-relay-release
   cancel-in-progress: false

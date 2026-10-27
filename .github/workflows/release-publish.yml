@@ -1,4 +1,5 @@
 name: Publish Release
+run-name: ${{ inputs.pipeline_key && format('Publish Release [{0}]', inputs.pipeline_key) || 'Publish Release' }}
 on:
   workflow_dispatch:
     inputs:
@@ -14,12 +15,21 @@ on:
         description: Allow only release-tooling/documentation repairs since candidate creation
         type: boolean
         default: false
+      pipeline_key:
+        description: Internal Release All correlation key; leave empty for manual use
+        type: string
+        default: ''
+      expected_revision:
+        description: Internal Release All source fence; leave empty for manual use
+        type: string
+        default: ''
 permissions:
   contents: read
 env:
   PYTHONDONTWRITEBYTECODE: '1'
   CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
   RECOVER_CANDIDATE: ${{ inputs.recover_candidate }}
+  EXPECTED_RELEASE_REVISION: ${{ inputs.expected_revision }}
 concurrency:
   group: agent-job-relay-release
   cancel-in-progress: false
@@ -87,12 +97,6 @@ jobs:
           github-token: ${{ github.token }}
           path: .tmp/release-candidate
       - name: Publish the original verified bytes through Trusted Publishing
-        id: npm
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/release_actions.py publish --candidate-run-id "$CANDIDATE_RUN_ID" --auth oidc
-      - name: Verify public installation and complete GitHub Release
-        if: steps.npm.outputs.ready == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/release_actions.py finalize --candidate-run-id "$CANDIDATE_RUN_ID" --auth oidc

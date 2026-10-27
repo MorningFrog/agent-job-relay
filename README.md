@@ -81,7 +81,7 @@ Disable/remove the plugin through its host, then remove its marketplace/config e
 
 Source and release assets are public on [GitHub](https://github.com/MorningFrog/agent-job-relay). Install using npm `latest` and its matching GitHub Release; package-internal runtime dependencies stay pinned together. Online marketplace/OpenCode installation is described in the [release guide](docs/release.md#consumer-installation). Existing native installations keep the [offline maintenance route](docs/installation.md#updating-an-existing-installation).
 
-Only maintainers publish, through two manual workflows: **Prepare Release** builds/tests a Cargo-versioned candidate, and **Publish Release** checks OIDC in dry-run before publishing those exact files. Formal releases default to `latest`; Release Notes come from CHANGELOG. Pushes, PRs and tags never publish. See [contributor conventions](CONTRIBUTING.md) and the [maintainer release guide](docs/release.md). A self-hosted marketplace is separate from OpenAI's official directory.
+Only maintainers publish. **Prepare Release** builds/tests a Cargo-versioned candidate; **Publish Release** previews OIDC or submits those exact files; **Check Release** independently verifies public availability. **Release All** provides one manual entry for the entire sequence and defaults to dry-run. Formal releases use `latest`; notes come from CHANGELOG. Pushes, PRs and tags never publish. See [contributor conventions](CONTRIBUTING.md) and the [maintainer release guide](docs/release.md). A self-hosted marketplace is separate from OpenAI's official directory.
 
 ## Install from source
 
@@ -99,7 +99,7 @@ The result is the native local plugin in **AgentJobRelay Local**, normally refer
 | OpenCode V1 | Experimental plugin candidate | Actual loader, MCP and session API pass with a simulated model; real-provider sessions, restart recovery and V2 remain open. |
 | Claude Code | Inbox-only scaffold | Synthetic caller and MCP launcher checks pass; actual Claude loader/account/model verification needs community help. |
 | npm runtime and self-hosted marketplace | Published | Linux/Windows package/loader checks and clean public-registry installation pass; official directory approval is separate. |
-| CI and release | Separate manual preparation/publication workflows | Native/package CI and the initial token-staged release pass; the next OIDC release still needs maintainer qualification. |
+| CI and release | Manual prepare/publish/check plus Release All | Native/package CI and runtime OIDC upload pass; complete publication/checking and the unified coordinator require maintainer qualification. |
 | macOS runtime | Unimplemented | Portable compilation checks only; native execution remains unsupported. |
 | Output monitoring/interruption | Deferred | Awaits an explicit implementation request; log reads and manual stop are available. |
 

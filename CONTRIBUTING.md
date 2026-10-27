@@ -58,7 +58,10 @@ The normal update sequence is:
 1. Update the version in `Cargo.toml`, synchronize the lockfile and package/plugin pins, and add the matching version section to `CHANGELOG.md`. Complete the checks above and obtain review before pushing the approved source to main.
 2. Manually run **Prepare Release** with `channel=latest` for a formal release. It builds/tests Linux and Windows and seals the downloadable candidate, without publishing credentials. Review its files/Release Notes and save its original Run ID.
 3. Manually run **Publish Release** with that Run ID and `dry_run` checked. This validates the candidate and npm OIDC from the actual publishing workflow. A successful preparation alone is not a credential check.
-4. After review, manually run **Publish Release** with the same Run ID and `dry_run` unchecked. It publishes the exact reviewed files and completes GitHub publication only after public-package checks pass.
+4. After review, manually run **Publish Release** with the same Run ID and `dry_run` unchecked. It submits the exact reviewed files, retains upload-acceptance receipts and publishes GitHub without waiting for public registry synchronization.
+5. Manually run **Check Release** with the same candidate ID to verify public bytes, channel and installation. This check has no remote write permission; a check failure requires only a check retry.
+
+**Release All** is the unified manual shortcut for this sequence. Its default dry-run prepares/reuses a candidate and checks the actual publisher identity. Unchecking dry-run also publishes and starts a separate checking job. Reuse the original candidate ID after review or partial failure; successful child runs are retained, and failed children resume their original Run IDs. The wrapper dispatches release-publish.yml so npm Trusted Publisher configuration stays unchanged.
 
 Use `next` only for an intentional experimental prerelease; it does not change npm's default `latest`. Keep main unchanged during a release, and never replace bytes under a staged/published version. A documented tooling-only recovery mode can reuse the original candidate after a release-script repair; it cannot admit payload/version changes.
 
