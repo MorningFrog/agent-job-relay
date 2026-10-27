@@ -38,7 +38,7 @@ AJR_INSTALL_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/agent-job-relay"
 
 ## Windows
 
-使用可信的 Windows 离线 bundle 及其中的 `relay.cmd` 启动器。原生执行、进程树监管、MCP、离线维护及 npm 安装后的宿主加载已通过 Windows 11 虚拟机验证。0.1.8 候选包同时携带 Linux 与 Windows 程序，尚未发布。Windows 现已支持按需自动启动 daemon；Codex MCP 清理限制下会使用经过身份验证的同用户本地 CIM 引导。若本机策略禁止 CIM，诊断会提供可直接复制的宿主外启动命令。安装、任务示例及运行边界见 [Windows 指南](docs/windows.md)。
+使用可信的 Windows 离线 bundle 及其中的 `relay.cmd` 启动器。原生执行、进程树监管、MCP、离线维护及 npm 安装后的宿主加载已通过 Windows 11 验证。0.1.8 候选包同时携带 Linux 与 Windows 程序，尚未发布。Windows 现已支持按需自动启动 daemon；Codex MCP 清理限制下会使用经过身份验证的同用户本地 CIM 引导。若本机策略禁止 CIM，诊断会提供可直接复制的宿主外启动命令。安装、任务示例及运行边界见 [Windows 指南](docs/windows.md)。
 
 ## 在聊天中使用
 
@@ -114,7 +114,7 @@ GitHub 的 **Release candidate** 工作流只能手动运行：默认生成候�
 | 范围 | 实现情况 | 验证结果与剩余范围 |
 |---|---|---|
 | Linux 运行时与离线维护 | 已实现 | 自动化执行、生命周期、恢复及安装测试通过。 |
-| Windows 运行时与自动启动 | 已实现 | 原生虚拟机测试及普通交互用户下的实际 Codex MCP 冷启动通过。 |
+| Windows 运行时与自动启动 | 已实现 | Windows 11 原生测试及普通交互用户下的实际 Codex MCP 冷启动通过。 |
 | ChatGPT Desktop 同聊天续接 | Linux 和 Windows 已验证 | v0.1.8 在任务完成后可续接发起任务的聊天。Windows 验证使用 Full access 权限，见[实测记录](docs/live-e2e.md)。 |
 | OpenCode V1 | 实验性插件候选版 | 实际加载器、MCP 和会话 API 配合模拟模型验证通过；真实服务商会话、重启恢复及 V2 仍待完成。 |
 | Claude Code | 仅收件箱通知的框架 | 合成调用者和 MCP 启动器检查通过；实际 Claude 加载器、账号及模型验证需要社区协助。 |

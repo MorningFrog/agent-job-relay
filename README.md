@@ -38,7 +38,7 @@ Use your original path for a custom installation. Keep that directory: both MCP 
 
 ## Windows
 
-Use a trusted Windows offline bundle and its `relay.cmd` launcher. Native execution, process-tree supervision, MCP, offline maintenance and installed npm/host-loader behavior are verified in a Windows 11 VM. The 0.1.8 candidate carries both Linux and Windows executables; publication is pending. Windows now starts the daemon on demand, including Codex MCP cleanup jobs, through a verified same-user local CIM bootstrap when needed. If local policy blocks CIM, diagnostics provide a copyable outside-terminal fallback. Follow the [Windows guide](docs/windows.md) for installation, task examples and execution boundaries.
+Use a trusted Windows offline bundle and its `relay.cmd` launcher. Native execution, process-tree supervision, MCP, offline maintenance and installed npm/host-loader behavior are verified on Windows 11. The 0.1.8 candidate carries both Linux and Windows executables; publication is pending. Windows now starts the daemon on demand, including Codex MCP cleanup jobs, through a verified same-user local CIM bootstrap when needed. If local policy blocks CIM, diagnostics provide a copyable outside-terminal fallback. Follow the [Windows guide](docs/windows.md) for installation, task examples and execution boundaries.
 
 ## Use from chat
 
@@ -114,7 +114,7 @@ The result is the native local plugin in **AgentJobRelay Local**, normally refer
 | Area | Implementation | Verification and remaining scope |
 |---|---|---|
 | Linux runtime and offline maintenance | Implemented | Automated execution, lifecycle, recovery and installation tests pass. |
-| Windows runtime and automatic startup | Implemented | Native VM tests and actual Codex MCP cold startup under an ordinary interactive user pass. |
+| Windows runtime and automatic startup | Implemented | Native Windows 11 tests and actual Codex MCP cold startup under an ordinary interactive user pass. |
 | ChatGPT Desktop same-chat continuation | Verified on Linux and Windows | v0.1.8 continues the initiating chat after task completion. Windows verification uses Full access; see [live evidence](docs/live-e2e.md). |
 | OpenCode V1 | Experimental plugin candidate | Actual loader, MCP and session API pass with a simulated model; real-provider sessions, restart recovery and V2 remain open. |
 | Claude Code | Inbox-only scaffold | Synthetic caller and MCP launcher checks pass; actual Claude loader/account/model verification needs community help. |
