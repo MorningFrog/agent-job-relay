@@ -1,6 +1,6 @@
 # Windows native runtime
 
-The native x86_64 runtime supports durable background execution, bounded logs, cancellation/timeouts, daemon/runner recovery, MCP, inbox notifications and offline plugin maintenance. Windows 11 VM behavior tests pass. Desktop named-pipe transport/recovery tests use simulated hosts; Windows Desktop UI installation and observed same-chat continuation still need real-host acceptance. Ordinary Codex CLI integration has an inbox and does not automatically resume a chat.
+The native x86_64 runtime supports durable background execution, bounded logs, cancellation/timeouts, daemon/runner recovery, MCP, inbox notifications and offline plugin maintenance. Windows 11 VM behavior tests pass. ChatGPT Desktop named-pipe transport/recovery tests use simulated hosts; Windows ChatGPT Desktop UI installation and observed same-chat continuation still need real-host acceptance. Ordinary Codex CLI integration has an inbox and does not automatically resume a chat.
 
 ## Install a trusted Windows offline bundle
 
@@ -24,7 +24,7 @@ After publication, the self-hosted catalog and OpenCode use the same Windows x86
 
 Default npm state lives in `%LOCALAPPDATA%\AgentJobRelay\profiles\codex` or `opencode`, outside host/npm caches. `AJR_STATE_DIR` may explicitly select an existing profile; no automatic profile migration or upgrade-driven daemon replacement occurs. OpenCode V1 requires 1.19.4 and native >=0.1.7. Its Node/Bun pipe is checked against the exact server process and restricted to a private DACL before sessions register.
 
-Actual Windows npm installation, native execution, history after relocation, corrupt-native refusal, Codex 0.164.0 catalog/20-tool discovery and OpenCode package-name loading/MCP submission/matching-session agent-loop continuation are checked with `scripts/check_windows_packages.mjs`. OpenCode uses a local simulated model. These checks do not establish Windows Desktop UI installation or continuation.
+Actual Windows npm installation, native execution, history after relocation, corrupt-native refusal, Codex 0.164.0 catalog/20-tool discovery and OpenCode package-name loading/MCP submission/matching-session agent-loop continuation are checked with `scripts/check_windows_packages.mjs`. OpenCode uses a local simulated model. These checks do not establish Windows ChatGPT Desktop UI installation or continuation.
 
 ## Build when no bundle is available
 
@@ -64,7 +64,7 @@ If automatic startup is blocked, copy the exact `outside_terminal_command` from 
 
 The command exits once ready; repeated calls reuse the daemon. A terminal opened inside the restrictive host can inherit its restriction and may not suffice. `daemon stop` preserves independent runners/history. There is no resident restart watchdog: recovery happens on the next submission/registration.
 
-Native tests cover cold restricted-host startup, host job destruction, daemon-crash restart, environment/identity isolation and policy refusal. Real installed Codex model/MCP acceptance must start with no prestarted daemon. Current VM tests run under guest-agent SYSTEM; ordinary interactive-user and Windows Desktop UI/observed continuation remain separate acceptance.
+Native tests cover cold restricted-host startup, host job destruction, daemon-crash restart, environment/identity isolation and policy refusal. Real installed Codex model/MCP acceptance must start with no prestarted daemon. Native VM tests run under guest-agent SYSTEM; the cold-profile installed MCP/model workflow also passes as an ordinary interactive user. Windows ChatGPT Desktop UI/observed continuation remains separate acceptance.
 
 ## Update, recover and remove
 
@@ -76,4 +76,4 @@ Use the new bundle's launcher, finish active jobs, explicitly stop the original 
 
 Native independent daemon/runner creation requires breakaway. Daemon startup can instead use the verified same-user CIM helper when a cleanup job blocks it; the helper must still launch an independent native daemon. Local policy or provider job limits can refuse that route. Cargo's cleanup job is such a test environment, so native behavioral fixtures use local CIM to launch their owned test processes under the same SID outside Cargo. Normal direct startup needs no CIM; restricted-host automatic startup needs built-in Windows PowerShell/local CIM to be permitted.
 
-Runner-owned Job Objects terminate contained descendants on cancellation, timeout or runner death. Console Ctrl-Break is best effort before force termination. Processes that cannot join the job do not execute the user command. State and pipe security require the current user's SID, private DACLs and non-reparse paths. Physical power loss, filesystem exhaustion and Desktop version compatibility remain distinct qualifications. See [architecture decision](adr/0011-windows-native-runtime.md) and [testing](testing.md).
+Runner-owned Job Objects terminate contained descendants on cancellation, timeout or runner death. Console Ctrl-Break is best effort before force termination. Processes that cannot join the job do not execute the user command. State and pipe security require the current user's SID, private DACLs and non-reparse paths. Physical power loss, filesystem exhaustion and ChatGPT Desktop version compatibility remain distinct qualifications. See [architecture decision](adr/0011-windows-native-runtime.md) and [testing](testing.md).

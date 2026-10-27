@@ -9,13 +9,13 @@ Tasks run in the background. Agents pick up when needed.
 任务在后台运行，Agent 在需要时接棒。
 </div>
 
-让长时间命令独立于 Agent 连接运行，保存结果，并在宿主支持时通知发起任务的聊天。**v0.1.8 是尚未发布的 Linux/Windows x86_64 开发版本。** Desktop 唤醒使用实验性接口；Windows 桌面端续接尚未验证，macOS 运行时暂不支持。OpenCode V1 提供实验性插件候选包；Claude Code 提供仅收件箱通知的开发框架，需要社区验证。
+让长时间命令独立于 Agent 连接运行，保存结果，并在宿主支持时通知发起任务的聊天。**v0.1.8 是尚未发布的 Linux/Windows x86_64 开发版本。** ChatGPT Desktop 唤醒使用实验性接口；Windows ChatGPT Desktop 续接尚未验证，macOS 运行时暂不支持。OpenCode V1 提供实验性插件候选包；Claude Code 提供仅收件箱通知的开发框架，需要社区验证。
 
 OpenCode/Claude 的开发安装及验证边界见[宿主插件指南](docs/host-plugins.md)。
 
 ## 快速安装
 
-Desktop 使用适合当前 Linux 系统、来源可信的离线包。已有安装请直接按[更新](#更新)操作。首次安装时，在收到的离线包目录中打开终端，执行：
+ChatGPT Desktop 使用适合当前 Linux 系统、来源可信的离线包。已有安装请直接按[更新](#更新)操作。首次安装时，在收到的离线包目录中打开终端，执行：
 
 ```bash
 ./relay plugin bootstrap --dry-run
@@ -24,7 +24,7 @@ Desktop 使用适合当前 Linux 系统、来源可信的离线包。已有安�
 
 这会安装原生运行时并登记本地插件 marketplace，无需 Rust、Python 或 Node。默认仅预览，`--apply` 才写入安装文件和所属配置。当前没有公开下载或自动在线安装器。如果只有源码，请按[从源码安装](#从源码安装)操作。
 
-重启 Desktop，打开 Plugins，选择本地 marketplace（新建时名为 **AgentJobRelay Local**），安装并启用 AgentJobRelay。打开新的本地聊天，选择 `agent-job-relay@agent-job-relay-local`（已有个人市场使用其原名称）。另一个 `agent-job-relay@agent-job-relay` 入口依赖尚未发布的 npm 运行时，不能作为当前可用的本地安装。宿主界面的发现与安装仍需在实际宿主版本上人工验收。
+重启 ChatGPT Desktop，打开 Plugins，选择本地 marketplace（新建时名为 **AgentJobRelay Local**），安装并启用 AgentJobRelay。打开新的本地聊天，选择 `agent-job-relay@agent-job-relay-local`（已有个人市场使用其原名称）。另一个 `agent-job-relay@agent-job-relay` 入口依赖尚未发布的 npm 运行时，不能作为当前可用的本地安装。宿主界面的发现与安装仍需在实际宿主版本上人工验收。
 
 检查默认安装：
 
@@ -42,7 +42,7 @@ AJR_INSTALL_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/agent-job-relay"
 
 ## 在聊天中使用
 
-在已选择插件的 Desktop 本地聊天中提出任务：
+在已选择插件的 ChatGPT Desktop 本地聊天中提出任务：
 
 > 后台执行这个项目的测试，完成后告诉我结果。
 
@@ -105,17 +105,17 @@ GitHub 的 **Release candidate** 工作流只能手动运行：默认生成候�
 
 ## 从源码安装
 
-请按[本地源码安装逐步教程](docs/source-install.zh-CN.md)操作（[English](docs/source-install.md)）。教程涵盖环境准备、获取源码、编译、导出离线包、首次安装或保留历史更新、Desktop 插件选择及真实 MCP 检查，每一步均有预期结果。
+请按[本地源码安装逐步教程](docs/source-install.zh-CN.md)操作（[English](docs/source-install.md)）。教程涵盖环境准备、获取源码、编译、导出离线包、首次安装或保留历史更新、ChatGPT Desktop 插件选择及真实 MCP 检查，每一步均有预期结果。
 
-安装结果是 **AgentJobRelay Local** 中的原生本地插件，通常引用为 `agent-job-relay@agent-job-relay-local`，无需 npm 发布或 Node.js。仅编译成功还未完成安装，必须继续执行 bootstrap/update 及 Desktop 步骤。Windows 源码命令见 [Windows 指南](docs/windows.md#build-when-no-bundle-is-available)，开发门禁见[测试指南](docs/testing.md)。
+安装结果是 **AgentJobRelay Local** 中的原生本地插件，通常引用为 `agent-job-relay@agent-job-relay-local`，无需 npm 发布或 Node.js。仅编译成功还未完成安装，必须继续执行 bootstrap/update 及 ChatGPT Desktop 步骤。Windows 源码命令见 [Windows 指南](docs/windows.md#build-when-no-bundle-is-available)，开发门禁见[测试指南](docs/testing.md)。
 
 ## 实现与验证情况
 
 | 范围 | 实现情况 | 验证结果与剩余范围 |
 |---|---|---|
 | Linux 运行时与离线维护 | 已实现 | 自动化执行、生命周期、恢复及安装测试通过。 |
-| Windows 运行时与自动启动 | 已实现 | 原生虚拟机测试及实际 Codex MCP 冷启动通过；普通交互用户执行和 Desktop 续接尚未验证。 |
-| Desktop 同聊天续接 | 实验性私有接口 | 已安装插件 0.1.5 通过活动任务重启、重绑定及续接测试。界面操作由用户确认，关联记录和 Agent 执行已观察到；干净界面安装及更广泛兼容性仍待验证。 |
+| Windows 运行时与自动启动 | 已实现 | 原生虚拟机测试及普通交互用户下的实际 Codex MCP 冷启动通过；ChatGPT Desktop 续接待验证。 |
+| ChatGPT Desktop 同聊天续接 | Linux 已验证 | v0.1.8 已在 Linux 的 ChatGPT Desktop 中完成验证，任务完成后可在同一聊天续接。 |
 | OpenCode V1 | 实验性插件候选版 | 实际加载器、MCP 和会话 API 配合模拟模型验证通过；真实服务商会话、重启恢复及 V2 仍待完成。 |
 | Claude Code | 仅收件箱通知的框架 | 合成调用者和 MCP 启动器检查通过；实际 Claude 加载器、账号及模型验证需要社区协助。 |
 | npm 运行时与自建市场 | 候选包已准备，未发布 | Linux/Windows 上使用本地回环 registry 的安装与加载器检查通过；公开 registry 安装待验证。 |

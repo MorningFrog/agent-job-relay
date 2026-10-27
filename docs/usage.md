@@ -11,7 +11,7 @@ Windows PowerShell commands and automatic-startup/fallback guidance are in the [
 
 ## Run a task from chat
 
-In a local Desktop chat with the plugin selected, describe the real background task. The workflow resolves the launcher relative to its skill, obtains a fresh current-chat binding, submits through MCP when available and ends the turn. Users need no executable/state/session paths in ordinary prompts. A CLI fallback must be reported explicitly.
+In a local ChatGPT Desktop chat with the plugin selected, describe the real background task. The workflow resolves the launcher relative to its skill, obtains a fresh current-chat binding, submits through MCP when available and ends the turn. Users need no executable/state/session paths in ordinary prompts. A CLI fallback must be reported explicitly.
 
 A fresh binding comes from this chat's terminal, not the shared MCP process. Missing context/capability prevents wake-dependent execution; no latest-session lookup or silent notification-only fallback is used. Host acknowledgement is `accepted_by_host`, not proof of actual Agent continuation. Codex CLI's inbox has no automatic resume capability.
 
@@ -63,7 +63,7 @@ Replace `<project-directory>` with the full working-directory path reported by t
 
 Shared-host MCP rejects `wake_me=true` and `job_connect_session`; its environment cannot establish the caller. Advanced dedicated per-session MCP can use inherited-context wake, as described in [protocol](protocol.md#client-convenience-no-wire-version-change). Ordinary background execution without continuation uses no session/wake option.
 
-For a CLI submission from the current Desktop chat's terminal, use `start --wake --cwd <absolute-project> -- <program> <args...>`. This is a distinct route; a successful CLI run does not qualify an MCP acceptance test.
+For a CLI submission from the current ChatGPT Desktop chat's terminal, use `start --wake --cwd <absolute-project> -- <program> <args...>`. This is a distinct route; a successful CLI run does not qualify an MCP acceptance test.
 
 ## Recover notifications
 
@@ -96,7 +96,7 @@ Use the returned `session.key` as SESSION_KEY, not the logical session_id:
 "$AJR_RELAY" inbox "$SESSION_KEY"
 ```
 
-For actual integrations, use explicit real identities. Manual registrations default to a one-hour lease, with a 24-hour maximum. Desktop additionally requires an authorized endpoint/caller and `--experimental`; its private API may change. Low-level `target add --replay` / `target rebind` are advanced operations with different replay semantics; see [protocol](protocol.md).
+For actual integrations, use explicit real identities. Manual registrations default to a one-hour lease, with a 24-hour maximum. ChatGPT Desktop additionally requires an authorized endpoint/caller and `--experimental`; its private API may change. Low-level `target add --replay` / `target rebind` are advanced operations with different replay semantics; see [protocol](protocol.md).
 
 `daemon stop` stops dispatch only; runners continue and persist results. A later submission restarts the daemon. Foreground `daemon` is available for diagnosis, with no login service installed. A legacy missing-runner-image failure needs diagnosis and explicit same-profile update; preserve the failed job and do not switch state or replay it silently. See [installation](installation.md#updating-an-existing-installation) for safe upgrades.
 
@@ -104,4 +104,4 @@ For exact MCP tool schemas, byte limits, storage/delivery states and legacy comp
 
 ## OpenCode and Claude source frameworks
 
-For OpenCode V1, use the plugin's actual tool-context binding and MCP tools; Desktop `session connect`/`wake_me` is not its workflow. For Claude Code, the experimental skill uses the real substituted session ID and an inbox-only binding, with explicit result inspection and no automatic wake promise. See [host setup and capability limits](host-plugins.md). These development packages do not install a second execution runtime.
+For OpenCode V1, use the plugin's actual tool-context binding and MCP tools; ChatGPT Desktop `session connect`/`wake_me` is not its workflow. For Claude Code, the experimental skill uses the real substituted session ID and an inbox-only binding, with explicit result inspection and no automatic wake promise. See [host setup and capability limits](host-plugins.md). These development packages do not install a second execution runtime.

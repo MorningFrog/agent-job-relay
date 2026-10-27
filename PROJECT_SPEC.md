@@ -6,7 +6,7 @@
 
 > **2026-10-26 发布准备修订：** 源码已公开在 https://github.com/MorningFrog/agent-job-relay 。现在实现 OpenCode npm 插件、共用原生运行时 npm 包、ChatGPT 自建插件市场，以及只能手动触发的 GitHub Release 准备/草稿流程。先完成并验证，实际推送、npm 发布和对外发布仍需最终确认；npm 账号等待重新验证，包名暂不定案。官方目录投稿和 Claude Code 自动唤醒仍不在本轮范围内。允许按用户明确要求通过 winget 在现有 Windows 虚拟机全局安装 Rust 工具链，用于编译验证；这不代表 Windows 后台运行时已实现。本修订优先于旧的“暂不实现插件发布自动化”限制。
 
-> **2026-10-27 Windows 实现修订：** 用户要求实现与 Linux 类似的 Windows 完整运行能力，并使用现有 Windows 虚拟机验证。范围包括原生私有 IPC、独立进程监管、任务/通知恢复、安装维护、Windows 插件/npm 交付及手动 Release 工作流。真实 Windows Desktop 同聊天续接必须单独取得宿主证据，不能用模拟测试替代；网关模型测试使用 `gpt-6.1-sol` / `low`。此前仅编译验证的描述不再限制本轮实现。推送和发布仍需最终确认。
+> **2026-10-27 Windows 实现修订：** 用户要求实现与 Linux 类似的 Windows 完整运行能力，并使用现有 Windows 虚拟机验证。范围包括原生私有 IPC、独立进程监管、任务/通知恢复、安装维护、Windows 插件/npm 交付及手动 Release 工作流。真实 Windows ChatGPT Desktop 同聊天续接必须单独取得宿主证据，不能用模拟测试替代；网关模型测试使用 `gpt-6.1-sol` / `low`。此前仅编译验证的描述不再限制本轮实现。推送和发布仍需最终确认。
 
 > **2026-10-27 Windows 自动化修订：** 用户要求尽可能自动完成 Windows 启动，减少操作并简化必要操作。允许实现当前用户的按需启动引导：优先原生启动，宿主清理 Job Object 阻止脱离时使用公开本地 CIM 创建同一原生程序的有界引导助手。必须核对进程实例、程序路径、SID 与完整性级别；拒绝受限/AppContainer/低完整性令牌，环境仅经私有 IPC 交接，不落盘、不提权、不更改用户/状态目录，不安装系统服务或计划任务。此项替代 ADR 0011 之前一律拒绝非 breakaway 宿主的策略；CIM 策略禁止时仍明确报错并提供同目录宿主外启动命令。
 
@@ -45,11 +45,11 @@
 
 ## 2. 核心产品定义与非目标
 
-用户使用情景：Codex CLI 或 ChatGPT Desktop Work/Codex Agent 启动一个 20 分钟构建、训练或数据处理任务。任务在原 MCP Server 结束、Agent 会话休眠或 Desktop 窗口关闭时仍可按明确约定继续运行。任务结束时结果和事件不会因 Daemon 暂时断线而无声丢失。当 Host 存在受支持的恢复能力时，系统将关联事件投递到发起任务的正确会话，而不需要 Agent 每隔数秒轮询；当 Host 不支持自动恢复时，系统仍提供 CLI/标准 MCP 查询和清晰告警，不声称已经自动恢复。
+用户使用情景：Codex CLI 或 ChatGPT Desktop Work/Codex Agent 启动一个 20 分钟构建、训练或数据处理任务。任务在原 MCP Server 结束、Agent 会话休眠或 ChatGPT Desktop 窗口关闭时仍可按明确约定继续运行。任务结束时结果和事件不会因 Daemon 暂时断线而无声丢失。当 Host 存在受支持的恢复能力时，系统将关联事件投递到发起任务的正确会话，而不需要 Agent 每隔数秒轮询；当 Host 不支持自动恢复时，系统仍提供 CLI/标准 MCP 查询和清晰告警，不声称已经自动恢复。
 
 核心功能范围：本地命令执行、独立进程监督、Job/Event/Session/Delivery 持久化、本地 IPC、MCP、CLI、能力感知的 Host Adapter、可诊断的任务恢复。
 
-明确**非 v0.1 目标**：云端服务、远程 SSH Worker、Web UI、完整 artifact registry、复杂 Cron 调度、多人 RBAC、TLS 公网接口、分布式队列、任意历史 Desktop 会话的魔法唤醒。可以预留接口，但不得为未实现功能增加大量空壳。
+明确**非 v0.1 目标**：云端服务、远程 SSH Worker、Web UI、完整 artifact registry、复杂 Cron 调度、多人 RBAC、TLS 公网接口、分布式队列、任意历史 ChatGPT Desktop 会话的魔法唤醒。可以预留接口，但不得为未实现功能增加大量空壳。
 
 软件应为单用户本地可信环境设计，实际命令仍以该用户的 OS 权限执行；这不是代码执行沙箱。不要对用户不可信内容做未经授权的自动执行。
 
@@ -139,7 +139,7 @@ Job、Run、Session、Delivery 必须独立拥有生命周期。**Job 完成 != 
 - 确保任务完成状态更新与消息入 Outbox 同事务；重试采用有限指数退避 + jitter + TTL，过期进入 Dead Letter 而非无限隐式丢弃；提供显式重新投递与诊断。
 - 事件按照 target 绑定会话，不得选“当前最近的任何一个 Agent”作为默认目标；发起会话不存在时必须显示不可自动唤醒。
 - 投递幂等键应可由 `(event_id, target_id)` 等稳定身份构造；重复 Ack/重放安全。
-- 唤醒失败、连接断开、Daemon 重启、Desktop 重启的行为均应可测试、可解释。
+- 唤醒失败、连接断开、Daemon 重启、ChatGPT Desktop 重启的行为均应可测试、可解释。
 
 ### 6.4 重启/断线恢复
 
@@ -210,14 +210,14 @@ agent-job-relay integration remove <client> [--dry-run]
 
 ### ChatGPT Desktop Work / Codex
 
-Desktop 的实验性桌面桥接依赖未经公开稳定承诺的 Host pipe/Unix socket + JSON-RPC（相关字段如 `callerSource`），存在单目标、宿主重启失效、Host Ack 与 Agent 真正执行不同步等限制。新项目必须**将此机制隔离为显式 experimental adapter**：
+ChatGPT Desktop 的实验性桌面桥接依赖未经公开稳定承诺的 Host pipe/Unix socket + JSON-RPC（相关字段如 `callerSource`），存在单目标、宿主重启失效、Host Ack 与 Agent 真正执行不同步等限制。新项目必须**将此机制隔离为显式 experimental adapter**：
 - Linux Unix Socket、Windows Named Pipe 采用各自正确连接方法；其他平台按实测支持；
 - endpoint/path、会话身份、session/instance 生命周期绑定，能够检测过期；
 - 多会话不得靠单个全局覆盖式 `desktop.json` 实现；需要区分不同 Host 实例/对话，但能否实际独立投递由 Host 能力决定；
 - 支持显式初始化/重新绑定，不直接扫描或控制其他隐私会话；
 - Host 接受请求不等于实际恢复对话；若缺少确认能力，最多标注 `accepted_by_host`；
 - 不存在可验证 private API 或缺少合法可用环境时，使用假 Host 测试传输，不伪造通过 live E2E；
-- 严禁把失败 Desktop 投递静默路由到错误 CLI session；
+- 严禁把失败 ChatGPT Desktop 投递静默路由到错误 CLI session；
 - 不修改 ChatGPT Desktop 内部二进制或进行破坏性注入。
 
 ### 其他 Agent
@@ -262,7 +262,7 @@ P0 必须覆盖：
 8. 投递重复/失败/断网/Daemon 重启：重试与去重、dead letter、重新投递。
 9. 取消及超时：完整的子进程树处理、不发生误杀其他不相关进程。
 10. 会话路由：A 会话的完成事件绝不能发送给 B 会话；旧 Host 实例重连后如何重新绑定。
-11. Desktop 假 Host：模拟传输、字段校验、Host Ack/未恢复的差异、Host 重启/连接失效、不能静默回退。
+11. ChatGPT Desktop 假 Host：模拟传输、字段校验、Host Ack/未恢复的差异、Host 重启/连接失效、不能静默回退。
 12. 权限与安全：IPC 文件权限、无效/畸形消息、巨大日志、敏感信息泄露检查。
 13. 宿主机重启和 Runner 消失时的状态恢复策略（无法真实测试断电时，用故障注入说明可验证范围）。
 14. MCP：协议握手、工具发现、核心工具实际执行，与普通 MCP 客户端兼容。
@@ -270,7 +270,7 @@ P0 必须覆盖：
 16. 当前移除体验：测试 `integration remove` 的 dry-run、可逆配置变更、保留用户任务数据；记录本地 `cargo uninstall` / 删除自行安装二进制的注意事项。Plugin 移除须保留数据；不再规划独立系统包卸载器或包管理器测试。
 17. 文档验证：两个 README 的**当前可执行**本地安装/运行、`setup`/`doctor`/集成移除命令必须匹配真实 CLI；各宿主 Plugin 的实际支持和未实现项应明确标注；验证两个 README 开头都有英中双语简短介绍。
 
-真实 ChatGPT Desktop/真实 Codex Agent E2E 只有在测试环境明确可用时再运行；提供手动 E2E 文档、通过的版本号/客户端及观察记录。不能把 fake Host 的测试当成真实 Desktop 集成验证。
+真实 ChatGPT Desktop/真实 Codex Agent E2E 只有在测试环境明确可用时再运行；提供手动 E2E 文档、通过的版本号/客户端及观察记录。不能把 fake Host 的测试当成真实 ChatGPT Desktop 集成验证。
 
 ## 13. 分阶段实施与 Gate（不要只停留在计划）
 
@@ -294,7 +294,7 @@ P0 必须覆盖：
 ### 通过 Gate 的严格定义
 - 功能已编译且对应自动化测试通过，才可标记 `implemented and tested`。
 - 使用假 Host 验证仅标记 `simulated`。
-- 真实 Desktop 唤醒只有现场实测、回到**同一指定会话**并产生后续 Agent 执行后才能标记 `live E2E verified`。
+- 真实 ChatGPT Desktop 唤醒只有现场实测、回到**同一指定会话**并产生后续 Agent 执行后才能标记 `live E2E verified`。
 - 缺少平台测试只能标记 `not verified`；不要把 Linux 测试通过写成 Windows/macOS 全部验证。
 - 不得删除失败测试、降低 lint 严格程度或改坏功能换取绿色 CI。
 - 如为阶段性 MVP，清晰写出未完成功能，避免 README 预支未来能力。
@@ -381,7 +381,7 @@ P0 必须覆盖：
   ```
 
 - README 后续全文按各自语言书写，且两种语言的功能表、真实可用平台、安装/卸载命令、CLI/MCP 选项、已知限制与安全提醒**语义保持一致**。命令、路径、参数和示例必须能与实际实现相匹配；如功能未实现，标注计划中，不能写成已经交付。
-- 两种 README 都必须明确区分：Job 运行完成、通知被 Host 接收，以及 Agent 真实恢复工作；明确显示 Desktop 实验性 API 和不可保证的场景。
+- 两种 README 都必须明确区分：Job 运行完成、通知被 Host 接收，以及 Agent 真实恢复工作；明确显示 ChatGPT Desktop 实验性 API 和不可保证的场景。
 - 可加入 FAQ/截图/架构图，但优先可操作的步骤和快速故障排查，不让初次安装者先读架构设计。
 
 ### 17.2 Conventional Commits（英文）

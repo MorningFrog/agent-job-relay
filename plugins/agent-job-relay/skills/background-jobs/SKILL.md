@@ -9,7 +9,7 @@ Use the installed MCP tools and this plugin's `../../relay` launcher (`../../rel
 
 For a task that should finish in the background and continue this chat:
 
-1. From **this chat's terminal tool**, execute the bundled launcher with `session connect --brief`. Capture its JSON `session_key` privately. This checks current inherited Desktop identity, starts the daemon if needed and probes the experimental local Desktop bridge. It sends no chat message.
+1. From **this chat's terminal tool**, execute the bundled launcher with `session connect --brief`. Capture its JSON `session_key` privately. This checks current inherited ChatGPT Desktop identity, starts the daemon if needed and probes the experimental local ChatGPT Desktop bridge. It sends no chat message.
 2. Call the plugin's `job_start` MCP tool with the command, absolute cwd, and that exact key as `spec.session`. Omit `wake_me`: the installed MCP process is shared and deliberately does not infer a caller from its environment. Refresh the binding from the current terminal for each new submission; never reuse another chat's key or find a global latest session. Use explicit argv for ordinary commands and shell mode only when the requested command needs it.
 3. Retain `job_id` and the returned binding. Tell the user the task was submitted and **end the current turn**. Avoid waiting or polling for long jobs.
 
@@ -27,7 +27,7 @@ Use `job_stop` only for the job the user wants cancelled. Keep the shared daemon
 
 ## Recover this chat's notifications
 
-When asked to restore notifications after Desktop restart or a failed delivery, run the bundled launcher with `session recover` in this chat's terminal. It refreshes/probes the current binding and previews eligible targets; it does not move targets or send a chat message. Apply recovery with `session recover --apply` when the user requested restoration. Alternatively, obtain a fresh terminal binding and call `job_recover_session` with its `session_key` and `apply=true`. Shared MCP cannot infer the current caller from its own environment.
+When asked to restore notifications after ChatGPT Desktop restart or a failed delivery, run the bundled launcher with `session recover` in this chat's terminal. It refreshes/probes the current binding and previews eligible targets; it does not move targets or send a chat message. Apply recovery with `session recover --apply` when the user requested restoration. Alternatively, obtain a fresh terminal binding and call `job_recover_session` with its `session_key` and `apply=true`. Shared MCP cannot infer the current caller from its own environment.
 
 Recovery is limited to the same logical chat, caller and host. It preserves delivery IDs, TTL and attempt history, records a recovery audit, and never reruns commands or replays accepted/expired events. In-flight targets are skipped; report them and inspect later rather than polling. Results are paginated with `next_cursor`/`after`; an empty target page completes the scan. Never recover another chat by guessing its key or switch state directories to hide a failure.
 

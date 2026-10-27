@@ -1,8 +1,8 @@
 # Manual acceptance
 
-This procedure checks the reader's actual installation and Desktop workflow. Use a trusted compatible offline bundle; no source rebuild is required. Test configuration, local stdio, host discovery, actual MCP calls and same-chat continuation as separate outcomes. The isolated automated baseline is in [implementation status](IMPLEMENTATION_STATUS.md); previously passed CLI wake tests do not need repeating.
+This procedure checks the reader's actual installation and ChatGPT Desktop workflow. Use a trusted compatible offline bundle; no source rebuild is required. Test configuration, local stdio, host discovery, actual MCP calls and same-chat continuation as separate outcomes. The isolated automated baseline is in [implementation status](IMPLEMENTATION_STATUS.md); previously passed CLI wake tests do not need repeating.
 
-The installed MCP submission/continuation path has a user-confirmed pass, with task/log/delivery correlation recorded in [live evidence](live-e2e.md#installed-mcp-workflow). Keep this procedure for a new installation or relevant change; an already passed run does not need repeating. A separate active-job restart/rebind/continuation pass covers Desktop 26.1021.22027/plugin 0.1.5; clean UI installation, other host versions and real multi-day renewal remain separate.
+AgentJobRelay v0.1.8 is verified with ChatGPT Desktop on Linux, including same-chat continuation after task completion; see [live verification](live-e2e.md#linux-chatgpt-desktop). Use this procedure for a new installation or relevant change. Do not repeat an unchanged passed workflow merely to refill evidence.
 
 ## 1. Install or update the runtime
 
@@ -38,9 +38,9 @@ Then check:
 
 Expected: version matches the bundle, owned marketplace entry matches, and `stdio_self_check.status=passed` with 20 tools. `daemon=stopped` is normal before a submission; the check must not start a workload. This result establishes local installation/configuration/stdio only. For a source build, follow the [local installation walkthrough](source-install.md) ([简体中文](source-install.zh-CN.md)) first.
 
-## 2. Refresh the plugin in Desktop
+## 2. Refresh the plugin in ChatGPT Desktop
 
-Restart/reconnect Desktop and use its Plugins interface to refresh/reinstall AgentJobRelay from the existing local marketplace. A newly created marketplace is `agent-job-relay-local`, labeled AgentJobRelay Local; an older one may have a custom name/label. Select `agent-job-relay@agent-job-relay-local` for a new catalog. Disable the separate online candidate `agent-job-relay@agent-job-relay` if enabled; its unpublished npm runtime cannot qualify local acceptance. Keep the native installation present. Legacy caches without the new runtime profile require host refresh first; do not try to repair them by changing their receipts.
+Restart/reconnect ChatGPT Desktop and use its Plugins interface to refresh/reinstall AgentJobRelay from the existing local marketplace. A newly created marketplace is `agent-job-relay-local`, labeled AgentJobRelay Local; an older one may have a custom name/label. Select `agent-job-relay@agent-job-relay-local` for a new catalog. Disable the separate online candidate `agent-job-relay@agent-job-relay` if enabled; its unpublished npm runtime cannot qualify local acceptance. Keep the native installation present. Legacy caches without the new runtime profile require host refresh first; do not try to repair them by changing their receipts.
 
 Open a new local chat and select the plugin. Expected: the plugin and its MCP tools are available, without changing other plugins. Record UI discovery separately from tool connectivity. If the host offers no refresh or cannot load the plugin, record that host/version limitation and stop this acceptance path.
 
@@ -94,21 +94,21 @@ Expected: the original state path is retained; the same unmodified bundle report
 
 Use pass/fail/not tested for each item. Record host/app version, OS, actual submission route and job/delivery IDs privately; do not publish endpoints, credentials, databases or raw private logs. Keep the runtime delivery state separate from your observation of continuation. Use the restart/rebind procedure below only when explicitly testing that scenario. Real multi-day renewal remains a separate check.
 
-## Desktop restart and same-chat rebinding
+## ChatGPT Desktop restart and same-chat rebinding
 
-This separate acceptance checks a changed real host endpoint and an existing job target. It does not repeat the passed ordinary MCP continuation test. Native Desktop UI/restart needs a human operator when computer tools expose browsers only; record that limit instead of claiming an observed UI action.
+This separate acceptance checks a changed real host endpoint and an existing job target. It does not repeat the passed ordinary MCP continuation test. Native ChatGPT Desktop UI/restart needs a human operator when computer tools expose browsers only; record that limit instead of claiming an observed UI action.
 
 1. Record the actual app version and whether AgentJobRelay is visibly installed/enabled in the Plugins interface. Preserve existing configuration and other plugins. Keep the installed runtime/profile unchanged unless an update is separately needed.
-2. From this chat's terminal, obtain a fresh binding with the installed plugin launcher. Choose a fresh directory beneath the repository’s `.tmp/` and resolve its full non-symlink path from the current terminal; substitute that value for `<probe-directory>` in both commands below. Privately retain the session/instance fingerprint and submit `python3 scripts/check_desktop_restart.py wait --directory <probe-directory> --timeout 1800` through MCP `job_start`, with the repository cwd, that exact binding and a bounded job timeout. Use a fresh path; the script creates it. Retain the returned job/target IDs. The script's ready marker establishes only a waiting test command, not a Desktop result. End the submitting turn.
-3. Quit/reopen Desktop normally, reopen this same chat and confirm that the plugin is still available. Report the app version and actual restart; no assistant process kill or configuration rewrite is needed.
+2. From this chat's terminal, obtain a fresh binding with the installed plugin launcher. Choose a fresh directory beneath the repository’s `.tmp/` and resolve its full non-symlink path from the current terminal; substitute that value for `<probe-directory>` in both commands below. Privately retain the session/instance fingerprint and submit `python3 scripts/check_desktop_restart.py wait --directory <probe-directory> --timeout 1800` through MCP `job_start`, with the repository cwd, that exact binding and a bounded job timeout. Use a fresh path; the script creates it. Retain the returned job/target IDs. The script's ready marker establishes only a waiting test command, not a ChatGPT Desktop result. End the submitting turn.
+3. Quit/reopen ChatGPT Desktop normally, reopen this same chat and confirm that the plugin is still available. Report the app version and actual restart; no assistant process kill or configuration rewrite is needed.
 4. In the reopened chat, use the installed launcher's `session recover` preview. Compare the new host instance with the private baseline and match the pending target to the retained job. Apply only the same-chat recovery requested for this test, preserving job/target/delivery history. An unchanged host instance establishes reconnect only, not a restarted bridge. An in-flight target is skipped; inspect its recorded outcome rather than polling or replaying the command.
 5. After successful recovery, release the existing command with `python3 scripts/check_desktop_restart.py release --directory <probe-directory>` from the repository. End the turn. The same chat should continue from its completion notification, read the matching result and correlate the recovered target/event/delivery. The command is never resubmitted. The FIFO uses an OS wait with a deadline, not Agent polling.
 
-Record UI/restart as observed or user-attested, old/new bridge identity comparison, recovered job/target correlation, host acceptance and actual continuation separately. Do not expose private endpoints or session keys. A timeout, missing tools or failed rebind is a failed/incomplete acceptance with preserved state. The script's `ui_restart_observed=false` deliberately cannot attest to the UI. This active-job scenario does not establish recovery of an event that completed while Desktop was closed, receiver deduplication or multi-day renewal.
+Record UI/restart as observed or user-attested, old/new bridge identity comparison, recovered job/target correlation, host acceptance and actual continuation separately. Do not expose private endpoints or session keys. A timeout, missing tools or failed rebind is a failed/incomplete acceptance with preserved state. The script's `ui_restart_observed=false` deliberately cannot attest to the UI. This active-job scenario does not establish recovery of an event that completed while ChatGPT Desktop was closed, receiver deduplication or multi-day renewal.
 
 ## Optional: isolated installation and cache protection
 
-This checks the new local file-management workflow without writing personal settings or contacting Desktop. Run from the repository root with AJR_BUNDLE set. It uses a new repository-local directory and a repo-local marketplace:
+This checks the new local file-management workflow without writing personal settings or contacting ChatGPT Desktop. Run from the repository root with AJR_BUNDLE set. It uses a new repository-local directory and a repo-local marketplace:
 
 ```bash
 mkdir -p .tmp
@@ -132,14 +132,14 @@ Expected: the last command fails with a modified-file error, leaving your edit a
 
 ## Self-hosted marketplace candidate
 
-The npm packages are unpublished and their names are provisional. First run the isolated [candidate checks](release.md#build-and-verify-locally); do not treat a loopback-registry pass as a normal online installation. After the exact reviewed runtime npm version and marketplace commit are publicly available, manually qualify a clean supported Linux Desktop profile:
+The npm packages are unpublished and their names are provisional. First run the isolated [candidate checks](release.md#build-and-verify-locally); do not treat a loopback-registry pass as a normal online installation. After the exact reviewed runtime npm version and marketplace commit are publicly available, manually qualify a clean supported Linux ChatGPT Desktop profile:
 
-1. Confirm Node.js 20+/npm are on the Desktop/terminal PATH. Add `MorningFrog/agent-job-relay` with `codex plugin marketplace add`, restart Desktop and choose the **AgentJobRelay** marketplace. Expected: one AgentJobRelay entry with the correct version and an explicit experimental Linux/Windows support description.
+1. Confirm Node.js 20+/npm are on the ChatGPT Desktop/terminal PATH. Add `MorningFrog/agent-job-relay` with `codex plugin marketplace add`, restart ChatGPT Desktop and choose the **AgentJobRelay** marketplace. Expected: one AgentJobRelay entry with the correct version and an explicit experimental Linux/Windows support description.
 2. Install/enable it in a new local chat and invoke `job_doctor`. Expected: actual MCP connectivity and the reviewed packaged version; no developer executable path is requested. CLI loader discovery alone is insufficient.
 3. Ask for a harmless short background command and completion in that chat. Expected: a fresh current-terminal binding, one job/run, correct result and correlated completion/continuation. Distinguish admission from observed execution. An unrelated chat must receive nothing.
 4. Inspect the selected persistent profile before and after host refresh/removal. Expected: state stays outside caches and history is retained; no daemon is stopped implicitly. If migrating an offline installation, explicitly review its recorded state rather than accepting a new profile as a repair.
 
-Clean Desktop UI installation/public-registry acceptance remains open. The earlier installed 0.1.5 active-job restart/continuation scenario is already qualified separately and need not be repeated merely to refill evidence. OpenCode real-provider/restart and Claude account-backed checks remain in [host plugins](host-plugins.md).
+Public-registry installation of this online candidate remains to be verified after publication. The local v0.1.8 Linux ChatGPT Desktop workflow is verified separately. OpenCode real-provider/restart and Claude account-backed checks remain in [host plugins](host-plugins.md).
 
 ## Windows automatic startup
 

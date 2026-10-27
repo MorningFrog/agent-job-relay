@@ -14,7 +14,7 @@ The daemon reports its launch method through doctor. Default `AJR_WINDOWS_STARTU
 
 ## Verification
 
-Native regressions cover cold launch inside a non-breakaway job, Unicode/quoted paths and environment, removal of chat identities, capture EOF, destruction of the host's cleanup job, daemon-crash restart without replay, direct-only refusal, incorrect parent instances/images and restricted/low-integrity token refusal. Actual installed Codex model/MCP acceptance must begin with no prestarted daemon. Ordinary interactive-user and real Windows Desktop acceptance remain separate from guest-agent SYSTEM tests.
+Native regressions cover cold launch inside a non-breakaway job, Unicode/quoted paths and environment, removal of chat identities, capture EOF, destruction of the host's cleanup job, daemon-crash restart without replay, direct-only refusal, incorrect parent instances/images and restricted/low-integrity token refusal. Actual installed Codex model/MCP acceptance must begin with no prestarted daemon. Ordinary interactive-user and real Windows ChatGPT Desktop acceptance remain separate from guest-agent SYSTEM tests.
 
 ## Sources
 

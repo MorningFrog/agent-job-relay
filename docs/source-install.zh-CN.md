@@ -2,7 +2,7 @@
 
 [English](source-install.md) | 简体中文
 
-本教程将 Linux x86_64/glibc 原生程序安装到稳定的用户目录，并登记个人 **AgentJobRelay Local** 市场。新建市场时，在 Desktop 中应选择 **`agent-job-relay@agent-job-relay-local`**。仅完成编译不会安装或启用插件。
+本教程将 Linux x86_64/glibc 原生程序安装到稳定的用户目录，并登记个人 **AgentJobRelay Local** 市场。新建市场时，在 ChatGPT Desktop 中应选择 **`agent-job-relay@agent-job-relay-local`**。仅完成编译不会安装或启用插件。
 
 仓库自带的 `.agents/plugins/marketplace.json` 对应另一个在线候选入口 `agent-job-relay@agent-job-relay`。它的 MCP 启动器会下载尚未发布的 npm 运行时，目前会报 `E404`。本地安装教程不需要把这个源码仓库添加为 marketplace，也不需要 Node.js 或 npm。
 
@@ -75,7 +75,7 @@ AJR_INSTALL_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/agent-job-relay"
 "$AJR_BUNDLE/relay" plugin update --root "$AJR_INSTALL_ROOT" --from "$AJR_BUNDLE" --apply
 ```
 
-预期：预览保留原状态目录，apply 保留历史并报告生成的备份。更新不会自动停止 daemon。遇到活动任务、所有权或降级错误时，应停止并诊断，不要换用新状态目录绕过错误。这一步更新的是受管理运行时；Desktop 插件及缓存仍需执行第 6 步。
+预期：预览保留原状态目录，apply 保留历史并报告生成的备份。更新不会自动停止 daemon。遇到活动任务、所有权或降级错误时，应停止并诊断，不要换用新状态目录绕过错误。这一步更新的是受管理运行时；ChatGPT Desktop 插件及缓存仍需执行第 6 步。
 
 ## 5. 检查已安装入口
 
@@ -84,15 +84,15 @@ AJR_INSTALL_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/agent-job-relay"
 "$AJR_INSTALL_ROOT/relay" doctor --client plugin --check-mcp
 ```
 
-预期：已安装版本与构建版本一致，受管理的 marketplace 条目匹配，`stdio_self_check.status` 为 `passed`，工具数为 20。首次提交任务前 daemon 处于 stopped 状态是正常的。该检查不提交任务，只验证本机 stdio 工具发现，不能证明 Desktop 已连接或聊天能自动续接。
+预期：已安装版本与构建版本一致，受管理的 marketplace 条目匹配，`stdio_self_check.status` 为 `passed`，工具数为 20。首次提交任务前 daemon 处于 stopped 状态是正常的。该检查不提交任务，只验证本机 stdio 工具发现，不能证明 ChatGPT Desktop 已连接或聊天能自动续接。
 
 请保留 AJR_INSTALL_ROOT：缓存中的 MCP 和终端启动器都使用该目录中的原生程序。仅重新编译 `target/release` 不会更新已安装运行时。任务状态和历史另行保存；状态配置、更新和卸载见[维护指南](installation.md)。
 
-## 6. 在 Desktop 中安装并选择正确的插件
+## 6. 在 ChatGPT Desktop 中安装并选择正确的插件
 
-1. 重启 Desktop，打开 **Plugins**。
+1. 重启 ChatGPT Desktop，打开 **Plugins**。
 2. 选择个人市场 **AgentJobRelay Local**，安装并启用其中的 **AgentJobRelay**。若个人市场原来有其他名称，按 `$HOME/.agents/plugins/marketplace.json` 中的实际名称选择。
-3. 如果在线候选入口 `agent-job-relay@agent-job-relay` 已启用，先通过 Desktop 停用该候选入口，再验收本地插件，保留其他插件不变。
+3. 如果在线候选入口 `agent-job-relay@agent-job-relay` 已启用，先通过 ChatGPT Desktop 停用该候选入口，再验收本地插件，保留其他插件不变。
 4. 新建一个**本地聊天**，输入 `@AgentJobRelay`，选择来自本地市场的条目。新建市场时，其引用为 `plugin://agent-job-relay@agent-job-relay-local`。
 
 如果已经安装 Codex CLI，新建本地市场的显式安装命令为：
@@ -101,7 +101,7 @@ AJR_INSTALL_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/agent-job-relay"
 codex plugin add agent-job-relay@agent-job-relay-local
 ```
 
-然后仍需按上文重启或重连 Desktop，并打开新的本地聊天。CLI 安装本身不能证明 Desktop 的 MCP 可用。界面名称及可用性取决于宿主版本；若看不到本地市场，应检查第 5 步及市场文件路径，不要改为添加本仓库的在线市场。
+然后仍需按上文重启或重连 ChatGPT Desktop，并打开新的本地聊天。CLI 安装本身不能证明 ChatGPT Desktop 的 MCP 可用。界面名称及可用性取决于宿主版本；若看不到本地市场，应检查第 5 步及市场文件路径，不要改为添加本仓库的在线市场。
 
 ## 7. 先验证 MCP，再提交长任务
 
@@ -119,4 +119,4 @@ codex plugin add agent-job-relay@agent-job-relay-local
 
 ## 能看到技能，但没有 job_start 时
 
-先核对选中的市场入口。`agent-job-relay-runtime` 的 `npm E404` 表示正在使用尚未发布的在线候选版，应按第 6 步安装并选择本地市场条目，然后新建聊天。若第 5 步成功但本地条目仍无工具，应刷新或重新安装该条目并重连 Desktop MCP；宿主仍无法加载时停止验收。不要手改缓存清单、移动状态目录，或改用其他插件提交任务来完成验收。
+先核对选中的市场入口。`agent-job-relay-runtime` 的 `npm E404` 表示正在使用尚未发布的在线候选版，应按第 6 步安装并选择本地市场条目，然后新建聊天。若第 5 步成功但本地条目仍无工具，应刷新或重新安装该条目并重连 ChatGPT Desktop MCP；宿主仍无法加载时停止验收。不要手改缓存清单、移动状态目录，或改用其他插件提交任务来完成验收。

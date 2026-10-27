@@ -10,7 +10,7 @@ Source 0.1.8 implements Linux/Windows native execution, offline plugin maintenan
 
 - [ ] **P1:** finalize npm account/ownership, package names and publisher provenance; review the tested artifacts before approved publication, then verify public-registry installation. See [release preparation](release.md).
 - [ ] **P1:** after approved push, run the updated native Windows CI and manually triggered dual-platform release workflow. Earlier remote CI does not verify these updated jobs.
-- [ ] **P1:** verify clean Desktop UI installation, additional host versions, results completed while Desktop is closed, real multi-day renewal and receiver deduplication. Keep the passed active-job restart/rebind/continuation scenario complete; do not repeat it merely to refill evidence.
+- [ ] **P1:** verify additional ChatGPT Desktop versions, results completed while ChatGPT Desktop is closed, real multi-day renewal and receiver deduplication. Keep the completed Linux ChatGPT Desktop acceptance complete; do not repeat it merely to refill evidence.
 - [ ] **P1:** obtain OpenCode real-provider, server restart/recovery and broader version evidence. Keep V2 as a separate future entry; consolidate shared descriptor metadata only where useful and test each actual loader.
 - [ ] **P1, community help:** verify Claude's actual loader, skill session substitution and account-backed MCP workflow. Research public asyncRewake/channels before implementing continuation; keep the scaffold inbox-only until verified. See [host plugins](host-plugins.md) and [contributing](../CONTRIBUTING.md).
 - [ ] **P1:** qualify host-driven bootstrap and authenticated artifact provenance. Offline hashes and loopback registry checks do not establish online publisher identity.
@@ -18,7 +18,7 @@ Source 0.1.8 implements Linux/Windows native execution, offline plugin maintenan
 
 ## Runtime and maintenance
 
-- [ ] **P1:** verify Windows ordinary interactive-user execution and real Desktop continuation. Existing native/model checks ran under guest-agent SYSTEM; consult the [Windows guide](windows.md) for the verified daemon-only CIM route and policy/token fallback.
+- [ ] **P1:** verify real Windows ChatGPT Desktop same-chat continuation after application sign-in. Native and ordinary-user MCP execution are verified; see the [Windows guide](windows.md) for the daemon-only CIM route and policy/token fallback.
 - [ ] **P1:** implement and natively verify macOS process identity, lifecycle and IPC. Plugin packaging and portable compilation do not establish runtime support.
 - [ ] **P1:** strengthen Linux containment for escaped descendants/runner death and add longer soak plus controlled disk/power-loss tests. Current process-group cancellation assumes trusted non-daemonizing workloads.
 - [ ] **P1:** strengthen per-call identity authentication for shared hosts. Current caller identity is trusted input; never infer it from a latest-session record.

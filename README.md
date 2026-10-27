@@ -9,13 +9,13 @@ Tasks run in the background. Agents pick up when needed.
 任务在后台运行，Agent 在需要时接棒。
 </div>
 
-Run long commands independently of the Agent connection, keep their results, and notify the initiating chat when the host supports it. **v0.1.8 is an unreleased Linux/Windows x86_64 development version.** Desktop wake uses an experimental interface; Windows Desktop continuation is unverified and macOS runtime is unsupported. OpenCode V1 has an experimental plugin package candidate; Claude Code has an inbox-only development framework that needs community verification.
+Run long commands independently of the Agent connection, keep their results, and notify the initiating chat when the host supports it. **v0.1.8 is an unreleased Linux/Windows x86_64 development version.** ChatGPT Desktop wake uses an experimental interface; Windows ChatGPT Desktop continuation is unverified and macOS runtime is unsupported. OpenCode V1 has an experimental plugin package candidate; Claude Code has an inbox-only development framework that needs community verification.
 
 For OpenCode/Claude development setup and evidence boundaries, see [host plugins](docs/host-plugins.md).
 
 ## Quick install
 
-For Desktop, use a trusted offline bundle for your Linux system. For an existing installation, go directly to [Updating](#updating). For a first installation, open a terminal in the received bundle directory and run:
+For ChatGPT Desktop, use a trusted offline bundle for your Linux system. For an existing installation, go directly to [Updating](#updating). For a first installation, open a terminal in the received bundle directory and run:
 
 ```bash
 ./relay plugin bootstrap --dry-run
@@ -24,7 +24,7 @@ For Desktop, use a trusted offline bundle for your Linux system. For an existing
 
 This installs the native runtime and registers its local plugin marketplace. No Rust, Python or Node is needed. Preview is the default; `--apply` writes the installation and owned configuration. There is no public download or automatic online installer yet. If you only have source, follow [Install from source](#install-from-source).
 
-Restart Desktop, open Plugins, select your local marketplace (**AgentJobRelay Local** for a new marketplace), and install/enable AgentJobRelay. Start a new local chat and select `agent-job-relay@agent-job-relay-local` (or your existing personal marketplace's name). The separate `agent-job-relay@agent-job-relay` entry uses the unpublished npm runtime and is not the working local installation. Host UI discovery still requires manual acceptance on your host version.
+Restart ChatGPT Desktop, open Plugins, select your local marketplace (**AgentJobRelay Local** for a new marketplace), and install/enable AgentJobRelay. Start a new local chat and select `agent-job-relay@agent-job-relay-local` (or your existing personal marketplace's name). The separate `agent-job-relay@agent-job-relay` entry uses the unpublished npm runtime and is not the working local installation. Host UI discovery still requires manual acceptance on your host version.
 
 Check the default installation:
 
@@ -42,7 +42,7 @@ Use a trusted Windows offline bundle and its `relay.cmd` launcher. Native execut
 
 ## Use from chat
 
-Ask in a local Desktop chat with the plugin selected:
+Ask in a local ChatGPT Desktop chat with the plugin selected:
 
 > Run this project's tests in the background and tell me when they finish.
 
@@ -105,17 +105,17 @@ The GitHub **Release candidate** workflow runs manually only: it builds artifact
 
 ## Install from source
 
-Follow the [step-by-step local source installation](docs/source-install.md) ([简体中文](docs/source-install.zh-CN.md)). It covers prerequisites, checkout, compilation, bundle export, first installation or history-preserving update, Desktop selection and an actual MCP check, with expected results at each step.
+Follow the [step-by-step local source installation](docs/source-install.md) ([简体中文](docs/source-install.zh-CN.md)). It covers prerequisites, checkout, compilation, bundle export, first installation or history-preserving update, ChatGPT Desktop selection and an actual MCP check, with expected results at each step.
 
-The result is the native local plugin in **AgentJobRelay Local**, normally referenced as `agent-job-relay@agent-job-relay-local`. No npm publication or Node.js installation is required. Building alone does not install it; complete the bootstrap/update and Desktop steps. Windows source commands are in the [Windows guide](docs/windows.md#build-when-no-bundle-is-available); developer gates are in [testing](docs/testing.md).
+The result is the native local plugin in **AgentJobRelay Local**, normally referenced as `agent-job-relay@agent-job-relay-local`. No npm publication or Node.js installation is required. Building alone does not install it; complete the bootstrap/update and ChatGPT Desktop steps. Windows source commands are in the [Windows guide](docs/windows.md#build-when-no-bundle-is-available); developer gates are in [testing](docs/testing.md).
 
 ## Implementation and verification
 
 | Area | Implementation | Verification and remaining scope |
 |---|---|---|
 | Linux runtime and offline maintenance | Implemented | Automated execution, lifecycle, recovery and installation tests pass. |
-| Windows runtime and automatic startup | Implemented | Native VM tests and actual Codex MCP cold startup pass; ordinary interactive-user execution and Desktop continuation remain unverified. |
-| Desktop same-chat continuation | Experimental private interface | Installed plugin 0.1.5 passed active-job restart/rebind/continuation. UI actions are user-attested; matching records and Agent execution were observed. Clean UI installation and broader compatibility remain open. |
+| Windows runtime and automatic startup | Implemented | Native VM tests and actual Codex MCP cold startup under an ordinary interactive user pass; ChatGPT Desktop continuation remains to be verified. |
+| ChatGPT Desktop same-chat continuation | Verified on Linux | v0.1.8 is verified with ChatGPT Desktop on Linux, including same-chat continuation after task completion. |
 | OpenCode V1 | Experimental plugin candidate | Actual loader, MCP and session API pass with a simulated model; real-provider sessions, restart recovery and V2 remain open. |
 | Claude Code | Inbox-only scaffold | Synthetic caller and MCP launcher checks pass; actual Claude loader/account/model verification needs community help. |
 | npm runtime and self-hosted marketplace | Candidates prepared, unpublished | Installed package and loader checks pass on Linux/Windows using a loopback registry; public-registry installation remains pending. |

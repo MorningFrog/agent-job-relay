@@ -20,9 +20,9 @@ Shared mode rejects `wake_me=true` and MCP `job_connect_session`, even if its en
 
 ## Diagnostics and acceptance
 
-CLI doctor reports daemon/configuration/context separately and works before a daemon exists. `doctor --check-mcp` initializes a private stdio subprocess and discovers its tools, without launching workloads, probing or messaging Desktop. This is a local self-check, not a claim that the user's host loaded the plugin. Only an actual `job_doctor` tool invocation reports a responding MCP host connection. No host acknowledgement is upgraded to confirmed Agent execution.
+CLI doctor reports daemon/configuration/context separately and works before a daemon exists. `doctor --check-mcp` initializes a private stdio subprocess and discovers its tools, without launching workloads, probing or messaging ChatGPT Desktop. This is a local self-check, not a claim that the user's host loaded the plugin. Only an actual `job_doctor` tool invocation reports a responding MCP host connection. No host acknowledgement is upgraded to confirmed Agent execution.
 
-Automated evidence includes installed launcher/cache relocation, ownership/data preservation and actual shared stdio MCP with two terminal bindings and a fake Desktop host. A new real-host acceptance should install/configure once, invoke one real task through the plugin in a new chat without tool paths in its prompt, end the turn and observe same-chat continuation. The plugin browser/install UI and that real-host workflow remain unverified until separately observed. No repeated artificial CLI wake or manual crash matrix is required of the user.
+Automated evidence includes installed launcher/cache relocation, ownership/data preservation and actual shared stdio MCP with two terminal bindings and a fake ChatGPT Desktop host. A new real-host acceptance should install/configure once, invoke one real task through the plugin in a new chat without tool paths in its prompt, end the turn and observe same-chat continuation. The plugin browser/install UI and that real-host workflow remain unverified until separately observed. No repeated artificial CLI wake or manual crash matrix is required of the user.
 
 Official references consulted:
 

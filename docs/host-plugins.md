@@ -1,17 +1,17 @@
 # Host plugins and community verification
 
-One Rust/MCP runtime remains responsible for jobs, results, outbox attempts, recovery and leases. Host packages supply actual caller identity and translate a completion request to that host's public API. Shared runtime/OpenCode npm candidates and a self-hosted ChatGPT marketplace are prepared but unpublished; final npm names/account verification are pending. They are not official directory listings. Linux and Windows x86_64 have verified native runtimes; Windows Desktop acceptance remains separate.
+One Rust/MCP runtime remains responsible for jobs, results, outbox attempts, recovery and leases. Host packages supply actual caller identity and translate a completion request to that host's public API. Shared runtime/OpenCode npm candidates and a self-hosted ChatGPT marketplace are prepared but unpublished; final npm names/account verification are pending. They are not official directory listings. Linux and Windows x86_64 have verified native runtimes; Windows ChatGPT Desktop acceptance remains separate.
 
 ## Current evidence
 
 | Host | Entry point | Verified | Still needed |
 |---|---|---|---|
-| Codex/Desktop | Existing offline bundle and shared MCP | Actual Codex CLI loader; Desktop 26.1021.22027/plugin 0.1.5 restart/rebind/continuation | Broader versions, clean UI installation, real multi-day renewal |
+| ChatGPT Desktop/Codex | Existing offline bundle and shared MCP | Actual Codex CLI loader; ChatGPT Desktop 26.1021.22027/plugin 0.1.5 restart/rebind/continuation | Broader versions, clean UI installation, real multi-day renewal |
 | OpenCode V1 | `plugins/opencode-v1/index.mjs` plus core MCP | Actual Linux/Windows 1.19.4 loader, MCP submission, caller binding, completion admission and subsequent agent-loop response; local simulated model | Community real-provider/account sessions, server restart/recovery, broader versions and platforms |
 | OpenCode V2 | Research/migration map below | Official interfaces researched; no V2 entry point claimed | Implement and test against an actual V2 loader |
 | Claude Code | `.claude-plugin/plugin.json`, `.mcp.json`, skill and inbox binder | Synthetic caller separation, actual shared-MCP entry point/discovery/submission | Actual Claude loader, skill substitution and account-backed session testing; no maintainer account is available |
 
-**Community testers and PRs are welcome, especially for Claude Code.** Please use the evidence checklist in [CONTRIBUTING.md](../CONTRIBUTING.md). Docker-based reproducible verification and version-matrix PRs are welcome; no tested Docker image is claimed. A container can validate a CLI/plugin interface but does not establish Desktop UI or a real account/provider session.
+**Community testers and PRs are welcome, especially for Claude Code.** Please use the evidence checklist in [CONTRIBUTING.md](../CONTRIBUTING.md). Docker-based reproducible verification and version-matrix PRs are welcome; no tested Docker image is claimed. A container can validate a CLI/plugin interface but does not establish ChatGPT Desktop UI or a real account/provider session.
 
 ## OpenCode V1 development setup
 
@@ -38,7 +38,7 @@ Published candidates default to their bundled runtime and persistent opencode pr
 
 On Windows, use the bundled `.exe` and a persistent Windows path (JSON requires escaped backslashes). The native helper pins the Node/Bun pipe's server process and secures its owner/DACL before registration. For Windows candidate checks and Windows automatic-startup/fallback behavior, see [Windows operation](windows.md).
 
-The `tool.execute.before` hook obtains the real `sessionID`, verifies it through the public session API, registers/probes an owned bridge, then supplies `spec.session` to the actual MCP `job_start`. It overrides model-supplied caller keys. The plugin adds workflow guidance; everyday prompts need no internal path or session key. Other MCP tools stay available from the same core. Do not use Desktop `session connect`/`wake_me` in this host.
+The `tool.execute.before` hook obtains the real `sessionID`, verifies it through the public session API, registers/probes an owned bridge, then supplies `spec.session` to the actual MCP `job_start`. It overrides model-supplied caller keys. The plugin adds workflow guidance; everyday prompts need no internal path or session key. Other MCP tools stay available from the same core. Do not use ChatGPT Desktop `session connect`/`wake_me` in this host.
 
 The plugin's private Unix socket / Windows named pipe accepts only sessions observed from actual tool contexts. The core pins its endpoint fingerprint; completion metadata contains stable IDs and status, never command output. The plugin uses the public `client.session.promptAsync` API. Acceptance means the host admitted a prompt, not that a model ran. In-process delivery-ID dedupe is bounded; persisted receiver dedupe across restart is not established. An abrupt host exit can leave its private instance directory for inspection; no cache/bridge-directory sweep or data purge runs.
 
@@ -67,7 +67,7 @@ AJR_EXECUTABLE="$PWD/target/release/agent-job-relay" AJR_STATE_DIR="$PWD/.tmp/cl
 
 This is an account-backed community acceptance command, not a locally verified Claude run. Use an explicit persistent state location for regular use, outside the plugin cache and `CLAUDE_PLUGIN_DATA`; host plugin removal can remove its own data directory. No personal Claude configuration is edited by the scaffold.
 
-The skill passes the host-substituted `${CLAUDE_SESSION_ID}` to `scripts/bind.mjs`. Missing/literal placeholders are refused before state is created. The helper registers an exact **inbox-only** identity and returns its session key; the skill supplies it to MCP `job_start`. A shared MCP process never supplies the caller. This is durable job execution and explicit result inspection, **not automatic Claude wake**. No Desktop socket, guessed resume command or second Claude writer is used.
+The skill passes the host-substituted `${CLAUDE_SESSION_ID}` to `scripts/bind.mjs`. Missing/literal placeholders are refused before state is created. The helper registers an exact **inbox-only** identity and returns its session key; the skill supplies it to MCP `job_start`. A shared MCP process never supplies the caller. This is durable job execution and explicit result inspection, **not automatic Claude wake**. No ChatGPT Desktop socket, guessed resume command or second Claude writer is used.
 
 The official [hook reference](https://code.claude.com/docs/en/hooks#run-hooks-in-the-background) describes `asyncRewake`, and [MCP channels](https://code.claude.com/docs/en/channels-reference) are another research direction. Their account/version behavior, session lifetime, delivery semantics and permissions need community evidence before a continuation adapter is implemented. This package installs neither hooks nor channels.
 

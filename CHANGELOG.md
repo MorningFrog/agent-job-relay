@@ -11,7 +11,7 @@
 - Add private SID/DACL named pipes, peer process-instance checks, non-inheriting native daemon/runner launch and runner-owned Job Objects for Windows x86_64; reuse durable state, delivery/recovery, bounded logs, cancellation/timeouts and offline maintenance.
 - Add explicit `daemon start [--install-root]` without a job/session side effect. Windows Codex 0.164.0 MCP forbids breakaway, so it needs same-profile startup from an outside terminal; no runtime service/WMI escape is used.
 - Bundle Linux and Windows in the shared npm runtime with per-platform integrity metadata, static Windows CRT, `.cmd` terminal support and portable pinned MCP startup. Secure OpenCode's Windows Node/Bun pipe before registering callers.
-- Verify actual Windows npm installation, Codex catalog/MCP discovery and OpenCode matching-session continuation with a simulated model. Separately verify an installed Codex MCP task through Codex-Manager using `gpt-6.1-sol`/`low` and a prestarted daemon under guest-agent SYSTEM; ordinary-user/Windows Desktop continuation remains open.
+- Verify actual Windows npm installation, Codex catalog/MCP discovery and OpenCode matching-session continuation with a simulated model. Separately verify an installed Codex MCP task through Codex-Manager using `gpt-6.1-sol`/`low` and a prestarted daemon under guest-agent SYSTEM; ordinary-user/Windows ChatGPT Desktop continuation remains open.
 - Extend native Windows CI and manual release preparation to assemble and check both platforms from one revision. Remote workflow acceptance and publication remain pending.
 
 ## 0.1.6 — 2026-10-26 (unreleased plugin delivery candidate)
@@ -30,14 +30,14 @@
 
 - Durably stage installation/cache replacements and publish a sibling operation journal before renaming directories; block overlapping lifecycle changes until repair.
 - Add `plugin repair --path` preview/apply to finish the recorded replacement, validate original/staged/backup files and profiles, retain backups/history and respect active-runtime locks. No automatic daemon stop, schema rollback or global cache scan.
-- Defer Claude Code/OpenCode adapters until a later environment, potentially using Docker. Desktop UI/restart verification requires separate observed evidence.
+- Defer Claude Code/OpenCode adapters until a later environment, potentially using Docker. ChatGPT Desktop UI/restart verification requires separate observed evidence.
 
 ## 0.1.4 — 2026-10-26 (unreleased plugin runtime lifecycle)
 
 - Export a relocatable offline native plugin bundle; bootstrap validates the bundle and installation/marketplace ownership before writing, with no recipient Rust/Python/Node toolchain.
 - Update from checked local bundles while retaining the recorded state and refusing downgrades, active runtimes and modified/foreign files; generate plugin version metadata from the actual package version.
 - Route cached terminal and MCP entry points to the same managed native runtime; add explicit cache status and backed-up snapshot refresh, including update preflight across selected caches. Never scan/delete caches or change host enablement.
-- Qualify offline bootstrap/cache handling with the actual isolated Codex loader and 20 MCP tools, without touching personal settings or a real Desktop endpoint.
+- Qualify offline bootstrap/cache handling with the actual isolated Codex loader and 20 MCP tools, without touching personal settings or a real ChatGPT Desktop endpoint.
 - Record the user-confirmed installed MCP submission/same-chat continuation pass without CLI fallback; read-only review matches successful completion and one accepted delivery. Host continuation remains user-attested; no automatic confirmed-resume capability or publication is claimed.
 - Remove README wording/structure assertions, retain behavioral tests/fixtures, and keep current verification concise with generated artifacts ignored.
 
@@ -72,7 +72,7 @@
 - Independent Linux runner and process groups with durable launch claims, conservative recovery, capped logs, cancellation and timeout.
 - SQLite jobs/runs/events, session leases, transactional delivery outbox, fenced attempts, retry/TTL/dead letters and exact target rebinding.
 - Official rmcp stdio tools, Codex configuration and notification inbox.
-- Opt-in experimental Desktop Unix socket transport with explicit identity/capability checks and fake-host coverage.
+- Opt-in experimental ChatGPT Desktop Unix socket transport with explicit identity/capability checks and fake-host coverage.
 - One-flag `start --wake` / MCP wake_me=true: current-context registration, lease refresh and preflight; on-demand detached daemon and safe `daemon stop`.
 - Dry-run setup, backed-up owned configuration edits, safe integration removal, CLI diagnostics and bilingual onboarding.
 - Stable local native/Plugin install and uninstall with owned-file SHA-256 checks, retained state profiles/backups, relocatable launcher and local marketplace setup.

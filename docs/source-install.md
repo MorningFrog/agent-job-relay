@@ -2,7 +2,7 @@
 
 English | [简体中文](source-install.zh-CN.md)
 
-This walkthrough installs the native Linux x86_64/glibc build into a stable user directory and registers the personal **AgentJobRelay Local** marketplace. With a newly created marketplace, select **`agent-job-relay@agent-job-relay-local`** in Desktop. Building alone does not install or enable the plugin.
+This walkthrough installs the native Linux x86_64/glibc build into a stable user directory and registers the personal **AgentJobRelay Local** marketplace. With a newly created marketplace, select **`agent-job-relay@agent-job-relay-local`** in ChatGPT Desktop. Building alone does not install or enable the plugin.
 
 The repository's `.agents/plugins/marketplace.json` exposes the separate `agent-job-relay@agent-job-relay` online candidate. Its MCP launcher downloads an unpublished npm runtime and currently fails with `E404`. Adding the repository as a marketplace is not a step in this local installation. Neither Node.js nor npm is needed for the local plugin.
 
@@ -75,7 +75,7 @@ Use this branch instead of first-install bootstrap when updating an existing run
 "$AJR_BUNDLE/relay" plugin update --root "$AJR_INSTALL_ROOT" --from "$AJR_BUNDLE" --apply
 ```
 
-Expected: the preview retains the original state directory; apply retains history and reports any backup. Update does not stop the daemon automatically. Stop and diagnose active-job, ownership or downgrade errors; do not switch to a fresh profile to bypass them. This changes the managed runtime; the Desktop plugin/cache still needs step 6.
+Expected: the preview retains the original state directory; apply retains history and reports any backup. Update does not stop the daemon automatically. Stop and diagnose active-job, ownership or downgrade errors; do not switch to a fresh profile to bypass them. This changes the managed runtime; the ChatGPT Desktop plugin/cache still needs step 6.
 
 ## 5. Check the installed entry point
 
@@ -84,15 +84,15 @@ Expected: the preview retains the original state directory; apply retains histor
 "$AJR_INSTALL_ROOT/relay" doctor --client plugin --check-mcp
 ```
 
-Expected: the installed version matches the build, the owned marketplace entry matches, and `stdio_self_check.status` is `passed` with 20 tools. A stopped daemon before the first submission is normal. This check submits no job and establishes local stdio discovery, not Desktop tool connectivity or chat continuation.
+Expected: the installed version matches the build, the owned marketplace entry matches, and `stdio_self_check.status` is `passed` with 20 tools. A stopped daemon before the first submission is normal. This check submits no job and establishes local stdio discovery, not ChatGPT Desktop tool connectivity or chat continuation.
 
 Keep AJR_INSTALL_ROOT present: cached MCP and terminal launchers use its native executable. Rebuilding `target/release` alone does not update this installation. Task state/history stays separate; [maintenance](installation.md) covers profiles, updates and removal.
 
-## 6. Install and select the correct plugin in Desktop
+## 6. Install and select the correct plugin in ChatGPT Desktop
 
-1. Restart Desktop and open **Plugins**.
+1. Restart ChatGPT Desktop and open **Plugins**.
 2. Choose the personal **AgentJobRelay Local** marketplace, then install/enable **AgentJobRelay**. If the personal catalog already had another name, use that name from `$HOME/.agents/plugins/marketplace.json`.
-3. If the online candidate `agent-job-relay@agent-job-relay` is enabled, disable that candidate through Desktop before testing the local plugin. Keep unrelated plugins unchanged.
+3. If the online candidate `agent-job-relay@agent-job-relay` is enabled, disable that candidate through ChatGPT Desktop before testing the local plugin. Keep unrelated plugins unchanged.
 4. Open a new **local** chat. Type `@AgentJobRelay` and select the entry from the local marketplace. For a new catalog the reference is `plugin://agent-job-relay@agent-job-relay-local`.
 
 If Codex CLI is already available, the explicit installation command for a newly created local catalog is:
@@ -101,7 +101,7 @@ If Codex CLI is already available, the explicit installation command for a newly
 codex plugin add agent-job-relay@agent-job-relay-local
 ```
 
-Then restart/reconnect Desktop and open the new local chat as above. CLI installation does not by itself prove Desktop MCP availability. UI labels/availability depend on the host version; if the local marketplace is missing, check step 5 and the catalog path rather than adding this repository's online marketplace.
+Then restart/reconnect ChatGPT Desktop and open the new local chat as above. CLI installation does not by itself prove ChatGPT Desktop MCP availability. UI labels/availability depend on the host version; if the local marketplace is missing, check step 5 and the catalog path rather than adding this repository's online marketplace.
 
 ## 7. Verify MCP before a long task
 
@@ -119,4 +119,4 @@ Expected: the Agent obtains a fresh terminal binding, submits through AgentJobRe
 
 ## If the skill appears but job_start is missing
 
-Check which marketplace entry you selected. `npm E404` for `agent-job-relay-runtime` identifies the unpublished online candidate. Select/install the local marketplace entry in step 6, then use a new chat. If step 5 passes but the local entry still has no tools, refresh/reinstall that entry and reconnect Desktop MCP; stop acceptance if the host cannot load it. Do not edit cached manifests, move state or submit through a different plugin to make the check pass.
+Check which marketplace entry you selected. `npm E404` for `agent-job-relay-runtime` identifies the unpublished online candidate. Select/install the local marketplace entry in step 6, then use a new chat. If step 5 passes but the local entry still has no tools, refresh/reinstall that entry and reconnect ChatGPT Desktop MCP; stop acceptance if the host cannot load it. Do not edit cached manifests, move state or submit through a different plugin to make the check pass.

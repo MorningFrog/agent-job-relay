@@ -13,7 +13,7 @@ For each requested submission, obtain a binding from the actual current session,
 node "${CLAUDE_PLUGIN_ROOT}/scripts/bind.mjs" "${CLAUDE_SESSION_ID}"
 ```
 
-These paths and the session ID are host substitutions in skill content. If a placeholder remains literal, the ID is missing or the helper fails, stop and report it. Do not invent a session ID, read a global latest-session record or use the Codex Desktop `session connect` shortcut.
+These paths and the session ID are host substitutions in skill content. If a placeholder remains literal, the ID is missing or the helper fails, stop and report it. Do not invent a session ID, read a global latest-session record or use the Codex ChatGPT Desktop `session connect` shortcut.
 
 Pass the returned session_key as spec.session to this plugin's job_start MCP tool; omit wake_me. Keep command arguments explicit and use an absolute working directory. Retain job_id and explain that this scaffold records a durable notification inbox but cannot automatically resume Claude. End the turn for a long job without promising an automatic message. A short job may use one bounded job_wait; do not loop-poll.
 
