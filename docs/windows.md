@@ -2,7 +2,15 @@
 
 The native x86_64 runtime supports durable background execution, bounded logs, cancellation/timeouts, daemon/runner recovery, MCP, inbox notifications and offline plugin maintenance. Windows 11 VM behavior tests pass. v0.1.8 is verified with ChatGPT Desktop for actual MCP submission and same-chat continuation using Full access. Named-pipe recovery/renewal tests use simulated hosts. Ordinary Codex CLI integration has an inbox and does not automatically resume a chat.
 
-## Install a trusted Windows offline bundle
+## Install the latest published package
+
+Use the [PowerShell quick-install steps](installation.md#chatgpt-desktop--codex) to resolve npm latest and register its matching released marketplace. OpenCode uses `agent-job-relay-opencode-v1@latest`. Both routes include the Windows x86_64 native payload with a static MSVC runtime; recipient machines need Node.js 20+/npm, without Rust or Visual Studio. The catalog MCP launcher uses Node plus the system command processor to invoke pinned npx arguments; terminal use has a `relay.cmd` entry point.
+
+Default npm state lives in `%LOCALAPPDATA%\AgentJobRelay\profiles\codex` or `opencode`, outside host/npm caches. `AJR_STATE_DIR` may explicitly select an existing profile; no automatic profile migration or upgrade-driven daemon replacement occurs. OpenCode V1 targets 1.19.4. Its Node/Bun pipe is checked against the exact server process and restricted to a private DACL before sessions register.
+
+Actual Windows npm installation, native execution, history after relocation, corrupt-native refusal, Codex 0.164.0 catalog/20-tool discovery and OpenCode package-name loading/MCP submission/matching-session agent-loop continuation are checked with `scripts/check_windows_packages.mjs`. OpenCode uses a local simulated model. These checks do not establish Windows ChatGPT Desktop continuation; live evidence remains version-specific.
+
+## Alternative: a trusted Windows offline bundle
 
 Open PowerShell in the received Windows bundle directory:
 
@@ -14,17 +22,9 @@ $ajrInstall = Join-Path $env:LOCALAPPDATA 'AgentJobRelay\plugin'
 & "$ajrInstall\relay.cmd" doctor --client plugin --check-mcp
 ```
 
-Expected: the preview identifies the chosen installation/state and marketplace entry; apply installs the native executable and `.cmd` launcher. Doctor reports a successful 20-tool stdio check. A stopped daemon before the first submission is expected. The bundle needs no recipient Rust, Python or Node. Restart the host, install/enable the local plugin and separately verify host MCP connectivity. The shared 0.1.8 npm candidate also carries Windows bytes; the normal registry route remains unavailable until publication.
+Expected: the preview identifies the chosen installation/state and marketplace entry; apply installs the native executable and `.cmd` launcher. Doctor reports a successful 20-tool stdio check. A stopped daemon before the first submission is expected. The bundle needs no recipient Rust, Python or Node. Restart the host, install/enable the local plugin and separately verify host MCP connectivity.
 
 The default native installation is `%LOCALAPPDATA%\AgentJobRelay\plugin`; state is `%LOCALAPPDATA%\AgentJobRelay\state`. Explicit `--state-dir`/AJR_STATE_DIR and existing installation profiles retain their recorded selection. Configuration/removal preserves other entries and task history. Do not move state into a plugin/npm cache.
-
-## npm and host plugins
-
-After publication, the self-hosted catalog and OpenCode use the same Windows x86_64 native payload with a static MSVC runtime; recipient machines need Node.js/npm, without Rust or Visual Studio. Follow [release installation](release.md#consumer-installation-after-publication). The Windows catalog MCP launcher uses Node plus the system command processor to invoke pinned npx arguments. Terminal use has a `relay.cmd` entry point.
-
-Default npm state lives in `%LOCALAPPDATA%\AgentJobRelay\profiles\codex` or `opencode`, outside host/npm caches. `AJR_STATE_DIR` may explicitly select an existing profile; no automatic profile migration or upgrade-driven daemon replacement occurs. OpenCode V1 requires 1.19.4 and native >=0.1.7. Its Node/Bun pipe is checked against the exact server process and restricted to a private DACL before sessions register.
-
-Actual Windows npm installation, native execution, history after relocation, corrupt-native refusal, Codex 0.164.0 catalog/20-tool discovery and OpenCode package-name loading/MCP submission/matching-session agent-loop continuation are checked with `scripts/check_windows_packages.mjs`. OpenCode uses a local simulated model. These checks do not establish Windows ChatGPT Desktop continuation.
 
 ## Current-chat binding permissions
 

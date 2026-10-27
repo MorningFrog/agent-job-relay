@@ -2,11 +2,11 @@
 
 Experimental durable background jobs with completion routed to the initiating OpenCode session through the public session API. Supports Linux x86_64/glibc and Windows x86_64, targets OpenCode **1.19.4** and uses the shared `agent-job-relay-runtime` package. No Rust compiler, binary path or install script is needed for the published package. OpenCode V2, macOS and ARM are not supported.
 
-After this version is published, add the pinned package to your project's `opencode.json`:
+Add the latest published package to your project's `opencode.json`:
 
 ```json
 {
-  "plugin": ["agent-job-relay-opencode-v1@0.1.8"]
+  "plugin": ["agent-job-relay-opencode-v1@latest"]
 }
 ```
 
@@ -14,6 +14,6 @@ Restart OpenCode. Ask it to run your project's tests in the background and tell 
 
 State defaults to `$XDG_STATE_HOME/agent-job-relay/opencode`, else `$HOME/.local/state/agent-job-relay/opencode`; an absolute `AJR_STATE_DIR` or plugin `stateDir` option overrides it. State must stay outside npm/host caches. Long Unix socket paths fail explicitly: select a shorter persistent state path once, rather than changing an existing profile to conceal an error. Development can supply absolute `executable` and `stateDir` options in the plugin tuple.
 
-Update the pinned package version deliberately and restart the host after finishing jobs. An already running daemon retains its loaded native image; incompatible daemons require an explicit same-profile stop/update. After host replacement, ask the Agent to preview `relay_recover`, then apply if you requested restoration; it never reruns commands. Remove the plugin config entry to disable it. History remains outside caches; no automatic daemon stop or data purge runs.
+Refresh the host's package cache using its supported mechanism to resolve latest, then restart after finishing jobs. An already running daemon retains its loaded native image; incompatible daemons require an explicit same-profile stop/update. After host replacement, ask the Agent to preview `relay_recover`, then apply if you requested restoration; it never reruns commands. Remove the plugin config entry to disable it. History remains outside caches; no automatic daemon stop or data purge runs.
 
 The real OpenCode 1.19.4 loader/MCP/session API/agent loop is checked with a **simulated model**, not a real provider account. Real-provider and broader-version community tests and PRs are welcome. For checks and limitations, see [host plugins](https://github.com/MorningFrog/agent-job-relay/blob/main/docs/host-plugins.md) and [contributing](https://github.com/MorningFrog/agent-job-relay/blob/main/CONTRIBUTING.md).

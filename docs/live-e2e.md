@@ -1,16 +1,16 @@
 # Current live verification
 
-Current version: **AgentJobRelay v0.1.8**, verified on **2026-10-27 (Asia/Shanghai)**. Raw reports, logs and private identifiers stay in ignored repository-local storage; earlier results remain in Git history.
+Live-verified baseline: **AgentJobRelay v0.1.8**, verified on **2026-10-27 (Asia/Shanghai)**. The prepared 0.1.9 candidate has separate automated checks; no new real-host continuation acceptance is claimed. Raw reports, logs and private identifiers stay in ignored repository-local storage; earlier results remain in Git history.
 
 ## Linux ChatGPT Desktop
 
 **v0.1.8 is verified with ChatGPT Desktop on Linux**, including the local plugin workflow and same-chat continuation after task completion. The user completed and confirmed this live acceptance.
 
-See [source installation](source-install.md) ([简体中文](source-install.zh-CN.md)) and [manual acceptance](manual-testing.md) for the installation and verification steps.
+See [latest published installation](installation.md#quick-install-the-latest-release) and [manual acceptance](manual-testing.md) for the installation and verification steps; [source installation](source-install.md) ([简体中文](source-install.zh-CN.md)) remains an alternative.
 
 ## Windows native runtime and MCP
 
-Windows 11 x64/Rust MSVC 1.99.1 passes all four delivery gates: fmt, all-target Clippy, **35 tests** (20 Windows-specific plus 15 portable), and static-CRT release build. Coverage includes independent process lifetimes, cancellation/timeouts, private IPC, offline maintenance, automatic CIM startup and simulated ChatGPT Desktop recovery/renewal.
+The published baseline passes Windows 11 x64/Rust MSVC 1.99.1 delivery gates: fmt, all-target Clippy, native/portable tests and static-CRT release build. Coverage includes independent process lifetimes, cancellation/timeouts, private IPC, offline maintenance, automatic CIM startup and simulated ChatGPT Desktop recovery/renewal. Current test totals and candidate verification boundaries are maintained in [implementation status](IMPLEMENTATION_STATUS.md).
 
 Actual Codex 0.164.0 with the installed offline plugin and `gpt-6.1-sol`/`low` passes cold-profile MCP submission under both SYSTEM and an ordinary interactive Windows user, without a prestarted daemon. Each test completes one Job/Run with exit 0 and the expected output; doctor reports `windows_cim`.
 
@@ -26,4 +26,4 @@ The live task correctly reported a test failure caused by inherited `AJR_STATE_D
 
 ## Distribution
 
-No npm publication, GitHub release or official submission occurred. Updated remote native Windows CI and the manual dual-platform release workflow remain to be run. See [implementation status](IMPLEMENTATION_STATUS.md) and [release preparation](release.md).
+Both npm packages and the formal GitHub Release are public, with npm latest selecting the published baseline. The next candidate awaits maintainer-operated Prepare Release and OIDC Publish Release; Trusted Publisher configuration is user-confirmed, while actual OIDC/provenance still needs qualification. No official-directory submission occurred. See [implementation status](IMPLEMENTATION_STATUS.md) and [release preparation](release.md).

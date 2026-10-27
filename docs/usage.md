@@ -34,7 +34,7 @@ Use the returned `job.job_id` as JOB_ID:
 "$AJR_RELAY" stop "$JOB_ID"
 ```
 
-`--` separates executable arguments from relay options; a shell is always explicit. CLI resolves an omitted cwd to the current directory; MCP requires an absolute cwd, supplied explicitly or by a fresh terminal binding in current source. Jobs inherit the daemon's environment; MCP/request `env` overrides are persisted privately and omitted from status. Commands execute with your OS permissions.
+`--` separates executable arguments from relay options; a shell is always explicit. CLI resolves an omitted cwd to the current directory; MCP requires an absolute cwd, supplied explicitly or by a fresh terminal binding. Jobs inherit the daemon's environment; MCP/request `env` overrides are persisted privately and omitted from status. Commands execute with your OS permissions.
 
 The first submission starts the daemon. Eight active jobs are allowed. Identical submissions sharing an idempotency key return the original job; changed settings conflict, and a deliberate rerun needs a new key. Stop is idempotent and never changes an already completed job into a cancellation.
 
@@ -42,7 +42,7 @@ Lists/events/deliveries return `next_cursor`; use `--after` for the next page. L
 
 ## Submit through MCP with same-chat notification
 
-Current-source runtimes use one terminal binding object for the caller and workspace. These convenience arguments are unreleased; published 0.1.8 uses the compatible workflow below.
+Use one fresh terminal binding object for the caller and workspace.
 
 1. In this chat's terminal, run `"$AJR_RELAY" connect --cwd <absolute-project>`.
 2. Pass the returned `binding` object to `job_start` with only `spec.command` and any deliberate overrides.
@@ -58,9 +58,9 @@ Current-source runtimes use one terminal binding object for the caller and works
 
 Copy `binding` from the current terminal result; do not reconstruct identities or reuse another chat's object. `spec.cwd` can explicitly override its workspace. A conflicting `spec.session` is rejected. Nothing is stored as a global current chat or inferred from the shared server.
 
-For published 0.1.8, run `session connect --brief` from the same terminal, then pass its `session_key` as `spec.session` together with explicit command and absolute `spec.cwd`. The online plugin retains this compatible path and uses `binding` only when both the runtime response and tool schema advertise it.
+The compatible alternative is `session connect --brief` from the same terminal, then passing its `session_key` as `spec.session` together with explicit command and absolute `spec.cwd`.
 
-Current-source MCP start/status/list/wait/stop/doctor/recovery responses are compact by default; use `full=true` for complete diagnostic records, including the original Run/process fields or recovery audit. Job IDs, status, exit outcome, cursors and actionable failure details remain available. Raw IPC and existing CLI output stay unchanged.
+MCP start/status/list/wait/stop/doctor/recovery responses are compact by default; use `full=true` for complete diagnostic records, including the original Run/process fields or recovery audit. Job IDs, status, exit outcome, cursors and actionable failure details remain available. Raw IPC and existing CLI output stay unchanged.
 
 Shared-host MCP rejects `wake_me=true` and `job_connect_session`; its environment cannot establish the caller. Advanced dedicated per-session MCP can use inherited-context wake, as described in [protocol](protocol.md#client-convenience-no-wire-version-change). Ordinary background execution without continuation uses no session/wake option.
 
@@ -75,7 +75,7 @@ From the same chat's terminal:
 "$AJR_RELAY" connect --recover --apply
 ```
 
-These are current-source shortcuts; published 0.1.8 uses `session recover [--apply]`. Add `--full` for the complete registration and recovery audit. The first command refreshes/probes the current binding and previews eligible targets without moving deliveries or sending a chat message. Apply restores only the matching logical chat/caller/host. It preserves delivery IDs, original expiry and attempt history; accepted/expired events and live claims are excluded. Commands are never rerun. Use `--after` with returned pagination. Current-source MCP accepts `job_recover_session` with the same fresh `binding` object; the compatible `session_key` argument remains available.
+The compatible alternative is `session recover [--apply]`. Add `--full` for the complete registration and recovery audit. The first command refreshes/probes the current binding and previews eligible targets without moving deliveries or sending a chat message. Apply restores only the matching logical chat/caller/host. It preserves delivery IDs, original expiry and attempt history; accepted/expired events and live claims are excluded. Commands are never rerun. Use `--after` with returned pagination. MCP accepts `job_recover_session` with the same fresh `binding` object; the compatible `session_key` argument remains available.
 
 Automatic bindings opt into delivery-time lease renewal after verifying the same endpoint owner/fingerprint/capability and current claim. There is no periodic host scan. A changed host endpoint or invalidated binding needs explicit recovery; manual registrations default to no renewal. The installed active-job restart/rebind scenario passed; results completed while the host is closed and real multi-day renewal remain unverified. See [live evidence](live-e2e.md).
 

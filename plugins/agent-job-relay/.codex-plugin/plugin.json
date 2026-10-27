@@ -1,6 +1,6 @@
 {
   "name": "agent-job-relay",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Run durable local background jobs and continue the initiating Agent chat when they finish.",
   "license": "MIT",
   "skills": "./skills/",

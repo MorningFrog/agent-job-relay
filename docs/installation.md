@@ -1,12 +1,91 @@
 # Installation and maintenance
 
-Use the offline bundle for the quickest installation. It includes the native executable and needs no Rust, Python or Node on the recipient's machine. Current support is Linux x86_64 with a compatible libc and a POSIX shell, plus Windows x86_64 with a `.cmd` launcher (see the [Windows guide](windows.md)); published npm/marketplace installation is available through the [online route](release.md#consumer-installation), while independent OS installers and official directory listings are not provided. Use a trusted build: its hashes check integrity, not publisher identity.
+Install the latest published npm packages and matching [GitHub Release](https://github.com/MorningFrog/agent-job-relay/releases/latest). Supported runtime platforms are Linux x86_64/glibc and Windows x86_64. Online installation requires Node.js 20+/npm and network access, without Rust, Python or a source build. macOS/ARM and official plugin-directory listing remain unsupported.
 
-Already installed? Follow [Updating an existing installation](#updating-an-existing-installation). For a first install, use the quick path below. Without a bundle, follow the complete [local source installation walkthrough](source-install.md) ([简体中文](source-install.zh-CN.md)); standalone MCP is under [Alternative installation routes](#alternative-installation-routes).
+For existing native local installations, retain the recorded profile and follow [offline updates](#updating-an-existing-installation). Source builds and recipient-toolchain-free native bundles remain [alternative routes](#alternative-installation-routes).
 
-## npm and self-hosted marketplace candidates
+## Quick install the latest release
 
-Candidate delivery uses a shared Linux x86_64/glibc and Windows x86_64 npm runtime for OpenCode V1 and a ChatGPT Desktop/Codex self-hosted marketplace. The two main npm packages are published at 0.1.8. Use explicit versions or a verified channel and follow the [online consumer steps](release.md#consumer-installation). Maintainer-only preparation/publication is described separately in the [release guide](release.md). First online use requires Node.js 20+/npm and network access, but no Rust compiler. Existing offline installs remain supported below.
+### ChatGPT Desktop / Codex
+
+Have Codex CLI and Git available on PATH and use a ChatGPT Desktop local executor. Query npm's latest runtime and register its matching GitHub release tag, so installation follows published versions rather than development main. Without Git, use the [Release ZIP](#install-from-a-github-release-zip).
+
+Bash:
+
+```bash
+AJR_VERSION="$(npm view agent-job-relay-runtime@latest version --registry=https://registry.npmjs.org)" &&
+codex plugin marketplace add MorningFrog/agent-job-relay --ref "v$AJR_VERSION"
+```
+
+PowerShell with npm-installed CLIs:
+
+```powershell
+$AjrVersion = npm.cmd view agent-job-relay-runtime@latest version --registry=https://registry.npmjs.org
+if ($LASTEXITCODE -ne 0) { throw "Could not resolve the latest published runtime" }
+codex.cmd plugin marketplace add MorningFrog/agent-job-relay --ref "v$($AjrVersion.Trim())"
+```
+
+Expected: Codex reports the AgentJobRelay marketplace registration at the selected release tag. Stop if version lookup or registration fails. An already registered source with a different tag needs the [online update steps](#update-the-online-marketplace). If Codex was installed as a standalone executable, use that installed executable instead of `codex.cmd`.
+
+Restart ChatGPT Desktop, open **Plugins**, select the **AgentJobRelay** marketplace, install/enable **AgentJobRelay**, then select `agent-job-relay@agent-job-relay` in a new local chat. Codex CLI users can install the catalog entry with `codex plugin add agent-job-relay@agent-job-relay`; CLI tools/inbox do not imply automatic CLI model continuation.
+
+Ask the selected plugin to call `job_doctor` without submitting a task. Expected: an actual MCP call succeeds. Shared-host mode can report no bound chat before the first terminal binding; that is normal. Then submit a harmless background command and verify its matching result using [manual acceptance](manual-testing.md). Marketplace discovery, tool connectivity and observed same-chat continuation remain separate checks.
+
+### OpenCode V1
+
+Add the latest published plugin to `opencode.json` and restart OpenCode:
+
+```json
+{
+  "plugin": ["agent-job-relay-opencode-v1@latest"]
+}
+```
+
+Expected: the host loads the plugin and its exact matching native runtime dependency. Do not enable another `agent_job_relay` MCP entry alongside it. Finish jobs before upgrades and restart the host after refreshing its package cache with the host-supported mechanism. OpenCode V1 is experimental; real-provider/V2/restart-recovery evidence is separate from simulated-model loader checks.
+
+### Install from a GitHub Release ZIP
+
+If using a downloaded marketplace instead of a Git fetch, open [the latest GitHub Release](https://github.com/MorningFrog/agent-job-relay/releases/latest), download its `agent-job-relay-marketplace-*.zip` and `SHA256SUMS`, verify the ZIP's SHA-256, and extract it to a stable directory. Register that directory:
+
+```bash
+codex plugin marketplace add <absolute-extracted-marketplace-directory>
+```
+
+Use the directory containing `.agents/plugins/marketplace.json`, then follow the host installation/enablement steps above. Keep this directory for future marketplace refreshes. The marketplace ZIP uses npm on first invocation; it is not a native offline bundle. Each npm runtime tarball in the same Release includes its native executables; no recipient Rust build or secondary binary downloader is needed.
+
+### Check the npm runtime
+
+For a standalone version/integrity smoke check without starting a task:
+
+```bash
+npx --yes --ignore-scripts --registry=https://registry.npmjs.org --package=agent-job-relay-runtime@latest agent-job-relay --version
+```
+
+Expected: the latest published runtime version is printed. The host plugin's installed snapshot pins its corresponding runtime version; this check does not upgrade that snapshot.
+
+### Update the online marketplace
+
+Finish active jobs, then resolve the latest version before replacing the registered catalog source. Codex refuses to add a different tag over an existing source, and marketplace upgrade retains the original tag. For an existing npm-backed marketplace, use Bash:
+
+```bash
+AJR_VERSION="$(npm view agent-job-relay-runtime@latest version --registry=https://registry.npmjs.org)" &&
+codex plugin marketplace remove agent-job-relay &&
+codex plugin marketplace add MorningFrog/agent-job-relay --ref "v$AJR_VERSION"
+```
+
+Or PowerShell:
+
+```powershell
+$AjrVersion = npm.cmd view agent-job-relay-runtime@latest version --registry=https://registry.npmjs.org
+if ($LASTEXITCODE -ne 0) { throw "Could not resolve the latest published runtime" }
+codex.cmd plugin marketplace remove agent-job-relay
+if ($LASTEXITCODE -ne 0) { throw "Could not remove the old marketplace registration" }
+codex.cmd plugin marketplace add MorningFrog/agent-job-relay --ref "v$($AjrVersion.Trim())"
+```
+
+Expected: the catalog is registered at the newly resolved tag. Refresh/reinstall AgentJobRelay through the host and reconnect MCP; CLI users can run `codex plugin add agent-job-relay@agent-job-relay` again. Removing this catalog registration preserves the external runtime profile/history. Already running processes retain their loaded version; explicitly stop the same profile before an incompatible upgrade. For OpenCode, keep `@latest`, refresh its package cache using the host-supported mechanism and restart it.
+
+## Profiles and existing installations
 
 The new persistent host profiles are `$XDG_STATE_HOME/agent-job-relay/codex` and `.../opencode`, falling back to `$HOME/.local/state/...`; Windows uses `%LOCALAPPDATA%\AgentJobRelay\profiles\<host>`. AJR_STATE_DIR may explicitly select a reviewed existing profile. They live outside npm/host caches and do not migrate old offline history automatically. Do not enable old and new MCP integrations together or switch profiles to hide a failure. Finish jobs and explicitly stop the original profile before an incompatible native upgrade; no plugin install/update/uninstall stops daemons or purges data.
 
@@ -49,11 +128,11 @@ Review the preview first. Update retains the installation's recorded state despi
 
 Refresh/reinstall the plugin through the host and reconnect MCP afterward. Already loaded processes keep their old image until reconnected/restarted. Source rebuilds do not update installed binaries or host caches. Do not switch state directories to work around an upgrade failure. Early legacy shutdown handling is described in [ADR 0005](adr/0005-legacy-shutdown-upgrade.md).
 
-## Unified install and update in current source
+## Unified install and update
 
-Bundles built from current source provide `plugin install` for both first installation and updates. This entry is unreleased; published 0.1.8 bundles continue to use the bootstrap/update commands above.
+Current native bundles provide `plugin install` for both first installation and updates. The compatible bootstrap/update commands above remain available for existing bundles.
 
-From the received current-source bundle:
+From a received native bundle that provides this entry:
 
 ```bash
 ./relay plugin install

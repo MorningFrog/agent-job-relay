@@ -1,6 +1,6 @@
 # Host plugins and community verification
 
-One Rust/MCP runtime remains responsible for jobs, results, outbox attempts, recovery and leases. Host packages supply actual caller identity and translate a completion request to that host's public API. Shared runtime/OpenCode npm packages are published at 0.1.8 with a self-hosted ChatGPT marketplace. Subsequent versions use separate maintainer-only Prepare Release and Publish Release workflows; see the [release guide](release.md). They are not official directory listings. Linux and Windows x86_64 have verified native runtimes and ChatGPT Desktop same-chat continuation.
+One Rust/MCP runtime remains responsible for jobs, results, outbox attempts, recovery and leases. Host packages supply actual caller identity and translate a completion request to that host's public API. Shared runtime/OpenCode npm packages and the self-hosted ChatGPT marketplace are public; start with [latest published installation](installation.md#quick-install-the-latest-release). Maintainers use separate manual Prepare Release and Publish Release workflows; see the [release guide](release.md). These are not official directory listings. Linux and Windows x86_64 have verified native runtimes and ChatGPT Desktop same-chat continuation.
 
 ## Current evidence
 
@@ -20,10 +20,10 @@ The selected target is **OpenCode 1.19.4** and `@opencode-ai/plugin`/SDK **1.19.
 For candidate package builds and the no-source-checkout installed-tarball check, follow [release preparation](release.md). To stage an installed development copy after preparing `.tmp/release-candidate`:
 
 ```bash
-npm install --prefix .tmp/host-plugins --cache .tmp/npm-cache --ignore-scripts --no-audit --no-fund ./.tmp/release-candidate/agent-job-relay-runtime-0.1.8.tgz ./.tmp/release-candidate/agent-job-relay-opencode-v1-0.1.8.tgz
+npm install --prefix .tmp/host-plugins --cache .tmp/npm-cache --ignore-scripts --no-audit --no-fund ./.tmp/release-candidate/agent-job-relay-runtime-*.tgz ./.tmp/release-candidate/agent-job-relay-opencode-v1-*.tgz
 ```
 
-Use a new staging path for another copy rather than nesting copies. Configure the following once in your chosen OpenCode project, replacing each angle-bracket placeholder with a value from your environment: the staged entry point as a file URL, the built executable path, and a short persistent state directory outside plugin/cache directories. Paths must be fully resolved; these placeholders are not automatically expanded:
+Use a candidate directory containing only the reviewed version's two tarballs and a new staging path for another copy rather than nesting copies. Configure the following once in your chosen OpenCode project, replacing each angle-bracket placeholder with a value from your environment: the staged entry point as a file URL, the built executable path, and a short persistent state directory outside plugin/cache directories. Paths must be fully resolved; these placeholders are not automatically expanded:
 
 ```json
 {
@@ -34,7 +34,7 @@ Use a new staging path for another copy rather than nesting copies. Configure th
 }
 ```
 
-Published candidates default to their bundled runtime and persistent opencode profile; the tuple above demonstrates explicit development overrides. Normal npm-name installation is unavailable until publication. The plugin configures only its `agent_job_relay` MCP name and refuses an existing entry with that name. It requires native >=0.1.6 on Linux and >=0.1.7 on Windows; an older running daemon must be updated/stopped explicitly for the same profile, never silently replaced. A long socket path fails clearly; it does not switch profiles or use a shared temporary directory. Keep state outside plugin/cache directories.
+Published packages default to their bundled runtime and persistent opencode profile; the tuple above demonstrates explicit development overrides. Normal installation uses `agent-job-relay-opencode-v1@latest`. The plugin configures only its `agent_job_relay` MCP name and refuses an existing entry with that name. It requires native >=0.1.6 on Linux and >=0.1.7 on Windows; an older running daemon must be updated/stopped explicitly for the same profile, never silently replaced. A long socket path fails clearly; it does not switch profiles or use a shared temporary directory. Keep state outside plugin/cache directories.
 
 On Windows, use the bundled `.exe` and a persistent Windows path (JSON requires escaped backslashes). The native helper pins the Node/Bun pipe's server process and secures its owner/DACL before registration. For Windows candidate checks and Windows automatic-startup/fallback behavior, see [Windows operation](windows.md).
 

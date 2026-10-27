@@ -9,36 +9,42 @@ Tasks run in the background. Agents pick up when needed.
 任务在后台运行，Agent 在需要时接棒。
 </div>
 
-Run long commands independently of the Agent connection, keep their results, and notify the initiating chat when the host supports it. **v0.1.8 is a published Linux/Windows x86_64 version.** ChatGPT Desktop same-chat continuation is verified on Linux and Windows using an experimental interface; Windows verification uses Full access. macOS runtime is unsupported. OpenCode V1 has an experimental plugin package candidate; Claude Code has an inbox-only development framework that needs community verification.
+Run long commands independently of the Agent connection, keep their results, and notify the initiating chat when the host supports it. **Published packages support Linux/Windows x86_64.** ChatGPT Desktop same-chat continuation is verified on Linux and Windows using an experimental interface; Windows verification uses Full access. macOS runtime is unsupported. OpenCode V1 has an experimental plugin package candidate; Claude Code has an inbox-only development framework that needs community verification.
 
 For OpenCode/Claude development setup and evidence boundaries, see [host plugins](docs/host-plugins.md).
 
 ## Quick install
 
-For ChatGPT Desktop, use a trusted offline bundle for your Linux system. For an existing installation, go directly to [Updating](#updating). For a first installation, open a terminal in the received bundle directory and run:
+Use the latest published npm packages and matching GitHub Release. No Rust compiler or source build is needed. Online installation requires Node.js 20+/npm and network access; ChatGPT Desktop/Codex also needs a local executor, Codex CLI on PATH and Git for catalog fetching (or use the Release ZIP).
+
+### ChatGPT Desktop / Codex
+
+In Bash, select the latest npm runtime and its matching released marketplace:
 
 ```bash
-./relay plugin bootstrap --dry-run
-./relay plugin bootstrap --apply
+AJR_VERSION="$(npm view agent-job-relay-runtime@latest version --registry=https://registry.npmjs.org)" &&
+codex plugin marketplace add MorningFrog/agent-job-relay --ref "v$AJR_VERSION"
 ```
 
-This installs the native runtime and registers its local plugin marketplace. No Rust, Python or Node is needed. Preview is the default; `--apply` writes the installation and owned configuration. Published npm/marketplace installation is described in the [release guide](docs/release.md#consumer-installation). If you only have source, follow [Install from source](#install-from-source).
+After it succeeds, restart ChatGPT Desktop, open **Plugins → AgentJobRelay**, install/enable the plugin, and select `agent-job-relay@agent-job-relay` in a new local chat. Codex CLI users can instead run `codex plugin add agent-job-relay@agent-job-relay`; CLI integration provides tools/inbox, without automatic model continuation.
 
-Restart ChatGPT Desktop, open Plugins, select your local marketplace (**AgentJobRelay Local** for a new marketplace), and install/enable AgentJobRelay. Start a new local chat and select `agent-job-relay@agent-job-relay-local` (or your existing personal marketplace's name). The separate `agent-job-relay@agent-job-relay` entry uses the published npm runtime and its own profile; keep it distinct from this native local installation. Host UI discovery still requires manual acceptance on your host version.
+Ask the selected plugin to call `job_doctor` before submitting a task. A skill appearing in the chat does not prove MCP connectivity. PowerShell commands, GitHub ZIP installation and native offline maintenance are in the [installation guide](docs/installation.md).
 
-Check the default installation:
+### OpenCode V1
 
-```bash
-AJR_INSTALL_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/agent-job-relay"
-"$AJR_INSTALL_ROOT/relay" --version
-"$AJR_INSTALL_ROOT/relay" doctor --client plugin --check-mcp
+Add the latest published plugin to `opencode.json`, then restart OpenCode:
+
+```json
+{
+  "plugin": ["agent-job-relay-opencode-v1@latest"]
+}
 ```
 
-Use your original path for a custom installation. Keep that directory: both MCP and cached terminal launchers use its managed runtime. State and history are stored separately; PATH and system services are unchanged. Already installed? Follow [Updating](#updating). Custom paths and standalone MCP setup are in the [installation guide](docs/installation.md).
+The plugin installs its matching native runtime automatically. OpenCode V1 remains experimental; see [host integration and evidence](docs/host-plugins.md). Already using a native local installation? Preserve its profile and follow [maintenance](docs/installation.md#updating-an-existing-installation).
 
 ## Windows
 
-Use a trusted Windows offline bundle and its `relay.cmd` launcher. Native execution, process-tree supervision, MCP, offline maintenance and installed npm/host-loader behavior are verified on Windows 11. The published 0.1.8 runtime carries both Linux and Windows executables. Windows now starts the daemon on demand, including Codex MCP cleanup jobs, through a verified same-user local CIM bootstrap when needed. If local policy blocks CIM, diagnostics provide a copyable outside-terminal fallback. Follow the [Windows guide](docs/windows.md) for installation, task examples and execution boundaries.
+The same published-package route supports Windows x86_64; use the [PowerShell quick-install commands](docs/installation.md#chatgpt-desktop--codex). Windows starts the daemon on demand and can use a verified same-user local CIM bootstrap when host cleanup blocks native creation. If local policy blocks CIM, diagnostics provide a copyable outside-terminal fallback. Native runtime verification and live Desktop acceptance have version-specific boundaries; see the [Windows guide](docs/windows.md) and [live evidence](docs/live-e2e.md).
 
 ## Use from chat
 
@@ -52,39 +58,13 @@ The first submission or explicit session registration starts the daemon automati
 
 ## Updating
 
-Finish active tasks first. Use the **new bundle's launcher**, which also works when the installed version predates plugin-management commands. Set AJR_BUNDLE to the received directory's absolute path and AJR_INSTALL_ROOT to the existing installation:
+Finish active jobs first. For the npm-backed ChatGPT Desktop/Codex marketplace, follow the [online update commands](docs/installation.md#update-the-online-marketplace): resolve latest, replace the old catalog registration, refresh/reinstall the plugin in the host and reconnect MCP. OpenCode's `@latest` entry follows the published channel; refresh its package cache using the host's supported mechanism and restart it. A running daemon keeps its loaded executable; an incompatible upgrade requires an explicit stop of the same profile.
 
-```bash
-"$AJR_BUNDLE/relay" plugin update --root "$AJR_INSTALL_ROOT" --from "$AJR_BUNDLE" --dry-run
-"$AJR_BUNDLE/relay" daemon stop --install-root "$AJR_INSTALL_ROOT"
-"$AJR_BUNDLE/relay" plugin update --root "$AJR_INSTALL_ROOT" --from "$AJR_BUNDLE" --apply
-"$AJR_INSTALL_ROOT/relay" --version
-```
-
-The update retains the recorded state/history and a backup, refuses downgrades and never stops a daemon implicitly. Refresh/reinstall the plugin through the host and reconnect MCP afterward. Legacy caches need this host refresh; explicit checked cache repair is described in [installation](docs/installation.md#cache-inspection-and-refresh).
-
-If an install/update or cache replacement was interrupted, use the new bundle's launcher to preview and finish the recorded replacement:
-
-```bash
-"$AJR_BUNDLE/relay" plugin repair --path "$AJR_INSTALL_ROOT" --dry-run
-"$AJR_BUNDLE/relay" plugin repair --path "$AJR_INSTALL_ROOT" --apply
-```
-
-For a cache, pass that exact cache directory instead. Repair preserves history and backups, refuses modified files and never stops a daemon. Retry the original bootstrap/update afterward to finish any remaining steps. See [interrupted operations](docs/installation.md#compatibility-and-interrupted-operations) for limits.
+Native local installations use a separate recorded profile. Follow [profile-preserving offline updates](docs/installation.md#updating-an-existing-installation), [unified maintenance](docs/installation.md#unified-install-and-update) or [interruption repair](docs/installation.md#compatibility-and-interrupted-operations). No update automatically stops a daemon, switches profiles or replays a workload.
 
 ## Uninstalling
 
-Remove/disable the plugin in the host, finish active jobs, then use the same installed launcher:
-
-```bash
-"$AJR_INSTALL_ROOT/relay" integration remove plugin --dry-run
-"$AJR_INSTALL_ROOT/relay" integration remove plugin --apply
-"$AJR_INSTALL_ROOT/relay" daemon stop
-"$AJR_INSTALL_ROOT/relay" uninstall --root "$AJR_INSTALL_ROOT" --dry-run
-"$AJR_INSTALL_ROOT/relay" uninstall --root "$AJR_INSTALL_ROOT" --apply
-```
-
-Uninstall preserves task data and backups. Modified or unknown install files are refused. Host cache removal belongs to the host; there is no data purge command. Standalone MCP removal is covered in the [installation guide](docs/installation.md#uninstalling).
+Disable/remove the plugin through its host, then remove its marketplace/config entry if no longer wanted. History remains outside npm/plugin caches; removal does not stop existing daemons or erase task data. Native local installation removal is covered in the [installation guide](docs/installation.md#uninstalling), including preview/apply and preservation of modified or foreign files.
 
 ## Troubleshooting
 
@@ -99,7 +79,7 @@ Uninstall preserves task data and backups. Modified or unknown install files are
 
 ## Plugin releases
 
-Source and release assets are public on [GitHub](https://github.com/MorningFrog/agent-job-relay). The runtime and OpenCode packages are published at `0.1.8`; use explicit versions or a verified npm channel. Online marketplace/OpenCode installation is described in the [release guide](docs/release.md#consumer-installation). Existing native installations keep the [offline maintenance route](#quick-install).
+Source and release assets are public on [GitHub](https://github.com/MorningFrog/agent-job-relay). Install using npm `latest` and its matching GitHub Release; package-internal runtime dependencies stay pinned together. Online marketplace/OpenCode installation is described in the [release guide](docs/release.md#consumer-installation). Existing native installations keep the [offline maintenance route](docs/installation.md#updating-an-existing-installation).
 
 Only maintainers publish, through two manual workflows: **Prepare Release** builds/tests a Cargo-versioned candidate, and **Publish Release** checks OIDC in dry-run before publishing those exact files. Formal releases default to `latest`; Release Notes come from CHANGELOG. Pushes, PRs and tags never publish. See [contributor conventions](CONTRIBUTING.md) and the [maintainer release guide](docs/release.md). A self-hosted marketplace is separate from OpenAI's official directory.
 
@@ -115,15 +95,15 @@ The result is the native local plugin in **AgentJobRelay Local**, normally refer
 |---|---|---|
 | Linux runtime and offline maintenance | Implemented | Automated execution, lifecycle, recovery and installation tests pass. |
 | Windows runtime and automatic startup | Implemented | Native Windows 11 tests and actual Codex MCP cold startup under an ordinary interactive user pass. |
-| ChatGPT Desktop same-chat continuation | Verified on Linux and Windows | v0.1.8 continues the initiating chat after task completion. Windows verification uses Full access; see [live evidence](docs/live-e2e.md). |
+| ChatGPT Desktop same-chat continuation | Verified on Linux and Windows | The verified published baseline continues the initiating chat after task completion. Windows verification uses Full access; see version-specific [live evidence](docs/live-e2e.md). |
 | OpenCode V1 | Experimental plugin candidate | Actual loader, MCP and session API pass with a simulated model; real-provider sessions, restart recovery and V2 remain open. |
 | Claude Code | Inbox-only scaffold | Synthetic caller and MCP launcher checks pass; actual Claude loader/account/model verification needs community help. |
-| npm runtime and self-hosted marketplace | Version 0.1.8 published | Linux/Windows package/loader checks and clean public-registry installation pass; official directory approval is separate. |
+| npm runtime and self-hosted marketplace | Published | Linux/Windows package/loader checks and clean public-registry installation pass; official directory approval is separate. |
 | CI and release | Separate manual preparation/publication workflows | Native/package CI and the initial token-staged release pass; the next OIDC release still needs maintainer qualification. |
 | macOS runtime | Unimplemented | Portable compilation checks only; native execution remains unsupported. |
 | Output monitoring/interruption | Deferred | Awaits an explicit implementation request; log reads and manual stop are available. |
 
-Unreleased source adds unified `plugin install` and `connect [--recover [--apply]]` entries, caller/workspace binding objects and compact MCP results (`full=true` for complete records); see [daily usage](docs/usage.md) and [unified maintenance](docs/installation.md#unified-install-and-update-in-current-source). It also reduces idle database work and permits notifications to up to four chats concurrently. Current results and version-specific limits are maintained in [implementation status](docs/IMPLEMENTATION_STATUS.md) and [live evidence](docs/live-e2e.md). Official directory submission requires separate approval; independent OS installers/package repositories are cancelled. **Community testing and PRs are welcome, especially for Claude Code and container-based version checks.**
+The current release candidate adds unified `plugin install` and `connect [--recover [--apply]]` entries, caller/workspace binding objects and compact MCP results (`full=true` for complete records); see [daily usage](docs/usage.md) and [unified maintenance](docs/installation.md#unified-install-and-update). It also reduces idle database work and permits notifications to up to four chats concurrently. Current results and version-specific limits are maintained in [implementation status](docs/IMPLEMENTATION_STATUS.md) and [live evidence](docs/live-e2e.md). Official directory submission requires separate approval; independent OS installers/package repositories are cancelled. **Community testing and PRs are welcome, especially for Claude Code and container-based version checks.**
 
 ## Documentation and support
 

@@ -92,28 +92,12 @@ GitHub and npm are separate systems; there is no atomic multi-service publicatio
 
 An old combined Release run's Re-run keeps its old workflow. Use the current named workflows for subsequent versions.
 
-## First-package bootstrap and one-time channel correction
+## First-package bootstrap
 
 If the package names do not yet exist, a maintainer may download a reviewed Prepare Release artifact and publish those tarballs interactively with an npm account and 2FA. Verify `SHA256SUMS`, then publish the runtime before OpenCode using `npm publish <tarball> --access public --ignore-scripts --tag latest`. Configure Trusted Publishing afterward. This bootstrap exception is maintainer-only; subsequent updates use the two workflows above.
 
-For the existing `0.1.8` packages, the bytes are already public on `next`. To make that version the formal default without uploading again, a maintainer can authenticate interactively and run:
-
-```bash
-npm login --registry=https://registry.npmjs.org
-npm dist-tag add agent-job-relay-runtime@0.1.8 latest --registry=https://registry.npmjs.org
-npm dist-tag add agent-job-relay-opencode-v1@0.1.8 latest --registry=https://registry.npmjs.org
-npm view agent-job-relay-runtime@latest version --registry=https://registry.npmjs.org
-npm view agent-job-relay-opencode-v1@latest version --registry=https://registry.npmjs.org
-```
-
-Complete any requested 2FA. Both checks should print `0.1.8`. Edit the corresponding GitHub Release, clear **Set as a pre-release**, choose the latest-release option and save. No new tarball/version is needed; retain existing source tags/assets. The original candidate remains sealed to `next`, so do not reuse it as a new `latest` candidate. Future formal versions start with Prepare Release's default `latest`. See [npm dist-tags](https://docs.npmjs.com/adding-dist-tags-to-packages/).
-
 ## Consumer installation
 
-Use explicit published versions or a verified channel. OpenCode V1 selects `agent-job-relay-opencode-v1@<published-version>` in its `plugin` list. ChatGPT Desktop/Codex users add the self-hosted marketplace:
+Users install the latest published versions through the [quick installation guide](installation.md#quick-install-the-latest-release): npm latest selects the matching released GitHub marketplace, and OpenCode uses `agent-job-relay-opencode-v1@latest`. The GitHub Release ZIP is an alternative catalog source; both routes keep exact runtime/plugin dependencies together. No source checkout or Rust compiler is needed.
 
-```bash
-codex plugin marketplace add MorningFrog/agent-job-relay
-```
-
-Restart ChatGPT Desktop, select AgentJobRelay in Plugins and enable it in a new local chat. CLI users can add `agent-job-relay@agent-job-relay` for tools/inbox; this does not establish automatic CLI model continuation. Node/npm and network are needed for online installation. Offline installations keep their recorded profiles; updates never implicitly stop daemons, replay commands or migrate profiles. Official directory submission is separate from publication.
+Node/npm and network are needed for online installation. Existing offline installations keep their recorded profiles; updates never implicitly stop daemons, replay commands or migrate profiles. Official directory submission is separate from publication.

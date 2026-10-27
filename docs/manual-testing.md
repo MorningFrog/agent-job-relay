@@ -130,20 +130,20 @@ printf '\nmanual cache edit\n' >> "$AJR_CHECK/cache/skills/background-jobs/SKILL
 
 Expected: the last command fails with a modified-file error, leaving your edit and original installation intact. This expected refusal is the passing result. Retain the isolated directory for inspection; no manual crash matrix or real cache edits are needed. Automated cross-version/resource-change coverage remains in [testing](testing.md).
 
-## Self-hosted marketplace candidate
+## Published self-hosted marketplace
 
-The two main npm packages are published at 0.1.8. Candidate and clean public-registry installation checks pass; a loopback-registry pass alone is not online ChatGPT Desktop UI acceptance. To qualify the exact public runtime version and marketplace commit, use a clean supported Linux ChatGPT Desktop profile:
+The two npm packages and GitHub Release are public. Candidate and clean public-registry installation checks pass; a loopback-registry pass alone is not online ChatGPT Desktop UI acceptance. To qualify the latest published runtime and its matching marketplace, use a clean supported Linux ChatGPT Desktop profile:
 
-1. Confirm Node.js 20+/npm are on the ChatGPT Desktop/terminal PATH. Add `MorningFrog/agent-job-relay` with `codex plugin marketplace add`, restart ChatGPT Desktop and choose the **AgentJobRelay** marketplace. Expected: one AgentJobRelay entry with the correct version and an explicit experimental Linux/Windows support description.
+1. Confirm Node.js 20+/npm and Codex CLI are on PATH. Follow [latest published installation](installation.md#chatgpt-desktop--codex) to resolve npm latest and register its matching Git tag. Restart ChatGPT Desktop and choose the **AgentJobRelay** marketplace. Expected: one AgentJobRelay entry matching the resolved published version, with an explicit experimental Linux/Windows support description.
 2. Install/enable it in a new local chat and invoke `job_doctor`. Expected: actual MCP connectivity and the reviewed packaged version; no developer executable path is requested. CLI loader discovery alone is insufficient.
 3. Ask for a harmless short background command and completion in that chat. Expected: a fresh current-terminal binding, one job/run, correct result and correlated completion/continuation. Distinguish admission from observed execution. An unrelated chat must receive nothing.
 4. Inspect the selected persistent profile before and after host refresh/removal. Expected: state stays outside caches and history is retained; no daemon is stopped implicitly. If migrating an offline installation, explicitly review its recorded state rather than accepting a new profile as a repair.
 
-Public-registry installation of this online candidate remains to be verified after publication. The local v0.1.8 Linux/Windows ChatGPT Desktop workflow is verified separately; Windows uses Full access. OpenCode real-provider/restart and Claude account-backed checks remain in [host plugins](host-plugins.md).
+Clean public-registry installation is verified separately from online ChatGPT Desktop UI acceptance. Version-specific Linux/Windows live evidence is in [live verification](live-e2e.md); Windows uses Full access. OpenCode real-provider/restart and Claude account-backed checks remain in [host plugins](host-plugins.md).
 
 ## Windows automatic startup
 
-1. Use a fresh disposable profile and the 0.1.8 installed entry point, without running `daemon start`. Submit a single bounded job from the actual host. Expected: one Job/Run completes; doctor reports `windows_cim` if host cleanup denies direct creation, otherwise `windows_native`. Record host/model evidence separately.
+1. Use a fresh disposable profile and the latest installed entry point, without running `daemon start`. Submit a single bounded job from the actual host. Expected: one Job/Run completes; doctor reports `windows_cim` if host cleanup denies direct creation, otherwise `windows_native`. Record the runtime version and host/model evidence separately.
 2. Close the host while an owned gated task runs. Expected: the original runner/task remains alive and persists its final result. Native automated coverage additionally destroys an enclosing cleanup Job Object.
 3. In an isolated profile only, simulate daemon failure during a gated task, then make a new submission/registration. Expected: automatic startup reuses that profile, the original task remains single-attempt and history is retained. Recovery occurs on a request, not a resident restart watchdog.
 4. Set `AJR_WINDOWS_STARTUP=direct` before launching a restrictive host with a cold profile. Expected: explicit refusal before job submission. Diagnostics/errors provide the exact literal-quoted external PowerShell fallback for that profile. Restore `auto` afterward. Restricted-token and invalid-parent cases have native automated coverage; never change policy, elevate or switch accounts to turn a refusal into a pass.

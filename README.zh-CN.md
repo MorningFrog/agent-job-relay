@@ -9,36 +9,42 @@ Tasks run in the background. Agents pick up when needed.
 任务在后台运行，Agent 在需要时接棒。
 </div>
 
-让长时间命令独立于 Agent 连接运行，保存结果，并在宿主支持时通知发起任务的聊天。**v0.1.8 是已发布的 Linux/Windows x86_64 版本。** ChatGPT Desktop 同聊天续接已在 Linux 和 Windows 中完成验证，使用实验性接口；Windows 验证使用 Full access 权限。macOS 运行时暂不支持。OpenCode V1 提供实验性插件候选包；Claude Code 提供仅收件箱通知的开发框架，需要社区验证。
+让长时间命令独立于 Agent 连接运行，保存结果，并在宿主支持时通知发起任务的聊天。**已发布的包支持 Linux/Windows x86_64。** ChatGPT Desktop 同聊天续接已在 Linux 和 Windows 中完成验证，使用实验性接口；Windows 验证使用 Full access 权限。macOS 运行时暂不支持。OpenCode V1 提供实验性插件候选包；Claude Code 提供仅收件箱通知的开发框架，需要社区验证。
 
 OpenCode/Claude 的开发安装及验证边界见[宿主插件指南](docs/host-plugins.md)。
 
 ## 快速安装
 
-ChatGPT Desktop 使用适合当前 Linux 系统、来源可信的离线包。已有安装请直接按[更新](#更新)操作。首次安装时，在收到的离线包目录中打开终端，执行：
+直接使用最新发布的 npm 包和对应的 GitHub Release，无需 Rust 编译器或源码构建。在线安装需要 Node.js 20+/npm 和网络；ChatGPT Desktop/Codex 还需本地执行环境、PATH 中可用的 Codex CLI，以及获取目录所需的 Git（也可使用 Release ZIP）。
+
+### ChatGPT Desktop / Codex
+
+在 Bash 中自动查询最新 npm 运行时，并选择对应的已发布 marketplace：
 
 ```bash
-./relay plugin bootstrap --dry-run
-./relay plugin bootstrap --apply
+AJR_VERSION="$(npm view agent-job-relay-runtime@latest version --registry=https://registry.npmjs.org)" &&
+codex plugin marketplace add MorningFrog/agent-job-relay --ref "v$AJR_VERSION"
 ```
 
-这会安装原生运行时并登记本地插件 marketplace，无需 Rust、Python 或 Node。默认仅预览，`--apply` 才写入安装文件和所属配置。已发布的 npm/marketplace 在线安装见[发布指南](docs/release.md#consumer-installation)。如果只有源码，请按[从源码安装](#从源码安装)操作。
+成功后重启 ChatGPT Desktop，打开 **Plugins → AgentJobRelay**，安装并启用插件，在新的本地聊天中选择 `agent-job-relay@agent-job-relay`。Codex CLI 用户可执行 `codex plugin add agent-job-relay@agent-job-relay`；CLI 集成提供工具和收件箱，不会自动继续模型回合。
 
-重启 ChatGPT Desktop，打开 Plugins，选择本地 marketplace（新建时名为 **AgentJobRelay Local**），安装并启用 AgentJobRelay。打开新的本地聊天，选择 `agent-job-relay@agent-job-relay-local`（已有个人市场使用其原名称）。另一个 `agent-job-relay@agent-job-relay` 入口使用已发布的 npm 运行时及独立状态配置，应与这里的原生本地安装区分。宿主界面的发现与安装仍需在实际宿主版本上人工验收。
+先让选中的插件调用 `job_doctor`，再提交任务。技能出现在聊天中不代表 MCP 已连通。PowerShell 命令、GitHub ZIP 安装及原生离线维护见[安装指南](docs/installation.md)。
 
-检查默认安装：
+### OpenCode V1
 
-```bash
-AJR_INSTALL_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/agent-job-relay"
-"$AJR_INSTALL_ROOT/relay" --version
-"$AJR_INSTALL_ROOT/relay" doctor --client plugin --check-mcp
+在 `opencode.json` 中添加最新发布的插件，然后重启 OpenCode：
+
+```json
+{
+  "plugin": ["agent-job-relay-opencode-v1@latest"]
+}
 ```
 
-自定义安装请使用原目录。保留该目录：MCP 和缓存中的终端启动器都使用其中受管理的运行时。状态及历史另行保存，安装不修改 PATH 或系统服务。已经安装时，见[更新](#更新)。自定义路径和独立 MCP 配置见[安装指南](docs/installation.md)。
+插件会自动安装匹配的原生运行时。OpenCode V1 仍属实验性功能，见[宿主集成及验证范围](docs/host-plugins.md)。已有原生本地安装时，请保留原状态配置并按[维护步骤](docs/installation.md#updating-an-existing-installation)操作。
 
 ## Windows
 
-使用可信的 Windows 离线 bundle 及其中的 `relay.cmd` 启动器。原生执行、进程树监管、MCP、离线维护及 npm 安装后的宿主加载已通过 Windows 11 验证。已发布的 0.1.8 运行时同时携带 Linux 与 Windows 程序。Windows 现已支持按需自动启动 daemon；Codex MCP 清理限制下会使用经过身份验证的同用户本地 CIM 引导。若本机策略禁止 CIM，诊断会提供可直接复制的宿主外启动命令。安装、任务示例及运行边界见 [Windows 指南](docs/windows.md)。
+同一套已发布 npm 包支持 Windows x86_64，使用 [PowerShell 快速安装命令](docs/installation.md#chatgpt-desktop--codex)。Windows 会按需启动 daemon，宿主清理限制阻止原生启动时，可使用经过身份验证的同用户本地 CIM 引导。若本机策略禁止 CIM，诊断会提供可复制的宿主外启动命令。原生运行时与真实 Desktop 验证的版本范围见 [Windows 指南](docs/windows.md)及[实测记录](docs/live-e2e.md)。
 
 ## 在聊天中使用
 
@@ -52,39 +58,13 @@ Agent 会绑定当前聊天、提交任务、结束回合，并在收到通知�
 
 ## 更新
 
-先让活动任务结束。使用**新离线包中的启动器**，这样旧安装尚不认识插件管理命令时也能更新。将 AJR_BUNDLE 设为收到的离线包绝对路径，AJR_INSTALL_ROOT 设为原安装目录：
+先完成活动任务。npm 方式安装的 ChatGPT Desktop/Codex marketplace，按[在线更新命令](docs/installation.md#update-the-online-marketplace)查询最新版、替换旧目录注册，再由宿主刷新或重新安装插件并重连 MCP。OpenCode 的 `@latest` 跟随已发布频道，按宿主支持的方式刷新包缓存后重启。运行中的 daemon 保留已加载程序；不兼容升级需要显式停止同一状态配置对应的 daemon。
 
-```bash
-"$AJR_BUNDLE/relay" plugin update --root "$AJR_INSTALL_ROOT" --from "$AJR_BUNDLE" --dry-run
-"$AJR_BUNDLE/relay" daemon stop --install-root "$AJR_INSTALL_ROOT"
-"$AJR_BUNDLE/relay" plugin update --root "$AJR_INSTALL_ROOT" --from "$AJR_BUNDLE" --apply
-"$AJR_INSTALL_ROOT/relay" --version
-```
-
-更新保留原状态、历史和备份，拒绝降级，不会隐式停止 Daemon。之后通过宿主刷新或重新安装插件，并重新连接 MCP。旧缓存需要先做这次宿主刷新；显式核验后的缓存修复见[安装指南](docs/installation.md#cache-inspection-and-refresh)。
-
-安装、升级或缓存替换中断后，使用新离线包的启动器预览并完成已记录的替换：
-
-```bash
-"$AJR_BUNDLE/relay" plugin repair --path "$AJR_INSTALL_ROOT" --dry-run
-"$AJR_BUNDLE/relay" plugin repair --path "$AJR_INSTALL_ROOT" --apply
-```
-
-修复缓存时改为该缓存的确切目录。修复保留历史和备份，拒绝覆盖修改过的文件，也不会停止 daemon。之后重试原 bootstrap/update 命令，完成剩余步骤。限制见[中断操作恢复](docs/installation.md#compatibility-and-interrupted-operations)。
+原生本地安装使用独立的已记录状态配置，见[保留状态的离线更新](docs/installation.md#updating-an-existing-installation)、[统一维护](docs/installation.md#unified-install-and-update)或[中断操作修复](docs/installation.md#compatibility-and-interrupted-operations)。更新不会自动停止 daemon、切换状态配置或重放任务。
 
 ## 卸载
 
-先在宿主中移除或禁用插件，结束活动任务，再使用同一个已安装启动器：
-
-```bash
-"$AJR_INSTALL_ROOT/relay" integration remove plugin --dry-run
-"$AJR_INSTALL_ROOT/relay" integration remove plugin --apply
-"$AJR_INSTALL_ROOT/relay" daemon stop
-"$AJR_INSTALL_ROOT/relay" uninstall --root "$AJR_INSTALL_ROOT" --dry-run
-"$AJR_INSTALL_ROOT/relay" uninstall --root "$AJR_INSTALL_ROOT" --apply
-```
-
-卸载保留任务数据和备份；遇到已修改或未知安装文件时会拒绝操作。宿主缓存由宿主移除，目前没有数据清除命令。独立 MCP 的移除方法见[安装指南](docs/installation.md#uninstalling)。
+通过宿主禁用或移除插件，再按需要移除 marketplace 或配置条目。历史保存在 npm/插件缓存之外，移除插件不会停止已有 daemon 或清除任务数据。原生本地安装的卸载、预览/应用及已修改或外来文件的保留规则见[安装指南](docs/installation.md#uninstalling)。
 
 ## 常见问题
 
@@ -99,7 +79,7 @@ Agent 会绑定当前聊天、提交任务、结束回合，并在收到通知�
 
 ## 插件发布
 
-源码及发布附件已公开在 [GitHub](https://github.com/MorningFrog/agent-job-relay)。运行时和 OpenCode 包均已发布 `0.1.8`，请使用明确版本或已核验的 npm 频道。在线 marketplace/OpenCode 安装见[发布指南](docs/release.md#consumer-installation)。已有原生安装继续按[离线方式](#快速安装)维护。
+源码及发布附件已公开在 [GitHub](https://github.com/MorningFrog/agent-job-relay)。安装使用 npm `latest` 及对应 GitHub Release，包内部仍固定匹配的运行时依赖。在线 marketplace/OpenCode 安装见[发布指南](docs/release.md#consumer-installation)。已有原生安装继续按[离线方式](docs/installation.md#updating-an-existing-installation)维护。
 
 发布仅限维护者通过两个手动工作流执行：**Prepare Release** 构建并验证 Cargo 版本对应的候选包，**Publish Release** 先在 dry-run 中核对 OIDC，再发布同一批文件。正式发布默认使用 `latest`，Release Notes 来自 CHANGELOG。提交、PR 和 tag 不会自动发布。代码规范见[贡献指南](CONTRIBUTING.md)，具体步骤见[维护者发布指南](docs/release.md)。自建市场与 OpenAI 官方插件库是不同渠道。
 
@@ -115,15 +95,15 @@ Agent 会绑定当前聊天、提交任务、结束回合，并在收到通知�
 |---|---|---|
 | Linux 运行时与离线维护 | 已实现 | 自动化执行、生命周期、恢复及安装测试通过。 |
 | Windows 运行时与自动启动 | 已实现 | Windows 11 原生测试及普通交互用户下的实际 Codex MCP 冷启动通过。 |
-| ChatGPT Desktop 同聊天续接 | Linux 和 Windows 已验证 | v0.1.8 在任务完成后可续接发起任务的聊天。Windows 验证使用 Full access 权限，见[实测记录](docs/live-e2e.md)。 |
+| ChatGPT Desktop 同聊天续接 | Linux 和 Windows 已验证 | 已验证的发布基线可在任务完成后续接发起任务的聊天。Windows 验证使用 Full access 权限，具体版本见[实测记录](docs/live-e2e.md)。 |
 | OpenCode V1 | 实验性插件候选版 | 实际加载器、MCP 和会话 API 配合模拟模型验证通过；真实服务商会话、重启恢复及 V2 仍待完成。 |
 | Claude Code | 仅收件箱通知的框架 | 合成调用者和 MCP 启动器检查通过；实际 Claude 加载器、账号及模型验证需要社区协助。 |
-| npm 运行时与自建市场 | 0.1.8 已发布 | Linux/Windows 安装包与加载器检查及公开 registry 全新安装通过；官方目录批准属于独立流程。 |
+| npm 运行时与自建市场 | 已发布 | Linux/Windows 安装包与加载器检查及公开 registry 全新安装通过；官方目录批准属于独立流程。 |
 | CI 与发布 | 分离的手动准备与发布流程 | 原生/安装包 CI 及首次 token 暂存发布通过；下一次 OIDC 发布仍需维护者验证。 |
 | macOS 运行时 | 未实现 | 仅有可移植部分编译检查，尚不支持原生执行。 |
 | 输出监控/中断 | 已暂缓 | 等待明确的实现请求；当前可读取日志和手动停止任务。 |
 
-未发布源码新增统一的 `plugin install` 和 `connect [--recover [--apply]]` 入口、聊天与工作目录绑定对象，以及默认精简的 MCP 返回（`full=true` 查看完整记录），见[日常使用](docs/usage.md)和[统一维护](docs/installation.md#unified-install-and-update-in-current-source)。同时减少空闲时的数据库访问，并允许最多四个聊天并发接收通知。当前结果与版本限制统一维护在[实施状态](docs/IMPLEMENTATION_STATUS.md)及[真实验证记录](docs/live-e2e.md)。官方目录投稿需要单独批准，独立系统安装包及软件仓库计划已取消。**欢迎社区测试和 PR，尤其是 Claude Code 及容器化版本验证。**
+当前发布候选版新增统一的 `plugin install` 和 `connect [--recover [--apply]]` 入口、聊天与工作目录绑定对象，以及默认精简的 MCP 返回（`full=true` 查看完整记录），见[日常使用](docs/usage.md)和[统一维护](docs/installation.md#unified-install-and-update)。同时减少空闲时的数据库访问，并允许最多四个聊天并发接收通知。当前结果与版本限制统一维护在[实施状态](docs/IMPLEMENTATION_STATUS.md)及[真实验证记录](docs/live-e2e.md)。官方目录投稿需要单独批准，独立系统安装包及软件仓库计划已取消。**欢迎社区测试和 PR，尤其是 Claude Code 及容器化版本验证。**
 
 ## 文档与支持范围
 

@@ -2,18 +2,25 @@
 
 ## [Unreleased]
 
+## [0.1.9] - 2026-10-28
+
 ### Changed
 
 - Add one checked plugin install entry for first installation and profile-preserving updates, plus connect for terminal workspace binding and optional same-chat recovery; retain existing commands.
-- Accept caller binding objects in MCP start/recovery, return compact common tool results with explicit next steps, and allow full=true for complete records. Keep raw IPC unchanged and the online pinned 0.1.8 workflow compatible.
+- Accept caller binding objects in MCP start/recovery, return compact common tool results with explicit next steps, and allow full=true for complete records. Keep raw IPC v1 and existing CLI commands compatible; align online/native workflows with the matching runtime.
 - Reuse bounded SQLite connections, wake workers on local writes, and back off idle reconciliation/delivery checks to one second without acquiring a writer lock for an empty notification queue.
 - Dispatch up to four chat notifications concurrently while transactionally keeping each logical destination's attempts serial across registration instances.
 - Separate maintainer-only Prepare Release and Publish Release workflows. Default formal candidates to latest, validate OIDC from the actual publication workflow in dry-run, and reuse matching partial publications without rebuilding.
-- Document code conventions, required checks and manual release ownership in CONTRIBUTING.md, with detailed subsequent-version and first-package instructions in the release guide.
+- Document latest npm/GitHub installation, code conventions, required checks and manual release ownership, with detailed subsequent-version and first-package instructions in the release guide.
 
 ### Fixed
 
 - Confirm npm channel updates are publicly visible at the reviewed version before completing GitHub publication.
+
+### Known limitations
+
+- Linux and Windows x86_64 are supported; macOS/ARM remain unavailable. New scheduling and convenience changes require the release workflow's Windows/package gates; existing live ChatGPT Desktop evidence covers the earlier published baseline.
+- Common MCP results are compact by default; clients requiring complete records must request full=true. OpenCode V1 remains experimental with simulated-model loader/session checks; real-provider/V2 and Claude account-backed acceptance remain separate work.
 
 ## [0.1.8] - 2026-10-27
 
