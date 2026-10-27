@@ -16,6 +16,8 @@
 - Build and check Linux/Windows candidates in dry-run, then promote those exact reviewed artifacts without rebuilding. First-time npm staging uses a stage-only token and human 2FA approval; later direct publication uses OIDC Trusted Publishing.
 - Preserve matching uploads across retries, verify staged/public tarball bytes, refuse changed or foreign assets/tags, and keep GitHub drafts private until public npm installation passes.
 
+- Preserve bounded Windows installed-package failure diagnostics and run the installed native/host checks in ordinary CI as well as manual release dry-runs.
+
 ### Known limitations
 
 - Linux and Windows x86_64 are supported; macOS and ARM native runtimes are unavailable. OpenCode V1 targets 1.19.4 with actual-loader tests using a simulated model; Claude Code remains an inbox-only scaffold.

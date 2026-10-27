@@ -70,7 +70,7 @@ const registry = createServer((request, response) => {
 await new Promise(r => registry.listen(0, "127.0.0.1", r));
 const registryUrl = `http://127.0.0.1:${registry.address().port}`;
 const npm = join(dirname(process.execPath), "node_modules/npm/bin/npm-cli.js");assert(existsSync(npm));
-let runtimeCli;let core;let codex;let model;let opencode;let hostLog;
+let runtimeCli;let core;let codex;let model;let opencode;let hostLog;let failureContext;
 const report = { platform: "native Windows", model: "OpenCode uses a local simulated model; Codex discovery starts no model", root };
 async function requestCore(state, op, name = "request") {
   return JSON.parse(await run([core, "--state-dir", state, "request", JSON.stringify(op)], name));
@@ -102,11 +102,13 @@ try {
   const state = join(root, "runtime-state");states.add(state);
   const spec = { command: { kind: "exec", program: process.execPath, args: ["-e", "process.stdout.write('packaged-runtime')"] }, cwd: env.HOME };
   const started = await requestCore(state, { op: "start", spec }, "native-start");
+  failureContext = { state, job_id: started.job.job_id };
   const job = await waitUntil(async () => { const j = await requestCore(state, { op: "status", job_id: started.job.job_id }, "native-status");return ["completed", "failed", "orphaned"].includes(j.status) && j; }, 10000, "native job timeout");
-  assert.equal(job.status, "completed");assert.equal(job.exit_code, 0);
+  assert.equal(job.status, "completed", JSON.stringify(job));assert.equal(job.exit_code, 0, JSON.stringify(job));
   const moved = join(root, "moved-runtime");cpSync(dirname(runtimeCli), moved, { recursive: true });
   const movedStatus = JSON.parse(await run([process.execPath, join(moved, "cli.mjs"), "--state-dir", state, "status", job.job_id], "moved-status"));assert.equal(movedStatus.job_id, job.job_id);
   await run([core, "--state-dir", state, "daemon", "stop"], "native-stop");states.delete(state);
+  failureContext = undefined;
   writeFileSync(join(moved, "native/win32-x64/agent-job-relay.exe"), "invalid", { flag: "a" });
   await run([process.execPath, join(moved, "cli.mjs"), "--version"], "corrupt-refused", 1);
   report.installed_runtime = { version: meta.version, history_preserved: true, corruption_refused: true, job_id: job.job_id };
@@ -175,6 +177,7 @@ try {
     const first = await api("/session", { title: "Relay owner" }), second = await api("/session", { title: "Control session" });
     const initial = await api(`/session/${first.id}/message`, { parts: [{ type: "text", text: "Use AgentJobRelay to start the explicit fixture job and end the turn." }] });writeFileSync(join(root, "initial-turn.json"), JSON.stringify(initial, null, 2));
     const jobs = (await requestCore(ocState, { op: "list", after: 0, limit: 20 }, "oc-jobs")).jobs;assert.equal(jobs.length, 1);assert(["queued", "launching", "running"].includes(jobs[0].status));
+    failureContext = { state: ocState, job_id: jobs[0].job_id };
     await waitUntil(() => existsSync(join(gate, "ready")), 5000, "workload readiness failed");writeFileSync(join(gate, "release"), "release");
     await waitUntil(() => resumed, 15000, "OpenCode callback did not invoke its model");
     const transcript = await waitUntil(async () => { const t = await api(`/session/${first.id}/message`);return t.some(m => m.info.role === "assistant" && m.info.finish === "stop" && m.info.time?.completed && m.parts.some(p => p.text === "RELAY_RESUMED_MATCHING_SESSION")) && t; }, 5000, "resumed response was not persisted");
@@ -184,7 +187,22 @@ try {
     report.opencode = { loader: "actual Bun name/version", submission: "actual MCP with caller hook", continuation: "actual public session API and agent loop", model: "simulated", other_session_untouched: true, job_id: status.job_id };
   }
   report.result = "passed";
-} catch (error) { report.result = "failed";report.error = error.stack;process.exitCode = 1; }
+} catch (error) {
+  report.result = "failed";report.error = error.stack;process.exitCode = 1;
+  if (failureContext) {
+    const { state, job_id } = failureContext;
+    report.diagnostics = {};
+    for (const [name, request] of [
+      ["status", { op: "status", job_id }], ["doctor", { op: "doctor" }],
+      ["events", { op: "events", job_id, after: 0, limit: 20 }],
+      ["stdout", { op: "logs", job_id, stream: "stdout", cursor: 0, limit: 8192 }],
+      ["stderr", { op: "logs", job_id, stream: "stderr", cursor: 0, limit: 8192 }],
+    ]) {
+      try { report.diagnostics[name] = await requestCore(state, request, `failure-${name}`); }
+      catch (diagnosticError) { report.diagnostics[name] = { error: String(diagnosticError) }; }
+    }
+  }
+}
 finally {
   if (codex) codex.child.stdin.end();
   for (const child of active) { child.kill(); }

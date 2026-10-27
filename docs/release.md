@@ -95,6 +95,7 @@ GitHub and npm are separate systems; there is no atomic multi-service publish or
 - If stages await 2FA, approve on npm, then run the same promotion again. Pending stages are not repeatedly uploaded. A stage's channel is immutable; a conflicting channel/content requires explicit maintainer investigation, not automatic rejection or replacement.
 - If both packages are public but GitHub completion fails, retry the same promotion. npm uploads are skipped; public installation and GitHub completion repeat.
 - A changed npm integrity, foreign/modified Release body/assets, unexpected tag target or missing candidate stops publication. No release asset is clobbered/deleted and no tag is moved. Fixing different published bytes requires a new version.
+- If a Windows installed-package check fails, inspect the bounded status/events/stdout/stderr in the job log and download the `windows-package-diagnostics` artifact (retained for seven days). It contains only isolated fixture reports/captures, not databases, caches, credentials or real host state.
 - If public registry propagation is incomplete, retry after the exact versions are readable. The workflow does not keep polling or silently claim success.
 
 ## Local package checks

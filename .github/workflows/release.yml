@@ -161,6 +161,18 @@ jobs:
         run: npm install --prefix .tmp/host-tools --cache .tmp/npm-cache --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org opencode-ai@1.19.4 @openai/codex@0.164.0
       - name: Verify installed Windows packages and actual host loaders
         run: node scripts/check_windows_packages.mjs --release .tmp/release-candidate --codex-entry "$PWD/.tmp/host-tools/node_modules/@openai/codex/bin/codex.js" --opencode "$PWD/.tmp/host-tools/node_modules/opencode-windows-x64/bin/opencode.exe"
+      - name: Preserve isolated Windows package failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: windows-package-diagnostics
+          path: |
+            .tmp/wp-*/report.json
+            .tmp/wp-*/*.stdout
+            .tmp/wp-*/*.stderr
+            .tmp/wp-*/*.log
+          if-no-files-found: ignore
+          retention-days: 7
   candidate:
     needs: [package, windows-packages]
     runs-on: ubuntu-latest
