@@ -2,6 +2,20 @@
 
 One package and executable; CLI, stdio MCP, daemon and runner modes.
 
+## Source map
+
+| Responsibility | Modules |
+|---|---|
+| Process initialization | `src/main.rs` |
+| CLI syntax and dispatch | `src/cli/args.rs`, `src/cli/mod.rs` (binary-private) |
+| MCP tools and client convenience | `src/mcp.rs`, `src/client.rs`, `src/diagnostics.rs` |
+| Job intent, execution and persistence | `src/core.rs`, `src/daemon.rs`, `src/runner.rs`, `src/storage.rs` |
+| Session binding and notifications | `src/session.rs`, `src/adapters.rs`, `src/plugin_bridge.rs`, `src/delivery.rs`, `src/recovery.rs`, `src/renewal.rs` |
+| Local transport and OS primitives | `src/ipc.rs`, `src/platform/` |
+| Configuration and plugin lifecycle | `src/config.rs`, `src/integration.rs`, `src/deployment.rs`, `src/plugin.rs`, `src/lifecycle.rs` |
+
+The binary owns argument parsing, profile selection and dispatch. CLI and MCP share library behavior; OS-specific operations belong in `platform/`. Host entry points live in `plugins/`, the npm launcher in `packages/runtime/`, and developer verification scripts in `scripts/`.
+
 ## Runtime and storage
 
 - CLI/MCP → bounded private Unix socket / Windows named pipe → daemon → SQLite intent.
