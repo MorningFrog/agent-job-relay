@@ -439,12 +439,15 @@ class ReleaseTests(unittest.TestCase):
         path = self.root / "docs/release.md"
         path.parent.mkdir(exist_ok=True)
         path.write_text("release repair\n")
+        fixture = self.root / "tests/integration.rs"
+        fixture.parent.mkdir(exist_ok=True)
+        fixture.write_text("// isolated integration fixture\n")
         git("add", ".")
         git("commit", "-qm", "fixture: tooling repair")
         tooling = git("rev-parse", "HEAD")
         with patch.object(actions, "REPO", self.root), patch.object(actions, "command", wraps=lambda argv, **kw: subprocess.check_output(argv, cwd=self.root, text=not kw.get("binary", False), stderr=subprocess.PIPE)), patch.object(actions, "summary"):
             actions.check_recovery_source(original, tooling)
-            for relative in ["Cargo.toml", "packages/runtime/README.md", "plugins/chatgpt/mcp.json", "CHANGELOG.md", "src/main.rs"]:
+            for relative in ["Cargo.toml", "packages/runtime/README.md", "plugins/chatgpt/mcp.json", "CHANGELOG.md", "src/main.rs", "tests/runtime.rs"]:
                 with self.subTest(path=relative):
                     target = self.root / relative
                     target.parent.mkdir(parents=True, exist_ok=True)

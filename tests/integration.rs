@@ -3,18 +3,25 @@ use agent_job_relay::{
     config::Config,
     integration::{self, Client},
 };
-use std::path::Path;
-fn fixture() -> (tempfile::TempDir, Config) {
+use std::{
+    path::Path,
+    sync::{Mutex, MutexGuard},
+};
+fn fixture() -> (tempfile::TempDir, Config, MutexGuard<'static, ()>) {
+    // A parallel CLI spawn can inherit another case's lock until exec, even
+    // with CLOEXEC. Keep process spawning separate from in-process setup locks.
+    static FIXTURES: Mutex<()> = Mutex::new(());
+    let guard = FIXTURES.lock().unwrap_or_else(|error| error.into_inner());
     let d = tempfile::tempdir_in(common::root()).unwrap();
     let c = Config::new(Some(d.path().join("state"))).unwrap();
-    (d, c)
+    (d, c, guard)
 }
 fn read(p: &Path) -> String {
     std::fs::read_to_string(p).unwrap()
 }
 #[test]
 fn codex_preview_idempotence_backup_and_safe_remove() {
-    let (d, c) = fixture();
+    let (d, c, _guard) = fixture();
     let p = d.path().join("config.toml");
     let original =
         "# preserve comment\nmodel = 'example'\n[mcp_servers.other]\ncommand = 'other'\n";
@@ -49,7 +56,7 @@ fn codex_preview_idempotence_backup_and_safe_remove() {
 }
 #[test]
 fn json_preserves_foreign_entries_and_refuses_modified_owned_entry() {
-    let (d, c) = fixture();
+    let (d, c, _guard) = fixture();
     let p = d.path().join("mcp.json");
     std::fs::write(
         &p,
@@ -74,7 +81,7 @@ fn json_preserves_foreign_entries_and_refuses_modified_owned_entry() {
 }
 #[test]
 fn rejects_unowned_entry_malformed_config_and_symlink() {
-    let (d, c) = fixture();
+    let (d, c, _guard) = fixture();
     let p = d.path().join("mcp.json");
     std::fs::write(
         &p,
@@ -95,7 +102,7 @@ fn rejects_unowned_entry_malformed_config_and_symlink() {
 }
 #[test]
 fn cli_preview_clean_home_and_doctor_are_actionable() {
-    let (d, _) = fixture();
+    let (d, _, _guard) = fixture();
     let bin = env!("CARGO_BIN_EXE_agent-job-relay");
     let config = d.path().join("home/.codex/config.toml");
     let out = std::process::Command::new(bin)

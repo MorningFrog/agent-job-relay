@@ -27,6 +27,7 @@ RECOVERY_PATHS = frozenset({
     ".github/workflows/release.yml", ".github/workflows/release-publish.yml",
     ".github/workflows/release-check.yml", ".github/workflows/release-all.yml",
     "scripts/release_pipeline.py",
+    "tests/integration.rs",  # Fixture isolation only; not embedded in payloads.
     "scripts/release_actions.py", "scripts/test_release.py", "CONTRIBUTING.md",
     "README.md", "README.zh-CN.md", "docs/release.md", "docs/testing.md",
     "docs/architecture.md", "docs/IMPLEMENTATION_STATUS.md", "docs/TODO.md",

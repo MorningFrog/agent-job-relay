@@ -21,6 +21,8 @@ Test behavior, correctness and regression risk through the existing Rust suites 
 
 Keep generated test state, outputs, reports and logs under ignored repository-local `.tmp/` or `target/`; never commit them. Versioned documentation records concise current results and verification limits. Historical runs are available in Git history, while required test cases/fixtures stay tracked.
 
+The four configuration-integration fixtures run serially within their test binary. This prevents a parallel CLI fork from briefly inheriting another fixture's configuration lock before exec; each case keeps its own isolated paths and all assertions. Runtime concurrency cases continue to exercise their existing explicit concurrent workloads.
+
 ## Behavior coverage
 
 | Suite | Coverage | Boundary |
