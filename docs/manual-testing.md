@@ -20,7 +20,7 @@ Keep the original root/profile if you previously chose a custom one. For an exis
 "$AJR_BUNDLE/relay" plugin update --root "$AJR_INSTALL_ROOT" --from "$AJR_BUNDLE" --apply
 ```
 
-Expected: preview reports the intended original installation/state; apply preserves that state and history, reports any backup, and installs 0.1.5. Use the new launcher even if the old installation predates `plugin update`. An active-job/ownership error is a stop-and-diagnose result, not a reason to choose a fresh state directory.
+Expected: preview reports the intended original installation/state; apply preserves that state and history, reports any backup, and installs the new bundle's version. Use the new launcher even if the old installation predates `plugin update`. An active-job/ownership error is a stop-and-diagnose result, not a reason to choose a fresh state directory.
 
 For a first installation only, replace the update sequence with:
 
@@ -36,11 +36,11 @@ Then check:
 "$AJR_INSTALL_ROOT/relay" doctor --client plugin --check-mcp
 ```
 
-Expected: version 0.1.5, owned marketplace entry matches, and `stdio_self_check.status=passed` with 20 tools. `daemon=stopped` is normal before a submission; the check must not start a workload. This result establishes local installation/configuration/stdio only.
+Expected: version matches the bundle, owned marketplace entry matches, and `stdio_self_check.status=passed` with 20 tools. `daemon=stopped` is normal before a submission; the check must not start a workload. This result establishes local installation/configuration/stdio only. For a source build, follow the [local installation walkthrough](source-install.md) ([简体中文](source-install.zh-CN.md)) first.
 
 ## 2. Refresh the plugin in Desktop
 
-Restart/reconnect Desktop and use its Plugins interface to refresh/reinstall AgentJobRelay from the existing local marketplace. A newly created marketplace is labeled AgentJobRelay Local; an older one may have a custom label. Keep the native installation present. Legacy caches without the new runtime profile require host refresh first; do not try to repair them by changing their receipts.
+Restart/reconnect Desktop and use its Plugins interface to refresh/reinstall AgentJobRelay from the existing local marketplace. A newly created marketplace is `agent-job-relay-local`, labeled AgentJobRelay Local; an older one may have a custom name/label. Select `agent-job-relay@agent-job-relay-local` for a new catalog. Disable the separate online candidate `agent-job-relay@agent-job-relay` if enabled; its unpublished npm runtime cannot qualify local acceptance. Keep the native installation present. Legacy caches without the new runtime profile require host refresh first; do not try to repair them by changing their receipts.
 
 Open a new local chat and select the plugin. Expected: the plugin and its MCP tools are available, without changing other plugins. Record UI discovery separately from tool connectivity. If the host offers no refresh or cannot load the plugin, record that host/version limitation and stop this acceptance path.
 
@@ -84,7 +84,7 @@ Expected: the original state path is retained; the same unmodified bundle report
 
 | Item | Passing evidence |
 |---|---|
-| Runtime installation/update | 0.1.5 and original state/profile retained |
+| Runtime installation/update | Bundle version and original state/profile retained |
 | Local MCP | Owned configuration match and 20-tool stdio self-check |
 | Host UI | Plugin visibly discovered and installed/refreshed |
 | Host MCP connection | Actual `job_doctor` tool response |

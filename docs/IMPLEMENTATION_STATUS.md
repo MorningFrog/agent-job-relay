@@ -34,6 +34,7 @@ The binary keeps process initialization in `src/main.rs`, command syntax in `src
 | Linux delivery gates | `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --all-targets` and `cargo build --release` pass; **82 tests passed, 0 failed, 0 ignored** |
 | Linux suite groups | 8 library, 4 bridge, 14 convenience/installed MCP, 10 delivery/migration, 7 Desktop simulation/renewal, 4 integration, 5 onboarding, 10 offline plugin/cache, 3 legacy-upgrade, 4 recovery, 13 runtime |
 | Offline Codex loader | Actual CLI 0.164.0 bootstraps a relocated bundle, validates the host-created cache and discovers 20 tools. No model turn, daemon, workload or real Desktop endpoint |
+| Local source walkthrough | Matching English/Chinese commands pass in an isolated HOME: build/export, bootstrap, explicit local-plugin installation, unchanged update and stdio doctor. Actual Codex 0.164.0 loader discovers 20 tools; no personal configuration change or Desktop UI acceptance |
 | npm/marketplace candidates | Actual tarball/native execution, retained history after relocation, corrupt-payload refusal and Codex 0.164.0 catalog/tool discovery pass on Linux/Windows through a loopback registry; no public npm write or Desktop contact |
 | OpenCode V1 | Actual 1.19.4 Bun package-name loader, caller-context MCP and owned-session public callback/agent loop pass with a local simulated model; control session untouched, no real provider/account |
 | Claude scaffold | Synthetic caller separation/placeholder rejection and actual launcher/MCP discovery/submission pass; no Claude account, loader, skill substitution or model run verified |
@@ -50,7 +51,7 @@ Automated Desktop transport, host replacement, recovery and renewal use fake hos
 
 ## Installed runtime and release handoff
 
-The last read-only installation check found native **0.1.5**, matching recorded/active state, explicit current-terminal binding and actual MCP connectivity. Desktop **26.1021.22027**/plugin enablement are user-attested. Native/cache hashes and upgrade history preservation were not freshly audited. Source development and this reorganization do not update installed/running programs or real configuration/services.
+The last read-only installation check found native **0.1.5**, matching recorded/active state, explicit current-terminal binding and actual MCP connectivity. Desktop **26.1021.22027**/plugin enablement are user-attested. Native/cache hashes and upgrade history preservation were not freshly audited. Source development and this reorganization do not update installed/running programs or real configuration/services. The [source installation walkthrough](source-install.md) ([简体中文](source-install.zh-CN.md)) distinguishes the native `agent-job-relay-local` marketplace from the unpublished npm candidate and separates local stdio checks from Desktop MCP acceptance.
 
 Host packages and community acceptance are described in [host plugins](host-plugins.md) and [CONTRIBUTING.md](../CONTRIBUTING.md). OpenCode V2 has a research map only; Claude needs account-backed community verification. The existing offline Codex bundle does not contain those source host packages. Older binaries cannot interpret `plugin_bridge` session records despite the unchanged schema/IPC versions.
 

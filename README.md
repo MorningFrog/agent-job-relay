@@ -22,9 +22,9 @@ For Desktop, use a trusted offline bundle for your Linux system. For an existing
 ./relay plugin bootstrap --apply
 ```
 
-This installs the native runtime and registers its local plugin marketplace. No Rust, Python or Node is needed. Preview is the default; `--apply` writes the installation and owned configuration. There is no public download or automatic online installer yet. If you only have source, see [Build a bundle](#build-a-bundle).
+This installs the native runtime and registers its local plugin marketplace. No Rust, Python or Node is needed. Preview is the default; `--apply` writes the installation and owned configuration. There is no public download or automatic online installer yet. If you only have source, follow [Install from source](#install-from-source).
 
-Restart Desktop, open Plugins, select your local marketplace (**AgentJobRelay Local** for a new marketplace), and install/enable AgentJobRelay. Start a new local chat and select the plugin. Host UI discovery still requires manual acceptance on your host version.
+Restart Desktop, open Plugins, select your local marketplace (**AgentJobRelay Local** for a new marketplace), and install/enable AgentJobRelay. Start a new local chat and select `agent-job-relay@agent-job-relay-local` (or your existing personal marketplace's name). The separate `agent-job-relay@agent-job-relay` entry uses the unpublished npm runtime and is not the working local installation. Host UI discovery still requires manual acceptance on your host version.
 
 Check the default installation:
 
@@ -91,6 +91,7 @@ Uninstall preserves task data and backups. Modified or unknown install files are
 | Symptom | Next step |
 |---|---|
 | Plugin or MCP tools missing | Refresh the plugin in the host and reconnect. A loaded skill alone does not prove MCP loaded. |
+| `npm E404` for `agent-job-relay-runtime` | The online candidate is selected. Follow [local source installation](docs/source-install.md), then select `agent-job-relay@agent-job-relay-local`. |
 | Local self-check passes, but chat tools fail | Invoke `job_doctor` from the host; a local stdio check does not establish host connectivity. |
 | Update reports an active runtime | Finish jobs, then explicitly stop the daemon for the original installation. |
 | Notification does not arrive | Check session/delivery state; use same-chat recovery when needed. See [usage](docs/usage.md). |
@@ -102,18 +103,11 @@ Source is public on [GitHub](https://github.com/MorningFrog/agent-job-relay). Ca
 
 The GitHub **Release candidate** workflow runs manually only: it builds artifacts by default or optionally creates a prerelease draft for manual publication. Pushes, PRs and tags never publish. See [release preparation](docs/release.md) for builds, installed-package checks and future online installation. A self-hosted marketplace is separate from OpenAI's official directory.
 
-## Build a bundle
+## Install from source
 
-For developers or users without an offline bundle, build from the repository root with Rust stable, Cargo and a C toolchain. The declared Rust 1.89 minimum has not been independently verified; local checks used 1.99.1.
+Follow the [step-by-step local source installation](docs/source-install.md) ([简体中文](docs/source-install.zh-CN.md)). It covers prerequisites, checkout, compilation, bundle export, first installation or history-preserving update, Desktop selection and an actual MCP check, with expected results at each step.
 
-```bash
-cargo build --release --locked
-AJR_BUNDLE="$PWD/.tmp/agent-job-relay-offline"
-./target/release/agent-job-relay plugin pack --output "$AJR_BUNDLE" --dry-run
-./target/release/agent-job-relay plugin pack --output "$AJR_BUNDLE" --apply
-```
-
-Choose a new output directory for each export. Then use that directory's `relay plugin bootstrap` as in Quick install, or transfer the directory while preserving executable permissions. This is a local delivery artifact, not a marketplace ZIP or published release. See [developer verification](docs/testing.md) for build gates and isolated loader checks.
+The result is the native local plugin in **AgentJobRelay Local**, normally referenced as `agent-job-relay@agent-job-relay-local`. No npm publication or Node.js installation is required. Building alone does not install it; complete the bootstrap/update and Desktop steps. Windows source commands are in the [Windows guide](docs/windows.md#build-when-no-bundle-is-available); developer gates are in [testing](docs/testing.md).
 
 ## Implementation and verification
 
@@ -135,6 +129,7 @@ Current results and version-specific limits are maintained in [implementation st
 
 | Topic | Guide |
 |---|---|
+| Step-by-step local installation from source | [Source installation](docs/source-install.md), [简体中文](docs/source-install.zh-CN.md) |
 | Installation, profiles, updates, caches and removal | [Installation](docs/installation.md) |
 | CLI, MCP, notifications and recovery | [Usage](docs/usage.md) |
 | Human acceptance and expected results | [Manual testing](docs/manual-testing.md) |

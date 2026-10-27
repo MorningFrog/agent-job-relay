@@ -2,7 +2,7 @@
 
 Use the offline bundle for the quickest installation. It includes the native executable and needs no Rust, Python or Node on the recipient's machine. Current support is Linux x86_64 with a compatible libc and a POSIX shell, plus Windows x86_64 with a `.cmd` launcher (see the [Windows guide](windows.md)); there is no public download, online installer or official plugin listing yet. Use a trusted build: its hashes check integrity, not publisher identity.
 
-Already installed? Follow [Updating an existing installation](#updating-an-existing-installation). For a first install, use the quick path below. Source builds and standalone MCP are under [Alternative installation routes](#alternative-installation-routes).
+Already installed? Follow [Updating an existing installation](#updating-an-existing-installation). For a first install, use the quick path below. Without a bundle, follow the complete [local source installation walkthrough](source-install.md) ([简体中文](source-install.zh-CN.md)); standalone MCP is under [Alternative installation routes](#alternative-installation-routes).
 
 ## npm and self-hosted marketplace candidates
 
@@ -21,7 +21,7 @@ Open a terminal in the received bundle directory:
 
 The preview shows the native installation and local marketplace entry. Apply installs the runtime and registers that entry. It preserves other marketplace entries and refuses modified or unowned content. The bundle directory can be moved before bootstrap and is no longer needed afterward.
 
-Restart Desktop, open Plugins, select the local marketplace and install/enable AgentJobRelay. A new marketplace is named **AgentJobRelay Local**; an existing one retains its label. Open a new local chat and select the plugin. Availability and UI behavior depend on the host version/account; use the [manual acceptance procedure](manual-testing.md) to verify them.
+Restart Desktop, open Plugins, select the local marketplace and install/enable AgentJobRelay. A new marketplace is named `agent-job-relay-local`, displayed as **AgentJobRelay Local**; an existing one retains its name/label. Open a new local chat and select `agent-job-relay@agent-job-relay-local` (substitute an existing catalog's name when different). The repository catalog's `agent-job-relay@agent-job-relay` entry instead needs the unpublished npm runtime; selecting it can expose the skill while MCP startup fails with `E404`. Availability and UI behavior depend on the host version/account; use the [manual acceptance procedure](manual-testing.md) to verify them.
 
 Check the default installation:
 
@@ -84,16 +84,7 @@ The installation contains the native program, launcher, Codex manifest/MCP confi
 
 ### Build a bundle from source
 
-The author needs Rust stable, Cargo and a C toolchain for bundled SQLite. Run from the repository root:
-
-```bash
-cargo build --release --locked
-AJR_BUNDLE="$PWD/.tmp/agent-job-relay-offline"
-./target/release/agent-job-relay plugin pack --output "$AJR_BUNDLE" --dry-run
-./target/release/agent-job-relay plugin pack --output "$AJR_BUNDLE" --apply
-```
-
-Choose a new output directory. Then use its `relay plugin bootstrap` as in Quick install, or transfer the whole directory while preserving executable permissions. The export is a local delivery artifact, not a marketplace ZIP. It validates declared version/platform and hashes; no download, signature verification or automatic host installation hook is implemented.
+Follow [Install the local plugin from source](source-install.md) ([简体中文](source-install.zh-CN.md)) for prerequisites, checkout, build/export commands, first installation or update, exact marketplace selection and MCP verification. The resulting native bundle needs no recipient Node/npm or compiler and can be transferred while preserving executable permissions. It is a local delivery artifact, not the online marketplace ZIP; no download, signature verification or automatic host installation hook is implemented.
 
 ### Install directly from a source build
 

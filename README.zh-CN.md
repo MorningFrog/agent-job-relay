@@ -22,9 +22,9 @@ Desktop 使用适合当前 Linux 系统、来源可信的离线包。已有安�
 ./relay plugin bootstrap --apply
 ```
 
-这会安装原生运行时并登记本地插件 marketplace，无需 Rust、Python 或 Node。默认仅预览，`--apply` 才写入安装文件和所属配置。当前没有公开下载或自动在线安装器。如果只有源码，见[构建离线包](#构建离线包)。
+这会安装原生运行时并登记本地插件 marketplace，无需 Rust、Python 或 Node。默认仅预览，`--apply` 才写入安装文件和所属配置。当前没有公开下载或自动在线安装器。如果只有源码，请按[从源码安装](#从源码安装)操作。
 
-重启 Desktop，打开 Plugins，选择本地 marketplace（新建时名为 **AgentJobRelay Local**），安装并启用 AgentJobRelay。打开新的本地聊天并选择插件。宿主界面的发现与安装仍需在实际宿主版本上人工验收。
+重启 Desktop，打开 Plugins，选择本地 marketplace（新建时名为 **AgentJobRelay Local**），安装并启用 AgentJobRelay。打开新的本地聊天，选择 `agent-job-relay@agent-job-relay-local`（已有个人市场使用其原名称）。另一个 `agent-job-relay@agent-job-relay` 入口依赖尚未发布的 npm 运行时，不能作为当前可用的本地安装。宿主界面的发现与安装仍需在实际宿主版本上人工验收。
 
 检查默认安装：
 
@@ -91,6 +91,7 @@ Agent 会绑定当前聊天、提交任务、结束回合，并在收到通知�
 | 现象 | 下一步 |
 |---|---|
 | 看不到插件或 MCP 工具 | 在宿主中刷新插件并重新连接；技能加载不代表 MCP 已加载。 |
+| `agent-job-relay-runtime` 报 `npm E404` | 选中了在线候选入口。按[本地源码安装教程](docs/source-install.zh-CN.md)操作，再选择 `agent-job-relay@agent-job-relay-local`。 |
 | 本地自检通过，但聊天工具不可用 | 从宿主调用 `job_doctor`；本地 stdio 自检不能证明宿主连通。 |
 | 更新提示运行时仍在使用 | 等待任务结束，再显式停止原安装对应的 Daemon。 |
 | 没有收到通知 | 检查会话和投递状态，必要时做同聊天恢复，见[使用指南](docs/usage.md)。 |
@@ -102,18 +103,11 @@ Agent 会绑定当前聊天、提交任务、结束回合，并在收到通知�
 
 GitHub 的 **Release candidate** 工作流只能手动运行：默认生成候选文件，也可选择创建待人工发布的预发行草稿；提交、PR 和 tag 不会自动发布。构建、安装验证及未来在线安装步骤见[发布指南](docs/release.md)。自建市场与 OpenAI 官方插件库是不同渠道。
 
-## 构建离线包
+## 从源码安装
 
-开发者或尚无离线包的用户，可在仓库根目录使用 Rust stable、Cargo 和 C 工具链构建。声明的最低 Rust 1.89 尚未独立验证，本地检查使用 1.99.1。
+请按[本地源码安装逐步教程](docs/source-install.zh-CN.md)操作（[English](docs/source-install.md)）。教程涵盖环境准备、获取源码、编译、导出离线包、首次安装或保留历史更新、Desktop 插件选择及真实 MCP 检查，每一步均有预期结果。
 
-```bash
-cargo build --release --locked
-AJR_BUNDLE="$PWD/.tmp/agent-job-relay-offline"
-./target/release/agent-job-relay plugin pack --output "$AJR_BUNDLE" --dry-run
-./target/release/agent-job-relay plugin pack --output "$AJR_BUNDLE" --apply
-```
-
-每次导出使用新目录。然后按快速安装运行其中的 `relay plugin bootstrap`，或保留可执行权限后转交整个目录。它是本地交付产物，不是 marketplace ZIP 或已发布版本。构建门禁和隔离加载器检查见[开发验证](docs/testing.md)。
+安装结果是 **AgentJobRelay Local** 中的原生本地插件，通常引用为 `agent-job-relay@agent-job-relay-local`，无需 npm 发布或 Node.js。仅编译成功还未完成安装，必须继续执行 bootstrap/update 及 Desktop 步骤。Windows 源码命令见 [Windows 指南](docs/windows.md#build-when-no-bundle-is-available)，开发门禁见[测试指南](docs/testing.md)。
 
 ## 实现与验证情况
 
@@ -135,6 +129,7 @@ AJR_BUNDLE="$PWD/.tmp/agent-job-relay-offline"
 
 | 主题 | 文档 |
 |---|---|
+| 从源码逐步安装本地插件 | [中文教程](docs/source-install.zh-CN.md)、[English](docs/source-install.md) |
 | 安装、状态配置、更新、缓存及移除 | [安装指南](docs/installation.md) |
 | CLI、MCP、通知和恢复 | [使用指南](docs/usage.md) |
 | 人工验收步骤和预期结果 | [人工测试](docs/manual-testing.md) |
