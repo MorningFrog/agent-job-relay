@@ -137,6 +137,7 @@ GitHub 的 **Release candidate** 工作流只能手动运行：默认生成候�
 | 当前支持及证据 | [实施状态](docs/IMPLEMENTATION_STATUS.md)、[真实验证记录](docs/live-e2e.md) |
 | 安全和运行限制 | [安全说明](docs/security.md)、[限制](docs/limitations.md) |
 | 设计和接口细节 | [架构](docs/architecture.md)、[协议](docs/protocol.md) |
+| 可编辑图标及 SVG/PNG 导出 | [图标源文件与导出流程](assets/icons/README.md) |
 | 宿主框架及社区测试 | [宿主插件](docs/host-plugins.md)、[参与贡献](CONTRIBUTING.md) |
 | 发布候选包和手动 Actions | [发布指南](docs/release.md) |
 | 计划及变更 | [路线图](docs/TODO.md)、[变更记录](CHANGELOG.md) |

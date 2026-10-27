@@ -36,6 +36,7 @@ cargo build --release
 
 ## Documentation
 
+- Maintain icon artwork in `assets/icons/agent-job-relay.vectorcraft` using VectorCraft; regenerate the canonical SVG/PNG and marketplace SVG from that saved source together. Follow `assets/icons/README.md`; do not edit exports independently.
 - Keep documentation concise, focused and logically structured with meaningful headings. Remove redundant explanations and filler while retaining evidence and operational limits.
 - Write reader-facing guides in task order. Present the quickest working installation before source builds; keep README focused on getting started and navigation, put detailed usage/maintenance in their guides, and give manual test steps explicit expected results. Keep historical evidence out of installation instructions.
 - Keep documentation focused on this project; omit external-project comparison and local research narratives. Do not embed literal absolute filesystem paths, machine-specific directories or personal endpoints. Use repository-relative paths, environment variables or clearly explained placeholders; resolve required runtime paths from the current environment.

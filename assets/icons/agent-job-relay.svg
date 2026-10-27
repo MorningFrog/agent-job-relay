@@ -1,137 +1,52 @@
-
-<svg xmlns="http://www.w3.org/2000/svg"
-     viewBox="0 0 1024 1024"
-     role="img"
-     aria-labelledby="title desc">
-  <title id="title">AgentJobRelay</title>
-  <desc id="desc">
-    AI agent, background job, and event relay icon.
-  </desc>
-
-  <!-- Colors:
-       Navy  #09286B
-       Blue  #087DFA
-       Green #00BE91
-       Gray  #91A6CA
-  -->
-
-  <!-- Relay arrows -->
-  <g fill="none"
-     stroke="#087DFA"
-     stroke-width="50"
-     stroke-linecap="round"
-     stroke-linejoin="round">
-    <path d="M480 206
-             C650 168 800 252 843 416"/>
-    <path d="M782 405 L843 460 L895 401"/>
-
-    <path d="M296 720
-             C354 811 426 853 496 863"/>
-    <path d="M546 862
-             C605 853 654 821 682 786"/>
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1024 1024">
+  <title>AgentJobRelay</title>
+  <desc>AI agent, background job, and event relay icon.</desc>
+  <metadata>
+    <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dc="http://purl.org/dc/elements/1.1/">
+      <rdf:Description rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:title>AgentJobRelay</dc:title>
+        <dc:description>AI agent, background job, and event relay icon.</dc:description>
+        <dc:subject>AgentJobRelay</dc:subject>
+        <dc:subject>icon</dc:subject>
+        <dc:subject>agent</dc:subject>
+        <dc:subject>background job</dc:subject>
+        <dc:subject>event relay</dc:subject>
+        <dc:date>2026-10-27T11:55:09Z</dc:date>
+      </rdf:Description>
+    </rdf:RDF>
+  </metadata>
+  <g id="Relay_arrows" data-name="Relay arrows">
+    <path id="Outbound_relay_arc" data-name="Outbound relay arc" d="M480 206 C650 168 800 252 843 416" fill="none" stroke="#087dfa" stroke-width="50" stroke-linecap="round" stroke-linejoin="round"/>
+    <path id="Outbound_arrowhead" data-name="Outbound arrowhead" d="M782 405 L843 460 L895 401" fill="none" stroke="#087dfa" stroke-width="50" stroke-linecap="round" stroke-linejoin="round"/>
+    <path id="Return_relay_left" data-name="Return relay left" d="M296 720 C354 811 426 853 496 863" fill="none" stroke="#087dfa" stroke-width="50" stroke-linecap="round" stroke-linejoin="round"/>
+    <path id="Return_relay_right" data-name="Return relay right" d="M546 862 C605 853 654 821 682 786" fill="none" stroke="#087dfa" stroke-width="50" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
-
-  <!-- Agent antenna -->
-  <path d="M384 268 V332"
-        stroke="#09286B"
-        stroke-width="44"
-        stroke-linecap="round"/>
-  <circle cx="384" cy="198" r="70"
-          fill="#09286B"/>
-  <circle cx="384" cy="198" r="44"
-          fill="#087DFA"/>
-
-  <!-- Robot side panels -->
-  <rect x="105" y="410"
-        width="99" height="172" rx="48"
-        fill="#09286B"/>
-  <rect x="128" y="451"
-        width="29" height="87" rx="14"
-        fill="#FFFFFF"/>
-
-  <rect x="568" y="410"
-        width="98" height="172" rx="48"
-        fill="#09286B"/>
-  <rect x="613" y="451"
-        width="28" height="87" rx="14"
-        fill="#FFFFFF"/>
-
-  <!-- Robot speech-bubble silhouette -->
-  <path
-    d="M282 304
-       H466
-       C553 304 613 373 613 459
-       V541
-       C613 616 553 665 471 665
-       H323
-       L242 707
-       C222 717 201 701 205 675
-       L216 626
-       C169 598 146 557 146 492
-       V468
-       C146 374 195 304 282 304 Z"
-    fill="#09286B"/>
-
-  <!-- Robot face -->
-  <path
-    d="M291 360
-       H463
-       C530 360 563 406 563 474
-       V508
-       C563 580 517 617 457 617
-       H319
-       C301 617 289 619 272 629
-       L237 653
-       L244 610
-       C218 590 195 553 195 510
-       V470
-       C195 405 233 360 291 360 Z"
-    fill="#FFFFFF"/>
-
-  <!-- Eyes -->
-  <rect x="267" y="445"
-        width="54" height="91" rx="27"
-        fill="#09286B"/>
-  <rect x="439" y="445"
-        width="54" height="91" rx="27"
-        fill="#09286B"/>
-
-  <!-- Smile -->
-  <path d="M345 559 Q380 591 416 559"
-        fill="none"
-        stroke="#09286B"
-        stroke-width="25"
-        stroke-linecap="round"/>
-
-  <!-- Completed job card -->
-  <rect x="670" y="506"
-        width="270" height="282" rx="49"
-        fill="#09286B"/>
-  <rect x="700" y="536"
-        width="210" height="222" rx="29"
-        fill="#FFFFFF"/>
-
-  <!-- Job completion check -->
-  <path d="M754 622 L789 657 L858 589"
-        fill="none"
-        stroke="#00BE91"
-        stroke-width="31"
-        stroke-linecap="round"
-        stroke-linejoin="round"/>
-
-  <!-- Job detail lines -->
-  <g stroke="#91A6CA"
-     stroke-width="23"
-     stroke-linecap="round">
-    <path d="M748 692 H869"/>
-    <path d="M748 730 H869"/>
+  <g id="Agent">
+    <path id="Antenna_stem" data-name="Antenna stem" d="M384 268 L384 332" fill="none" stroke="#09286b" stroke-width="44" stroke-linecap="round" stroke-miterlimit="10"/>
+    <path id="Antenna_rim" data-name="Antenna rim" d="M314 198 C314 159.34 345.34 128 384 128 C422.66 128 454 159.34 454 198 C454 236.66 422.66 268 384 268 C345.34 268 314 236.66 314 198 Z" fill="#09286b"/>
+    <path id="Antenna_signal" data-name="Antenna signal" d="M340 198 C340 173.699 359.699 154 384 154 C408.301 154 428 173.699 428 198 C428 222.301 408.301 242 384 242 C359.699 242 340 222.301 340 198 Z" fill="#087dfa"/>
+    <path id="Left_ear" data-name="Left ear" d="M153 410 L156 410 C182.51 410 204 431.49 204 458 L204 534 C204 560.51 182.51 582 156 582 L153 582 C126.49 582 105 560.51 105 534 L105 458 C105 431.49 126.49 410 153 410 Z" fill="#09286b"/>
+    <path id="Left_ear_inset" data-name="Left ear inset" d="M142 451 L143 451 C150.732 451 157 457.268 157 465 L157 524 C157 531.732 150.732 538 143 538 L142 538 C134.268 538 128 531.732 128 524 L128 465 C128 457.268 134.268 451 142 451 Z" fill="#ffffff"/>
+    <path id="Right_ear" data-name="Right ear" d="M616 410 L618 410 C644.51 410 666 431.49 666 458 L666 534 C666 560.51 644.51 582 618 582 L616 582 C589.49 582 568 560.51 568 534 L568 458 C568 431.49 589.49 410 616 410 Z" fill="#09286b"/>
+    <path id="Right_ear_inset" data-name="Right ear inset" d="M627 451 L627 451 C634.732 451 641 457.268 641 465 L641 524 C641 531.732 634.732 538 627 538 L627 538 C619.268 538 613 531.732 613 524 L613 465 C613 457.268 619.268 451 627 451 Z" fill="#ffffff"/>
+    <path id="Agent_speech_bubble" data-name="Agent speech bubble" d="M282 304 L466 304 C553 304 613 373 613 459 L613 541 C613 616 553 665 471 665 L323 665 L242 707 C222 717 201 701 205 675 L216 626 C169 598 146 557 146 492 L146 468 C146 374 195 304 282 304 Z" fill="#09286b"/>
+    <path id="Agent_face" data-name="Agent face" d="M291 360 L463 360 C530 360 563 406 563 474 L563 508 C563 580 517 617 457 617 L319 617 C301 617 289 619 272 629 L237 653 L244 610 C218 590 195 553 195 510 L195 470 C195 405 233 360 291 360 Z" fill="#ffffff"/>
+    <path id="Left_eye" data-name="Left eye" d="M294 445 L294 445 C308.912 445 321 457.088 321 472 L321 509 C321 523.912 308.912 536 294 536 L294 536 C279.088 536 267 523.912 267 509 L267 472 C267 457.088 279.088 445 294 445 Z" fill="#09286b"/>
+    <path id="Right_eye" data-name="Right eye" d="M466 445 L466 445 C480.912 445 493 457.088 493 472 L493 509 C493 523.912 480.912 536 466 536 L466 536 C451.088 536 439 523.912 439 509 L439 472 C439 457.088 451.088 445 466 445 Z" fill="#09286b"/>
+    <path id="Smile" d="M345 559 C368.333 580.333 392 580.333 416 559" fill="none" stroke="#09286b" stroke-width="25" stroke-linecap="round" stroke-miterlimit="10"/>
   </g>
-
-  <!-- Relay checkpoint -->
-  <circle cx="520" cy="863" r="80"
-          fill="#09286B"/>
-  <circle cx="520" cy="863" r="54"
-          fill="#FFFFFF"/>
-  <circle cx="520" cy="863" r="31"
-          fill="#00BE91"/>
+  <g id="Completed_job" data-name="Completed job">
+    <path id="Job_card_border" data-name="Job card border" d="M719 506 L891 506 C918.062 506 940 527.938 940 555 L940 739 C940 766.062 918.062 788 891 788 L719 788 C691.938 788 670 766.062 670 739 L670 555 C670 527.938 691.938 506 719 506 Z" fill="#09286b"/>
+    <path id="Job_card_paper" data-name="Job card paper" d="M729 536 L881 536 C897.016 536 910 548.984 910 565 L910 729 C910 745.016 897.016 758 881 758 L729 758 C712.984 758 700 745.016 700 729 L700 565 C700 548.984 712.984 536 729 536 Z" fill="#ffffff"/>
+    <path id="Completion_check" data-name="Completion check" d="M754 622 L789 657 L858 589" fill="none" stroke="#00be91" stroke-width="31" stroke-linecap="round" stroke-linejoin="round"/>
+    <path id="Job_detail_first_line" data-name="Job detail first line" d="M748 692 L869 692" fill="none" stroke="#91a6ca" stroke-width="23" stroke-linecap="round" stroke-miterlimit="10"/>
+    <path id="Job_detail_second_line" data-name="Job detail second line" d="M748 730 L869 730" fill="none" stroke="#91a6ca" stroke-width="23" stroke-linecap="round" stroke-miterlimit="10"/>
+  </g>
+  <g id="Relay_checkpoint" data-name="Relay checkpoint">
+    <path id="Checkpoint_rim" data-name="Checkpoint rim" d="M440 863 C440 818.817 475.817 783 520 783 C564.183 783 600 818.817 600 863 C600 907.183 564.183 943 520 943 C475.817 943 440 907.183 440 863 Z" fill="#09286b"/>
+    <path id="Checkpoint_inset" data-name="Checkpoint inset" d="M466 863 C466 833.177 490.177 809 520 809 C549.823 809 574 833.177 574 863 C574 892.823 549.823 917 520 917 C490.177 917 466 892.823 466 863 Z" fill="#ffffff"/>
+    <path id="Checkpoint_status" data-name="Checkpoint status" d="M489 863 C489 845.879 502.879 832 520 832 C537.121 832 551 845.879 551 863 C551 880.121 537.121 894 520 894 C502.879 894 489 880.121 489 863 Z" fill="#00be91"/>
+  </g>
 </svg>

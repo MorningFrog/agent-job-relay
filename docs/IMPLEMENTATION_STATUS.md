@@ -22,6 +22,7 @@ Stages 0–2 implement design, native execution, MCP/delivery and setup; Stage 3
 | Public host bridge | Exact endpoint/caller/instance/delivery checks, bounded frames/deadlines, adapter-isolated renewal/recovery; OpenCode V1 public session API |
 | Upgrade | Linux loaded-image launch survives pathname replacement; old daemon capabilities fail preflight; explicit profile-aware legacy stop revalidates the original peer and uses pidfd/SIGINT |
 | Release candidates | Linux x86_64/glibc + Windows x86_64 native-runtime/OpenCode npm packages, external stable profiles, integrity checks and self-hosted marketplace; manual artifacts/optional prerelease draft workflow |
+| Icon artwork | Editable VectorCraft source with 24 vector objects in four layers; canonical SVG, transparent 1024 × 1024 PNG and identical marketplace SVG exported from the reopened native file. See [artwork maintenance](../assets/icons/README.md) |
 
 Submissions and explicit session registrations start the per-state daemon on demand; doctor/status do not. `daemon start [--install-root]` starts/reuses only the selected daemon without a job/session, and `daemon stop` leaves runners/results independent. Windows can use a verified same-user local CIM helper when host cleanup blocks direct creation; policy/token denial provides an outside-terminal fallback. No persistent task/service is installed. Configuration and ownership receipts are individually atomic, not a cross-file transaction.
 

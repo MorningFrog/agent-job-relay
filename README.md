@@ -137,6 +137,7 @@ Current results and version-specific limits are maintained in [implementation st
 | Current support and evidence | [Implementation status](docs/IMPLEMENTATION_STATUS.md), [live evidence](docs/live-e2e.md) |
 | Safety and operational limits | [Security](docs/security.md), [limitations](docs/limitations.md) |
 | Design and API details | [Architecture](docs/architecture.md), [protocol](docs/protocol.md) |
+| Editable icon and SVG/PNG export | [Icon artwork](assets/icons/README.md) |
 | Host frameworks and community testing | [Host plugins](docs/host-plugins.md), [Contributing](CONTRIBUTING.md) |
 | Release candidates and manual Actions | [Release](docs/release.md) |
 | Planned work and changes | [Roadmap](docs/TODO.md), [changelog](CHANGELOG.md) |

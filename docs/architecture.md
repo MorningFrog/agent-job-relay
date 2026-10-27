@@ -16,6 +16,8 @@ One package and executable; CLI, stdio MCP, daemon and runner modes.
 
 The binary owns argument parsing, profile selection and dispatch. CLI and MCP share library behavior; OS-specific operations belong in `platform/`. Host entry points live in `plugins/`, the npm launcher in `packages/runtime/`, and developer verification scripts in `scripts/`.
 
+Icon artwork lives in `assets/icons/agent-job-relay.vectorcraft`; the README/offline SVG, PNG and marketplace SVG are exported from that saved source using VectorCraft. The offline SVG is embedded by `src/deployment.rs`; see [artwork maintenance](../assets/icons/README.md).
+
 ## Runtime and storage
 
 - CLI/MCP → bounded private Unix socket / Windows named pipe → daemon → SQLite intent.
