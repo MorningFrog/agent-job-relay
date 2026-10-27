@@ -20,7 +20,7 @@ Windows npm-package checks pass native execution, history after relocation, corr
 
 The official ChatGPT Desktop **26.1021.3705.0** package is installed in the VM through winget and registered for the interactive Windows user. Its bundled Codex **0.164.0-alpha.11.1** successfully installs the local AgentJobRelay plugin and discovers **20 MCP tools** in an isolated profile.
 
-Native tests run through the guest agent as SYSTEM; the separate live model/MCP check also passes as an ordinary interactive user. Actual ChatGPT Desktop same-chat continuation remains pending application sign-in and a real chat acceptance; bundled-loader discovery does not complete that acceptance.
+The interactive user has signed in and enabled the local plugin. A real GPT-6 Luna / Low chat discovers MCP `job_start`, but current-chat `session connect --brief` fails with Windows access denied (error 5). No job was submitted and no CLI fallback was used. Terminal permission versus host-access failure remains under diagnosis; same-chat continuation is not yet verified.
 
 ## Distribution
 

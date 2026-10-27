@@ -6,7 +6,7 @@ One Rust/MCP runtime remains responsible for jobs, results, outbox attempts, rec
 
 | Host | Entry point | Verified | Still needed |
 |---|---|---|---|
-| ChatGPT Desktop/Codex | Existing offline bundle and shared MCP | Actual Codex CLI loader; ChatGPT Desktop 26.1021.22027/plugin 0.1.5 restart/rebind/continuation | Broader versions, clean UI installation, real multi-day renewal |
+| ChatGPT Desktop/Codex | Existing offline bundle and shared MCP | Actual Codex CLI loader; v0.1.8 Linux ChatGPT Desktop same-chat continuation; Windows local plugin installation/enablement and MCP discovery | Windows current-chat binding/continuation, broader versions, real multi-day renewal |
 | OpenCode V1 | `plugins/opencode-v1/index.mjs` plus core MCP | Actual Linux/Windows 1.19.4 loader, MCP submission, caller binding, completion admission and subsequent agent-loop response; local simulated model | Community real-provider/account sessions, server restart/recovery, broader versions and platforms |
 | OpenCode V2 | Research/migration map below | Official interfaces researched; no V2 entry point claimed | Implement and test against an actual V2 loader |
 | Claude Code | `.claude-plugin/plugin.json`, `.mcp.json`, skill and inbox binder | Synthetic caller separation, actual shared-MCP entry point/discovery/submission | Actual Claude loader, skill substitution and account-backed session testing; no maintainer account is available |

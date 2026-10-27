@@ -18,7 +18,7 @@ Source 0.1.8 implements Linux/Windows native execution, offline plugin maintenan
 
 ## Runtime and maintenance
 
-- [ ] **P1:** verify real Windows ChatGPT Desktop same-chat continuation after application sign-in. Native and ordinary-user MCP execution are verified; see the [Windows guide](windows.md) for the daemon-only CIM route and policy/token fallback.
+- [ ] **P1:** resolve the Windows ChatGPT Desktop current-chat binding access denial, then verify actual MCP submission and automatic same-chat continuation. Application sign-in, local plugin enablement and MCP discovery are complete. Native and ordinary-user MCP execution are verified; see the [Windows guide](windows.md).
 - [ ] **P1:** implement and natively verify macOS process identity, lifecycle and IPC. Plugin packaging and portable compilation do not establish runtime support.
 - [ ] **P1:** strengthen Linux containment for escaped descendants/runner death and add longer soak plus controlled disk/power-loss tests. Current process-group cancellation assumes trusted non-daemonizing workloads.
 - [ ] **P1:** strengthen per-call identity authentication for shared hosts. Current caller identity is trusted input; never infer it from a latest-session record.

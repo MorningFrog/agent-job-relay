@@ -1,6 +1,6 @@
 # Windows native runtime
 
-The native x86_64 runtime supports durable background execution, bounded logs, cancellation/timeouts, daemon/runner recovery, MCP, inbox notifications and offline plugin maintenance. Windows 11 VM behavior tests pass. ChatGPT Desktop named-pipe transport/recovery tests use simulated hosts; Windows ChatGPT Desktop UI installation and observed same-chat continuation still need real-host acceptance. Ordinary Codex CLI integration has an inbox and does not automatically resume a chat.
+The native x86_64 runtime supports durable background execution, bounded logs, cancellation/timeouts, daemon/runner recovery, MCP, inbox notifications and offline plugin maintenance. Windows 11 VM behavior tests pass. The local plugin is installed and enabled in ChatGPT Desktop, but real current-chat binding fails with access denied before submission; same-chat continuation remains unverified. Named-pipe transport/recovery tests use simulated hosts. Ordinary Codex CLI integration has an inbox and does not automatically resume a chat.
 
 ## Install a trusted Windows offline bundle
 
@@ -24,7 +24,13 @@ After publication, the self-hosted catalog and OpenCode use the same Windows x86
 
 Default npm state lives in `%LOCALAPPDATA%\AgentJobRelay\profiles\codex` or `opencode`, outside host/npm caches. `AJR_STATE_DIR` may explicitly select an existing profile; no automatic profile migration or upgrade-driven daemon replacement occurs. OpenCode V1 requires 1.19.4 and native >=0.1.7. Its Node/Bun pipe is checked against the exact server process and restricted to a private DACL before sessions register.
 
-Actual Windows npm installation, native execution, history after relocation, corrupt-native refusal, Codex 0.164.0 catalog/20-tool discovery and OpenCode package-name loading/MCP submission/matching-session agent-loop continuation are checked with `scripts/check_windows_packages.mjs`. OpenCode uses a local simulated model. These checks do not establish Windows ChatGPT Desktop UI installation or continuation.
+Actual Windows npm installation, native execution, history after relocation, corrupt-native refusal, Codex 0.164.0 catalog/20-tool discovery and OpenCode package-name loading/MCP submission/matching-session agent-loop continuation are checked with `scripts/check_windows_packages.mjs`. OpenCode uses a local simulated model. These checks do not establish Windows ChatGPT Desktop continuation.
+
+## Current-chat binding permissions
+
+Run the installed `relay.cmd session connect --brief` through the initiating ChatGPT Desktop chat's terminal. It needs access to that host's local named pipe and peer process identity, subject to the host's [Windows sandbox and approval rules](https://learn.chatgpt.com/docs/windows/windows-sandbox). A visible MCP tool does not establish terminal access. Pipe failures report whether opening the connection or authenticating its peer failed; access denied does not by itself prove that the endpoint is stale.
+
+If access is denied, the Agent may request the host's single-command authorization for that same binding command when the active policy permits it. The command must retain the signed-in user, inherited chat identity and installed state profile. This is not Windows administrator elevation. Do not change pipe permissions or use another terminal's identity. If authorization is unavailable or binding still fails, stop before `job_start` and report the error. An external terminal can start a daemon but cannot supply the originating chat's binding.
 
 ## Build when no bundle is available
 
@@ -64,7 +70,7 @@ If automatic startup is blocked, copy the exact `outside_terminal_command` from 
 
 The command exits once ready; repeated calls reuse the daemon. A terminal opened inside the restrictive host can inherit its restriction and may not suffice. `daemon stop` preserves independent runners/history. There is no resident restart watchdog: recovery happens on the next submission/registration.
 
-Native tests cover cold restricted-host startup, host job destruction, daemon-crash restart, environment/identity isolation and policy refusal. Real installed Codex model/MCP acceptance must start with no prestarted daemon. Native VM tests run under guest-agent SYSTEM; the cold-profile installed MCP/model workflow also passes as an ordinary interactive user. Windows ChatGPT Desktop UI/observed continuation remains separate acceptance.
+Native tests cover cold restricted-host startup, host job destruction, daemon-crash restart, environment/identity isolation and policy refusal. Real installed Codex model/MCP acceptance must start with no prestarted daemon. Native VM tests run under guest-agent SYSTEM; the cold-profile installed MCP/model workflow also passes as an ordinary interactive user. Windows ChatGPT Desktop current-chat binding and observed continuation remain separate acceptance.
 
 ## Update, recover and remove
 

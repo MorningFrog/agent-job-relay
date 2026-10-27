@@ -652,21 +652,26 @@ fn checked_peer(handle: HANDLE, server: bool) -> Result<(u32, String)> {
             GetNamedPipeServerProcessId(handle, &mut pid)
         } else {
             GetNamedPipeClientProcessId(handle, &mut pid)
-        })?;
+        })
+        .context("cannot identify named-pipe peer process")?;
     }
-    let process = process_handle(pid, PROCESS_QUERY_LIMITED_INFORMATION)?;
+    let process = process_handle(pid, PROCESS_QUERY_LIMITED_INFORMATION)
+        .context("cannot open named-pipe peer process for authentication")?;
     ensure!(
-        process_sid(process.as_raw_handle())? == current_sid()?,
+        process_sid(process.as_raw_handle()).context("cannot read named-pipe peer user SID")?
+            == current_sid().context("cannot read current process user SID")?,
         "pipe peer owner SID mismatch"
     );
-    let identity = handle_identity(process.as_raw_handle(), pid)?;
+    let identity = handle_identity(process.as_raw_handle(), pid)
+        .context("cannot read named-pipe peer process identity")?;
     let mut rechecked = 0;
     unsafe {
         check(if server {
             GetNamedPipeServerProcessId(handle, &mut rechecked)
         } else {
             GetNamedPipeClientProcessId(handle, &mut rechecked)
-        })?;
+        })
+        .context("cannot recheck named-pipe peer process")?;
     }
     ensure!(pid == rechecked, "pipe peer changed during authentication");
     Ok((pid, identity))
@@ -682,7 +687,8 @@ fn open_pipe(path: &Path) -> Result<ClientStream> {
     validate_pipe_path(path)?;
     let stream = ClientOptions::new()
         .security_qos_flags(SECURITY_IDENTIFICATION)
-        .open(path)?;
+        .open(path)
+        .context("cannot open named pipe with current process permissions")?;
     checked_peer(stream.as_raw_handle(), true)?;
     Ok(stream)
 }
