@@ -1,0 +1,347 @@
+#!/usr/bin/env python3
+"""Manual Actions release orchestration; never infer publication from a dry-run."""
+import argparse
+from contextlib import contextmanager
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+import tempfile
+from urllib.error import HTTPError
+from urllib.parse import quote, urlencode
+from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
+
+sys.dont_write_bytecode = True
+from release_metadata import (REPO, PACKAGES, check_candidate, require, seal_candidate,
+                              sha256, source_metadata, validate_promotion)
+
+REGISTRY = "https://registry.npmjs.org"
+REPOSITORY = "MorningFrog/agent-job-relay"
+
+
+class NoCredentialRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise RuntimeError("Authenticated release API redirects are refused")
+
+
+def request(url, token=None, method="GET", payload=None, binary=False, missing=False):
+    headers = {"Accept": "application/json", "User-Agent": "AgentJobRelay-release"}
+    if token:
+        headers["Authorization"] = "Bearer " + token
+    data = None
+    if payload is not None:
+        data = json.dumps(payload).encode()
+        headers["Content-Type"] = "application/json"
+    try:
+        opener = build_opener(NoCredentialRedirect).open if token else urlopen
+        with opener(Request(url, data=data, headers=headers, method=method), timeout=30) as response:
+            # Do not persist/log credential responses or unbounded registry output.
+            content = response.read(128 * 1024 * 1024 + 1 if binary else 8 * 1024 * 1024 + 1)
+            require(len(content) <= (128 if binary else 8) * 1024 * 1024, "Remote response exceeded release limit")
+            return content if binary else json.loads(content)
+    except HTTPError as error:
+        if missing and error.code == 404:
+            return None
+        raise RuntimeError(f"Release API request failed with HTTP {error.code} ({method}); no credential response was logged") from None
+
+
+def github(path, **kwargs):
+    token = os.environ.get("GH_TOKEN")
+    require(token, "Missing automatic GitHub token")
+    suffix = "/" + path if path else ""
+    return request(f"https://api.github.com/repos/{REPOSITORY}{suffix}", token=token, **kwargs)
+
+
+def command(argv, env=None, cwd=REPO, binary=False):
+    result = subprocess.run(list(map(str, argv)), cwd=cwd, env=env, capture_output=True, text=not binary, timeout=180)
+    if result.returncode:
+        # npm/HTTP errors may contain tokens, signed URLs or private stage metadata.
+        error_text = result.stderr.decode(errors="replace") if binary else result.stderr
+        codes = re.findall(r"npm error code ([A-Z][A-Z0-9_]+)", error_text)
+        code = f", {codes[0]}" if codes else ""
+        raise RuntimeError(f"{Path(str(argv[0])).name} {argv[1]} failed (exit {result.returncode}{code}); remote output withheld")
+    return result.stdout
+
+
+def summary(message):
+    print(message, flush=True)
+    if os.environ.get("GITHUB_STEP_SUMMARY"):
+        with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as stream:
+            stream.write(message + "\n\n")
+
+
+def output(key, value):
+    if os.environ.get("GITHUB_OUTPUT"):
+        with open(os.environ["GITHUB_OUTPUT"], "a") as stream:
+            stream.write(f"{key}={value}\n")
+
+
+def actions_context():
+    require(os.environ.get("GITHUB_ACTIONS") == "true" and os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch", "Release network operations require a manual GitHub Actions run")
+    require(os.environ.get("GITHUB_REPOSITORY") == REPOSITORY and os.environ.get("GITHUB_REF") == "refs/heads/main", "Release runs must select this repository's main branch")
+    revision = os.environ.get("GITHUB_SHA", "")
+    require(re.fullmatch(r"[0-9a-f]{40}", revision), "Invalid source revision")
+    return revision
+
+
+@contextmanager
+def npm_environment(auth):
+    (REPO / ".tmp").mkdir(exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="release-auth-", dir=REPO / ".tmp") as temp:
+        root = Path(temp)
+        config = root / "npmrc"
+        env = os.environ.copy()
+        for key in list(env):
+            if key.lower().startswith("npm_config_") or key in ("NODE_AUTH_TOKEN", "NPM_TOKEN", "NPM_STAGE_TOKEN", "NPM_ID_TOKEN"):
+                env.pop(key)
+        content = f"registry={REGISTRY}\nignore-scripts=true\n"
+        if auth == "stage":
+            token = os.environ.get("NPM_STAGE_TOKEN")
+            require(token, "NPM_STAGE_TOKEN is missing from the release environment")
+            env["NODE_AUTH_TOKEN"] = token
+            content += "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}\n"
+        if auth != "oidc":
+            env.pop("ACTIONS_ID_TOKEN_REQUEST_TOKEN", None)
+            env.pop("ACTIONS_ID_TOKEN_REQUEST_URL", None)
+        config.write_text(content)
+        config.chmod(0o600)
+        env.update(npm_config_userconfig=str(config), npm_config_globalconfig=str(root / "global-npmrc"), npm_config_cache=str(root / "cache"))
+        yield env
+
+
+def registry_version(entry):
+    return request(f"{REGISTRY}/{quote(entry['name'], safe='')}/{quote(entry['version'], safe='')}", missing=True)
+
+
+def public_package(entry):
+    published = registry_version(entry)
+    if published is not None:
+        require(published.get("name") == entry["name"] and published.get("version") == entry["version"] and published.get("dist", {}).get("integrity") == entry["integrity"], f"Published bytes conflict with candidate: {entry['name']}@{entry['version']}")
+    return published
+
+
+def check_channel(name, channel, selected):
+    tags = request(f"{REGISTRY}/-/package/{quote(name, safe='')}/dist-tags", missing=True) or {}
+    current = tags.get(channel)
+    if current:
+        match = re.fullmatch(r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?", current)
+        require(match and tuple(map(int, match.groups())) <= tuple(map(int, selected.split("."))), "Refusing to move a newer/unknown npm channel backwards")
+    return tags
+
+
+def preflight(auth):
+    actions_context()
+    source = source_metadata()
+    repo = github("")
+    require(repo["full_name"] == REPOSITORY, "Unexpected GitHub repository")
+    check_tag(source["tag"], os.environ["GITHUB_SHA"])
+    if auth == "stage":
+        with npm_environment(auth) as env:
+            identity = command(["npm", "whoami", "--json", f"--registry={REGISTRY}"], env=env)
+            username = json.loads(identity)
+            require(isinstance(username, str) and re.fullmatch(r"[a-zA-Z0-9_-]+", username), "Unexpected npm identity response")
+            expected = os.environ.get("NPM_EXPECTED_USER")
+            require(not expected or expected == username, "npm token belongs to a different expected user")
+        summary(f"npm stage token authenticates as `{username}`. Staging permission and new-name eligibility still require an actual stage operation; dry-run does not upload.")
+    else:
+        url = os.environ.get("ACTIONS_ID_TOKEN_REQUEST_URL")
+        token = os.environ.get("ACTIONS_ID_TOKEN_REQUEST_TOKEN")
+        require(url and token and url.startswith("https://"), "Missing GitHub OIDC context / id-token: write permission")
+        oidc = request(url + ("&" if "?" in url else "?") + urlencode({"audience": "npm:registry.npmjs.org"}), token=token)["value"]
+        for name in PACKAGES.values():
+            exchange = request(f"{REGISTRY}/-/npm/v1/oidc/token/exchange/package/{quote(name, safe='')}", token=oidc, method="POST")
+            require(exchange.get("token_type") == "oidc" and exchange.get("token") and exchange.get("expires"), f"Invalid OIDC exchange for {name}")
+        summary("npm OIDC token exchange succeeded for both packages. Actual upload, direct-publish policy and provenance acceptance are not exercised by dry-run.")
+    summary(f"Source version: **{source['version']}**, tag `{source['tag']}`. GitHub repository access verified; write permission/rules are not proven without a write. No registry version, tag or Release was created.")
+    output("version", source["version"])
+
+
+def check_tag(tag, revision):
+    ref = github(f"git/ref/tags/{quote(tag, safe='')}", missing=True)
+    if ref:
+        obj = ref["object"]
+        for _ in range(5):
+            if obj["type"] != "tag":
+                break
+            obj = github(f"git/tags/{obj['sha']}")["object"]
+        require(obj["type"] == "commit" and obj["sha"] == revision, "Existing tag targets another commit; it will not be moved")
+
+
+def candidate_run(run_id):
+    require(str(run_id).isdigit(), "candidate_run_id must be the numeric successful dry-run ID")
+    run = github(f"actions/runs/{run_id}")
+    # Validate before asking download-artifact to read any files.
+    require(run["status"] == "completed" and run["conclusion"] == "success" and run["event"] == "workflow_dispatch" and run["path"] == ".github/workflows/release.yml", "Candidate must be a successful manual Release workflow run")
+    require(run["head_sha"] == os.environ["GITHUB_SHA"] and run["head_branch"] == "main" and run["repository"]["full_name"] == REPOSITORY and run["head_repository"]["full_name"] == REPOSITORY, "Candidate source differs; generate a fresh dry-run on unchanged main")
+    artifacts = github(f"actions/runs/{run_id}/artifacts?per_page=100")["artifacts"]
+    matches = [a for a in artifacts if a["name"] == "release-candidate" and not a["expired"]]
+    require(len(matches) == 1, "Missing/expired verified release-candidate artifact; never rebuild during promotion")
+    return run
+
+
+def validate(directory, run_id):
+    revision = actions_context()
+    return validate_promotion(directory, candidate_run(run_id), REPOSITORY, revision, run_id)
+
+
+def draft_release(directory, candidate):
+    tag = "v" + candidate["version"]
+    check_tag(tag, candidate["revision"])
+    marker = f"<!-- AgentJobRelay candidate {candidate['run_id']} {candidate['revision']} {candidate['channel']} -->"
+    body = (directory / "release-notes.md").read_text() + "\n" + marker
+    release = github(f"releases/tags/{tag}", missing=True)
+    if release is None:
+        release = github("releases", method="POST", payload={"tag_name": tag, "target_commitish": candidate["revision"], "name": f"AgentJobRelay {candidate['version']}", "body": body, "draft": True, "prerelease": candidate["channel"] == "next"})
+    require(release["body"] == body and release["target_commitish"] == candidate["revision"] and release["prerelease"] == (candidate["channel"] == "next"), "Existing Release is foreign/modified; preserve it and stop")
+    assets = github(f"releases/{release['id']}/assets?per_page=100")
+    local = {p.name: p for p in directory.iterdir()}
+    require(len(assets) == len({a['name'] for a in assets}) and all(a["name"] in local for a in assets), "Existing Release has foreign/duplicate assets; nothing will be overwritten")
+    for asset in assets:
+        expected = sha256(local[asset["name"]])
+        if asset.get("digest"):
+            require(asset["digest"] == "sha256:" + expected, "Existing Release asset differs from reviewed candidate")
+        else:
+            data = command(["gh", "api", "-H", "Accept: application/octet-stream", f"repos/{REPOSITORY}/releases/assets/{asset['id']}"], binary=True)
+            require(hashlib.sha256(data).hexdigest() == expected, "Existing Release asset differs from reviewed candidate")
+    missing = sorted(set(local) - {a["name"] for a in assets})
+    require(release["draft"] or not missing, "Published Release has missing assets; preserve it and stop")
+    if missing:
+        command(["gh", "release", "upload", tag, *[local[name] for name in missing], "--repo", REPOSITORY])
+    return release
+
+
+def stage_package(entry, tarball, channel, env):
+    stages = json.loads(command(["npm", "stage", "list", entry["name"], "--json", f"--registry={REGISTRY}"], env=env))
+    require(isinstance(stages, list), "Unexpected npm stage inventory")
+    matching = [s for s in stages if s.get("packageName") == entry["name"] and s.get("version") == entry["version"]]
+    require(len(matching) <= 1, "Multiple stages claim this package/version")
+    if matching:
+        stage = matching[0]
+        require(stage.get("tag") == channel, "Existing stage uses another channel; review it on npm before continuing")
+    else:
+        result = json.loads(command(["npm", "stage", "publish", tarball, "--ignore-scripts", "--access=public", f"--tag={channel}", "--json", f"--registry={REGISTRY}"], env=env))
+        require(isinstance(result, dict), "Unexpected npm stage publish response")
+        staged = result.get(entry["name"], result)
+        stage = {"id": staged.get("stageId")}
+    stage_id = stage.get("id", "")
+    require(isinstance(stage_id, str) and re.fullmatch(r"[0-9a-fA-F-]{36}", stage_id), "npm returned an invalid stage ID")
+    data = request(f"{REGISTRY}/-/stage/{stage_id}/tarball", token=env["NODE_AUTH_TOKEN"], binary=True)
+    require(hashlib.sha256(data).hexdigest() == sha256(tarball), "Staged tarball differs from reviewed candidate; do not approve it")
+    summary(f"`{entry['name']}@{entry['version']}` staged and bytes verified. Stage ID: `{stage_id}`. Approve on npm with 2FA (runtime first), then run Release again with the **same original candidate_run_id** and `npm_auth=stage`.")
+
+
+def publish(directory, run_id, auth):
+    candidate = validate(directory, run_id)
+    meta = check_candidate(directory)
+    # Check every existing package before the first external mutation.
+    existing = {key: public_package(meta[key]) for key in PACKAGES}
+    for name in PACKAGES.values():
+        check_channel(name, candidate["channel"], candidate["version"])
+    release = draft_release(directory, candidate)
+    with npm_environment(auth) as env:
+        for key in PACKAGES:
+            entry = meta[key]
+            if existing[key] is not None:
+                summary(f"`{entry['name']}@{entry['version']}` already has the reviewed public bytes; upload skipped.")
+                continue
+            if auth == "stage":
+                stage_package(entry, directory / entry["tarball"], candidate["channel"], env)
+            else:
+                command(["npm", "publish", directory / entry["tarball"], "--ignore-scripts", "--access=public", f"--tag={candidate['channel']}", "--json", f"--registry={REGISTRY}"], env=env)
+                require(public_package(entry) is not None, "Published version is not yet publicly readable; retry this candidate after propagation")
+    ready = all(public_package(meta[key]) is not None for key in PACKAGES)
+    output("ready", str(ready).lower())
+    if not ready:
+        summary(f"**Waiting for npm maintainer approval.** GitHub Release remains a draft: https://github.com/{REPOSITORY}/releases/tag/v{candidate['version']}. No automatic approval or polling runs.")
+    else:
+        summary("Both npm versions match the candidate. Public installation and GitHub completion run next.")
+    return release
+
+
+def verify_public(directory):
+    meta = check_candidate(directory)
+    for key in PACKAGES:
+        entry = meta[key]
+        published = public_package(entry)
+        require(published is not None, "Approve both npm stages before finalization")
+        tarball_url = published["dist"]["tarball"]
+        require(tarball_url.startswith(REGISTRY + "/"), "Unexpected registry tarball origin")
+        data = request(tarball_url, binary=True)
+        require(hashlib.sha256(data).hexdigest() == sha256(directory / entry["tarball"]), "Public tarball bytes differ from candidate")
+    with npm_environment("public") as env:
+        with tempfile.TemporaryDirectory(prefix="release-public-", dir=REPO / ".tmp") as temp:
+            root = Path(temp)
+            # No publishing credentials or real application state reach the install.
+            for key in ("GH_TOKEN", "GITHUB_TOKEN"):
+                env.pop(key, None)
+            env.update(HOME=temp, XDG_STATE_HOME=str(root / "state"), XDG_CONFIG_HOME=str(root / "config"), XDG_CACHE_HOME=str(root / "cache"), AJR_STATE_DIR=str(root / "state"), CODEX_HOME=str(root / "codex"))
+            command(["npm", "install", "--prefix", root, "--ignore-scripts", "--no-audit", "--no-fund", f"--registry={REGISTRY}", *[f"{name}@{meta['version']}" for name in PACKAGES.values()]], env=env, cwd=root)
+            modules = root / "node_modules"
+            require(command(["node", modules / PACKAGES["runtime"] / "cli.mjs", "--version"], env=env, cwd=root).strip() == f"agent-job-relay {meta['version']}", "Public native runtime version mismatch")
+            command(["node", "--input-type=module", "-e", "const p=await import(process.argv[1]);if(typeof p.AgentJobRelay!=='function')process.exit(1)", (modules / PACKAGES["opencode"] / "index.mjs").as_uri()], env=env, cwd=root)
+    summary("Public npm tarballs match the candidate; clean registry installation, native --version and OpenCode module import passed. Candidate host-loader checks remain distinct from real-provider/ChatGPT UI acceptance.")
+
+
+def finalize(directory, run_id, auth):
+    candidate = validate(directory, run_id)
+    verify_public(directory)
+    with npm_environment(auth) as env:
+        for name in PACKAGES.values():
+            tags = check_channel(name, candidate["channel"], candidate["version"])
+            if tags.get(candidate["channel"]) != candidate["version"]:
+                command(["npm", "dist-tag", "add", f"{name}@{candidate['version']}", candidate["channel"], f"--registry={REGISTRY}"], env=env)
+    release = draft_release(directory, candidate)
+    if release["draft"]:
+        github(f"releases/{release['id']}", method="PATCH", payload={"draft": False, "make_latest": "true" if candidate["channel"] == "latest" else "false"})
+    summary(f"**Release complete:** https://github.com/{REPOSITORY}/releases/tag/v{candidate['version']} — npm channel `{candidate['channel']}`, candidate run `{run_id}`. Existing matching uploads were retained.")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("operation", choices=["source", "preflight", "run", "seal", "validate", "preview", "publish", "finalize"])
+    parser.add_argument("--release", type=Path, default=REPO / ".tmp/release-candidate")
+    parser.add_argument("--candidate-run-id", default="")
+    parser.add_argument("--channel", choices=["next", "latest"], default="next")
+    parser.add_argument("--auth", choices=["stage", "oidc"], default="stage")
+    args = parser.parse_args()
+    try:
+        if args.operation == "source":
+            meta = source_metadata()
+            print(json.dumps(meta))
+            output("version", meta["version"])
+        elif args.operation == "preflight":
+            preflight(args.auth)
+        elif args.operation == "run":
+            actions_context()
+            candidate_run(args.candidate_run_id)
+        elif args.operation == "seal":
+            revision = actions_context()
+            candidate = seal_candidate(args.release, args.channel, REPOSITORY, revision, os.environ["GITHUB_RUN_ID"])
+            summary(f"**Verified candidate:** version `{candidate['version']}`, channel `{candidate['channel']}`, original Run ID **{candidate['run_id']}**. Linux/Windows native and package/loader jobs passed. Dry-run created no npm version, tag or GitHub Release.")
+            summary((args.release / "release-notes.md").read_text())
+        elif args.operation == "validate":
+            candidate = validate(args.release, args.candidate_run_id)
+            summary(f"Reviewed candidate verified: `{candidate['version']}`, channel `{candidate['channel']}`, source `{candidate['revision']}`. Promotion will not rebuild.")
+        elif args.operation == "preview":
+            check_candidate(args.release)
+            with npm_environment(args.auth) as env:
+                for key in PACKAGES:
+                    entry = json.loads((args.release / "release.json").read_text())[key]
+                    public_package(entry)
+                    check_channel(entry["name"], args.channel, entry["version"])
+                    argv = ["npm", "stage", "publish"] if args.auth == "stage" else ["npm", "publish"]
+                    command([*argv, args.release / entry["tarball"], "--dry-run", "--ignore-scripts", "--access=public", f"--tag={args.channel}", f"--registry={REGISTRY}"], env=env)
+            summary("npm publication previews passed for both tarballs; no stage/version was uploaded. New package-name acceptance and write policy remain unproven until actual staging/publishing.")
+        elif args.operation == "publish":
+            publish(args.release.resolve(), args.candidate_run_id, args.auth)
+        else:
+            finalize(args.release.resolve(), args.candidate_run_id, args.auth)
+    except (ValueError, RuntimeError, KeyError) as error:
+        parser.exit(1, f"Release stopped: {error}\n")
+
+
+if __name__ == "__main__":
+    main()

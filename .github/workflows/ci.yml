@@ -44,6 +44,13 @@ jobs:
         if: runner.os == 'Linux'
         with:
           python-version: '3.12'
+      - name: Check Cargo-derived release versions and publication recovery
+        if: runner.os == 'Linux'
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          python3 scripts/release_actions.py source
+          python3 -m unittest discover -s scripts -p test_release.py -v
       - name: Isolated host-plugin dependencies
         if: runner.os == 'Linux'
         run: npm install --prefix .tmp/opencode-toolchain --cache .tmp/npm-cache --ignore-scripts --no-audit --no-fund opencode-ai@1.19.4 @opencode-ai/plugin@1.19.4 @opencode-ai/sdk@1.19.4

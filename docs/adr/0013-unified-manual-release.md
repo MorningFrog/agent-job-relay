@@ -1,0 +1,19 @@
+# ADR 0013: immutable manual GitHub/npm release promotion
+
+Accepted, 2026-10-27. This extends ADR 0010's candidate packaging with explicitly manual publication. The two main npm identities are `agent-job-relay-runtime` and `agent-job-relay-opencode-v1`; scoped duplicates are not part of this release.
+
+## Decision
+
+Use one `workflow_dispatch` workflow on main. Cargo.toml is the version authority; source package/dependency/plugin/launcher pins must agree before any build. CHANGELOG supplies a unique reviewed version section, with generated distribution boundaries appended to the Release Notes. The workflow never edits source, guesses a version bump or pushes a release commit.
+
+Dry-run checks credentials with honest limits, runs both native gates and installed-package/actual-loader checks, then seals the repository, source revision, original run, channel and complete asset hashes. Promotion accepts only that successful manual run's unexpired artifact on unchanged main, and never rebuilds or repacks it. The same artifact is the recovery boundary after partial publication.
+
+First package creation uses a short-lived stage-only npm token. Actual staging is separate from dry-run, downloads the staged bytes for comparison and requires human npm 2FA approval. It can create npm's public placeholder for a new name. A subsequent promotion of the same candidate verifies the public versions and finishes GitHub publication. Later releases use package-bound OIDC Trusted Publishing; inherited npm tokens are excluded rather than acting as a fallback. The environment secret is never exposed to build jobs or artifacts.
+
+Create/retain a GitHub draft with reviewed assets before npm uploads, publish runtime before OpenCode, and expose GitHub Release only after public byte/integrity and clean-install checks. An existing matching upload/stage is reused; changed/foreign assets, bodies, channels or tag targets stop without replacement. Never delete releases/assets, move tags, reject stages, unpublish versions or silently roll back partial success.
+
+## Consequences and regression boundaries
+
+There is no multi-service atomic transaction. A green staging run may still await npm approval; Summary must distinguish that from completed publication. Stage-only authentication, OIDC exchange, package previews and GitHub reads cannot prove every eventual upload/write rule, so dry-run must not claim those operations succeeded. Account-backed authentication/publication remains a manual remote acceptance step.
+
+Behavioral tests cover malformed changelogs/version pins, source/run identity, modified/missing/symlink inventories, no-upload preview, stage/public byte conflicts, token/OIDC separation, approval/resume and preservation of foreign release assets. Existing native/package/host checks stay in place; simulated model checks do not become real host/provider evidence. Keep main unchanged until the candidate finishes; fourteen-day artifact expiry requires a fresh candidate before any publication has occurred.

@@ -8,9 +8,12 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
-import tomllib
 import zipfile
+
+sys.dont_write_bytecode = True
+from release_metadata import source_metadata
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -31,7 +34,7 @@ def main():
     temporary.mkdir(exist_ok=True)
     if output.exists() or not output.is_relative_to(temporary):
         parser.error("choose a new output directory under repository .tmp/")
-    version = tomllib.loads((REPO / "Cargo.toml").read_text())["package"]["version"]
+    version = source_metadata()["version"]
     binary = args.binary.resolve(strict=True)
     image = binary.read_bytes()
     if image[:5] != b"\x7fELF\x02" or image[5] != 1 or int.from_bytes(image[18:20], "little") != 62:

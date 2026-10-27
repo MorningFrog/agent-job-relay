@@ -1,6 +1,6 @@
 # ADR 0010: shared npm runtime and self-hosted plugin delivery
 
-Accepted, 2026-10-26, source 0.1.6 candidate. Package names remain provisional and publication requires final approval. This extends local delivery; it does not replace the owned offline installation lifecycle.
+Accepted, 2026-10-26, source 0.1.6 candidate. This extends local delivery; it does not replace the owned offline installation lifecycle. The original publication gating is extended by [ADR 0013](0013-unified-manual-release.md), which fixes the two main npm identities and defines reviewed manual staging/OIDC promotion.
 
 ## Problem
 

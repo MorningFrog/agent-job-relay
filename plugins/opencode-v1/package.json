@@ -31,7 +31,6 @@
   },
   "publishConfig": {
     "access": "public",
-    "tag": "next",
     "registry": "https://registry.npmjs.org"
   },
   "description": "Experimental local OpenCode V1 bridge to the AgentJobRelay Rust/MCP core",

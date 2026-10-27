@@ -21,7 +21,7 @@ Stages 0–2 implement design, native execution, MCP/delivery and setup; Stage 3
 | Plugin lifecycle | Offline export/bootstrap/update, profile preservation/downgrade refusal, explicit checked cache refresh and journal-backed forward repair with retained backups/history and active-runtime fencing |
 | Public host bridge | Exact endpoint/caller/instance/delivery checks, bounded frames/deadlines, adapter-isolated renewal/recovery; OpenCode V1 public session API |
 | Upgrade | Linux loaded-image launch survives pathname replacement; old daemon capabilities fail preflight; explicit profile-aware legacy stop revalidates the original peer and uses pidfd/SIGINT |
-| Release candidates | Linux x86_64/glibc + Windows x86_64 native-runtime/OpenCode npm packages, external stable profiles, integrity checks and self-hosted marketplace; manual artifacts/optional prerelease draft workflow |
+| Release candidates | Linux x86_64/glibc + Windows x86_64 native-runtime/OpenCode npm packages, external stable profiles, integrity checks and self-hosted marketplace; manual Cargo-derived dry-run, immutable candidate promotion, stage-only bootstrap/OIDC publication and CHANGELOG Release Notes |
 | Icon artwork | Editable VectorCraft source with 21 vector objects in three layers and two curved relay arrows; canonical SVG, transparent 1024 × 1024 PNG and identical marketplace SVG exported from the reopened native file. See [artwork maintenance](../assets/icons/README.md) |
 
 Submissions and explicit session registrations start the per-state daemon on demand; doctor/status do not. `daemon start [--install-root]` starts/reuses only the selected daemon without a job/session, and `daemon stop` leaves runners/results independent. Windows can use a verified same-user local CIM helper when host cleanup blocks direct creation; policy/token denial provides an outside-terminal fallback. No persistent task/service is installed. Configuration and ownership receipts are individually atomic, not a cross-file transaction.
@@ -33,6 +33,7 @@ The binary keeps process initialization in `src/main.rs`, command syntax in `src
 | Check | Result and boundary |
 |---|---|
 | Linux delivery gates | `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --all-targets` and `cargo build --release` pass; **82 tests passed, 0 failed, 0 ignored** |
+| Release orchestration | **18 behavioral checks** pass for source/version/CHANGELOG, dry-run, credential isolation, candidate/run fencing, stage/public integrity, no channel downgrade, approval/resume and foreign assets; actionlint 1.7.12 accepts both workflows. No account-backed publish or OIDC exchange was executed |
 | Linux suite groups | 8 library, 4 bridge, 14 convenience/installed MCP, 10 delivery/migration, 7 ChatGPT Desktop simulation/renewal, 4 integration, 5 onboarding, 10 offline plugin/cache, 3 legacy-upgrade, 4 recovery, 13 runtime |
 | Offline Codex loader | Actual CLI 0.164.0 bootstraps a relocated bundle, validates the host-created cache and discovers 20 tools. No model turn, daemon, workload or real ChatGPT Desktop endpoint |
 | Local source walkthrough | Matching English/Chinese commands pass in an isolated HOME: build/export, bootstrap, explicit local-plugin installation, unchanged update and stdio doctor. Actual Codex 0.164.0 loader discovers 20 tools; no personal configuration change or ChatGPT Desktop UI acceptance |
@@ -59,7 +60,7 @@ Host packages and community acceptance are described in [host plugins](host-plug
 
 The GitHub repository is public. `scripts/prepare_release.py` creates allowlisted tarballs, marketplace ZIP and checksums; `scripts/check_release.py` and `scripts/check_windows_packages.mjs` test installed candidates and actual host loaders. The manual workflow builds Windows MSVC/static CRT and Linux glibc 2.35 candidates; the local Linux binary requires glibc 2.39. Hashes establish integrity, not publisher provenance.
 
-Current Windows changes and this reorganization remain local pending push approval. No npm publication, GitHub release or official submission was performed. npm account verification/final names, updated remote workflows and clean public-registry installation remain open; see [release preparation](release.md).
+The unified Release workflow and release scripts have local behavioral and workflow-syntax checks; actual GitHub credentials, npm staging/2FA/publication, OIDC exchange/provenance and public installation await the maintainer's manual runs. The user reports `NPM_STAGE_TOKEN` configured in the `release` environment; only its name/presence was inspected, not its value or validity. No npm publication, GitHub release or official submission was performed. See the complete [release walkthrough](release.md).
 
 ## Material limitations and next work
 

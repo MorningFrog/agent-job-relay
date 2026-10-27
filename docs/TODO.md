@@ -2,14 +2,14 @@
 
 ## Scope and baseline
 
-Distribute one Rust/MCP runtime through ChatGPT Desktop/Codex, Claude Code and OpenCode plugins. Prepare and verify locally; pushing, publishing and official submissions require final confirmation. Release operations must be manually triggered. The npm account is awaiting verification and package names remain provisional.
+Distribute one Rust/MCP runtime through ChatGPT Desktop/Codex, Claude Code and OpenCode plugins. Prepare and verify locally; pushing, publishing and official submissions require final confirmation. Release operations must be manually triggered. The two main npm names are fixed; stage-only token setup is user-confirmed. Actual staging/publication and OIDC qualification remain pending.
 
 Source 0.1.8 implements Linux/Windows native execution, offline plugin maintenance, checked forward repair, shared-MCP caller binding, same-chat recovery and delivery-time renewal. Dual-platform npm/marketplace candidates and the manual release workflow are prepared. OpenCode V1 has actual-loader checks with a simulated model; Claude remains an inbox-only scaffold. Current results and completed acceptance belong in [implementation status](IMPLEMENTATION_STATUS.md) and [live evidence](live-e2e.md), rather than repeated run histories here.
 
 ## Host integration and distribution
 
-- [ ] **P1:** finalize npm account/ownership, package names and publisher provenance; review the tested artifacts before approved publication, then verify public-registry installation. See [release preparation](release.md).
-- [ ] **P1:** after approved push, run the updated native Windows CI and manually triggered dual-platform release workflow. Earlier remote CI does not verify these updated jobs.
+- [ ] **P1:** run the unified manual Release workflow: review a dry-run candidate, stage the two main npm packages, approve them with npm 2FA, and resume the same candidate to verify public installation and complete GitHub Release. Qualify subsequent OIDC publication/provenance and revoke the bootstrap token. See [release preparation](release.md).
+- [ ] **P1:** after approved push, run the updated native Windows CI and unified dual-platform Release workflow with Cargo-derived versions, CHANGELOG notes and candidate promotion. Earlier remote CI does not verify these updated jobs.
 - [ ] **P1:** verify additional ChatGPT Desktop versions, Windows single-command authorization under restricted permissions, results completed while ChatGPT Desktop is closed, real multi-day renewal and receiver deduplication. Keep the completed Linux/Windows same-chat continuation acceptance complete; do not repeat it merely to refill evidence.
 - [ ] **P1:** obtain OpenCode real-provider, server restart/recovery and broader version evidence. Keep V2 as a separate future entry; consolidate shared descriptor metadata only where useful and test each actual loader.
 - [ ] **P1, community help:** verify Claude's actual loader, skill session substitution and account-backed MCP workflow. Research public asyncRewake/channels before implementing continuation; keep the scaffold inbox-only until verified. See [host plugins](host-plugins.md) and [contributing](../CONTRIBUTING.md).

@@ -1,27 +1,88 @@
-name: Release candidate
+name: Release
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: Exact source version, without the v prefix
-        required: true
+      dry_run:
+        description: Build and verify a candidate without staging or publishing
+        type: boolean
+        default: true
+      candidate_run_id:
+        description: Original successful dry-run Run ID; required when dry_run is false
         type: string
-      destination:
-        description: Build downloadable artifacts, or also create a draft GitHub release
-        required: true
-        default: artifacts
+        default: ''
+      channel:
+        description: Candidate npm channel; promotion inherits the sealed value
         type: choice
-        options: [artifacts, draft]
+        default: next
+        options: [next, latest]
+      npm_auth:
+        description: Stage with NPM_STAGE_TOKEN initially; OIDC for later direct publishing
+        type: choice
+        default: stage
+        options: [stage, oidc]
 permissions:
   contents: read
 env:
   CARGO_PROFILE_DEV_DEBUG: '0'
   CARGO_PROFILE_TEST_DEBUG: '0'
+  PYTHONDONTWRITEBYTECODE: '1'
 concurrency:
-  group: release-${{ inputs.version }}
+  group: agent-job-relay-release
   cancel-in-progress: false
 jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: release
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    outputs:
+      version: ${{ steps.source.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+      - name: Use the reviewed npm CLI with staging and OIDC dist-tag support
+        run: npm install --global --ignore-scripts --registry=https://registry.npmjs.org npm@11.21.1
+      - name: Validate manual inputs and source policy
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+        run: |
+          python3 - <<'PY'
+          import os, re
+          dry = os.environ['DRY_RUN'] == 'true'
+          candidate = os.environ['CANDIDATE_RUN_ID']
+          assert os.environ['GITHUB_REF'] == 'refs/heads/main', 'Select main for release'
+          assert (dry and not candidate) or (not dry and re.fullmatch(r'[0-9]+', candidate)), 'Dry-run needs no candidate; promotion requires its original numeric Run ID'
+          PY
+      - name: Check release state-machine regressions
+        run: python3 -m unittest discover -s scripts -p test_release.py -v
+      - name: Infer the version from Cargo.toml and validate all pins and CHANGELOG
+        id: source
+        run: python3 scripts/release_actions.py source
+      - name: Check credentials without staging or publishing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NPM_STAGE_TOKEN: ${{ inputs.npm_auth == 'stage' && secrets.NPM_STAGE_TOKEN || '' }}
+          NPM_EXPECTED_USER: ${{ vars.NPM_EXPECTED_USER }}
+          NPM_AUTH: ${{ inputs.npm_auth }}
+        run: python3 scripts/release_actions.py preflight --auth "$NPM_AUTH"
+      - name: Check the original successful dry-run before downloading its artifact
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+        run: python3 scripts/release_actions.py run --candidate-run-id "$CANDIDATE_RUN_ID"
   windows:
+    needs: preflight
+    if: inputs.dry_run
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -45,7 +106,8 @@ jobs:
           if-no-files-found: error
           retention-days: 14
   package:
-    needs: windows
+    needs: [preflight, windows]
+    if: inputs.dry_run
     runs-on: ubuntu-22.04
     timeout-minutes: 30
     steps:
@@ -53,16 +115,6 @@ jobs:
       - uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.12'
-      - name: Check requested version against this commit
-        env:
-          REQUESTED_VERSION: ${{ inputs.version }}
-        run: |
-          python3 - <<'PY'
-          import os, re, tomllib
-          version = os.environ['REQUESTED_VERSION']
-          assert re.fullmatch(r'\d+\.\d+\.\d+', version), 'Use a numeric x.y.z version'
-          assert tomllib.load(open('Cargo.toml', 'rb'))['package']['version'] == version, 'Version does not match the selected commit'
-          PY
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -75,7 +127,7 @@ jobs:
       - run: cargo test --all-targets --locked
       - run: cargo build --release --locked
       - name: Install isolated host test tools
-        run: npm install --prefix .tmp/opencode-toolchain --cache .tmp/npm-cache --ignore-scripts --no-audit --no-fund opencode-ai@1.19.4 @opencode-ai/plugin@1.19.4 @opencode-ai/sdk@1.19.4 @openai/codex@0.164.0
+        run: npm install --prefix .tmp/opencode-toolchain --cache .tmp/npm-cache --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org opencode-ai@1.19.4 @opencode-ai/plugin@1.19.4 @opencode-ai/sdk@1.19.4 @openai/codex@0.164.0
       - uses: actions/download-artifact@v8.0.2
         with:
           name: windows-native
@@ -88,7 +140,7 @@ jobs:
         run: python3 scripts/check_claude_scaffold.py --binary "$PWD/target/release/agent-job-relay"
       - uses: actions/upload-artifact@v7.0.2
         with:
-          name: agent-job-relay-${{ inputs.version }}-plugins
+          name: release-packages
           path: .tmp/release-candidate/*
           if-no-files-found: error
           retention-days: 14
@@ -103,40 +155,92 @@ jobs:
           node-version: '24'
       - uses: actions/download-artifact@v8.0.2
         with:
-          name: agent-job-relay-${{ inputs.version }}-plugins
+          name: release-packages
           path: .tmp/release-candidate
       - name: Install isolated host tools
-        run: npm install --prefix .tmp/host-tools --cache .tmp/npm-cache --ignore-scripts --no-audit --no-fund opencode-ai@1.19.4 @openai/codex@0.164.0
+        run: npm install --prefix .tmp/host-tools --cache .tmp/npm-cache --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org opencode-ai@1.19.4 @openai/codex@0.164.0
       - name: Verify installed Windows packages and actual host loaders
         run: node scripts/check_windows_packages.mjs --release .tmp/release-candidate --codex-entry "$PWD/.tmp/host-tools/node_modules/@openai/codex/bin/codex.js" --opencode "$PWD/.tmp/host-tools/node_modules/opencode-windows-x64/bin/opencode.exe"
-  draft:
+  candidate:
     needs: [package, windows-packages]
-    if: inputs.destination == 'draft'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: release
     permissions:
-      contents: write
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+      - run: npm install --global --ignore-scripts --registry=https://registry.npmjs.org npm@11.21.1
       - uses: actions/download-artifact@v8.0.2
         with:
-          name: agent-job-relay-${{ inputs.version }}-plugins
+          name: release-packages
           path: .tmp/release-candidate
-      - name: Create a new draft only; never replace a release or publish npm packages
+      - name: Preview npm operations without uploading a stage or version
+        env:
+          NPM_STAGE_TOKEN: ${{ inputs.npm_auth == 'stage' && secrets.NPM_STAGE_TOKEN || '' }}
+          NPM_AUTH: ${{ inputs.npm_auth }}
+          RELEASE_CHANNEL: ${{ inputs.channel }}
+        run: python3 scripts/release_actions.py preview --auth "$NPM_AUTH" --channel "$RELEASE_CHANNEL"
+      - name: Seal the verified bytes and generate Release Notes from CHANGELOG
+        env:
+          RELEASE_CHANNEL: ${{ inputs.channel }}
+        run: python3 scripts/release_actions.py seal --channel "$RELEASE_CHANNEL"
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: release-candidate
+          path: .tmp/release-candidate/*
+          if-no-files-found: error
+          retention-days: 14
+  publish:
+    needs: preflight
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: release
+    permissions:
+      contents: write
+      actions: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+      - run: npm install --global --ignore-scripts --registry=https://registry.npmjs.org npm@11.21.1
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: release-candidate
+          run-id: ${{ inputs.candidate_run_id }}
+          github-token: ${{ github.token }}
+          path: .tmp/release-candidate
+      - name: Validate the immutable candidate and original run
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_VERSION: ${{ inputs.version }}
-        run: |
-          if gh release view "v$RELEASE_VERSION" >/dev/null 2>&1; then
-            echo 'This release already exists. Review it manually; existing assets are preserved.' >&2
-            exit 1
-          fi
-          python3 - <<'PY'
-          import os, subprocess
-          tag = 'refs/tags/v' + os.environ['RELEASE_VERSION']
-          lines = subprocess.run(['git', 'ls-remote', 'origin', tag, tag + '^{}'], check=True, capture_output=True, text=True).stdout.splitlines()
-          refs = dict(line.split()[::-1] for line in lines)
-          target = refs.get(tag + '^{}', refs.get(tag))
-          assert target in (None, os.environ['GITHUB_SHA']), 'Existing tag points to another commit; select its ref or use a new version'
-          PY
-          (cd .tmp/release-candidate && sha256sum --check SHA256SUMS)
-          gh release create "v$RELEASE_VERSION" .tmp/release-candidate/* --target "$GITHUB_SHA" --draft --prerelease --title "AgentJobRelay $RELEASE_VERSION (experimental)" --notes-file docs/release-notes.md
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+        run: python3 scripts/release_actions.py validate --candidate-run-id "$CANDIDATE_RUN_ID"
+      - name: Stage initially or publish via OIDC; never approve npm stages
+        id: npm
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NPM_STAGE_TOKEN: ${{ inputs.npm_auth == 'stage' && secrets.NPM_STAGE_TOKEN || '' }}
+          NPM_AUTH: ${{ inputs.npm_auth }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+        run: python3 scripts/release_actions.py publish --candidate-run-id "$CANDIDATE_RUN_ID" --auth "$NPM_AUTH"
+      - name: Verify public installation and complete GitHub Release
+        if: steps.npm.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NPM_STAGE_TOKEN: ${{ inputs.npm_auth == 'stage' && secrets.NPM_STAGE_TOKEN || '' }}
+          NPM_AUTH: ${{ inputs.npm_auth }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+        run: python3 scripts/release_actions.py finalize --candidate-run-id "$CANDIDATE_RUN_ID" --auth "$NPM_AUTH"

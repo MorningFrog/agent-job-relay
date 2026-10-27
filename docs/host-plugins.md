@@ -1,6 +1,6 @@
 # Host plugins and community verification
 
-One Rust/MCP runtime remains responsible for jobs, results, outbox attempts, recovery and leases. Host packages supply actual caller identity and translate a completion request to that host's public API. Shared runtime/OpenCode npm candidates and a self-hosted ChatGPT marketplace are prepared but unpublished; final npm names/account verification are pending. They are not official directory listings. Linux and Windows x86_64 have verified native runtimes and ChatGPT Desktop same-chat continuation.
+One Rust/MCP runtime remains responsible for jobs, results, outbox attempts, recovery and leases. Host packages supply actual caller identity and translate a completion request to that host's public API. Shared runtime/OpenCode npm candidates and a self-hosted ChatGPT marketplace are prepared but unpublished; the two main npm names are selected, with first publication pending the manual staging/approval workflow. They are not official directory listings. Linux and Windows x86_64 have verified native runtimes and ChatGPT Desktop same-chat continuation.
 
 ## Current evidence
 

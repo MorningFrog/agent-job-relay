@@ -132,7 +132,7 @@ Expected: the last command fails with a modified-file error, leaving your edit a
 
 ## Self-hosted marketplace candidate
 
-The npm packages are unpublished and their names are provisional. First run the isolated [candidate checks](release.md#build-and-verify-locally); do not treat a loopback-registry pass as a normal online installation. After the exact reviewed runtime npm version and marketplace commit are publicly available, manually qualify a clean supported Linux ChatGPT Desktop profile:
+The two main npm packages are selected but unpublished. First run the isolated [candidate checks](release.md#local-package-checks); do not treat a loopback-registry pass as a normal online installation. After the exact reviewed runtime npm version and marketplace commit are publicly available, manually qualify a clean supported Linux ChatGPT Desktop profile:
 
 1. Confirm Node.js 20+/npm are on the ChatGPT Desktop/terminal PATH. Add `MorningFrog/agent-job-relay` with `codex plugin marketplace add`, restart ChatGPT Desktop and choose the **AgentJobRelay** marketplace. Expected: one AgentJobRelay entry with the correct version and an explicit experimental Linux/Windows support description.
 2. Install/enable it in a new local chat and invoke `job_doctor`. Expected: actual MCP connectivity and the reviewed packaged version; no developer executable path is requested. CLI loader discovery alone is insufficient.

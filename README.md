@@ -99,9 +99,9 @@ Uninstall preserves task data and backups. Modified or unknown install files are
 
 ## Plugin release candidates
 
-Source is public on [GitHub](https://github.com/MorningFrog/agent-job-relay). Candidate implementations provide the OpenCode npm plugin, shared runtime package and ChatGPT self-hosted marketplace; **npm account verification and final package names are pending, so normal online installation is not available yet.** Maintain existing installations through the [offline route](#quick-install).
+Source is public on [GitHub](https://github.com/MorningFrog/agent-job-relay). Candidate implementations provide the OpenCode npm plugin, shared runtime package and ChatGPT self-hosted marketplace; **the two main npm packages remain unpublished, so normal online installation is not available yet.** Maintain existing installations through the [offline route](#quick-install).
 
-The GitHub **Release candidate** workflow runs manually only: it builds artifacts by default or optionally creates a prerelease draft for manual publication. Pushes, PRs and tags never publish. See [release preparation](docs/release.md) for builds, installed-package checks and future online installation. A self-hosted marketplace is separate from OpenAI's official directory.
+The GitHub **Release** workflow runs manually only: dry-run builds and verifies a Cargo-versioned candidate, then a separate manual run promotes those exact files to npm and GitHub. First publication uses stage-only npm access and maintainer 2FA approval; later releases use OIDC. Release Notes come from CHANGELOG. Pushes, PRs and tags never publish. See the [release walkthrough](docs/release.md) for setup, approval, retries and future online installation. A self-hosted marketplace is separate from OpenAI's official directory.
 
 ## Install from source
 
@@ -119,7 +119,7 @@ The result is the native local plugin in **AgentJobRelay Local**, normally refer
 | OpenCode V1 | Experimental plugin candidate | Actual loader, MCP and session API pass with a simulated model; real-provider sessions, restart recovery and V2 remain open. |
 | Claude Code | Inbox-only scaffold | Synthetic caller and MCP launcher checks pass; actual Claude loader/account/model verification needs community help. |
 | npm runtime and self-hosted marketplace | Candidates prepared, unpublished | Installed package and loader checks pass on Linux/Windows using a loopback registry; public-registry installation remains pending. |
-| CI and release | Native Linux/Windows checks and manual release workflow defined | Earlier remote CI passed; updated Windows native/release jobs await a remote run. Release workflow remains untriggered. |
+| CI and release | Native Linux/Windows checks and manual release workflow defined | Earlier remote CI passed; updated Windows native/release jobs await a remote run. The unified release workflow awaits its first manual remote run. |
 | macOS runtime | Unimplemented | Portable compilation checks only; native execution remains unsupported. |
 | Output monitoring/interruption | Deferred | Awaits an explicit implementation request; log reads and manual stop are available. |
 

@@ -99,9 +99,9 @@ Agent 会绑定当前聊天、提交任务、结束回合，并在收到通知�
 
 ## 插件发布候选版
 
-源码已公开在 [GitHub](https://github.com/MorningFrog/agent-job-relay)。OpenCode npm 插件、共用运行时包和 ChatGPT 自建插件市场已提供候选实现；**npm 账号等待验证、包名尚未最终确认，目前不能使用正常的在线安装命令。** 现有安装继续按[离线方式](#快速安装)维护。
+源码已公开在 [GitHub](https://github.com/MorningFrog/agent-job-relay)。OpenCode npm 插件、共用运行时包和 ChatGPT 自建插件市场已提供候选实现；**两个 npm 主包尚未发布，目前不能使用正常的在线安装命令。** 现有安装继续按[离线方式](#快速安装)维护。
 
-GitHub 的 **Release candidate** 工作流只能手动运行：默认生成候选文件，也可选择创建待人工发布的预发行草稿；提交、PR 和 tag 不会自动发布。构建、安装验证及未来在线安装步骤见[发布指南](docs/release.md)。自建市场与 OpenAI 官方插件库是不同渠道。
+GitHub 的 **Release** 工作流只能手动运行：dry-run 从 Cargo 读取版本并构建验证候选包，再由另一次手动运行将同一批文件发布到 npm 和 GitHub。首次使用 stage-only npm 权限并由维护者完成 2FA 批准，后续使用 OIDC；Release Notes 从 CHANGELOG 提取。提交、PR 和 tag 不会自动发布。配置、批准、重试及未来在线安装步骤见[发布指南](docs/release.md)。自建市场与 OpenAI 官方插件库是不同渠道。
 
 ## 从源码安装
 
@@ -119,7 +119,7 @@ GitHub 的 **Release candidate** 工作流只能手动运行：默认生成候�
 | OpenCode V1 | 实验性插件候选版 | 实际加载器、MCP 和会话 API 配合模拟模型验证通过；真实服务商会话、重启恢复及 V2 仍待完成。 |
 | Claude Code | 仅收件箱通知的框架 | 合成调用者和 MCP 启动器检查通过；实际 Claude 加载器、账号及模型验证需要社区协助。 |
 | npm 运行时与自建市场 | 候选包已准备，未发布 | Linux/Windows 上使用本地回环 registry 的安装与加载器检查通过；公开 registry 安装待验证。 |
-| CI 与发布 | 已定义 Linux/Windows 原生检查及手动发布流程 | 早前远程 CI 通过；更新后的 Windows 原生及发布任务尚待远程运行，发布流程尚未触发。 |
+| CI 与发布 | 已定义 Linux/Windows 原生检查及手动发布流程 | 早前远程 CI 通过；更新后的 Windows 原生及发布任务尚待远程运行，统一发布流程尚待首次远程手动运行。 |
 | macOS 运行时 | 未实现 | 仅有可移植部分编译检查，尚不支持原生执行。 |
 | 输出监控/中断 | 已暂缓 | 等待明确的实现请求；当前可读取日志和手动停止任务。 |
 

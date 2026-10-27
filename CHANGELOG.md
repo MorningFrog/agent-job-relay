@@ -1,10 +1,25 @@
 # Changelog
 
-## 0.1.8 — 2026-10-27 (unreleased automatic Windows startup)
+## [Unreleased]
+
+## [0.1.8] - 2026-10-27
+
+### Added
 
 - Automatically bootstrap the same Windows daemon profile through local CIM when a cleanup Job Object blocks native startup, with no login task/service registration or routine manual preparation. Keep native runner containment unchanged.
 - Authenticate both process instances/images/SIDs/integrity levels and private IPC before transferring the exact Unicode environment/cwd in memory. Reject restricted/AppContainer/low-integrity tokens, preserve caller isolation and expose direct-only policy plus copyable fallback diagnostics.
 - Cover host job destruction, cold start, crash restart without replay, environment preservation and refusal boundaries with native behavioral tests; package the matching runtime and plugin pins.
+
+### Distribution
+
+- Unify manual GitHub Release and the two npm main packages under one Actions workflow. Infer the version from Cargo.toml, enforce matching package/plugin pins, and extract this version's CHANGELOG section as Release Notes.
+- Build and check Linux/Windows candidates in dry-run, then promote those exact reviewed artifacts without rebuilding. First-time npm staging uses a stage-only token and human 2FA approval; later direct publication uses OIDC Trusted Publishing.
+- Preserve matching uploads across retries, verify staged/public tarball bytes, refuse changed or foreign assets/tags, and keep GitHub drafts private until public npm installation passes.
+
+### Known limitations
+
+- Linux and Windows x86_64 are supported; macOS and ARM native runtimes are unavailable. OpenCode V1 targets 1.19.4 with actual-loader tests using a simulated model; Claude Code remains an inbox-only scaffold.
+- ChatGPT Desktop same-chat continuation is verified on Linux and Windows, using an experimental private interface. Windows acceptance uses Full access. Results completed while the host is closed and real multi-day renewal remain separate scenarios.
 
 ## 0.1.7 — 2026-10-27 (unreleased Windows runtime and plugin candidate)
 
@@ -79,5 +94,3 @@
 - Installed shared-host MCP uses current-terminal bindings, rejecting stale process identity; workflow skill hides tool/state/session paths from everyday prompts.
 - Separate configuration, daemon, bounded stdio self-check and real tool-connectivity diagnostics. Installed/plugin UI live acceptance remains pending.
 - Linux behavior tests and compile/test CI definition; future packaging roadmap.
-
-No packages published or Windows/macOS runtime support claimed. Support is limited to the documented verification scope; no automated confirmed-resume adapter exists. See docs/IMPLEMENTATION_STATUS.md for validation evidence.

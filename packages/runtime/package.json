@@ -1,7 +1,7 @@
 {
   "name": "agent-job-relay-runtime",
   "version": "0.1.8",
-  "description": "Shared Linux native runtime for AgentJobRelay host plugins",
+  "description": "Shared Linux and Windows native runtime for AgentJobRelay host plugins",
   "type": "module",
   "exports": "./index.mjs",
   "bin": {
@@ -36,7 +36,6 @@
   },
   "publishConfig": {
     "access": "public",
-    "tag": "next",
     "registry": "https://registry.npmjs.org"
   }
 }
