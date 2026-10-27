@@ -676,6 +676,70 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(posts[0][1]["inputs"]["expected_revision"], self.revision)
         self.assertEqual(posts[0][1]["inputs"]["pipeline_key"], "release-789-publish")
 
+    def test_pipeline_initial_metadata_settles_without_dispatching_twice(self):
+        posts = []
+        snapshots = iter([
+            self.child("preview", display_title="Publish Release", status="queued", conclusion=None),
+            self.child("preview", head_repository=None, status="queued", conclusion=None),
+            self.child("preview", status="in_progress", conclusion=None),
+            self.child("preview"),
+        ])
+
+        def api(path, **kwargs):
+            if path == "git/ref/heads/main":
+                return {"object": {"sha": self.revision}}
+            if "/runs?" in path:
+                return {"workflow_runs": []}
+            if kwargs.get("method") == "POST":
+                posts.append(path)
+                return {"workflow_run_id": 456}
+            self.assertEqual(path, "actions/runs/456")
+            return next(snapshots)
+
+        with self.registry_clock() as sleep, patch.dict(os.environ, {"GITHUB_RUN_ID": "789"}), patch.object(pipeline, "github", side_effect=api), patch.object(pipeline, "output"), patch.object(pipeline, "summary"):
+            self.assertEqual(pipeline.dispatch_and_wait("preview", {"candidate_run_id": "123", "dry_run": "true"}, self.revision), "456")
+        self.assertEqual(posts, ["actions/workflows/release-publish.yml/dispatches"])
+        self.assertGreater(sum(call.args[0] for call in sleep.call_args_list), 0)
+
+    def test_pipeline_initial_metadata_wait_is_bounded_without_redispatch(self):
+        posts = []
+
+        def api(path, **kwargs):
+            if path == "git/ref/heads/main":
+                return {"object": {"sha": self.revision}}
+            if "/runs?" in path:
+                return {"workflow_runs": []}
+            if kwargs.get("method") == "POST":
+                posts.append(path)
+                return {"workflow_run_id": 456}
+            return self.child("preview", display_title="Publish Release", status="queued", conclusion=None)
+
+        with self.registry_clock() as sleep, patch.dict(os.environ, {"GITHUB_RUN_ID": "789"}), patch.object(pipeline, "github", side_effect=api), patch.object(pipeline, "output"), patch.object(pipeline, "summary"):
+            with self.assertRaisesRegex(ValueError, "did not initialize"):
+                pipeline.dispatch_and_wait("preview", {"candidate_run_id": "123", "dry_run": "true"}, self.revision)
+        self.assertEqual(posts, ["actions/workflows/release-publish.yml/dispatches"])
+        self.assertEqual(sum(call.args[0] for call in sleep.call_args_list), 60)
+
+    def test_pipeline_populated_child_identity_mismatch_is_never_treated_as_initialization(self):
+        for field, value in [("head_sha", "b" * 40), ("head_repository", {"full_name": "foreign/repo"}), ("display_title", "Publish Release [foreign-key]"), ("id", 457)]:
+            posts = []
+
+            def api(path, **kwargs):
+                if path == "git/ref/heads/main":
+                    return {"object": {"sha": self.revision}}
+                if "/runs?" in path:
+                    return {"workflow_runs": []}
+                if kwargs.get("method") == "POST":
+                    posts.append(path)
+                    return {"workflow_run_id": 456}
+                return self.child("preview", status="queued", conclusion=None, **{field: value})
+
+            with self.subTest(field=field), self.registry_clock() as sleep, patch.dict(os.environ, {"GITHUB_RUN_ID": "789"}), patch.object(pipeline, "github", side_effect=api), patch.object(pipeline, "output"), patch.object(pipeline, "summary"):
+                with self.assertRaisesRegex(ValueError, field):
+                    pipeline.dispatch_and_wait("preview", {"candidate_run_id": "123", "dry_run": "true"}, self.revision)
+            sleep.assert_not_called()
+            self.assertEqual(posts, ["actions/workflows/release-publish.yml/dispatches"])
+
     def test_pipeline_retries_failed_check_only_using_its_original_run_id(self):
         failed = self.child("check", conclusion="failure")
         runs = iter([failed, self.child("check", status="in_progress", conclusion=None, run_attempt=2), self.child("check", run_attempt=2)])

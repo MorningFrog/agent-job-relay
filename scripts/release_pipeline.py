@@ -27,8 +27,39 @@ def find_child(filename, title, revision):
     raise ValueError("Child-run search exceeded its bound; no workflow was dispatched")
 
 
-def validate_child(run, filename, title, revision):
-    require(run["event"] == "workflow_dispatch" and run["path"] == ".github/workflows/" + filename and run["head_branch"] == "main" and run["head_sha"] == revision and run["display_title"] == title and run["repository"]["full_name"] == REPOSITORY and run["head_repository"]["full_name"] == REPOSITORY, "Child workflow identity/source differs from this manual pipeline")
+def validate_child(run, filename, title, revision, allow_initializing=False):
+    fields = [
+        ("event", run.get("event"), "workflow_dispatch"),
+        ("path", run.get("path"), ".github/workflows/" + filename),
+        ("head_branch", run.get("head_branch"), "main"),
+        ("head_sha", run.get("head_sha"), revision),
+        ("display_title", run.get("display_title"), title),
+        ("repository", (run.get("repository") or {}).get("full_name"), REPOSITORY),
+        ("head_repository", (run.get("head_repository") or {}).get("full_name"), REPOSITORY),
+    ]
+    mismatches = [(field, value) for field, value, expected in fields if value != expected]
+    # The exact dispatched Run ID is already known, but GitHub can expose its
+    # default name/empty metadata before evaluating run-name and inputs.
+    if allow_initializing and mismatches and all(value in (None, "") or (field == "display_title" and value == title.split(" [", 1)[0]) for field, value in mismatches):
+        return False
+    require(not mismatches, "Child workflow identity/source differs from this manual pipeline: " + ", ".join(field for field, _ in mismatches))
+    return True
+
+
+def read_child(run_id, filename, title, revision):
+    deadline = time.monotonic() + 60
+    announced = False
+    while True:
+        run = github(f"actions/runs/{run_id}")
+        require(run.get("id") == run_id, "Child workflow identity/source differs from this manual pipeline: id")
+        if validate_child(run, filename, title, revision, allow_initializing=True):
+            return run
+        remaining = deadline - time.monotonic()
+        require(remaining > 0, f"Child metadata did not initialize within one minute; inspect exact Run ID {run_id}. No second workflow was dispatched")
+        if not announced:
+            summary(f"Waiting for GitHub to initialize child metadata for exact Run ID **{run_id}**; repository/source checks remain required before continuing.")
+            announced = True
+        time.sleep(min(5, remaining))
 
 
 def dispatch_and_wait(step, inputs, revision):
@@ -55,8 +86,9 @@ def dispatch_and_wait(step, inputs, revision):
             require(run is not None, f"Dispatch outcome is unknown for {key}; inspect Actions before retrying. No second dispatch was sent")
             run_id = run["id"]
     else:
-        validate_child(run, filename, title, revision)
         run_id = run["id"]
+        if not validate_child(run, filename, title, revision, allow_initializing=True):
+            run = read_child(run_id, filename, title, revision)
         if run["status"] == "completed" and run["conclusion"] != "success":
             minimum_attempt = run["run_attempt"] + 1
             route = "rerun-failed-jobs" if run["conclusion"] == "failure" else "rerun"
@@ -65,8 +97,7 @@ def dispatch_and_wait(step, inputs, revision):
     output("child_run_id", str(run_id))
     deadline = time.monotonic() + 5400
     while time.monotonic() < deadline:
-        run = github(f"actions/runs/{run_id}")
-        validate_child(run, filename, title, revision)
+        run = read_child(run_id, filename, title, revision)
         if run["run_attempt"] >= minimum_attempt and run["status"] == "completed":
             require(run["conclusion"] == "success", f"{name} did not pass: https://github.com/{REPOSITORY}/actions/runs/{run_id}. Preserve candidate {inputs.get('candidate_run_id', run_id)}; retry only the failed step")
             return str(run_id)
