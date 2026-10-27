@@ -58,7 +58,8 @@ async def main():
                 names = {tool["name"] for tool in tools["tools"]}
                 if not {"job_start", "job_status", "job_inbox", "job_doctor"} <= names:
                     raise RuntimeError("scaffold entry point is missing required actual MCP tools")
-                result = await rpc(3, "tools/call", {"name": "job_start", "arguments": {"spec": {"command": {"kind": "exec", "program": "/bin/true", "args": []}, "cwd": str(root), "session": a["session_key"]}}})
+                # Caller-isolation checks need fields omitted by the compact view.
+                result = await rpc(3, "tools/call", {"name": "job_start", "arguments": {"full": True, "spec": {"command": {"kind": "exec", "program": "/bin/true", "args": []}, "cwd": str(root), "session": a["session_key"]}}})
                 if result.get("isError"): raise RuntimeError(str(result))
                 started = json.loads(result["content"][0]["text"])
                 if started["job"]["session"] != a["session_key"] or started["wake"]["capabilities"]["can_resume"]:

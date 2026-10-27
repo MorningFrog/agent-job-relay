@@ -16,6 +16,7 @@
 ### Fixed
 
 - Confirm npm channel updates are publicly visible at the reviewed version before completing GitHub publication.
+- Request complete MCP records in the Claude scaffold's caller-isolation check so compact defaults do not break CI or release preparation.
 
 ### Known limitations
 
