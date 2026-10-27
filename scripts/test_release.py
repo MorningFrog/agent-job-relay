@@ -66,6 +66,17 @@ class ReleaseTests(unittest.TestCase):
         entry = self.meta["runtime"]
         return {"id": "11111111-1111-4111-8111-111111111111", "packageName": entry["name"], "version": self.version, "tag": "next", "status": status, "shasum": actions.hashlib.sha1((self.directory / entry["tarball"]).read_bytes()).hexdigest()}
 
+    @contextmanager
+    def registry_clock(self):
+        elapsed = 0
+
+        def advance(seconds):
+            nonlocal elapsed
+            elapsed += seconds
+
+        with patch.object(actions.time, "monotonic", side_effect=lambda: elapsed), patch.object(actions.time, "sleep", side_effect=advance) as sleep:
+            yield sleep
+
     def test_version_and_changelog_are_enforced_before_build(self):
         self.assertEqual(metadata.source_metadata(self.root)["version"], self.version)
         path = self.root / "plugins/opencode-v1/package.json"
@@ -187,6 +198,64 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(commands.call_count, 1)
         self.assertIn(self.directory / self.meta["opencode"]["tarball"], commands.call_args.args[0])
         github.assert_not_called()
+
+    def test_oidc_publication_waits_for_propagation_and_reuses_partial_uploads(self):
+        for runtime_exists in (False, True):
+            with self.subTest(runtime_exists=runtime_exists):
+                uploaded = []
+                visible = {metadata.PACKAGES["runtime"]} if runtime_exists else set()
+                pending = {name: 2 for name in metadata.PACKAGES.values()}
+
+                def publish(argv, **_kwargs):
+                    self.assertEqual(argv[:2], ["npm", "publish"])
+                    entry = next(entry for entry in self.meta.values() if isinstance(entry, dict) and self.directory / entry["tarball"] == argv[2])
+                    self.assertNotIn(entry["name"], uploaded)
+                    uploaded.append(entry["name"])
+                    return "{}"
+
+                def lookup(entry):
+                    name = entry["name"]
+                    if name not in visible:
+                        if name not in uploaded:
+                            return None
+                        if pending[name]:
+                            pending[name] -= 1
+                            return None
+                        visible.add(name)
+                    return {"name": name, "version": self.version, "dist": {"integrity": entry["integrity"]}}
+
+                with self.registry_clock() as sleep, patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "registry_version", side_effect=lookup), patch.object(actions, "check_channel", return_value={}), patch.object(actions, "draft_release", return_value=self.draft()), patch.object(actions, "command", side_effect=publish), patch.object(actions, "output") as output, patch.object(actions, "summary"):
+                    actions.publish(self.directory, "123", "oidc")
+                self.assertEqual(uploaded, [metadata.PACKAGES["opencode"]] if runtime_exists else list(metadata.PACKAGES.values()))
+                self.assertEqual(sleep.call_count, 2 * len(uploaded))
+                output.assert_called_once_with("ready", "true")
+
+    def test_oidc_propagation_timeout_preserves_upload_without_publishing_dependency(self):
+        with self.registry_clock() as sleep, patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "registry_version", return_value=None), patch.object(actions, "check_channel", return_value={}), patch.object(actions, "draft_release", return_value=self.draft()), patch.object(actions, "command", return_value="{}") as command, patch.object(actions, "output") as output, patch.object(actions, "summary"):
+            with self.assertRaisesRegex(ValueError, "same original candidate"):
+                actions.publish(self.directory, "123", "oidc")
+        command.assert_called_once()
+        self.assertEqual(command.call_args.args[0][2], self.directory / self.meta["runtime"]["tarball"])
+        self.assertEqual(sum(call.args[0] for call in sleep.call_args_list), 120)
+        output.assert_not_called()
+
+    def test_oidc_post_upload_integrity_conflict_is_not_retried(self):
+        uploaded = False
+
+        def publish(*_args, **_kwargs):
+            nonlocal uploaded
+            uploaded = True
+            return "{}"
+
+        def lookup(entry):
+            return {"name": entry["name"], "version": self.version, "dist": {"integrity": "foreign"}} if uploaded else None
+
+        with self.registry_clock() as sleep, patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "registry_version", side_effect=lookup), patch.object(actions, "check_channel", return_value={}), patch.object(actions, "draft_release", return_value=self.draft()), patch.object(actions, "command", side_effect=publish) as command, patch.object(actions, "output") as output:
+            with self.assertRaisesRegex(ValueError, "conflict"):
+                actions.publish(self.directory, "123", "oidc")
+        command.assert_called_once()
+        sleep.assert_not_called()
+        output.assert_not_called()
 
     def test_matching_stage_is_reused_only_after_byte_and_tag_check(self):
         entry = self.meta["runtime"]
@@ -457,12 +526,45 @@ class ReleaseTests(unittest.TestCase):
             actions.NoCredentialRedirect().redirect_request(None, None, 302, "redirect", {}, "https://foreign.invalid")
 
     def test_channel_update_must_be_public_before_github_completion(self):
-        with patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "verify_public"), patch.object(actions, "request", return_value={}), patch.object(actions, "command", return_value="") as command, patch.object(actions, "draft_release") as draft, patch.object(actions, "github") as github, patch.dict(os.environ, {"NPM_STAGE_TOKEN": "fake"}):
+        with self.registry_clock() as sleep, patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "verify_public"), patch.object(actions, "request", return_value={}), patch.object(actions, "command", return_value="") as command, patch.object(actions, "draft_release") as draft, patch.object(actions, "github") as github, patch.object(actions, "summary"), patch.dict(os.environ, {"NPM_STAGE_TOKEN": "fake"}):
             with self.assertRaisesRegex(ValueError, "not yet publicly visible"):
                 actions.finalize(self.directory, "123", "stage")
         self.assertEqual(command.call_args.args[0][:3], ["npm", "dist-tag", "add"])
+        command.assert_called_once()
+        self.assertEqual(sum(call.args[0] for call in sleep.call_args_list), 120)
         draft.assert_not_called()
         github.assert_not_called()
+
+    def test_channel_propagation_waits_before_github_completion_without_rewriting_tags(self):
+        updated = set()
+        visible = set()
+        pending = {name: 2 for name in metadata.PACKAGES.values()}
+
+        def update(argv, **_kwargs):
+            self.assertEqual(argv[:3], ["npm", "dist-tag", "add"])
+            name = argv[3].split("@")[0]
+            self.assertNotIn(name, updated)
+            updated.add(name)
+            return ""
+
+        def tags(url, **_kwargs):
+            name = next(name for name in metadata.PACKAGES.values() if name in url)
+            if name not in updated:
+                return {"next": "0.0.1"}
+            if pending[name]:
+                pending[name] -= 1
+                return {"next": "0.0.1"}
+            visible.add(name)
+            return {"next": self.version}
+
+        def complete(*_args, **_kwargs):
+            self.assertEqual(visible, set(metadata.PACKAGES.values()))
+
+        with self.registry_clock() as sleep, patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "verify_public"), patch.object(actions, "request", side_effect=tags), patch.object(actions, "command", side_effect=update) as command, patch.object(actions, "draft_release", return_value={"id": 1, "draft": True}), patch.object(actions, "github", side_effect=complete) as github, patch.object(actions, "summary"):
+            actions.finalize(self.directory, "123", "oidc")
+        self.assertEqual(command.call_count, 2)
+        self.assertEqual(sleep.call_count, 4)
+        github.assert_called_once_with("releases/1", method="PATCH", payload={"draft": False, "make_latest": "false"})
 
 
 if __name__ == "__main__":

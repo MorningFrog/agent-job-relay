@@ -10,6 +10,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 from urllib.error import HTTPError
 from urllib.parse import quote, urlencode
 from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
@@ -131,6 +132,21 @@ def public_package(entry):
     if published is not None:
         require(published.get("name") == entry["name"] and published.get("version") == entry["version"] and published.get("dist", {}).get("integrity") == entry["integrity"], f"Published bytes conflict with candidate: {entry['name']}@{entry['version']}")
     return published
+
+
+def wait_for_registry(read, ready, description):
+    deadline = time.monotonic() + 120
+    announced = False
+    while True:
+        value = read()
+        if ready(value):
+            return value
+        remaining = deadline - time.monotonic()
+        require(remaining > 0, f"{description} is not yet publicly visible after waiting for npm propagation; retry the same original candidate without rebuilding")
+        if not announced:
+            summary(f"Waiting up to two minutes for npm registry propagation: {description}. No upload is retried.")
+            announced = True
+        time.sleep(min(5, remaining))
 
 
 def check_channel(name, channel, selected):
@@ -357,7 +373,7 @@ def publish(directory, run_id, auth):
                 verified_stages = stage_package(entry, directory / entry["tarball"], candidate["channel"], env) and verified_stages
             else:
                 command(["npm", "publish", directory / entry["tarball"], "--ignore-scripts", "--access=public", f"--tag={candidate['channel']}", "--json", f"--registry={REGISTRY}"], env=env)
-                require(public_package(entry) is not None, "Published version is not yet publicly readable; retry this candidate after propagation")
+                wait_for_registry(lambda: public_package(entry), lambda value: value is not None, f"{entry['name']}@{entry['version']}")
     ready = all(public_package(meta[key]) is not None for key in PACKAGES)
     output("ready", str(ready).lower())
     if not ready and not verified_stages:
@@ -401,8 +417,7 @@ def finalize(directory, run_id, auth):
             tags = check_channel(name, candidate["channel"], candidate["version"])
             if tags.get(candidate["channel"]) != candidate["version"]:
                 command(["npm", "dist-tag", "add", f"{name}@{candidate['version']}", candidate["channel"], f"--registry={REGISTRY}"], env=env)
-                tags = check_channel(name, candidate["channel"], candidate["version"])
-            require(tags.get(candidate["channel"]) == candidate["version"], "npm channel is not yet publicly visible at the reviewed version; retry this candidate before GitHub completion")
+                wait_for_registry(lambda: check_channel(name, candidate["channel"], candidate["version"]), lambda value: value.get(candidate["channel"]) == candidate["version"], f"{name} channel {candidate['channel']} at {candidate['version']}")
     release = draft_release(directory, candidate)
     if release["draft"]:
         github(f"releases/{release['id']}", method="PATCH", payload={"draft": False, "make_latest": "true" if candidate["channel"] == "latest" else "false"})

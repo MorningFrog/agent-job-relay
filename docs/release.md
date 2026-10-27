@@ -83,6 +83,7 @@ Expect **Release complete** with the version, channel and GitHub URL. For a form
 
 GitHub and npm are separate systems; there is no atomic multi-service publication or automatic rollback. Both workflows share a concurrency group. Retry publication with the **original preparation Run ID**, preserving matching public bytes/assets; never rebuild a different package under a used npm version.
 
+- A successful npm upload or channel update can precede public registry visibility. The workflow allows a two-minute propagation window with read-only checks every five seconds, without repeating the upload/tag write. Byte conflicts or newer/unknown channels stop immediately. A timeout preserves the upload and GitHub draft; retry the same candidate after propagation.
 - If one package publishes and another fails, correct the reported access/connectivity problem, run Publish Release with dry-run checked, then publish the same candidate. Matching versions are verified and skipped.
 - If npm succeeds but GitHub completion fails, retry the same candidate; public installation and GitHub completion repeat without uploading npm versions again.
 - Conflicting npm integrity/channels, modified or foreign Release content, unexpected tag targets and missing/expired artifacts stop. No asset is clobbered/deleted, no stage is rejected and no tag is moved.
