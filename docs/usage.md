@@ -53,11 +53,13 @@ The installed plugin automates this sequence:
 {
   "spec": {
     "command": { "kind": "exec", "program": "cargo", "args": ["check"] },
-    "cwd": "/absolute/project",
+    "cwd": "<project-directory>",
     "session": "<fresh terminal binding key>"
   }
 }
 ```
+
+Replace `<project-directory>` with the full working-directory path reported by the current terminal, and the session placeholder with the fresh binding key; MCP does not expand shell variables in JSON.
 
 Shared-host MCP rejects `wake_me=true` and `job_connect_session`; its environment cannot establish the caller. Advanced dedicated per-session MCP can use inherited-context wake, as described in [protocol](protocol.md#client-convenience-no-wire-version-change). Ordinary background execution without continuation uses no session/wake option.
 
@@ -74,7 +76,7 @@ From the same chat's terminal:
 
 The first command refreshes/probes the current binding and previews eligible targets without moving deliveries or sending a chat message. Apply restores only the matching logical chat/caller/host. It preserves delivery IDs, original expiry and attempt history; accepted/expired events and live claims are excluded. Commands are never rerun. Use `--after` with returned pagination. MCP provides `job_recover_session` with a fresh terminal key.
 
-Automatic bindings opt into delivery-time lease renewal after verifying the same endpoint owner/fingerprint/capability and current claim. There is no periodic host scan. A changed host endpoint or invalidated binding needs explicit recovery; manual registrations default to no renewal. Real Desktop restart/multi-day behavior remains separately unverified; see [limitations](limitations.md).
+Automatic bindings opt into delivery-time lease renewal after verifying the same endpoint owner/fingerprint/capability and current claim. There is no periodic host scan. A changed host endpoint or invalidated binding needs explicit recovery; manual registrations default to no renewal. The installed active-job restart/rebind scenario passed; results completed while the host is closed and real multi-day renewal remain unverified. See [live evidence](live-e2e.md).
 
 Temporary delivery failures retry with bounded backoff until the event's 24-hour TTL. Identity failures pause for recovery and unsupported capabilities stop immediately. Inspect a job's deliveries with `delivery list --job-id "$JOB_ID"`; use `delivery attempts "$DELIVERY_ID"` for history. Explicit `delivery retry "$DELIVERY_ID"` renews TTL and keeps ID/history without rerunning the job. This is separate from recovery, which preserves the original TTL.
 
@@ -90,7 +92,7 @@ Use the returned `session.key` as SESSION_KEY, not the logical session_id:
 
 ```bash
 "$AJR_RELAY" session probe "$SESSION_KEY"
-"$AJR_RELAY" start --session "$SESSION_KEY" -- /bin/echo notified
+"$AJR_RELAY" start --session "$SESSION_KEY" -- echo notified
 "$AJR_RELAY" inbox "$SESSION_KEY"
 ```
 

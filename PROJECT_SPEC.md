@@ -1,6 +1,6 @@
 # AgentJobRelay — 从零实现的工程任务规范
 
-> 用途：将本文件放入新项目的根目录（建议命名 `PROJECT_SPEC.md`），交由 AI 在具有本机文件/终端权限的 Codex 或 Work 环境执行。 项目根目录：`/data/Projects/Agents/agent-job-relay` 仅供研究的参考目录：`/data/Projects/Agents/vanth-fork` 状态：工程实施规范，不代表以下功能已经完成。 **交付优先级：可靠性 + 用户体验。** 本阶段必须实现可靠的后台运行时、便捷的本地开发/测试入口、清晰的 `setup` / `doctor` / 集成移除、双语 README 和阶段性英文 Conventional Commits。**交付方向现已修订为 Plugin，独立系统安装包计划取消；当前不向任何官方平台发布。**
+> 用途：将本文件放入新项目的根目录（建议命名 `PROJECT_SPEC.md`），交由 AI 在具有本机文件/终端权限的 Codex 或 Work 环境执行。 项目根目录以当前检出位置为准。 状态：工程实施规范，不代表以下功能已经完成。 **交付优先级：可靠性 + 用户体验。** 本阶段必须实现可靠的后台运行时、便捷的本地开发/测试入口、清晰的 `setup` / `doctor` / 集成移除、双语 README 和阶段性英文 Conventional Commits。**交付方向现已修订为 Plugin，独立系统安装包计划取消；当前不向任何官方平台发布。**
 
 > **2026-10-26 用户修订（优先于原发行要求）：** 取消各系统独立安装包、包管理器及软件仓库发布计划，统一以 Agent Plugin 交付为目标，期望覆盖 ChatGPT Desktop/Codex、Claude Code、OpenCode，并尽可能通过各 Agent 官方支持的插件平台便捷安装。当前仍在开发阶段，暂不发布到官方平台，也不上传或配置发布凭证。保留一个 Rust/MCP 核心，各宿主分别实现插件入口和可验证的会话适配；Plugin 安装不等于已经支持自动唤醒。此修订替代旧的多格式安装包 TODO，详见新版 §16 和 docs/TODO.md。
 
@@ -16,28 +16,28 @@
 
 创建一个名为 **AgentJobRelay** 的全新开源候选项目：一个跨平台、以 Agent 会话为一等实体的事件驱动后台作业运行时。它可以安全地启动独立于 MCP/Agent 客户端生命周期的长时间命令，持久化进度和结果，并在宿主允许时可靠地通知或唤醒**正确的** Agent 会话，让 Agent 在需要处理任务事件时继续工作，尽量避免在长任务期间持续轮询。
 
-**设计目标是新架构，不是将 Vanth 翻译成 Rust。** 优先实现高可靠的核心闭环，不要照搬 Vanth 全部特性。**项目面向真实用户，而不只是开发者：从一开始就为简单、安全、可回滚的安装/卸载留下正确架构边界；当前优先保证源码构建、本地启动、MCP 客户端配置/移除和诊断体验。各 Agent 的 Plugin 交付为后续目标，当前只做本地开发及验证，不发布到官方平台。**
+优先实现高可靠的核心闭环，保持独立、清晰的架构。**项目面向真实用户，而不只是开发者：从一开始就为简单、安全、可回滚的安装/卸载留下正确架构边界；当前优先保证源码构建、本地启动、MCP 客户端配置/移除和诊断体验。各 Agent 的 Plugin 交付为后续目标，当前只做本地开发及验证，不发布到官方平台。**
 
 ### 操作边界（必须遵守）
 
-1. 仅在 `/data/Projects/Agents/agent-job-relay` 下创建和修改本项目的源码、测试、文档、构建配置与必要的临时测试文件。该目录不存在时可以创建；若已存在，先检查内容，不覆盖用户已有工作。
-2. `/data/Projects/Agents/vanth-fork` 为**只读参考**，可查看代码、文档、测试、提交记录及许可证，但不得修改、清理或重建该仓库。它的真实内容由你在本机检查决定，不要臆造目录结构。
-3. 不要修改用户现有的 `~/.codex/config.toml`、ChatGPT Desktop 配置、系统服务、全局 PATH、上游 Vanth 的数据目录或全局 AGENTS.md；确需集成安装时，先提供 dry-run、备份和明确的命令，未经授权不写入。
+1. 仅在当前项目根目录下创建和修改本项目的源码、测试、文档、构建配置与必要的临时测试文件。先检查已有内容，不覆盖用户工作。
+2. 项目之外的参考资料仅供只读查阅；不得修改、清理或重建其他仓库，也不要臆造其目录结构。
+3. 不要修改用户现有的 `~/.codex/config.toml`、ChatGPT Desktop 配置、系统服务、全局 PATH、其他应用的数据目录或全局 AGENTS.md；确需集成安装时，先提供 dry-run、备份和明确的命令，未经授权不写入。
 4. 不要运行 `sudo`、删除未知文件、清理其他项目目录、安装全局软件、公开发布、推送远程或创建线上仓库。允许在本项目目录进行常规 `cargo` 构建、依赖解析、测试和文档生成。**允许在项目仓库中执行 `git init`（仅限尚未初始化的目录）、`git add` 与本地 `git commit`，并要求按 Conventional Commits 在每个阶段提交；不得 push、发布 release 或改写已有历史。**
 5. 尊重适用的本地/上级 `AGENTS.md` 与相关 Skill。文件使用 UTF-8；不采用隐藏的降级或忽略失败来制造“测试通过”。
-6. 不要读取/输出与本任务无关的私人文件或秘密；执行测试时使用隔离的数据根目录、随机或临时的 IPC 地址，不接入现有 Vanth 生产数据。
+6. 不要读取/输出与本任务无关的私人文件或秘密；执行测试时使用隔离的数据根目录、随机或临时的 IPC 地址，不接入其他应用的生产数据。
 7. 不要因为某个重要集成不可用就以不安全或语义不同的实现静默替换；要做能力检测、给出明确错误或受控降级说明。
 
-## 1. 开始时先进行实证调研（时间盒：避免陷入无限分析）
+## 1. 接口与依赖核对（时间盒：避免陷入无限分析）
 
-先阅读本机 Vanth 副本中与以下主题相关的**少量关键文件**：README、LICENSE、后台 Daemon/Runner、MCP 入口、持久化 Job/Event/Delivery、Codex/ChatGPT Desktop 唤醒、相关回归测试。尤其检查该副本是否包含曾解决 Linux Unix Socket、`callerSource`、MCP 进程组误杀 Daemon、`job_stop` 参数等问题的修复；不要默认其分支或版本与上游相同。
+先核对当前公开的宿主接口和依赖 API，明确后台进程、MCP、持久化、会话绑定及通知的能力与限制。以实际接口和行为测试为准。
 
-输出简明的 `docs/reference-audit.md`，至少记录：
-- 从 Vanth 借鉴的**行为需求和负面经验**、可以复用的测试思想；
-- 不应继承的复杂性（通用 artifact 系统、SSH Beta、过度宽泛的调度系统等）；
-- 要避免的四类耦合：作业运行、MCP 客户端、Agent 会话和消息投递的生命周期耦合；
-- Vanth 和新项目之间的实质性架构差异；
-- 代码来源/许可声明（如使用任何可版权保护的实现片段则按许可证保留声明；首选独立实现，不整体复制）。
+在 `docs/architecture.md` 和相关 ADR 中记录：
+
+- 核心行为需求、故障边界和有意义的回归测试；
+- 明确的非目标，避免引入通用 artifact 系统、远程执行和过度宽泛的调度系统；
+- 作业运行、MCP 客户端、Agent 会话和消息投递四类独立生命周期；
+- 设计选择及其依据。第三方实现或资源如被实际采用，必须保留其许可要求的声明。
 
 验证**当前实际可安装**的 Rust crate API/版本，而不是依赖过时的示例：`tokio`、官方 `rmcp`、`rusqlite`、`clap`、`serde`、`tracing`、`interprocess`（是否必要）、`thiserror`、`windows-sys`/`rustix` 等。特别注意 RMCP SDK 3.x 可能有破坏性变更。读取官方文档或仓库 README，以构建结果为准。**不要固定未经验证的 crate 版本号。**
 
@@ -92,7 +92,7 @@ agent-job-relay/
     cli/mod.rs
     config.rs
   tests/{cli,daemon,runner,persistence,delivery,mcp}/
-  docs/{architecture,reference-audit,protocol,security,limitations,testing,installation,release,TODO}.md
+  docs/{architecture,protocol,security,limitations,testing,installation,release,TODO}.md
   .github/workflows/ci.yml
 ```
 
@@ -210,7 +210,7 @@ agent-job-relay integration remove <client> [--dry-run]
 
 ### ChatGPT Desktop Work / Codex
 
-上游 Vanth 的桌面桥接依赖未经公开稳定承诺的 Host pipe/Unix socket + JSON-RPC（相关字段如 `callerSource`），存在单目标、宿主重启失效、Host Ack 与 Agent 真正执行不同步等限制。新项目必须**将此机制隔离为显式 experimental adapter**：
+Desktop 的实验性桌面桥接依赖未经公开稳定承诺的 Host pipe/Unix socket + JSON-RPC（相关字段如 `callerSource`），存在单目标、宿主重启失效、Host Ack 与 Agent 真正执行不同步等限制。新项目必须**将此机制隔离为显式 experimental adapter**：
 - Linux Unix Socket、Windows Named Pipe 采用各自正确连接方法；其他平台按实测支持；
 - endpoint/path、会话身份、session/instance 生命周期绑定，能够检测过期；
 - 多会话不得靠单个全局覆盖式 `desktop.json` 实现；需要区分不同 Host 实例/对话，但能否实际独立投递由 Host 能力决定；
@@ -244,7 +244,7 @@ agent-job-relay integration remove <client> [--dry-run]
 - 安装应优先原生单可执行文件；无需要求 Python、Go、Node、Docker 运行环境。
 - 不直接发布仓库或插件。本轮进行构建/测试及本地插件验证，官方插件平台提交留待后续开发稳定及用户明确授权。
 - **当前 P0 是便捷的本地 Plugin/MCP 入口、清晰 setup/doctor、可逆配置与默认保留数据。** 独立系统安装包及软件仓库计划已取消，详见 §16。
-- 使用项目自己独立的状态目录（优先遵循各 OS 习惯，如 XDG_STATE_HOME / LocalAppData），**严禁复用或迁移 Vanth 的现有数据库**。
+- 使用项目自己独立的状态目录（优先遵循各 OS 习惯，如 XDG_STATE_HOME / LocalAppData），**严禁复用或迁移其他应用的数据库**。
 
 ## 12. 测试矩阵：按行为验收而非按行数验收
 
@@ -274,8 +274,8 @@ P0 必须覆盖：
 
 ## 13. 分阶段实施与 Gate（不要只停留在计划）
 
-### Stage 0 — 参考审查与设计冻结
-产出：`docs/reference-audit.md`、`docs/architecture.md`、关键 ADR、领域状态机、事件/IPC 协议草图及不确定点；立即准备 Cargo 项目，完成 `cargo check`。在本阶段可以用 Markdown/Mermaid 图解释关键生命周期，但不要让设计文档无限膨胀。
+### Stage 0 — 接口核对与设计冻结
+产出：`docs/architecture.md`、关键 ADR、领域状态机、事件/IPC 协议草图及不确定点；立即准备 Cargo 项目，完成 `cargo check`。在本阶段可以用 Markdown/Mermaid 图解释关键生命周期，但不要让设计文档无限膨胀。
 
 ### Stage 1 — Core v0.1：可以执行并恢复的最小闭环
 产出：项目初始化、clap CLI、Daemon/IPC、SQLite migrations、Job/Run/Event、独立 Runner、日志、stop/status/list、基本可靠启动/对账、真实 Linux 生命周期测试。命令行必须有可理解的 `--help`、错误消息与退出码；开发阶段允许用户通过 `cargo run` 或已构建的可执行文件启动，不要求立即提供免编译的软件安装包。**先让这部分可靠运作，而不是同时开发所有 Agent 适配器。**
@@ -309,7 +309,8 @@ P0 必须覆盖：
 - 永远区分 accepted_by_host 与 confirmed_resumed；
 - 进程树/数据库/IPC 安全为高风险修改，严禁绕过测试；
 - 跨平台代码以 `platform/` 隔离；
-- 使用 UTF-8；测试隔离、不要碰上游 Vanth 状态；
+- 使用 UTF-8；测试隔离、不要碰其他应用的状态；
+- 文档聚焦本项目，不保留外部项目比较或本机研究经过；不得写入字面绝对文件路径、个人目录或私有端点。使用仓库相对路径、环境变量或明确占位符，运行时需要的完整路径从当前环境取得；
 - 不要因为未实现功能而生成虚假文档、假接口或声称成功；
 - 尽量以公开官方接口替代不稳定私有 Host API；任何 private API 变更需写出兼容风险。
 - 优先提升当前用户体验：可运行的本地构建入口、清晰 setup/doctor、可逆 MCP 配置；Plugin 便捷安装和安全移除是交付目标，独立系统安装包已取消；当前不发布到官方平台。
@@ -327,7 +328,7 @@ P0 必须覆盖：
 - 将不可逆副作用与数据库事务边界清楚分离，显式记录中间状态/恢复策略。
 - 所有非短暂状态都要有明确的所有者和恢复语义；消除 fire-and-forget 且不可诊断的关键任务。
 - 日志/事件/指标不得无限增长；设计合理的大小限制、分页及可选 retention（清理需安全）。
-- API 约束、错误返回、schema version 与升级/回滚策略应明确，不能盲目兼容 Vanth 的旧格式。
+- API 约束、错误返回、schema version 与升级/回滚策略应明确，不能隐式兼容未经定义和验证的外部格式。
 - 在相同功能下，优先降低 Agent Token 消耗：给出精炼状态与错误、有限日志切片，避免为了“动态进度”而引导主动高频轮询。
 - 不能将 `Agent wake` 的成功依赖于 Agent 自身保持运行；对不支持异步恢复的 Host 提供严格的 capability 说明。
 
@@ -418,7 +419,7 @@ P0 必须覆盖：
 请给出**真实执行的结果**，不是计划书：
 
 1. 项目根目录和生成的核心文件；
-2. 重要架构决策摘要及相对 Vanth 的差异；
+2. 重要架构决策摘要及依据；
 3. 已实现功能 / 模拟测试功能 / 尚未实现功能三类清单；
 4. 每个测试命令、实际通过/失败数量及平台；
 5. 真实 Agent 唤醒是否已完成 E2E，若没有，准确指出阻碍；

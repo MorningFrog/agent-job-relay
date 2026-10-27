@@ -33,7 +33,7 @@ Please report these separately:
 
 For Claude Code, verify `--plugin-dir`, manifest validation, real `${CLAUDE_SESSION_ID}` skill substitution, actual MCP submission and inbox inspection before proposing wake support. A future hook/channel PR needs a documented public interface and account-backed session/idle/failure evidence. The existing framework must continue to report `can_resume=false` until that implementation is verified.
 
-Use disposable repository-local `.tmp/` state and cleanly stop only your test instances. Keep real user/Vanth state untouched. Do not publish raw logs, transcripts, socket paths, session keys, credentials or databases; share a concise sanitized result and the reproducing script. A Docker pass is useful interface evidence but does not prove Desktop UI or an account-backed host run.
+Use disposable repository-local `.tmp/` state and cleanly stop only your test instances. Keep real user and unrelated application state untouched. Do not publish raw logs, transcripts, socket paths, session keys, credentials or databases; share a concise sanitized result and the reproducing script. A Docker pass is useful interface evidence but does not prove Desktop UI or an account-backed host run.
 
 ## PR scope and history
 

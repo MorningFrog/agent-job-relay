@@ -22,7 +22,7 @@ Read `PROJECT_SPEC.md`, `docs/architecture.md` and `docs/IMPLEMENTATION_STATUS.m
 
 - Add targeted tests only for meaningful behavior, correctness or regression risk. State-machine, recovery/delivery, process-tree, SQLite transaction and IPC-permission changes require behavioral coverage; reuse the existing Rust/fake-host infrastructure.
 - Avoid redundant, trivial or implementation-coupled tests. Do not test README wording, section order or specific text unless documentation itself is a product/interface under test. Keep tests of actual CLI/MCP/configuration behavior and preserve required cases, fixtures and reference data.
-- Keep generated test state, endpoints, outputs, reports and logs in ignored repository-local `.tmp/` or `target/`. Do not commit temporary or historical test artifacts; never clean real user/Vanth state as test cleanup.
+- Keep generated test state, endpoints, outputs, reports and logs in ignored repository-local `.tmp/` or `target/`. Do not commit temporary or historical test artifacts; never clean real user or unrelated application state as test cleanup.
 - Document only concise results for the latest applicable version and material verification limits. Do not accumulate execution logs or historical test reports in documentation; past results remain in Git history.
 
 Run all delivery gates before final delivery:
@@ -38,6 +38,7 @@ cargo build --release
 
 - Keep documentation concise, focused and logically structured with meaningful headings. Remove redundant explanations and filler while retaining evidence and operational limits.
 - Write reader-facing guides in task order. Present the quickest working installation before source builds; keep README focused on getting started and navigation, put detailed usage/maintenance in their guides, and give manual test steps explicit expected results. Keep historical evidence out of installation instructions.
+- Keep documentation focused on this project; omit external-project comparison and local research narratives. Do not embed literal absolute filesystem paths, machine-specific directories or personal endpoints. Use repository-relative paths, environment variables or clearly explained placeholders; resolve required runtime paths from the current environment.
 - Keep each Markdown paragraph on one source line; do not hard-wrap prose at fixed widths. Preserve line breaks required by lists, tables, code blocks and other Markdown syntax. Use UTF-8.
 - Keep `AGENTS.md` limited to durable instructions, without progress, implementation history or temporary plans. Do not embed commit/build hashes or other transient identifiers in it or either README; link to authoritative evidence instead.
 - After code changes, check `AGENTS.md`, both READMEs, `docs/TODO.md`, `docs/IMPLEMENTATION_STATUS.md` and other affected docs. Synchronize functionality, APIs, configuration, dependencies, architecture and workflows; change only relevant documentation.
@@ -49,5 +50,5 @@ cargo build --release
 
 - Follow Conventional Commits: `<type>[optional scope]: <description>`, using appropriate types such as `feat`, `fix`, `docs`, `refactor`, `test` and `chore`. Write concise, descriptive subjects and any bodies in English.
 - Commit each verifiable increment locally. Check `git status` and `git diff --check`, stage specific paths, and keep generated artifacts, private logs, databases and secrets out of Git.
-- Do not modify real user configuration/services or rewrite history. Release preparation is authorized; pushing, publishing and submission still require final user confirmation. Explicitly requested Windows VM toolchain installation is allowed for verification. Never touch Vanth state; any reference repository is read-only.
+- Do not modify real user configuration/services or rewrite history. Release preparation is authorized; pushing, publishing and submission still require final user confirmation. Explicitly requested Windows VM toolchain installation is allowed for verification. Keep unrelated application state untouched; external reference repositories are read-only.
 - Distribute through Agent plugins around one Rust/MCP core, targeting Codex/Desktop, Claude Code and OpenCode. Independent OS installers/package repositories are out of scope; npm plugin delivery and a ChatGPT self-hosted marketplace are the distribution routes. GitHub release operations must use a manual workflow, never push/tag triggers.

@@ -23,13 +23,13 @@ For candidate package builds and the no-source-checkout installed-tarball check,
 npm install --prefix .tmp/host-plugins --cache .tmp/npm-cache --ignore-scripts --no-audit --no-fund ./.tmp/release-candidate/agent-job-relay-runtime-0.1.8.tgz ./.tmp/release-candidate/agent-job-relay-opencode-v1-0.1.8.tgz
 ```
 
-Use a new staging path for another copy rather than nesting copies. Configure the following once in your chosen OpenCode project, replacing the absolute paths with the built/staged paths and a short separate persistent state path:
+Use a new staging path for another copy rather than nesting copies. Configure the following once in your chosen OpenCode project, replacing each angle-bracket placeholder with a value from your environment: the staged entry point as a file URL, the built executable path, and a short persistent state directory outside plugin/cache directories. Paths must be fully resolved; these placeholders are not automatically expanded:
 
 ```json
 {
-  "plugin": [["file:///absolute/repository/.tmp/host-plugins/node_modules/agent-job-relay-opencode-v1/index.mjs", {
-    "executable": "/absolute/repository/target/release/agent-job-relay",
-    "stateDir": "/absolute/short/path/relay-state"
+  "plugin": [["<staged-plugin-file-url>", {
+    "executable": "<built-runtime-executable>",
+    "stateDir": "<persistent-state-directory>"
   }]]
 }
 ```

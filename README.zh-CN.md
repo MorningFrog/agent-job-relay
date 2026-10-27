@@ -146,4 +146,4 @@ AJR_BUNDLE="$PWD/.tmp/agent-job-relay-offline"
 | 发布候选包和手动 Actions | [发布指南](docs/release.md) |
 | 计划及变更 | [路线图](docs/TODO.md)、[变更记录](CHANGELOG.md) |
 
-MIT 许可。项目独立实现，只读研究 Vanth 的行为需求，见[参考审查](docs/reference-audit.md)。
+采用 [MIT 许可](LICENSE)。

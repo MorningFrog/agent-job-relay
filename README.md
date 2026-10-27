@@ -146,4 +146,4 @@ Current results and version-specific limits are maintained in [implementation st
 | Release candidates and manual Actions | [Release](docs/release.md) |
 | Planned work and changes | [Roadmap](docs/TODO.md), [changelog](CHANGELOG.md) |
 
-MIT licensed. Independently implemented; Vanth was studied read-only for behavior requirements. See [reference audit](docs/reference-audit.md).
+Licensed under [MIT](LICENSE).

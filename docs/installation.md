@@ -1,6 +1,6 @@
 # Installation and maintenance
 
-Use the offline bundle for the quickest installation. It includes the native executable and needs no Rust, Python or Node on the recipient's machine. Current support is Linux x86_64 with a compatible libc and `/bin/sh`, plus Windows x86_64 with a `.cmd` launcher (see the [Windows guide](windows.md)); there is no public download, online installer or official plugin listing yet. Use a trusted build: its hashes check integrity, not publisher identity.
+Use the offline bundle for the quickest installation. It includes the native executable and needs no Rust, Python or Node on the recipient's machine. Current support is Linux x86_64 with a compatible libc and a POSIX shell, plus Windows x86_64 with a `.cmd` launcher (see the [Windows guide](windows.md)); there is no public download, online installer or official plugin listing yet. Use a trusted build: its hashes check integrity, not publisher identity.
 
 Already installed? Follow [Updating an existing installation](#updating-an-existing-installation). For a first install, use the quick path below. Source builds and standalone MCP are under [Alternative installation routes](#alternative-installation-routes).
 
