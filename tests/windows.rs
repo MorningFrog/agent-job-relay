@@ -822,8 +822,16 @@ async fn offline_install_update_cache_and_removal_keep_state() {
     let state = dir.path().join("state");
     let bundle = dir.path().join("bundle");
     let exe = env!("CARGO_BIN_EXE_agent-job-relay");
+    let isolated_command = |program: &Path| {
+        let mut command = Command::new(program);
+        command
+            .env_remove("AJR_STATE_DIR")
+            .env_remove("CODEX_THREAD_ID")
+            .env_remove("CODEX_APP_TOOLS_PIPE_PATH");
+        command
+    };
     let run = |program: &Path, args: &[&std::ffi::OsStr]| -> Value {
-        let out = Command::new(program).args(args).output().unwrap();
+        let out = isolated_command(program).args(args).output().unwrap();
         assert!(
             out.status.success(),
             "{}",
@@ -872,7 +880,7 @@ async fn offline_install_update_cache_and_removal_keep_state() {
         )
         .await
         .unwrap();
-    let output = Command::new("cmd.exe")
+    let output = isolated_command(Path::new("cmd.exe"))
         .args(["/D", "/C"])
         .arg(install.join("relay.cmd"))
         .arg("doctor")
