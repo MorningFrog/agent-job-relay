@@ -119,7 +119,7 @@ The result is the native local plugin in **AgentJobRelay Local**, normally refer
 | OpenCode V1 | Experimental plugin candidate | Actual loader, MCP and session API pass with a simulated model; real-provider sessions, restart recovery and V2 remain open. |
 | Claude Code | Inbox-only scaffold | Synthetic caller and MCP launcher checks pass; actual Claude loader/account/model verification needs community help. |
 | npm runtime and self-hosted marketplace | Candidates prepared, unpublished | Installed package and loader checks pass on Linux/Windows using a loopback registry; public-registry installation remains pending. |
-| CI and release | Native Linux/Windows checks and manual release workflow defined | Linux/Windows native CI and macOS portable checks pass. The unified release workflow awaits its first manual remote run. |
+| CI and release | Native Linux/Windows checks and manual release workflow defined | Linux/Windows native and installed-package CI plus macOS portable checks pass; a complete manual Release dry-run and publication remain pending. |
 | macOS runtime | Unimplemented | Portable compilation checks only; native execution remains unsupported. |
 | Output monitoring/interruption | Deferred | Awaits an explicit implementation request; log reads and manual stop are available. |
 
