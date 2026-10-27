@@ -10,6 +10,10 @@ on:
         description: Original successful dry-run Run ID; required when dry_run is false
         type: string
         default: ''
+      recover_candidate:
+        description: Resume original bytes after release-tooling-only fixes; rejects payload changes
+        type: boolean
+        default: false
       channel:
         description: Candidate npm channel; promotion inherits the sealed value
         type: choice
@@ -26,6 +30,8 @@ env:
   CARGO_PROFILE_DEV_DEBUG: '0'
   CARGO_PROFILE_TEST_DEBUG: '0'
   PYTHONDONTWRITEBYTECODE: '1'
+  RECOVER_CANDIDATE: ${{ inputs.recover_candidate }}
+  CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
 concurrency:
   group: agent-job-relay-release
   cancel-in-progress: false
@@ -42,6 +48,8 @@ jobs:
       version: ${{ steps.source.outputs.version }}
     steps:
       - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.12'
@@ -61,6 +69,7 @@ jobs:
           candidate = os.environ['CANDIDATE_RUN_ID']
           assert os.environ['GITHUB_REF'] == 'refs/heads/main', 'Select main for release'
           assert (dry and not candidate) or (not dry and re.fullmatch(r'[0-9]+', candidate)), 'Dry-run needs no candidate; promotion requires its original numeric Run ID'
+          assert not (dry and os.environ['RECOVER_CANDIDATE'] == 'true'), 'Candidate recovery is only for promotion, not dry-run'
           PY
       - name: Check release state-machine regressions
         run: python3 -m unittest discover -s scripts -p test_release.py -v
@@ -222,6 +231,8 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.12'

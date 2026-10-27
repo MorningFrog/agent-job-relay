@@ -20,6 +20,14 @@ from release_metadata import (REPO, PACKAGES, check_candidate, require, seal_can
 
 REGISTRY = "https://registry.npmjs.org"
 REPOSITORY = "MorningFrog/agent-job-relay"
+# These files do not contribute bytes to the runtime, npm packages or marketplace.
+# Recovery is opt-in and still verifies the original candidate and every asset.
+RECOVERY_PATHS = frozenset({
+    ".github/workflows/release.yml", "scripts/release_actions.py", "scripts/test_release.py",
+    "README.md", "README.zh-CN.md", "docs/release.md", "docs/testing.md",
+    "docs/architecture.md", "docs/IMPLEMENTATION_STATUS.md", "docs/TODO.md",
+    "docs/adr/0013-unified-manual-release.md",
+})
 
 
 class NoCredentialRedirect(HTTPRedirectHandler):
@@ -27,14 +35,14 @@ class NoCredentialRedirect(HTTPRedirectHandler):
         raise RuntimeError("Authenticated release API redirects are refused")
 
 
-def request(url, token=None, method="GET", payload=None, binary=False, missing=False):
-    headers = {"Accept": "application/json", "User-Agent": "AgentJobRelay-release"}
+def request(url, token=None, method="GET", payload=None, binary=False, missing=False, context="Release API request"):
+    headers = {"Accept": "application/octet-stream" if binary else "application/json", "User-Agent": "AgentJobRelay-release"}
     if token:
         headers["Authorization"] = "Bearer " + token
     data = None
     if payload is not None:
-        data = json.dumps(payload).encode()
-        headers["Content-Type"] = "application/json"
+        data = payload if isinstance(payload, bytes) else json.dumps(payload).encode()
+        headers["Content-Type"] = "application/octet-stream" if isinstance(payload, bytes) else "application/json"
     try:
         opener = build_opener(NoCredentialRedirect).open if token else urlopen
         with opener(Request(url, data=data, headers=headers, method=method), timeout=30) as response:
@@ -43,9 +51,10 @@ def request(url, token=None, method="GET", payload=None, binary=False, missing=F
             require(len(content) <= (128 if binary else 8) * 1024 * 1024, "Remote response exceeded release limit")
             return content if binary else json.loads(content)
     except HTTPError as error:
+        error.close()
         if missing and error.code == 404:
             return None
-        raise RuntimeError(f"Release API request failed with HTTP {error.code} ({method}); no credential response was logged") from None
+        raise RuntimeError(f"{context} failed with HTTP {error.code} ({method}); no credential response was logged") from None
 
 
 def github(path, **kwargs):
@@ -133,11 +142,13 @@ def check_channel(name, channel, selected):
 
 
 def preflight(auth):
-    actions_context()
+    revision = actions_context()
+    if os.environ.get("CANDIDATE_RUN_ID"):
+        revision = candidate_run(os.environ["CANDIDATE_RUN_ID"])["head_sha"]
     source = source_metadata()
     repo = github("")
     require(repo["full_name"] == REPOSITORY, "Unexpected GitHub repository")
-    check_tag(source["tag"], os.environ["GITHUB_SHA"])
+    check_tag(source["tag"], revision)
     if auth == "stage":
         with npm_environment(auth) as env:
             identity = command(["npm", "whoami", "--json", f"--registry={REGISTRY}"], env=env)
@@ -170,12 +181,25 @@ def check_tag(tag, revision):
         require(obj["type"] == "commit" and obj["sha"] == revision, "Existing tag targets another commit; it will not be moved")
 
 
+def check_recovery_source(original, current):
+    require(all(re.fullmatch(r"[0-9a-f]{40}", value) for value in (original, current)), "Invalid recovery source revision")
+    require(command(["git", "rev-parse", "HEAD"]).strip() == current, "Recovery checkout differs from the manual workflow revision")
+    command(["git", "merge-base", "--is-ancestor", original, current])
+    changed = command(["git", "diff", "--name-only", "-z", original, current, "--"], binary=True).decode().split("\0")
+    changed = {name for name in changed if name}
+    require(changed and changed <= RECOVERY_PATHS, "Recovery permits only allowlisted release-tooling/documentation changes; runtime, package, build, version and CHANGELOG changes require a new candidate")
+    summary(f"**Candidate recovery:** original source `{original}`, workflow tools `{current}`. Only allowlisted release-tooling/documentation files changed; the original candidate bytes and source identity are retained.")
+
+
 def candidate_run(run_id):
     require(str(run_id).isdigit(), "candidate_run_id must be the numeric successful dry-run ID")
     run = github(f"actions/runs/{run_id}")
     # Validate before asking download-artifact to read any files.
     require(run["status"] == "completed" and run["conclusion"] == "success" and run["event"] == "workflow_dispatch" and run["path"] == ".github/workflows/release.yml", "Candidate must be a successful manual Release workflow run")
-    require(run["head_sha"] == os.environ["GITHUB_SHA"] and run["head_branch"] == "main" and run["repository"]["full_name"] == REPOSITORY and run["head_repository"]["full_name"] == REPOSITORY, "Candidate source differs; generate a fresh dry-run on unchanged main")
+    require(run["head_branch"] == "main" and run["repository"]["full_name"] == REPOSITORY and run["head_repository"]["full_name"] == REPOSITORY, "Candidate must belong to this repository's main branch")
+    if run["head_sha"] != os.environ["GITHUB_SHA"]:
+        require(os.environ.get("RECOVER_CANDIDATE") == "true", "Candidate source differs; generate a fresh dry-run or explicitly select recovery after release-tooling-only fixes")
+        check_recovery_source(run["head_sha"], os.environ["GITHUB_SHA"])
     artifacts = github(f"actions/runs/{run_id}/artifacts?per_page=100")["artifacts"]
     matches = [a for a in artifacts if a["name"] == "release-candidate" and not a["expired"]]
     require(len(matches) == 1, "Missing/expired verified release-candidate artifact; never rebuild during promotion")
@@ -183,20 +207,23 @@ def candidate_run(run_id):
 
 
 def validate(directory, run_id):
-    revision = actions_context()
-    return validate_promotion(directory, candidate_run(run_id), REPOSITORY, revision, run_id)
+    actions_context()
+    run = candidate_run(run_id)
+    return validate_promotion(directory, run, REPOSITORY, run["head_sha"], run_id)
 
 
-def draft_release(directory, candidate):
-    tag = "v" + candidate["version"]
-    check_tag(tag, candidate["revision"])
-    marker = f"<!-- AgentJobRelay candidate {candidate['run_id']} {candidate['revision']} {candidate['channel']} -->"
-    body = (directory / "release-notes.md").read_text() + "\n" + marker
-    release = github(f"releases/tags/{tag}", missing=True)
-    if release is None:
-        release = github("releases", method="POST", payload={"tag_name": tag, "target_commitish": candidate["revision"], "name": f"AgentJobRelay {candidate['version']}", "body": body, "draft": True, "prerelease": candidate["channel"] == "next"})
-    require(release["body"] == body and release["target_commitish"] == candidate["revision"] and release["prerelease"] == (candidate["channel"] == "next"), "Existing Release is foreign/modified; preserve it and stop")
-    assets = github(f"releases/{release['id']}/assets?per_page=100")
+def github_list(path):
+    items = []
+    for page in range(1, 21):
+        batch = github(f"{path}?per_page=100&page={page}")
+        require(isinstance(batch, list), "Unexpected GitHub list response")
+        items.extend(batch)
+        if len(batch) < 100:
+            return items
+    raise ValueError("GitHub inventory exceeds the bounded release listing; nothing was changed")
+
+
+def verify_release_assets(directory, assets):
     local = {p.name: p for p in directory.iterdir()}
     require(len(assets) == len({a['name'] for a in assets}) and all(a["name"] in local for a in assets), "Existing Release has foreign/duplicate assets; nothing will be overwritten")
     for asset in assets:
@@ -206,10 +233,49 @@ def draft_release(directory, candidate):
         else:
             data = command(["gh", "api", "-H", "Accept: application/octet-stream", f"repos/{REPOSITORY}/releases/assets/{asset['id']}"], binary=True)
             require(hashlib.sha256(data).hexdigest() == expected, "Existing Release asset differs from reviewed candidate")
+
+
+def upload_release_asset(release_id, path):
+    token = os.environ.get("GH_TOKEN")
+    require(token, "Missing automatic GitHub token")
+    require(isinstance(release_id, int) and release_id > 0, "Invalid GitHub Release ID")
+    asset = request(f"https://uploads.github.com/repos/{REPOSITORY}/releases/{release_id}/assets?name={quote(path.name, safe='')}", token=token, method="POST", payload=path.read_bytes(), context="GitHub release asset upload")
+    require(asset.get("name") == path.name, "Uploaded asset identity mismatch")
+    verify_release_assets(path.parent, [asset])
+
+
+def draft_release(directory, candidate):
+    tag = "v" + candidate["version"]
+    check_tag(tag, candidate["revision"])
+    marker = f"<!-- AgentJobRelay candidate {candidate['run_id']} {candidate['revision']} {candidate['channel']} -->"
+    body = (directory / "release-notes.md").read_text() + "\n" + marker
+    # The by-tag endpoint omits drafts. Enumerate authenticated drafts as well,
+    # and upload to an exact ID rather than gh's potentially ambiguous tag lookup.
+    matches = [r for r in github_list("releases") if r["tag_name"] == tag]
+    inventories = {}
+    for release in matches:
+        require(release["body"] == body and release["target_commitish"] == candidate["revision"] and release["prerelease"] == (candidate["channel"] == "next"), "Existing Release is foreign/modified; preserve it and stop")
+        inventories[release["id"]] = github_list(f"releases/{release['id']}/assets")
+        verify_release_assets(directory, inventories[release["id"]])
+    published = [r for r in matches if not r["draft"]]
+    populated = [r for r in matches if inventories[r["id"]]]
+    require(len(published) <= 1 and len(populated) <= 1, "Multiple populated/published Releases claim this candidate; preserve them and stop")
+    if matches:
+        release = (published or populated or sorted(matches, key=lambda r: r["id"]))[0]
+        for duplicate in matches:
+            if duplicate["id"] != release["id"]:
+                require(duplicate["draft"] and not inventories[duplicate["id"]], "Conflicting duplicate Release; preserve it and stop")
+                summary(f"Preserving matching empty duplicate draft `{duplicate['id']}`; using Release `{release['id']}` without deleting or replacing anything.")
+    else:
+        release = github("releases", method="POST", payload={"tag_name": tag, "target_commitish": candidate["revision"], "name": f"AgentJobRelay {candidate['version']}", "body": body, "draft": True, "prerelease": candidate["channel"] == "next"})
+        inventories[release["id"]] = []
+    require(release["body"] == body and release["target_commitish"] == candidate["revision"] and release["prerelease"] == (candidate["channel"] == "next"), "Existing Release is foreign/modified; preserve it and stop")
+    assets = inventories[release["id"]]
+    local = {p.name: p for p in directory.iterdir()}
     missing = sorted(set(local) - {a["name"] for a in assets})
     require(release["draft"] or not missing, "Published Release has missing assets; preserve it and stop")
-    if missing:
-        command(["gh", "release", "upload", tag, *[local[name] for name in missing], "--repo", REPOSITORY])
+    for name in missing:
+        upload_release_asset(release["id"], local[name])
     return release
 
 
@@ -228,9 +294,18 @@ def stage_package(entry, tarball, channel, env):
         stage = {"id": staged.get("stageId")}
     stage_id = stage.get("id", "")
     require(isinstance(stage_id, str) and re.fullmatch(r"[0-9a-fA-F-]{36}", stage_id), "npm returned an invalid stage ID")
-    data = request(f"{REGISTRY}/-/stage/{stage_id}/tarball", token=env["NODE_AUTH_TOKEN"], binary=True)
+    stage = json.loads(command(["npm", "stage", "view", stage_id, "--json", f"--registry={REGISTRY}"], env=env))
+    require(stage.get("id") == stage_id and stage.get("packageName") == entry["name"] and stage.get("version") == entry["version"] and stage.get("tag") == channel, "Staged package identity/channel mismatch")
+    require(stage.get("shasum") == hashlib.sha1(tarball.read_bytes()).hexdigest(), "Staged package checksum differs from candidate")
+    status = stage.get("status")
+    require(status in ("validating", "staged"), "Unknown npm stage status; inspect on npm before retrying")
+    if status == "validating":
+        summary(f"`{entry['name']}@{entry['version']}` uploaded; npm automated validation is pending. Stage ID: `{stage_id}`. Do not approve yet. Re-run this candidate after validation so staged bytes can be verified.")
+        return False
+    data = request(f"{REGISTRY}/-/stage/{stage_id}/tarball", token=env["NODE_AUTH_TOKEN"], binary=True, context="npm staged tarball download")
     require(hashlib.sha256(data).hexdigest() == sha256(tarball), "Staged tarball differs from reviewed candidate; do not approve it")
     summary(f"`{entry['name']}@{entry['version']}` staged and bytes verified. Stage ID: `{stage_id}`. Approve on npm with 2FA (runtime first), then run Release again with the **same original candidate_run_id** and `npm_auth=stage`.")
+    return True
 
 
 def publish(directory, run_id, auth):
@@ -241,6 +316,7 @@ def publish(directory, run_id, auth):
     for name in PACKAGES.values():
         check_channel(name, candidate["channel"], candidate["version"])
     release = draft_release(directory, candidate)
+    verified_stages = True
     with npm_environment(auth) as env:
         for key in PACKAGES:
             entry = meta[key]
@@ -248,13 +324,15 @@ def publish(directory, run_id, auth):
                 summary(f"`{entry['name']}@{entry['version']}` already has the reviewed public bytes; upload skipped.")
                 continue
             if auth == "stage":
-                stage_package(entry, directory / entry["tarball"], candidate["channel"], env)
+                verified_stages = stage_package(entry, directory / entry["tarball"], candidate["channel"], env) and verified_stages
             else:
                 command(["npm", "publish", directory / entry["tarball"], "--ignore-scripts", "--access=public", f"--tag={candidate['channel']}", "--json", f"--registry={REGISTRY}"], env=env)
                 require(public_package(entry) is not None, "Published version is not yet publicly readable; retry this candidate after propagation")
     ready = all(public_package(meta[key]) is not None for key in PACKAGES)
     output("ready", str(ready).lower())
-    if not ready:
+    if not ready and not verified_stages:
+        summary("**Waiting for npm automated validation.** Both package stages have been considered; GitHub remains a draft. After npm validation completes, run Release again with the same original candidate ID to verify staged bytes before approval. No automatic approval or polling runs.")
+    elif not ready:
         summary(f"**Waiting for npm maintainer approval.** GitHub Release remains a draft: https://github.com/{REPOSITORY}/releases/tag/v{candidate['version']}. No automatic approval or polling runs.")
     else:
         summary("Both npm versions match the candidate. Public installation and GitHub completion run next.")

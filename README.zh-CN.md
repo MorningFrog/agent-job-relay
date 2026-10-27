@@ -119,7 +119,7 @@ GitHub 的 **Release** 工作流只能手动运行：dry-run 从 Cargo 读取版
 | OpenCode V1 | 实验性插件候选版 | 实际加载器、MCP 和会话 API 配合模拟模型验证通过；真实服务商会话、重启恢复及 V2 仍待完成。 |
 | Claude Code | 仅收件箱通知的框架 | 合成调用者和 MCP 启动器检查通过；实际 Claude 加载器、账号及模型验证需要社区协助。 |
 | npm 运行时与自建市场 | 候选包已准备，未发布 | Linux/Windows 上使用本地回环 registry 的安装与加载器检查通过；公开 registry 安装待验证。 |
-| CI 与发布 | 已定义 Linux/Windows 原生检查及手动发布流程 | Linux/Windows 原生与安装包 CI、macOS 可移植检查通过；完整的手动 Release dry-run 和发布仍待完成。 |
+| CI 与发布 | 已定义 Linux/Windows 原生检查及手动发布流程 | Linux/Windows 原生与安装包 CI、macOS 可移植检查及完整手动 Release dry-run 通过；npm 批准及完整发布仍待完成。 |
 | macOS 运行时 | 未实现 | 仅有可移植部分编译检查，尚不支持原生执行。 |
 | 输出监控/中断 | 已暂缓 | 等待明确的实现请求；当前可读取日志和手动停止任务。 |
 

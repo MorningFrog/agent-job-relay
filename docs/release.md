@@ -22,7 +22,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts -p test_releas
 
 Add a unique nonempty section to `CHANGELOG.md`, for example `## [0.1.8] - 2026-10-27`. Put changes under `Added`, `Changed`, `Fixed` and `Known limitations` as applicable. Keep future work under `Unreleased`. Actions extracts only the selected version, rejects missing/duplicate/unfinished sections, and appends platform/package/install boundaries. It does not infer version bumps, generate unreviewed claims from commits, edit source, or push a release commit. Historical sections stay in the changelog.
 
-Commit/review the version and changelog, then push the approved source to `main`. Keep `main` unchanged until this candidate is fully published. Promotion requires exactly the same source commit; after unrelated changes, generate a new dry-run before any upload. If a candidate has already been staged, finish it before changing source so the immutable npm version is not stranded.
+Commit/review the version and changelog, then push the approved source to `main`. Keep `main` unchanged until this candidate is fully published. Normal promotion requires exactly the same source commit. If publication tooling itself needs repair after an upload, use the explicit [candidate recovery](#recover-after-a-release-tooling-fix) option; runtime/package/build/version/CHANGELOG changes cannot use that exception. Never rebuild different bytes for an already staged version.
 
 ## First release: stage-only bootstrap
 
@@ -35,6 +35,7 @@ Open **Actions → Release → Run workflow** and enter:
 | Branch | `main` |
 | `dry_run` | Checked |
 | `candidate_run_id` | Empty |
+| `recover_candidate` | Unchecked |
 | `channel` | `next` for the experimental release, or `latest` for a deliberately stable release |
 | `npm_auth` | `stage` |
 
@@ -52,12 +53,13 @@ Run **Release** again on unchanged `main`:
 |---|---|
 | `dry_run` | Unchecked |
 | `candidate_run_id` | Original successful dry-run Run ID |
+| `recover_candidate` | Unchecked for unchanged main; see recovery below after tooling-only fixes |
 | `channel` | Ignored; promotion inherits the sealed candidate channel |
 | `npm_auth` | `stage` |
 
 Promotion downloads only the original verified artifact; no native rebuild or repack occurs. It checks the successful manual run/repository/workflow/main/source identity, both platforms, version, complete file inventory, SHA-256 and npm integrity. Expired/missing candidates stop instead of rebuilding. GitHub/npm API errors other than an explicit not-found stop rather than being interpreted as permission to create something.
 
-Expect a GitHub **draft** with the reviewed files, then runtime/OpenCode npm stages. Each stage is downloaded with authentication and compared byte-for-byte with the candidate. Summary lists stage IDs and says **Waiting for npm maintainer approval**. A green run at this stage means staging succeeded, not that publication is complete. For new names, npm creates a publicly visible `0.0.0-stage` placeholder; the staged version's contents remain private until approval. This is a real write and happens only with `dry_run` unchecked.
+Expect a GitHub **draft** with the reviewed files, then runtime/OpenCode npm stages. npm may initially report `validating`: Summary then says **Waiting for npm automated validation**, retains both stages and does not download or approve incomplete content. When both stages finish validation on npm, run Release again with the same original Run ID and recovery setting. Each ready stage is downloaded with authentication and compared byte-for-byte with the candidate; Summary then says **Waiting for npm maintainer approval**. A green waiting run does not mean publication is complete. For new names, npm creates a publicly visible `0.0.0-stage` placeholder; the staged version's contents remain private until approval. These writes happen only with `dry_run` unchecked.
 
 ### 3. Approve the npm stages once
 
@@ -65,7 +67,7 @@ Sign into npm with the publishing account, open **Staged Packages**, and review 
 
 ### 4. Finish the same release
 
-Run **Release** a third time with `dry_run` unchecked, the **same original dry-run Run ID**, and `npm_auth=stage`. Keep the stage token available until bootstrap finishes. Matching public versions are retained without another upload; pending matching stages are reused only after channel/byte checks. The workflow downloads public tarballs, compares them with the candidate, performs a clean npm-name installation/native version/module-import check, checks the channel, and finally makes the GitHub Release public. `next` creates a prerelease; `latest` creates a normal latest Release.
+Run **Release** again with `dry_run` unchecked, the **same original dry-run Run ID**, `npm_auth=stage` and the same recovery setting. Keep the stage token available until bootstrap finishes. Matching public versions are retained without another upload; pending matching stages are reused only after channel/byte checks. The workflow downloads public tarballs, compares them with the candidate, performs a clean npm-name installation/native version/module-import check, checks the channel, and finally makes the GitHub Release public. `next` creates a prerelease; `latest` creates a normal latest Release.
 
 Completion Summary must say **Release complete** with the GitHub URL and npm channel. A green staging run alone is not this result. Do not manually publish the GitHub draft ahead of the package checks.
 
@@ -92,11 +94,28 @@ For the next version, update source/pins/CHANGELOG and run the dry-run with `npm
 GitHub and npm are separate systems; there is no atomic multi-service publish or automatic rollback. The workflow is serialized and retains its draft/used versions across failures. Always retry with the original candidate Run ID and auth mode; never rebuild different bytes under a used npm version.
 
 - If one stage/upload succeeds and another fails, inspect Summary/error code, correct access or connectivity, and retry. Existing matching public bytes/stages/assets are verified and reused.
+- If Summary says **Waiting for npm automated validation**, wait for both stages to become ready on npm, then run the same candidate again to verify bytes before approving. Unknown statuses and checksum conflicts stop explicitly; a stage is never approved automatically.
 - If stages await 2FA, approve on npm, then run the same promotion again. Pending stages are not repeatedly uploaded. A stage's channel is immutable; a conflicting channel/content requires explicit maintainer investigation, not automatic rejection or replacement.
 - If both packages are public but GitHub completion fails, retry the same promotion. npm uploads are skipped; public installation and GitHub completion repeat.
 - A changed npm integrity, foreign/modified Release body/assets, unexpected tag target or missing candidate stops publication. No release asset is clobbered/deleted and no tag is moved. Fixing different published bytes requires a new version.
 - If a Windows installed-package check fails, inspect the bounded status/events/stdout/stderr in the job log and download the `windows-package-diagnostics` artifact (retained for seven days). It contains only isolated fixture reports/captures, not databases, caches, credentials or real host state.
 - If public registry propagation is incomplete, retry after the exact versions are readable. The workflow does not keep polling or silently claim success.
+
+### Recover after a release-tooling fix
+
+After a failed publication has already created stages or a GitHub draft, a maintainer may need to repair the workflow without changing any distributed bytes. Push and verify the tooling fix on `main`, then choose **Run workflow** to use the repaired workflow; **Re-run failed jobs** keeps the old code.
+
+| Field | Value |
+|---|---|
+| Branch | `main` |
+| `dry_run` | Unchecked |
+| `candidate_run_id` | The original successful dry-run Run ID |
+| `recover_candidate` | Checked |
+| `npm_auth` | The original auth mode, initially `stage` |
+
+Recovery requires the candidate commit to be an ancestor of the current checkout. It compares Git trees and accepts changes only to the exact release workflow/script/test and operational-documentation paths in `RECOVERY_PATHS` in `scripts/release_actions.py`. Package/plugin/native/build/version inputs and CHANGELOG must remain unchanged. Repository/run identity, candidate source revision, full asset inventory, SHA-256, npm integrity, channels and tag target are still checked. The existing artifact, notes and draft marker retain their original source/run; nothing is rebuilt, repacked or resealed. Expired candidates still stop.
+
+GitHub drafts are discovered through the authenticated paginated Release list, and missing assets are uploaded to the selected Release ID. Matching empty duplicate drafts left by older tooling are preserved; the matching populated original is reused. Multiple populated drafts, foreign metadata/assets or conflicting bytes stop without deletion or replacement. Keep `recover_candidate` checked on later validation/approval/finalization runs for this same older candidate.
 
 ## Local package checks
 

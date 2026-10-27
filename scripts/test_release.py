@@ -1,13 +1,16 @@
 """Behavioral release tests: no real accounts, registry writes or application state."""
 from contextlib import contextmanager
 import io
+from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 import os
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import tarfile
 import tempfile
+from threading import Thread
 import unittest
 from unittest.mock import patch
 
@@ -47,12 +50,21 @@ class ReleaseTests(unittest.TestCase):
         self.run = {"id": 123, "status": "completed", "conclusion": "success", "event": "workflow_dispatch", "path": ".github/workflows/release.yml", "head_branch": "main", "head_sha": self.revision, "repository": {"full_name": actions.REPOSITORY}, "head_repository": {"full_name": actions.REPOSITORY}}
         self.candidate = metadata.seal_candidate(self.directory, "next", actions.REPOSITORY, self.revision, "123", self.root)
         # A missing mock must fail before it can contact a real service.
+        self.real_request = actions.request
         self.network = patch.object(actions, "request", side_effect=AssertionError("Unexpected real network operation"))
         self.network.start()
         self.addCleanup(self.network.stop)
 
     def validate(self, run=None):
         return metadata.validate_promotion(self.directory, run or self.run, actions.REPOSITORY, self.revision, "123", self.root)
+
+    def draft(self, release_id=1):
+        body = (self.directory / "release-notes.md").read_text() + f"\n<!-- AgentJobRelay candidate 123 {self.revision} next -->"
+        return {"body": body, "tag_name": "v" + self.version, "target_commitish": self.revision, "prerelease": True, "draft": True, "id": release_id}
+
+    def stage(self, status="staged"):
+        entry = self.meta["runtime"]
+        return {"id": "11111111-1111-4111-8111-111111111111", "packageName": entry["name"], "version": self.version, "tag": "next", "status": status, "shasum": actions.hashlib.sha1((self.directory / entry["tarball"]).read_bytes()).hexdigest()}
 
     def test_version_and_changelog_are_enforced_before_build(self):
         self.assertEqual(metadata.source_metadata(self.root)["version"], self.version)
@@ -134,14 +146,14 @@ class ReleaseTests(unittest.TestCase):
     def test_matching_stage_is_reused_only_after_byte_and_tag_check(self):
         entry = self.meta["runtime"]
         tarball = self.directory / entry["tarball"]
-        stage = {"id": "11111111-1111-4111-8111-111111111111", "packageName": entry["name"], "version": self.version, "tag": "next"}
-        with patch.object(actions, "command", return_value=json.dumps([stage])) as commands, patch.object(actions, "request", return_value=tarball.read_bytes()), patch.object(actions, "summary"):
+        stage = self.stage()
+        with patch.object(actions, "command", side_effect=[json.dumps([stage]), json.dumps(stage)]) as commands, patch.object(actions, "request", return_value=tarball.read_bytes()), patch.object(actions, "summary"):
             actions.stage_package(entry, tarball, "next", {"NODE_AUTH_TOKEN": "fake"})
-            self.assertEqual(commands.call_count, 1)
+            self.assertEqual(commands.call_count, 2)
         with patch.object(actions, "command", return_value=json.dumps([{**stage, "tag": "latest"}])):
             with self.assertRaisesRegex(ValueError, "another channel"):
                 actions.stage_package(entry, tarball, "next", {"NODE_AUTH_TOKEN": "fake"})
-        with patch.object(actions, "command", return_value=json.dumps([stage])), patch.object(actions, "request", return_value=b"foreign"):
+        with patch.object(actions, "command", side_effect=[json.dumps([stage]), json.dumps(stage)]), patch.object(actions, "request", return_value=b"foreign"):
             with self.assertRaisesRegex(ValueError, "differs"):
                 actions.stage_package(entry, tarball, "next", {"NODE_AUTH_TOKEN": "fake"})
 
@@ -149,12 +161,40 @@ class ReleaseTests(unittest.TestCase):
         entry = self.meta["runtime"]
         tarball = self.directory / entry["tarball"]
         stage_id = "11111111-1111-4111-8111-111111111111"
-        with patch.object(actions, "command", side_effect=["[]", json.dumps({entry["name"]: {"stageId": stage_id}})]) as commands, patch.object(actions, "request", return_value=tarball.read_bytes()) as download, patch.object(actions, "summary"):
+        with patch.object(actions, "command", side_effect=["[]", json.dumps({entry["name"]: {"stageId": stage_id}}), json.dumps(self.stage())]) as commands, patch.object(actions, "request", return_value=tarball.read_bytes()) as download, patch.object(actions, "summary"):
             actions.stage_package(entry, tarball, "next", {"NODE_AUTH_TOKEN": "fake"})
         argv = commands.call_args_list[1].args[0]
         self.assertEqual(argv[:3], ["npm", "stage", "publish"])
         self.assertIn("--tag=next", argv)
         self.assertTrue(download.call_args.args[0].endswith(f"/{stage_id}/tarball"))
+
+    def test_validating_stage_is_retained_without_premature_download(self):
+        entry = self.meta["runtime"]
+        stage = self.stage("validating")
+        with patch.object(actions, "command", side_effect=["[]", json.dumps({"stageId": stage["id"]}), json.dumps(stage)]) as commands, patch.object(actions, "request") as download, patch.object(actions, "summary") as summary:
+            self.assertFalse(actions.stage_package(entry, self.directory / entry["tarball"], "next", {"NODE_AUTH_TOKEN": "fake"}))
+            self.assertEqual(commands.call_count, 3)
+            download.assert_not_called()
+            self.assertIn("Do not approve yet", summary.call_args.args[0])
+
+    def test_pending_validation_does_not_prevent_considering_the_second_package(self):
+        @contextmanager
+        def env(_auth):
+            yield {"NODE_AUTH_TOKEN": "fake"}
+
+        with patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "public_package", return_value=None), patch.object(actions, "check_channel", return_value={}), patch.object(actions, "draft_release", return_value=self.draft()), patch.object(actions, "npm_environment", env), patch.object(actions, "stage_package", side_effect=[False, True]) as stage, patch.object(actions, "output") as output, patch.object(actions, "summary") as summary:
+            actions.publish(self.directory, "123", "stage")
+        self.assertEqual([c.args[0]["name"] for c in stage.call_args_list], list(metadata.PACKAGES.values()))
+        output.assert_called_once_with("ready", "false")
+        self.assertIn("Waiting for npm automated validation", summary.call_args.args[0])
+
+    def test_stage_metadata_conflicts_and_unknown_status_stop_before_download(self):
+        entry = self.meta["runtime"]
+        for field, value in [("status", "future-state"), ("shasum", "0" * 40), ("packageName", "foreign"), ("tag", "latest")]:
+            with self.subTest(field=field), patch.object(actions, "command", side_effect=[json.dumps([self.stage()]), json.dumps({**self.stage(), field: value})]), patch.object(actions, "request") as download:
+                with self.assertRaises(ValueError):
+                    actions.stage_package(entry, self.directory / entry["tarball"], "next", {"NODE_AUTH_TOKEN": "fake"})
+                download.assert_not_called()
 
     def test_conflicting_public_version_stops_before_draft_or_upload(self):
         with patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "registry_version", return_value={"name": metadata.PACKAGES["runtime"], "version": self.version, "dist": {"integrity": "foreign"}}), patch.object(actions, "draft_release") as draft:
@@ -174,13 +214,12 @@ class ReleaseTests(unittest.TestCase):
                 outputs.assert_called_once_with("ready", str(approved).lower())
 
     def test_foreign_release_and_assets_are_preserved(self):
-        with patch.object(actions, "check_tag"), patch.object(actions, "github", return_value={"body": "foreign", "target_commitish": self.revision, "prerelease": True}), patch.object(actions, "command") as mutation:
+        with patch.object(actions, "check_tag"), patch.object(actions, "github", return_value=[{**self.draft(), "body": "foreign"}]), patch.object(actions, "upload_release_asset") as mutation:
             with self.assertRaisesRegex(ValueError, "foreign/modified"):
                 actions.draft_release(self.directory, self.candidate)
             mutation.assert_not_called()
-        body = (self.directory / "release-notes.md").read_text() + f"\n<!-- AgentJobRelay candidate 123 {self.revision} next -->"
-        release = {"body": body, "target_commitish": self.revision, "prerelease": True, "draft": True, "id": 1}
-        with patch.object(actions, "check_tag"), patch.object(actions, "github", side_effect=[release, [{"name": "foreign.txt"}]]), patch.object(actions, "command") as mutation:
+        release = self.draft()
+        with patch.object(actions, "check_tag"), patch.object(actions, "github", side_effect=[[release], [{"name": "foreign.txt"}]]), patch.object(actions, "upload_release_asset") as mutation:
             with self.assertRaisesRegex(ValueError, "foreign/duplicate"):
                 actions.draft_release(self.directory, self.candidate)
             mutation.assert_not_called()
@@ -210,17 +249,152 @@ class ReleaseTests(unittest.TestCase):
                 actions.check_tag("v" + self.version, self.revision)
 
     def test_matching_draft_assets_are_not_uploaded_again(self):
-        body = (self.directory / "release-notes.md").read_text() + f"\n<!-- AgentJobRelay candidate 123 {self.revision} next -->"
-        release = {"body": body, "target_commitish": self.revision, "prerelease": True, "draft": True, "id": 1}
+        release = self.draft()
         assets = [{"name": p.name, "digest": "sha256:" + metadata.sha256(p)} for p in self.directory.iterdir()]
-        with patch.object(actions, "check_tag"), patch.object(actions, "github", side_effect=[release, assets]), patch.object(actions, "command") as mutation:
+        with patch.object(actions, "check_tag"), patch.object(actions, "github", side_effect=[[release], assets]) as api, patch.object(actions, "upload_release_asset") as mutation:
             actions.draft_release(self.directory, self.candidate)
             mutation.assert_not_called()
+            self.assertEqual(api.call_args_list[0].args[0], "releases?per_page=100&page=1")
         assets[0]["digest"] = "sha256:" + "0" * 64
-        with patch.object(actions, "check_tag"), patch.object(actions, "github", side_effect=[release, assets]), patch.object(actions, "command") as mutation:
+        with patch.object(actions, "check_tag"), patch.object(actions, "github", side_effect=[[release], assets]), patch.object(actions, "upload_release_asset") as mutation:
             with self.assertRaisesRegex(ValueError, "differs"):
                 actions.draft_release(self.directory, self.candidate)
             mutation.assert_not_called()
+
+    def test_empty_retry_draft_is_preserved_and_populated_original_is_reused(self):
+        original, duplicate = self.draft(1), self.draft(2)
+        assets = [{"name": p.name, "digest": "sha256:" + metadata.sha256(p)} for p in self.directory.iterdir()]
+        with patch.object(actions, "check_tag"), patch.object(actions, "github", side_effect=[[duplicate, original], [], assets]) as api, patch.object(actions, "upload_release_asset") as upload, patch.object(actions, "summary"):
+            self.assertEqual(actions.draft_release(self.directory, self.candidate)["id"], 1)
+            upload.assert_not_called()
+            self.assertTrue(all(not c.kwargs.get("method") for c in api.call_args_list))
+
+    def test_partial_draft_uploads_missing_assets_only_to_its_exact_id(self):
+        release = self.draft(17)
+        present = self.directory / "release.json"
+        assets = [{"name": present.name, "digest": "sha256:" + metadata.sha256(present)}]
+        with patch.object(actions, "check_tag"), patch.object(actions, "github", side_effect=[[release], assets]), patch.object(actions, "upload_release_asset") as upload:
+            actions.draft_release(self.directory, self.candidate)
+        self.assertEqual({c.args[1].name for c in upload.call_args_list}, {p.name for p in self.directory.iterdir()} - {present.name})
+        self.assertTrue(all(c.args[0] == 17 for c in upload.call_args_list))
+
+    def test_multiple_populated_drafts_are_preserved_without_any_write(self):
+        asset = {"name": "release.json", "digest": "sha256:" + metadata.sha256(self.directory / "release.json")}
+        with patch.object(actions, "check_tag"), patch.object(actions, "github", side_effect=[[self.draft(1), self.draft(2)], [asset], [asset]]) as api, patch.object(actions, "upload_release_asset") as upload:
+            with self.assertRaisesRegex(ValueError, "Multiple populated"):
+                actions.draft_release(self.directory, self.candidate)
+            upload.assert_not_called()
+            self.assertTrue(all(not c.kwargs.get("method") for c in api.call_args_list))
+
+    def test_release_listing_paginates_before_creating_any_draft(self):
+        others = [{"tag_name": f"other-{i}"} for i in range(100)]
+        release = self.draft()
+        assets = [{"name": p.name, "digest": "sha256:" + metadata.sha256(p)} for p in self.directory.iterdir()]
+        with patch.object(actions, "check_tag"), patch.object(actions, "github", side_effect=[others, [release], assets]) as api, patch.object(actions, "upload_release_asset") as upload:
+            actions.draft_release(self.directory, self.candidate)
+            upload.assert_not_called()
+            self.assertEqual(api.call_args_list[1].args[0], "releases?per_page=100&page=2")
+
+    def test_asset_upload_uses_binary_bytes_and_verifies_returned_digest(self):
+        path = self.directory / "release.json"
+        asset = {"name": path.name, "digest": "sha256:" + metadata.sha256(path)}
+        with patch.dict(os.environ, {"GH_TOKEN": "fake"}), patch.object(actions, "request", return_value=asset) as api:
+            actions.upload_release_asset(17, path)
+        self.assertEqual(api.call_args.args[0], f"https://uploads.github.com/repos/{actions.REPOSITORY}/releases/17/assets?name=release.json")
+        self.assertEqual(api.call_args.kwargs["payload"], path.read_bytes())
+
+    def test_recovery_requires_opt_in_before_accepting_an_older_source(self):
+        newer = "b" * 40
+        artifact = {"artifacts": [{"name": "release-candidate", "expired": False}]}
+        with patch.dict(os.environ, {"GITHUB_SHA": newer, "RECOVER_CANDIDATE": "false"}), patch.object(actions, "github", return_value=self.run), patch.object(actions, "check_recovery_source") as check:
+            with self.assertRaisesRegex(ValueError, "explicitly select recovery"):
+                actions.candidate_run("123")
+            check.assert_not_called()
+        with patch.dict(os.environ, {"GITHUB_SHA": newer, "RECOVER_CANDIDATE": "true"}), patch.object(actions, "github", side_effect=[self.run, artifact]), patch.object(actions, "check_recovery_source") as check:
+            self.assertEqual(actions.candidate_run("123")["head_sha"], self.revision)
+            check.assert_called_once_with(self.revision, newer)
+
+    def test_recovery_preflight_checks_the_original_candidate_tag(self):
+        @contextmanager
+        def env(_auth):
+            yield {}
+
+        with patch.dict(os.environ, {"CANDIDATE_RUN_ID": "123"}), patch.object(actions, "actions_context", return_value="b" * 40), patch.object(actions, "candidate_run", return_value=self.run), patch.object(actions, "github", return_value={"full_name": actions.REPOSITORY}), patch.object(actions, "check_tag") as tag, patch.object(actions, "npm_environment", env), patch.object(actions, "command", return_value='"morningfrog"'), patch.object(actions, "summary"), patch.object(actions, "output"):
+            actions.preflight("stage")
+        tag.assert_called_once_with("v" + self.version, self.revision)
+
+    def test_recovery_allows_only_unchanged_payloads_in_a_descendant_checkout(self):
+        def git(*args):
+            return subprocess.check_output(["git", *args], cwd=self.root, stderr=subprocess.PIPE, text=True).strip()
+
+        git("init", "-q")
+        git("config", "user.name", "Release fixture")
+        git("config", "user.email", "fixture@example.invalid")
+        git("add", ".")
+        git("commit", "-qm", "fixture: candidate")
+        original = git("rev-parse", "HEAD")
+        path = self.root / "docs/release.md"
+        path.parent.mkdir(exist_ok=True)
+        path.write_text("release repair\n")
+        git("add", ".")
+        git("commit", "-qm", "fixture: tooling repair")
+        tooling = git("rev-parse", "HEAD")
+        with patch.object(actions, "REPO", self.root), patch.object(actions, "command", wraps=lambda argv, **kw: subprocess.check_output(argv, cwd=self.root, text=not kw.get("binary", False), stderr=subprocess.PIPE)), patch.object(actions, "summary"):
+            actions.check_recovery_source(original, tooling)
+            for relative in ["Cargo.toml", "packages/runtime/README.md", "plugins/chatgpt/mcp.json", "CHANGELOG.md", "src/main.rs"]:
+                with self.subTest(path=relative):
+                    target = self.root / relative
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    original_bytes = target.read_bytes() if target.exists() else None
+                    target.write_bytes((original_bytes or b"") + b"\nchanged\n")
+                    git("add", ".")
+                    git("commit", "-qm", "fixture: changed payload")
+                    with self.assertRaisesRegex(ValueError, "allowlisted"):
+                        actions.check_recovery_source(original, git("rev-parse", "HEAD"))
+                    if original_bytes is None:
+                        target.unlink()
+                    else:
+                        target.write_bytes(original_bytes)
+                    git("add", ".")
+                    git("commit", "-qm", "fixture: restore payload")
+            with self.assertRaisesRegex(ValueError, "checkout differs"):
+                actions.check_recovery_source(original, tooling)
+
+    def test_http_binary_upload_and_sanitized_failure_context(self):
+        received = {}
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *_args):
+                pass
+
+            def do_POST(self):
+                received["content_type"] = self.headers["Content-Type"]
+                received["body"] = self.rfile.read(int(self.headers["Content-Length"]))
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b'{"uploaded":true}')
+
+            def do_GET(self):
+                self.send_response(404)
+                self.end_headers()
+                self.wfile.write(b'fake-private-server-response')
+
+        server = HTTPServer(("127.0.0.1", 0), Handler)
+        thread = Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            url = f"http://127.0.0.1:{server.server_port}/fixture"
+            payload = b"\x00binary\xff\x00"
+            self.assertEqual(self.real_request(url, token="fake-fixture-token", method="POST", payload=payload), {"uploaded": True})
+            self.assertEqual(received, {"content_type": "application/octet-stream", "body": payload})
+            with self.assertRaisesRegex(RuntimeError, "npm staged tarball download failed with HTTP 404") as error:
+                self.real_request(url, token="fake-fixture-token", context="npm staged tarball download")
+            self.assertNotIn("fake-private", str(error.exception))
+            self.assertNotIn("fake-fixture-token", str(error.exception))
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join()
 
     def test_finalization_requires_public_validation_before_any_write(self):
         with patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "verify_public", side_effect=ValueError("not approved")), patch.object(actions, "github") as mutation, patch.object(actions, "command") as commands:
