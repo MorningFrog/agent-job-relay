@@ -167,6 +167,51 @@ pub async fn connect(config: &Config) -> Result<Value> {
     ensure_daemon(config).await?;
     connect_registration(config, registration, fingerprint).await
 }
+/// Capture workspace only from the real terminal, alongside its fresh identity.
+pub async fn connect_context(
+    config: &Config,
+    cwd: PathBuf,
+    recovery: Option<(bool, i64, u32)>,
+) -> Result<Value> {
+    let cwd = crate::platform::normalized_path(cwd.canonicalize()?);
+    ensure!(
+        cwd.is_absolute() && cwd.is_dir(),
+        "binding cwd must be a directory"
+    );
+    if let Some((_, after, limit)) = recovery {
+        ensure!(
+            after >= 0 && (1..=100).contains(&limit),
+            "invalid recovery pagination"
+        );
+    }
+    let mut value = connect(config).await?;
+    value["binding"] = json!({"session_key":value["session"]["key"],"cwd":cwd});
+    if let Some((apply, after, limit)) = recovery {
+        value["recovery"] = ipc::call(
+            config,
+            Request::RecoverSession {
+                session_key: value["session"]["key"]
+                    .as_str()
+                    .context("missing binding key")?
+                    .into(),
+                apply,
+                after,
+                limit,
+            },
+        )
+        .await?;
+    }
+    Ok(value)
+}
+pub fn brief_binding(value: Value) -> Value {
+    let mut brief = json!({"session_key":value["session"]["key"],"binding":value["binding"],"probe":"passed","can_resume":true,"can_confirm_resume":false,
+        "next_step":"Call job_start with binding and spec.command; end this turn after submission."});
+    if let Some(recovery) = value.get("recovery") {
+        brief["recovery"] = crate::output::compact("recover_session", recovery.clone());
+        brief["next_step"] = brief["recovery"]["next_step"].clone();
+    }
+    brief
+}
 pub async fn recover(config: &Config, apply: bool, after: i64, limit: u32) -> Result<Value> {
     let binding = connect(config).await?;
     let key = binding["session"]["key"]

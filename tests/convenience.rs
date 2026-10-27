@@ -343,7 +343,7 @@ async fn installed_shared_mcp_uses_each_terminal_binding_and_never_its_inherited
     let mut jobs = Vec::new();
     for (i, thread) in ["thread-a", "thread-b"].iter().enumerate() {
         let bind = tokio::process::Command::new(install.join("relay"))
-            .args(["session", "connect", "--brief"])
+            .args(["connect", "--cwd", r.dir.path().to_str().unwrap()])
             .env("AJR_STATE_DIR", r.dir.path().join("wrong-state"))
             .env("CODEX_THREAD_ID", thread)
             .env("CODEX_APP_TOOLS_PIPE_PATH", &host.endpoint)
@@ -353,19 +353,45 @@ async fn installed_shared_mcp_uses_each_terminal_binding_and_never_its_inherited
         let binding = success(bind);
         assert!(binding.get("session").is_none()); // Brief responses never expose endpoints.
         assert_eq!(binding["probe"], "passed");
-        let started = rpc(&mut input, &mut lines, json!({"jsonrpc":"2.0","id":4+i,"method":"tools/call","params":{"name":"job_start","arguments":{"spec":{"command":{"kind":"shell","interpreter":"/bin/sh","script":"sleep 0.2; echo installed MCP"},"cwd":r.dir.path(),"session":binding["session_key"]}}}})).await;
+        assert_eq!(binding["binding"]["cwd"], json!(r.dir.path()));
+        let arguments = if i == 0 {
+            json!({"binding":binding["binding"],"spec":{"command":{"kind":"shell","interpreter":"/bin/sh","script":"sleep 0.2; echo installed MCP"}}})
+        } else {
+            json!({"spec":{"command":{"kind":"shell","interpreter":"/bin/sh","script":"sleep 0.2; echo installed MCP"},"cwd":r.dir.path(),"session":binding["session_key"]}})
+        };
+        let started = rpc(&mut input, &mut lines, json!({"jsonrpc":"2.0","id":4+i,"method":"tools/call","params":{"name":"job_start","arguments":arguments}})).await;
         assert_ne!(started["result"]["isError"], true, "{started}");
         let result: Value =
             serde_json::from_str(started["result"]["content"][0]["text"].as_str().unwrap())
                 .unwrap();
         jobs.push(result["job"]["job_id"].as_str().unwrap().to_string());
-        let recovery = rpc(&mut input, &mut lines, json!({"jsonrpc":"2.0","id":20+i,"method":"tools/call","params":{"name":"job_recover_session","arguments":{"session_key":binding["session_key"]}}})).await;
+        assert!(result["job"].get("run").is_none());
+        assert!(result["job"].get("command").is_none());
+        assert!(
+            result["next_step"]
+                .as_str()
+                .unwrap()
+                .contains("End this turn")
+        );
+        for full in [false, true] {
+            let status=rpc(&mut input,&mut lines,json!({"jsonrpc":"2.0","id":40+i,"method":"tools/call","params":{"name":"job_status","arguments":{"job_id":jobs.last().unwrap(),"full":full}}})).await;
+            let status: Value =
+                serde_json::from_str(status["result"]["content"][0]["text"].as_str().unwrap())
+                    .unwrap();
+            assert_eq!(status.get("run").is_some(), full);
+            assert_eq!(status.get("command").is_some(), full);
+            assert_eq!(status["job_id"], result["job"]["job_id"]);
+        }
+        let conflict=rpc(&mut input,&mut lines,json!({"jsonrpc":"2.0","id":60+i,"method":"tools/call","params":{"name":"job_start","arguments":{"binding":binding["binding"],"spec":{"command":{"kind":"exec","program":"/bin/true"},"session":agent_job_relay::core::id()}}}})).await;
+        assert_eq!(conflict["result"]["isError"], true);
+        let recovery = rpc(&mut input, &mut lines, json!({"jsonrpc":"2.0","id":20+i,"method":"tools/call","params":{"name":"job_recover_session","arguments":{"binding":binding["binding"]}}})).await;
         assert_ne!(recovery["result"]["isError"], true, "{recovery}");
         let recovery: Value =
             serde_json::from_str(recovery["result"]["content"][0]["text"].as_str().unwrap())
                 .unwrap();
         assert_eq!(recovery["session_key"], binding["session_key"]);
         assert_eq!(recovery["apply"], false);
+        assert!(recovery.get("recent_recoveries").is_none());
     }
     drop(input);
     assert!(
@@ -449,7 +475,7 @@ async fn installed_recovery_previews_then_rebinds_only_current_chat_after_host_r
         .clone();
     let recover = |apply: bool| {
         let mut c = tokio::process::Command::new(install.join("relay"));
-        c.args(["session", "recover"])
+        c.args(["connect", "--recover", "--full"])
             .env("CODEX_THREAD_ID", "thread-a")
             .env("CODEX_APP_TOOLS_PIPE_PATH", &endpoint)
             .env("AJR_STATE_DIR", r.dir.path().join("wrong-state"));
@@ -458,10 +484,10 @@ async fn installed_recovery_previews_then_rebinds_only_current_chat_after_host_r
         }
         c
     };
-    let preview = success(recover(false).output().await.unwrap());
+    let preview = success(recover(false).output().await.unwrap())["recovery"].clone();
     assert_eq!(preview["targets"].as_array().unwrap().len(), 1);
     assert_eq!(preview["targets"][0]["job_id"], jobs[0]);
-    let result = success(recover(true).output().await.unwrap());
+    let result = success(recover(true).output().await.unwrap())["recovery"].clone();
     assert_eq!(result["targets"][0]["applied"], true);
     let message = replacement.delivery().await;
     assert_eq!(message["params"]["arguments"]["threadId"], "thread-a");
@@ -471,7 +497,7 @@ async fn installed_recovery_previews_then_rebinds_only_current_chat_after_host_r
             .await
             .is_err()
     );
-    let history = success(recover(false).output().await.unwrap());
+    let history = success(recover(false).output().await.unwrap())["recovery"].clone();
     assert_eq!(history["recent_recoveries"].as_array().unwrap().len(), 1);
     assert!(!r.dir.path().join("wrong-state").exists());
 }

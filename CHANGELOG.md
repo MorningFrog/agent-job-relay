@@ -4,6 +4,8 @@
 
 ### Changed
 
+- Add one checked plugin install entry for first installation and profile-preserving updates, plus connect for terminal workspace binding and optional same-chat recovery; retain existing commands.
+- Accept caller binding objects in MCP start/recovery, return compact common tool results with explicit next steps, and allow full=true for complete records. Keep raw IPC unchanged and the online pinned 0.1.8 workflow compatible.
 - Reuse bounded SQLite connections, wake workers on local writes, and back off idle reconciliation/delivery checks to one second without acquiring a writer lock for an empty notification queue.
 - Dispatch up to four chat notifications concurrently while transactionally keeping each logical destination's attempts serial across registration instances.
 - Separate maintainer-only Prepare Release and Publish Release workflows. Default formal candidates to latest, validate OIDC from the actual publication workflow in dry-run, and reuse matching partial publications without rebuilding.

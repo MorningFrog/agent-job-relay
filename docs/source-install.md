@@ -59,20 +59,20 @@ If you already installed AgentJobRelay elsewhere, set AJR_INSTALL_ROOT to that o
 Run this branch only when there is no existing installation at the selected root:
 
 ```bash
-"$AJR_BUNDLE/relay" plugin bootstrap --root "$AJR_INSTALL_ROOT" --dry-run
-"$AJR_BUNDLE/relay" plugin bootstrap --root "$AJR_INSTALL_ROOT" --apply
+"$AJR_BUNDLE/relay" plugin install --root "$AJR_INSTALL_ROOT" --dry-run
+"$AJR_BUNDLE/relay" plugin install --root "$AJR_INSTALL_ROOT" --apply
 ```
 
 Expected: the preview shows the intended `install.root`, `install.state_dir` and `marketplace.config_path`; review them before apply. A fresh state selection uses AJR_STATE_DIR if set, otherwise the XDG/HOME default. Apply installs the native program and registers it in `$HOME/.agents/plugins/marketplace.json`, preserving other entries. A new catalog is named `agent-job-relay-local`, displayed as **AgentJobRelay Local**; an existing catalog retains its name.
 
 ### Existing installation
 
-Use this branch instead of first-install bootstrap when updating an existing runtime. Finish active jobs, then run:
+Use the same plugin install entry for an existing runtime, selecting its original installation root. Finish active jobs, then run:
 
 ```bash
-"$AJR_BUNDLE/relay" plugin update --root "$AJR_INSTALL_ROOT" --from "$AJR_BUNDLE" --dry-run
+"$AJR_BUNDLE/relay" plugin install --root "$AJR_INSTALL_ROOT" --from "$AJR_BUNDLE" --dry-run
 "$AJR_BUNDLE/relay" daemon stop --install-root "$AJR_INSTALL_ROOT"
-"$AJR_BUNDLE/relay" plugin update --root "$AJR_INSTALL_ROOT" --from "$AJR_BUNDLE" --apply
+"$AJR_BUNDLE/relay" plugin install --root "$AJR_INSTALL_ROOT" --from "$AJR_BUNDLE" --apply
 ```
 
 Expected: the preview retains the original state directory; apply retains history and reports any backup. Update does not stop the daemon automatically. Stop and diagnose active-job, ownership or downgrade errors; do not switch to a fresh profile to bypass them. This changes the managed runtime; the ChatGPT Desktop plugin/cache still needs step 6.

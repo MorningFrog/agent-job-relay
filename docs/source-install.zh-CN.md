@@ -59,8 +59,8 @@ AJR_INSTALL_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/agent-job-relay"
 仅在所选目录中没有既有安装时执行这一分支：
 
 ```bash
-"$AJR_BUNDLE/relay" plugin bootstrap --root "$AJR_INSTALL_ROOT" --dry-run
-"$AJR_BUNDLE/relay" plugin bootstrap --root "$AJR_INSTALL_ROOT" --apply
+"$AJR_BUNDLE/relay" plugin install --root "$AJR_INSTALL_ROOT" --dry-run
+"$AJR_BUNDLE/relay" plugin install --root "$AJR_INSTALL_ROOT" --apply
 ```
 
 预期：预览显示正确的 `install.root`、`install.state_dir` 和 `marketplace.config_path`，核对后再 apply。新安装的状态目录优先使用已设置的 AJR_STATE_DIR，否则使用 XDG/HOME 默认值。Apply 安装原生程序，并在 `$HOME/.agents/plugins/marketplace.json` 中登记插件，保留其他条目。新建市场的名称为 `agent-job-relay-local`，显示为 **AgentJobRelay Local**；已有市场会保留原名称。
@@ -70,9 +70,9 @@ AJR_INSTALL_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/agent-job-relay"
 更新既有运行时时，执行这一分支，不要重复首次安装分支。先让活动任务结束，再执行：
 
 ```bash
-"$AJR_BUNDLE/relay" plugin update --root "$AJR_INSTALL_ROOT" --from "$AJR_BUNDLE" --dry-run
+"$AJR_BUNDLE/relay" plugin install --root "$AJR_INSTALL_ROOT" --from "$AJR_BUNDLE" --dry-run
 "$AJR_BUNDLE/relay" daemon stop --install-root "$AJR_INSTALL_ROOT"
-"$AJR_BUNDLE/relay" plugin update --root "$AJR_INSTALL_ROOT" --from "$AJR_BUNDLE" --apply
+"$AJR_BUNDLE/relay" plugin install --root "$AJR_INSTALL_ROOT" --from "$AJR_BUNDLE" --apply
 ```
 
 预期：预览保留原状态目录，apply 保留历史并报告生成的备份。更新不会自动停止 daemon。遇到活动任务、所有权或降级错误时，应停止并诊断，不要换用新状态目录绕过错误。这一步更新的是受管理运行时；ChatGPT Desktop 插件及缓存仍需执行第 6 步。

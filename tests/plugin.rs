@@ -184,6 +184,59 @@ fn copy_tree(from: &Path, to: &Path, with_receipt: bool) {
 }
 
 #[test]
+fn unified_install_handles_first_install_and_updates_the_recorded_profile() {
+    let r = Rig::new();
+    r.pack();
+    let first = ok(r
+        .command(&r.bundle.join("relay"))
+        .args([
+            "--state-dir",
+            s(&r.state),
+            "plugin",
+            "install",
+            "--root",
+            s(&r.install),
+        ])
+        .output()
+        .unwrap());
+    assert_eq!(first["mode"], "dry_run");
+    assert!(!r.install.exists());
+    let applied = ok(r
+        .command(&r.bundle.join("relay"))
+        .args([
+            "--state-dir",
+            s(&r.state),
+            "plugin",
+            "install",
+            "--root",
+            s(&r.install),
+            "--apply",
+        ])
+        .output()
+        .unwrap());
+    assert_eq!(applied["install"]["state_dir"], s(&r.state));
+    assert_eq!(applied["marketplace"]["changed"], true);
+    let job = ok(r.installed(&["start", "--", "/bin/echo", "kept"]));
+    let job = job["job"]["job_id"].as_str().unwrap();
+    r.wait(job);
+    r.stop();
+    r.change_bundle_skill();
+    let update = ok(r
+        .command(&r.install.join("relay"))
+        .env("AJR_STATE_DIR", r.dir.path().join("unrelated"))
+        .args(["plugin", "install", "--from", s(&r.bundle), "--apply"])
+        .output()
+        .unwrap());
+    assert_eq!(update["install"]["changed"], true);
+    assert_eq!(update["install"]["state_dir"], s(&r.state));
+    assert!(Path::new(update["install"]["backup"].as_str().unwrap()).exists());
+    assert!(!r.dir.path().join("unrelated").exists());
+    ok(r.installed(&["daemon", "start"]));
+    assert_eq!(ok(r.installed(&["status", job]))["status"], "completed");
+    r.stop();
+}
+
+#[test]
 fn relocated_offline_bundle_bootstraps_without_toolchain_or_author_profile() {
     let r = Rig::new();
     let output = r.dir.path().join("not-created/bundle");

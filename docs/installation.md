@@ -49,6 +49,27 @@ Review the preview first. Update retains the installation's recorded state despi
 
 Refresh/reinstall the plugin through the host and reconnect MCP afterward. Already loaded processes keep their old image until reconnected/restarted. Source rebuilds do not update installed binaries or host caches. Do not switch state directories to work around an upgrade failure. Early legacy shutdown handling is described in [ADR 0005](adr/0005-legacy-shutdown-upgrade.md).
 
+## Unified install and update in current source
+
+Bundles built from current source provide `plugin install` for both first installation and updates. This entry is unreleased; published 0.1.8 bundles continue to use the bootstrap/update commands above.
+
+From the received current-source bundle:
+
+```bash
+./relay plugin install
+./relay plugin install --apply
+```
+
+For an existing custom installation, select its original `--root`; the recorded state profile is retained even when the shell exports a different state directory. From its installed launcher, update from a new trusted bundle with:
+
+```bash
+"$AJR_INSTALL_ROOT/relay" plugin install --from "$AJR_BUNDLE"
+"$AJR_INSTALL_ROOT/relay" daemon stop
+"$AJR_INSTALL_ROOT/relay" plugin install --from "$AJR_BUNDLE" --apply
+```
+
+Review the preview and finish active jobs before the explicit same-profile stop. The command validates bundle ownership/version and every explicitly selected cache (`--cache` may repeat), then maintains the runtime and local marketplace entry. `--config` selects a custom marketplace file; reuse that selection on subsequent maintenance. Default output keeps the changed destinations, preserved profile, backups and next action; `--full` shows complete operation reports. Marketplace writes and directory replacements remain separate operations with their existing recovery limits. No cache scan, automatic daemon stop or profile migration is added. Refresh the plugin through the host and reconnect MCP afterward. Existing `bootstrap` and `update` commands stay compatible.
+
 ## Cache inspection and refresh
 
 Prefer the host's refresh/reinstall for normal plugin updates: the host owns its version registry, cache selection and enabled state. Legacy caches without `.agent-job-relay-runtime.json` need this host refresh before using managed cache repair.

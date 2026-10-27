@@ -8,7 +8,7 @@ One package and executable; CLI, stdio MCP, daemon and runner modes.
 |---|---|
 | Process initialization | `src/main.rs` |
 | CLI syntax and dispatch | `src/cli/args.rs`, `src/cli/mod.rs` (binary-private) |
-| MCP tools and client convenience | `src/mcp.rs`, `src/client.rs`, `src/diagnostics.rs` |
+| MCP tools and client convenience | `src/mcp.rs`, `src/client.rs`, `src/diagnostics.rs`, `src/output.rs` |
 | Job intent, execution and persistence | `src/core.rs`, `src/daemon.rs`, `src/runner.rs`, `src/storage.rs` |
 | Session binding and notifications | `src/session.rs`, `src/adapters.rs`, `src/plugin_bridge.rs`, `src/delivery.rs`, `src/recovery.rs`, `src/renewal.rs` |
 | Idle scheduling and local wake signals | `src/scheduling.rs`, `src/storage.rs` |
@@ -43,6 +43,8 @@ Linux and Windows x86_64 have native runtime verification. Windows uses private 
 ## Client and installation boundaries
 
 Client-side convenience is in client.rs (ADR 0002). Submissions and explicit session registrations launch a detached per-state daemon on demand. Opted-in wake resolves only the CLI/MCP process's current inherited host identity, registers/refreshes and probes before submitting. No latest-session lookup or daemon-owned caller inference is used. `daemon start` explicitly starts/reuses a selected daemon without creating a job/session; Windows normally starts on demand and can use a verified same-user local CIM helper when host cleanup blocks direct launch. `daemon stop` stops dispatch only; runner and result persistence lifetimes remain independent.
+
+Current-source convenience keeps the raw IPC/storage contract intact. `connect [--recover [--apply]]` refreshes the actual terminal binding and captures its workspace; MCP accepts this explicit object for submission/recovery without remembering a shared current caller. Common MCP results use compact views, with `full=true` restoring complete records. `plugin install` reuses the existing checked bundle/render/replacement/cache/marketplace implementations for first installation and profile-preserving update; bootstrap/update remain compatible. Preview remains the default and replacement never stops a daemon implicitly.
 
 Installed entry points (ADR 0003) are handled by deployment.rs and diagnostics.rs. A private native/plugin bundle carries a persistent state profile, never a chat identity. The terminal launcher retains the profile across cache copies and invokes the same managed native executable as MCP, avoiding stale cached binaries. The local Codex bundle now uses `.codex-plugin/plugin.json` plus `.mcp.json`, with a stable absolute installed executable path: the tested Codex CLI 0.164.0 loader did not discover portable-root MCP or expand plugin-root variables (ADR 0004). The original installation must remain present for cached MCP. Setup/removal also owns one local marketplace entry. Shared MCP rejects implicit inherited identity. ChatGPT Desktop binds from the current terminal; OpenCode V1 binds from its actual tool context and supplies the key to MCP. The Claude scaffold uses explicit skill session substitution and an inbox-only registration. Runtime/outbox semantics stay unchanged. Configuration, stdio self-check, actual host tool connectivity and observed continuation are separate evidence levels.
 

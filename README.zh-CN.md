@@ -107,7 +107,7 @@ Agent 会绑定当前聊天、提交任务、结束回合，并在收到通知�
 
 请按[本地源码安装逐步教程](docs/source-install.zh-CN.md)操作（[English](docs/source-install.md)）。教程涵盖环境准备、获取源码、编译、导出离线包、首次安装或保留历史更新、ChatGPT Desktop 插件选择及真实 MCP 检查，每一步均有预期结果。
 
-安装结果是 **AgentJobRelay Local** 中的原生本地插件，通常引用为 `agent-job-relay@agent-job-relay-local`，无需 npm 发布或 Node.js。仅编译成功还未完成安装，必须继续执行 bootstrap/update 及 ChatGPT Desktop 步骤。Windows 源码命令见 [Windows 指南](docs/windows.md#build-when-no-bundle-is-available)，开发门禁见[测试指南](docs/testing.md)。
+安装结果是 **AgentJobRelay Local** 中的原生本地插件，通常引用为 `agent-job-relay@agent-job-relay-local`，无需 npm 发布或 Node.js。仅编译成功还未完成安装，必须继续完成离线包安装或更新及 ChatGPT Desktop 步骤。Windows 源码命令见 [Windows 指南](docs/windows.md#build-when-no-bundle-is-available)，开发门禁见[测试指南](docs/testing.md)。
 
 ## 实现与验证情况
 
@@ -123,7 +123,7 @@ Agent 会绑定当前聊天、提交任务、结束回合，并在收到通知�
 | macOS 运行时 | 未实现 | 仅有可移植部分编译检查，尚不支持原生执行。 |
 | 输出监控/中断 | 已暂缓 | 等待明确的实现请求；当前可读取日志和手动停止任务。 |
 
-未发布源码减少了空闲时的数据库访问，并允许最多四个聊天并发接收通知。当前结果与版本限制统一维护在[实施状态](docs/IMPLEMENTATION_STATUS.md)及[真实验证记录](docs/live-e2e.md)。官方目录投稿需要单独批准，独立系统安装包及软件仓库计划已取消。**欢迎社区测试和 PR，尤其是 Claude Code 及容器化版本验证。**
+未发布源码新增统一的 `plugin install` 和 `connect [--recover [--apply]]` 入口、聊天与工作目录绑定对象，以及默认精简的 MCP 返回（`full=true` 查看完整记录），见[日常使用](docs/usage.md)和[统一维护](docs/installation.md#unified-install-and-update-in-current-source)。同时减少空闲时的数据库访问，并允许最多四个聊天并发接收通知。当前结果与版本限制统一维护在[实施状态](docs/IMPLEMENTATION_STATUS.md)及[真实验证记录](docs/live-e2e.md)。官方目录投稿需要单独批准，独立系统安装包及软件仓库计划已取消。**欢迎社区测试和 PR，尤其是 Claude Code 及容器化版本验证。**
 
 ## 文档与支持范围
 

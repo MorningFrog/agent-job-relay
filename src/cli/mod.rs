@@ -17,7 +17,7 @@ pub(super) async fn run() -> Result<()> {
     let remove_install = matches!(&cli.command, Commands::Uninstall { .. });
     let mut state = cli.state_dir;
     if let Commands::Plugin {
-        command: PluginCommand::Bootstrap { root, .. },
+        command: PluginCommand::Bootstrap { root, .. } | PluginCommand::Install { root, .. },
     } = &cli.command
     {
         let root = root
@@ -56,12 +56,64 @@ pub(super) async fn run() -> Result<()> {
     }
     let config = Config::new(state)?;
     let req = match cli.command {
+        Commands::Connect {
+            cwd,
+            recover,
+            apply,
+            after,
+            limit,
+            full,
+        } => {
+            let value = agent_job_relay::client::connect_context(
+                &config,
+                cwd.unwrap_or(std::env::current_dir()?),
+                recover.then_some((apply, after, limit)),
+            )
+            .await?;
+            println!(
+                "{}",
+                serde_json::to_string(&if full {
+                    value
+                } else {
+                    agent_job_relay::client::brief_binding(value)
+                })?
+            );
+            return Ok(());
+        }
         Commands::Plugin { command } => {
             let result = tokio::task::spawn_blocking(move || -> Result<serde_json::Value> {
                 use agent_job_relay::{deployment, plugin};
                 let root =
                     |path: Option<PathBuf>| path.map(Ok).unwrap_or_else(deployment::plugin_root);
                 match command {
+                    PluginCommand::Install {
+                        root: path,
+                        bundle,
+                        config: marketplace,
+                        cache,
+                        apply,
+                        full,
+                        ..
+                    } => {
+                        let marketplace = marketplace.map(Ok).unwrap_or_else(|| {
+                            agent_job_relay::integration::default_path(
+                                agent_job_relay::integration::Client::Plugin,
+                            )
+                        })?;
+                        let value = plugin::install(
+                            &config,
+                            root(path)?,
+                            bundle,
+                            marketplace,
+                            cache,
+                            apply,
+                        )?;
+                        Ok(if full {
+                            value
+                        } else {
+                            agent_job_relay::output::installation(value)
+                        })
+                    }
                     PluginCommand::Repair { path, apply, .. } => {
                         agent_job_relay::lifecycle::repair(path, apply)
                     }
@@ -185,9 +237,14 @@ pub(super) async fn run() -> Result<()> {
                 return Ok(());
             }
             SessionCommand::Connect { brief } => {
-                let value = agent_job_relay::client::connect(&config).await?;
+                let value = agent_job_relay::client::connect_context(
+                    &config,
+                    std::env::current_dir()?,
+                    None,
+                )
+                .await?;
                 let value = if brief {
-                    serde_json::json!({"session_key":value["session"]["key"],"probe":"passed","can_resume":true,"can_confirm_resume":false})
+                    agent_job_relay::client::brief_binding(value)
                 } else {
                     value
                 };

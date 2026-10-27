@@ -107,7 +107,7 @@ Only maintainers publish, through two manual workflows: **Prepare Release** buil
 
 Follow the [step-by-step local source installation](docs/source-install.md) ([简体中文](docs/source-install.zh-CN.md)). It covers prerequisites, checkout, compilation, bundle export, first installation or history-preserving update, ChatGPT Desktop selection and an actual MCP check, with expected results at each step.
 
-The result is the native local plugin in **AgentJobRelay Local**, normally referenced as `agent-job-relay@agent-job-relay-local`. No npm publication or Node.js installation is required. Building alone does not install it; complete the bootstrap/update and ChatGPT Desktop steps. Windows source commands are in the [Windows guide](docs/windows.md#build-when-no-bundle-is-available); developer gates are in [testing](docs/testing.md).
+The result is the native local plugin in **AgentJobRelay Local**, normally referenced as `agent-job-relay@agent-job-relay-local`. No npm publication or Node.js installation is required. Building alone does not install it; complete the bundle installation/update and ChatGPT Desktop steps. Windows source commands are in the [Windows guide](docs/windows.md#build-when-no-bundle-is-available); developer gates are in [testing](docs/testing.md).
 
 ## Implementation and verification
 
@@ -123,7 +123,7 @@ The result is the native local plugin in **AgentJobRelay Local**, normally refer
 | macOS runtime | Unimplemented | Portable compilation checks only; native execution remains unsupported. |
 | Output monitoring/interruption | Deferred | Awaits an explicit implementation request; log reads and manual stop are available. |
 
-Unreleased source reduces idle database work and permits notifications to up to four chats concurrently. Current results and version-specific limits are maintained in [implementation status](docs/IMPLEMENTATION_STATUS.md) and [live evidence](docs/live-e2e.md). Official directory submission requires separate approval; independent OS installers/package repositories are cancelled. **Community testing and PRs are welcome, especially for Claude Code and container-based version checks.**
+Unreleased source adds unified `plugin install` and `connect [--recover [--apply]]` entries, caller/workspace binding objects and compact MCP results (`full=true` for complete records); see [daily usage](docs/usage.md) and [unified maintenance](docs/installation.md#unified-install-and-update-in-current-source). It also reduces idle database work and permits notifications to up to four chats concurrently. Current results and version-specific limits are maintained in [implementation status](docs/IMPLEMENTATION_STATUS.md) and [live evidence](docs/live-e2e.md). Official directory submission requires separate approval; independent OS installers/package repositories are cancelled. **Community testing and PRs are welcome, especially for Claude Code and container-based version checks.**
 
 ## Documentation and support
 

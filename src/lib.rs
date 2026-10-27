@@ -10,6 +10,7 @@ pub mod integration;
 pub mod ipc;
 pub mod lifecycle;
 pub mod mcp;
+pub mod output;
 pub mod platform;
 pub mod plugin;
 pub mod plugin_bridge;

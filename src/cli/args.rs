@@ -22,6 +22,22 @@ pub(super) struct Cli {
 }
 #[derive(Subcommand)]
 pub(super) enum Commands {
+    /// Bind this chat/workspace; optionally preview or apply its notification recovery
+    Connect {
+        #[arg(long)]
+        cwd: Option<PathBuf>,
+        #[arg(long)]
+        recover: bool,
+        #[arg(long, requires = "recover")]
+        apply: bool,
+        #[arg(long, default_value_t = 0, requires = "recover")]
+        after: i64,
+        #[arg(long, default_value_t = 20, requires = "recover")]
+        limit: u32,
+        /// Include complete host registration and recovery audit records
+        #[arg(long)]
+        full: bool,
+    },
     /// Export, bootstrap or update a plugin runtime and explicitly refresh caches
     Plugin {
         #[command(subcommand)]
@@ -191,6 +207,24 @@ pub(super) enum Commands {
 }
 #[derive(Subcommand)]
 pub(super) enum PluginCommand {
+    /// Install or update a checked bundle and its marketplace entry; preserve history
+    Install {
+        #[arg(long)]
+        root: Option<PathBuf>,
+        /// Omit when running from the exported bundle's launcher
+        #[arg(long = "from")]
+        bundle: Option<PathBuf>,
+        #[arg(long)]
+        config: Option<PathBuf>,
+        #[arg(long)]
+        cache: Vec<PathBuf>,
+        #[arg(long, conflicts_with = "apply")]
+        dry_run: bool,
+        #[arg(long)]
+        apply: bool,
+        #[arg(long)]
+        full: bool,
+    },
     /// Inspect/finish one interrupted installation or cache replacement
     Repair {
         /// Exact installation or cache directory with a pending operation

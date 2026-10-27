@@ -259,19 +259,39 @@ pub fn bootstrap(
     marketplace: PathBuf,
     apply: bool,
 ) -> Result<Value> {
+    install(config, root, None, marketplace, Vec::new(), apply)
+}
+
+/// One preview/apply entry for first installation and profile-preserving update.
+pub fn install(
+    config: &Config,
+    root: PathBuf,
+    bundle_path: Option<PathBuf>,
+    marketplace: PathBuf,
+    caches: Vec<PathBuf>,
+    apply: bool,
+) -> Result<Value> {
     crate::platform::require_runtime()?;
     let exe = std::env::current_exe()?;
-    let bundle_root = exe
-        .parent()
-        .and_then(Path::parent)
-        .and_then(Path::parent)
-        .context("run plugin bootstrap from an exported bundle's relay launcher")?;
-    let (bundle, files) = read_bundle(bundle_root)
-        .context("run plugin bootstrap from an intact exported bundle's relay launcher")?;
+    let own_bundle = bundle_path.is_none();
+    let bundle_root = match bundle_path {
+        Some(path) => path,
+        None => exe
+            .parent()
+            .and_then(Path::parent)
+            .and_then(Path::parent)
+            .context("run plugin install from an exported bundle, or pass --from <bundle>")?
+            .to_path_buf(),
+    };
+    let (bundle, files) = read_bundle(&bundle_root)
+        .context("run plugin install from an intact exported bundle, or pass --from <bundle>")?;
+    let config = Config {
+        root: deploy::installation_state(&root)?.unwrap_or_else(|| config.root.clone()),
+    };
     deploy::checked_path(&marketplace)?;
     for destination in [&root, &config.root, &marketplace] {
         ensure!(
-            !destination.starts_with(bundle_root) && !bundle_root.starts_with(destination),
+            !destination.starts_with(&bundle_root) && !bundle_root.starts_with(destination),
             "bundle and installation/state/marketplace destinations must be separate, not nested"
         );
     }
@@ -280,26 +300,19 @@ pub fn bootstrap(
         "marketplace configuration must remain outside the installation"
     );
     ensure!(
-        deploy::digest(&deploy::read_file(&exe)?)
-            == bundle.files[&format!("payload/{}", crate::platform::NATIVE_FILE)],
+        !own_bundle
+            || deploy::digest(&deploy::read_file(&exe)?)
+                == bundle.files[&format!("payload/{}", crate::platform::NATIVE_FILE)],
         "bootstrap image differs from the bundle"
     );
-    check_update(&root, &bundle.version)?;
-    let files = deploy::render(config, &root, files)?;
-    let install = deploy::change_artifacts(config, root.clone(), false, false, files.clone())?;
-    let registration =
-        crate::integration::configure_plugin_at(config, &root, marketplace.clone(), false)?;
-    if !apply {
-        return Ok(
-            json!({"mode":mode(false),"install":install,"marketplace":registration,"data":"preserved"}),
-        );
-    }
-    let install = deploy::change_artifacts(config, root.clone(), false, true, files)?;
-    let registration = crate::integration::configure_plugin_at(config, &root, marketplace, true)
-        .context("runtime installation completed; marketplace registration failed; inspect its ownership and retry bootstrap (no automatic rollback)")?;
-    Ok(
-        json!({"mode":mode(true),"install":install,"marketplace":registration,"data":"preserved",
-        "next_step":"Install/refresh AgentJobRelay from the local marketplace in the host, then reconnect MCP. Existing caches can be explicitly refreshed with plugin cache refresh."}),
+    deploy_bundle(
+        &config,
+        root,
+        bundle,
+        files,
+        caches,
+        Some(marketplace),
+        apply,
     )
 }
 
@@ -464,8 +477,25 @@ pub fn update(
     )?;
     let config = Config { root: state };
     let (bundle, files) = read_bundle(&bundle_path)?;
+    deploy_bundle(&config, root, bundle, files, caches, None, apply)
+}
+
+fn deploy_bundle(
+    config: &Config,
+    root: PathBuf,
+    bundle: Bundle,
+    files: BTreeMap<String, Artifact>,
+    caches: Vec<PathBuf>,
+    marketplace: Option<PathBuf>,
+    apply: bool,
+) -> Result<Value> {
     check_update(&root, &bundle.version)?;
-    let files = deploy::render(&config, &root, files)?;
+    let files = deploy::render(config, &root, files)?;
+    // Preflight every selected destination before replacing any directory.
+    let registration = marketplace
+        .as_ref()
+        .map(|path| crate::integration::configure_plugin_at(config, &root, path.clone(), false))
+        .transpose()?;
     for (i, cache) in caches.iter().enumerate() {
         cache_profile(cache, &root, &config.root)?;
         for other in &caches[..i] {
@@ -483,19 +513,28 @@ pub fn update(
             preview_caches.push(json!({"mode":mode(false),"path":cache,"changed":deploy::digest(&deploy::read_file(&cache.join(PROFILE))?) != deploy::digest(&files[PROFILE].bytes),"old_version":old.version,"version":new_profile.version}));
         }
     }
-    let installation = deploy::change_artifacts(&config, root.clone(), false, apply, files)?;
+    let installation = deploy::change_artifacts(config, root.clone(), false, apply, files)?;
     if !apply {
-        return Ok(
-            json!({"mode":mode(false),"version":bundle.version,"install":installation,"caches":preview_caches,"data":"preserved","configuration":"unchanged"}),
-        );
+        let mut value = json!({"mode":mode(false),"version":bundle.version,"install":installation,"caches":preview_caches,"data":"preserved","configuration":"unchanged",
+            "next_step":"Review the preview, then repeat with --apply. Finish active jobs and explicitly stop the same installed daemon before replacing a changed runtime."});
+        if let Some(registration) = registration {
+            value["marketplace"] = registration;
+            value["configuration"] = json!("previewed");
+        }
+        return Ok(value);
     }
+    let registration = marketplace.map(|path| crate::integration::configure_plugin_at(config,&root,path,true)
+        .context("runtime installation completed; marketplace registration failed; inspect ownership and retry plugin install (no automatic rollback)")).transpose()?;
     let mut refreshed = Vec::new();
     for cache in caches {
         refreshed.push(refresh_cache(root.clone(), cache, apply)
             .context("runtime update may have completed; cache refresh failed; inspect plugin status and retry cache refresh (no automatic rollback)")?);
     }
-    Ok(
-        json!({"mode":mode(apply),"version":bundle.version,"install":installation,"caches":refreshed,
-        "data":"preserved","configuration":"unchanged","next_step":"Reconnect MCP after applying. Existing processes keep their loaded version; no daemon was stopped automatically."}),
-    )
+    let mut value = json!({"mode":mode(apply),"version":bundle.version,"install":installation,"caches":refreshed,
+        "data":"preserved","configuration":"unchanged","next_step":"Refresh/enable AgentJobRelay in the host, then reconnect MCP. No daemon was stopped automatically."});
+    if let Some(registration) = registration {
+        value["marketplace"] = registration;
+        value["configuration"] = json!("managed marketplace entry");
+    }
+    Ok(value)
 }

@@ -30,10 +30,10 @@ Keep generated test state, outputs, reports and logs under ignored repository-lo
 | Delivery | Terminal/outbox transactions, migrations, exact routing, fenced attempts, retries/TTL/dead letters, read-only idle claims, pooled transaction/profile isolation and per-chat claim exclusion | Real SQLite and persistence simulations |
 | Public plugin bridge | Exact caller/session/delivery echoes, frame limits, endpoint replacement, scoped recovery and same-endpoint renewal | Real SQLite plus fake owned socket host |
 | ChatGPT Desktop | Framing, catalog/identity checks, endpoint replacement, fenced lease renewal and four-chat dispatch with same-chat exclusion | Fake hosts; no real restart/multi-day proof |
-| Convenience | CLI/MCP binding, multi-caller routing, installed shared MCP, loaded-image spawn, recovery and long-job renewal | Real CLI/MCP processes plus fake hosts |
+| Convenience | CLI/MCP binding, multi-caller routing, installed shared MCP, loaded-image spawn, recovery and long-job renewal | Real CLI/MCP processes plus fake hosts; includes terminal workspace bindings, minimal start arguments, conflicting-key refusal, compact/full output and unified connect recovery |
 | Integration | Preview/apply, comments/foreign-entry preservation, ownership refusal and removal | Isolated files |
 | Onboarding | Installed launcher/profile, manifests, marketplace setup, active-runtime refusal and data-preserving removal | Isolated installed processes/files |
-| Plugin | Relocated/toolchain-free bootstrap, package validation, preserved DB/marketplace, custom-root defaults, profile/downgrade rules, cache refresh/refusal, actual CLI repair and retained SQLite history | Linux behavioral tests; local payload/resource-change fixtures |
+| Plugin | Relocated/toolchain-free bootstrap, package validation, preserved DB/marketplace, custom-root defaults, profile/downgrade rules, cache refresh/refusal, actual CLI repair and retained SQLite history | Linux behavioral tests; includes unified install/update profile/history preservation and local payload/resource-change fixtures |
 | Legacy upgrade | Verified same-profile stop, peer identity checks, lock release and immediate replacement | Std-only legacy fixture; no unrelated peer signals |
 | Recovery | Scoped preview/apply, pagination, rollback/audit, preserved delivery IDs/history/TTL, accepted/expired exclusion and stale-claim fencing | Isolated storage/endpoint fixtures |
 
