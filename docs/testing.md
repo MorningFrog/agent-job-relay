@@ -13,7 +13,7 @@ cargo test --all-targets
 cargo build --release --locked
 ```
 
-Current counts, toolchains and results are maintained in [implementation status](IMPLEMENTATION_STATUS.md). CI defines all-target Linux/Windows native tests plus macOS compilation/portable library checks. The updated Windows jobs still need a remote run; a configured matrix does not establish native OS support. The declared Rust 1.89 minimum is not independently verified.
+Current counts, toolchains and results are maintained in [implementation status](IMPLEMENTATION_STATUS.md). CI defines all-target Linux/Windows native tests plus macOS compilation/portable library checks. Current Linux/Windows native jobs and macOS portable checks pass remotely; see [implementation status](IMPLEMENTATION_STATUS.md). A configured matrix alone does not establish native OS support. The declared Rust 1.89 minimum is not independently verified.
 
 ## Test selection and artifacts
 
