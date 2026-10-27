@@ -16,6 +16,10 @@ pub async fn report(config: &Config, inspect_context: bool) -> Result<Value> {
         }
         Err(e) => return Err(e),
     };
+    #[cfg(windows)]
+    {
+        report["automatic_startup"] = json!({"mode":std::env::var("AJR_WINDOWS_STARTUP").unwrap_or_else(|_| "auto".into()),"broker":"verified same-user local CIM when a cleanup job blocks direct launch","persistent_registration":false,"outside_terminal_command":crate::platform::outside_start_command(config)?});
+    }
     report["desktop_context"] = if inspect_context {
         crate::client::context_summary()
     } else {

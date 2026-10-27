@@ -49,6 +49,12 @@ enum Commands {
     },
     #[cfg(windows)]
     #[command(hide = true)]
+    WindowsBootstrap {
+        endpoint: PathBuf,
+        parent_identity: String,
+    },
+    #[cfg(windows)]
+    #[command(hide = true)]
     WindowsWorkload { job_id: String, job_name: String },
     /// Preview/install a stable native executable and local Desktop plugin
     Install {
@@ -720,6 +726,13 @@ async fn run(cli: Cli) -> Result<()> {
             };
             println!("{}", serde_json::to_string(&result)?);
             return Ok(());
+        }
+        #[cfg(windows)]
+        Commands::WindowsBootstrap {
+            endpoint,
+            parent_identity,
+        } => {
+            return agent_job_relay::platform::bootstrap(config, endpoint, parent_identity).await;
         }
         #[cfg(windows)]
         Commands::WindowsWorkload { job_id, job_name } => {

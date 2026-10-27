@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.8 — 2026-10-27 (unreleased automatic Windows startup)
+
+- Automatically bootstrap the same Windows daemon profile through local CIM when a cleanup Job Object blocks native startup, with no login task/service registration or routine manual preparation. Keep native runner containment unchanged.
+- Authenticate both process instances/images/SIDs/integrity levels and private IPC before transferring the exact Unicode environment/cwd in memory. Reject restricted/AppContainer/low-integrity tokens, preserve caller isolation and expose direct-only policy plus copyable fallback diagnostics.
+- Cover host job destruction, cold start, crash restart without replay, environment preservation and refusal boundaries with native behavioral tests; package the matching runtime and plugin pins.
+
 ## 0.1.7 — 2026-10-27 (unreleased Windows runtime and plugin candidate)
 
 - Add private SID/DACL named pipes, peer process-instance checks, non-inheriting native daemon/runner launch and runner-owned Job Objects for Windows x86_64; reuse durable state, delivery/recovery, bounded logs, cancellation/timeouts and offline maintenance.

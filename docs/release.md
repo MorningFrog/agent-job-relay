@@ -53,7 +53,7 @@ OpenCode V1 `opencode.json`:
 
 ```json
 {
-  "plugin": ["agent-job-relay-opencode-v1@0.1.7"]
+  "plugin": ["agent-job-relay-opencode-v1@0.1.8"]
 }
 ```
 

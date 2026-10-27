@@ -1,6 +1,6 @@
 {
   "name": "agent-job-relay",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Experimental durable local background jobs for Linux/Windows Desktop/Codex chats.",
   "author": {
     "name": "MorningFrog",

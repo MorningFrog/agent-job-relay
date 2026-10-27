@@ -1,14 +1,14 @@
 # Installation and maintenance
 
-Use the offline bundle for the quickest installation. It includes the native executable and needs no Rust, Python or Node on the recipient's machine. Current support is Linux x86_64 with a compatible libc and `/bin/sh`; there is no public download, online installer or official plugin listing yet. Use a trusted build: its hashes check integrity, not publisher identity.
+Use the offline bundle for the quickest installation. It includes the native executable and needs no Rust, Python or Node on the recipient's machine. Current support is Linux x86_64 with a compatible libc and `/bin/sh`, plus Windows x86_64 with a `.cmd` launcher (see the [Windows guide](windows.md)); there is no public download, online installer or official plugin listing yet. Use a trusted build: its hashes check integrity, not publisher identity.
 
 Already installed? Follow [Updating an existing installation](#updating-an-existing-installation). For a first install, use the quick path below. Source builds and standalone MCP are under [Alternative installation routes](#alternative-installation-routes).
 
 ## npm and self-hosted marketplace candidates
 
-Candidate delivery uses a shared Linux x86_64/glibc npm runtime for OpenCode V1 and a ChatGPT Desktop/Codex self-hosted marketplace. The packages are not published; names and npm account verification are pending. Use [release preparation](release.md) to build/test the actual tarballs locally. Its consumer commands are explicitly for use after publication. First online use will require Node.js 20+/npm and network access, but no Rust compiler. Existing offline installs remain supported below.
+Candidate delivery uses a shared Linux x86_64/glibc and Windows x86_64 npm runtime for OpenCode V1 and a ChatGPT Desktop/Codex self-hosted marketplace. The packages are not published; names and npm account verification are pending. Use [release preparation](release.md) to build/test the actual tarballs locally. Its consumer commands are explicitly for use after publication. First online use will require Node.js 20+/npm and network access, but no Rust compiler. Existing offline installs remain supported below.
 
-The new persistent host profiles are `$XDG_STATE_HOME/agent-job-relay/codex` and `.../opencode`, falling back to `$HOME/.local/state/...`; AJR_STATE_DIR may explicitly select a reviewed existing profile. They live outside npm/host caches and do not migrate old offline history automatically. Do not enable old and new MCP integrations together or switch profiles to hide a failure. Finish jobs and explicitly stop the original profile before an incompatible native upgrade; no plugin install/update/uninstall stops daemons or purges data.
+The new persistent host profiles are `$XDG_STATE_HOME/agent-job-relay/codex` and `.../opencode`, falling back to `$HOME/.local/state/...`; Windows uses `%LOCALAPPDATA%\AgentJobRelay\profiles\<host>`. AJR_STATE_DIR may explicitly select a reviewed existing profile. They live outside npm/host caches and do not migrate old offline history automatically. Do not enable old and new MCP integrations together or switch profiles to hide a failure. Finish jobs and explicitly stop the original profile before an incompatible native upgrade; no plugin install/update/uninstall stops daemons or purges data.
 
 ## Quick install from an offline bundle
 

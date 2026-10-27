@@ -1086,3 +1086,230 @@ if($LASTEXITCODE -ne 0){{throw 'explicit daemon start failed'}}
     r.release();
     assert_eq!(r.terminal(&job).await["status"], "completed");
 }
+
+#[tokio::test]
+async fn restricted_cold_start_preserves_environment_without_prestarting_daemon() {
+    let dir = tempfile::tempdir_in(common::root()).unwrap();
+    let config = Config::new(Some(dir.path().join("state with ' & ü"))).unwrap();
+    let mut r = Rig {
+        dir,
+        config,
+        daemon: None,
+        jobs: Mutex::new(Vec::new()),
+    };
+    let mut command = tokio::process::Command::new(env!("CARGO_BIN_EXE_agent-job-relay"));
+    command
+        .arg("--state-dir")
+        .arg(&r.config.root)
+        .args(["start", "--cwd"])
+        .arg(r.dir.path())
+        .arg("--")
+        .arg(fixture())
+        .args([
+            "env",
+            "AJR_AUTO_TEST_ENV",
+            "CODEX_THREAD_ID",
+            "CODEX_APP_TOOLS_PIPE_PATH",
+        ])
+        .env("AJR_AUTO_TEST_ENV", "继承 ü ' \" $ ;")
+        .env("CODEX_THREAD_ID", "must-not-inherit")
+        .env("CODEX_APP_TOOLS_PIPE_PATH", "must-not-inherit")
+        .env("AJR_WINDOWS_STARTUP", "auto")
+        .stdin(Stdio::null())
+        .kill_on_drop(true);
+    let out = tokio::time::timeout(Duration::from_secs(30), command.output())
+        .await
+        .unwrap()
+        .unwrap();
+    let peer = platform::connect_host(&r.config.socket()).await;
+    if let Ok(peer) = peer {
+        let pid = platform::peer_pid(&peer).unwrap().unwrap();
+        r.daemon = Some(DaemonProcess {
+            pid,
+            identity: platform::identity(pid).unwrap(),
+        });
+    }
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let job: Value = serde_json::from_slice(&out.stdout).unwrap();
+    let job = job["job"].clone();
+    r.jobs
+        .lock()
+        .unwrap()
+        .push(job["job_id"].as_str().unwrap().into());
+    assert_eq!(r.terminal(&job).await["status"], "completed");
+    let doctor = ipc::call(&r.config, Request::Doctor).await.unwrap();
+    assert_eq!(doctor["daemon_launch_method"], "windows_cim");
+    let stored = Store::new(r.config.clone())
+        .status(job["job_id"].as_str().unwrap().into())
+        .await
+        .unwrap();
+    let logs =
+        std::fs::read_to_string(r.config.run_dir(&stored.run_id).join("stdout.log")).unwrap();
+    assert!(logs.contains("AJR_AUTO_TEST_ENV=继承 ü ' \" $ ;"));
+    assert!(
+        logs.contains("CODEX_THREAD_ID=\n") && logs.contains("CODEX_APP_TOOLS_PIPE_PATH=\n"),
+        "{logs}"
+    );
+}
+
+#[tokio::test]
+async fn direct_only_policy_refuses_restricted_cold_launch_without_a_job() {
+    let dir = tempfile::tempdir_in(common::root()).unwrap();
+    let state = dir.path().join("state");
+    let out = tokio::process::Command::new(env!("CARGO_BIN_EXE_agent-job-relay"))
+        .arg("--state-dir")
+        .arg(&state)
+        .args(["daemon", "start"])
+        .env("AJR_WINDOWS_STARTUP", "direct")
+        .stdin(Stdio::null())
+        .kill_on_drop(true)
+        .output()
+        .await
+        .unwrap();
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("mode=direct"));
+    assert!(!state.join("relay.sqlite3").exists());
+}
+
+#[tokio::test]
+async fn automatic_start_survives_host_job_destruction_and_recovers_after_daemon_crash() {
+    let dir = tempfile::tempdir_in(common::root()).unwrap();
+    let config = Config::new(Some(dir.path().join("state"))).unwrap();
+    let mut r = Rig {
+        dir,
+        config,
+        daemon: None,
+        jobs: Mutex::new(Vec::new()),
+    };
+    let mut host = tokio::process::Command::new(fixture())
+        .arg("host-start")
+        .arg(env!("CARGO_BIN_EXE_agent-job-relay"))
+        .arg(&r.config.root)
+        .arg(r.dir.path())
+        .env("AJR_WINDOWS_STARTUP", "auto")
+        .stdin(Stdio::null())
+        .kill_on_drop(true)
+        .spawn()
+        .unwrap();
+    tokio::time::timeout(Duration::from_secs(30), async {
+        while !r.dir.path().join("host.stdout.json").exists() {
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+    })
+    .await
+    .unwrap();
+    let peer = platform::connect_host(&r.config.socket()).await.unwrap();
+    let pid = platform::peer_pid(&peer).unwrap().unwrap();
+    r.daemon = Some(DaemonProcess {
+        pid,
+        identity: platform::identity(pid).unwrap(),
+    });
+    drop(peer);
+    assert_eq!(
+        std::fs::read_to_string(r.dir.path().join("host.exit")).unwrap(),
+        "0",
+        "{}",
+        std::fs::read_to_string(r.dir.path().join("host.stderr")).unwrap()
+    );
+    let value: Value =
+        serde_json::from_slice(&std::fs::read(r.dir.path().join("host.stdout.json")).unwrap())
+            .unwrap();
+    let job = value["job"].clone();
+    r.jobs
+        .lock()
+        .unwrap()
+        .push(job["job_id"].as_str().unwrap().into());
+    r.ready("ready").await;
+    std::fs::write(r.dir.path().join("close-host"), b"close").unwrap();
+    tokio::time::timeout(Duration::from_secs(5), host.wait())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(r.status(&job).await["status"], "running");
+    let original = r.daemon.take().unwrap();
+    original.kill().unwrap();
+    original.wait().unwrap();
+    let out = tokio::process::Command::new(env!("CARGO_BIN_EXE_agent-job-relay"))
+        .arg("--state-dir")
+        .arg(&r.config.root)
+        .args(["start", "--cwd"])
+        .arg(r.dir.path())
+        .arg("--")
+        .arg(fixture())
+        .args(["echo", "after-crash"])
+        .env("AJR_WINDOWS_STARTUP", "auto")
+        .stdin(Stdio::null())
+        .kill_on_drop(true)
+        .output()
+        .await
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let value: Value = serde_json::from_slice(&out.stdout).unwrap();
+    let second = value["job"].clone();
+    r.jobs
+        .lock()
+        .unwrap()
+        .push(second["job_id"].as_str().unwrap().into());
+    let peer = platform::connect_host(&r.config.socket()).await.unwrap();
+    let pid = platform::peer_pid(&peer).unwrap().unwrap();
+    r.daemon = Some(DaemonProcess {
+        pid,
+        identity: platform::identity(pid).unwrap(),
+    });
+    drop(peer);
+    assert_eq!(r.terminal(&second).await["status"], "completed");
+    assert_eq!(r.status(&job).await["status"], "running");
+    r.release();
+    assert_eq!(r.terminal(&job).await["status"], "completed");
+    let jobs = Store::new(r.config.clone()).list(0, 20).await.unwrap();
+    assert_eq!(jobs.len(), 2);
+    assert!(jobs.iter().all(|j| j.run.attempt == 1));
+}
+
+#[tokio::test]
+async fn bootstrap_refuses_changed_parent_or_another_executable_before_transfer() {
+    for expected in [
+        "windows:stale-instance".to_string(),
+        platform::identity(std::process::id()).unwrap(),
+    ] {
+        let dir = tempfile::tempdir_in(common::root()).unwrap();
+        let state = dir.path().join("state");
+        let endpoint = PathBuf::from(format!(r"\\.\pipe\AgentJobRelay-startup-{}", id()));
+        let mut listener = platform::Listener::bind(&endpoint).unwrap();
+        let child = tokio::process::Command::new(env!("CARGO_BIN_EXE_agent-job-relay"))
+            .arg("--state-dir")
+            .arg(&state)
+            .arg("windows-bootstrap")
+            .arg(&endpoint)
+            .arg(expected)
+            .stdin(Stdio::null())
+            .stderr(Stdio::piped())
+            .stdout(Stdio::null())
+            .kill_on_drop(true)
+            .spawn()
+            .unwrap();
+        let _socket = tokio::time::timeout(Duration::from_secs(5), listener.accept())
+            .await
+            .unwrap()
+            .unwrap();
+        let out = tokio::time::timeout(Duration::from_secs(5), child.wait_with_output())
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(!out.status.success());
+        let text = String::from_utf8_lossy(&out.stderr);
+        assert!(
+            text.contains("instance differs") || text.contains("executable differs"),
+            "{text}"
+        );
+        assert!(!state.join("relay.sqlite3").exists());
+    }
+}

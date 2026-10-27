@@ -14,7 +14,7 @@ $ajrInstall = Join-Path $env:LOCALAPPDATA 'AgentJobRelay\plugin'
 & "$ajrInstall\relay.cmd" doctor --client plugin --check-mcp
 ```
 
-Expected: the preview identifies the chosen installation/state and marketplace entry; apply installs the native executable and `.cmd` launcher. Doctor reports a successful 20-tool stdio check. A stopped daemon before the first submission is expected. The bundle needs no recipient Rust, Python or Node. Restart the host, install/enable the local plugin and separately verify host MCP connectivity. The shared 0.1.7 npm candidate also carries Windows bytes; the normal registry route remains unavailable until publication.
+Expected: the preview identifies the chosen installation/state and marketplace entry; apply installs the native executable and `.cmd` launcher. Doctor reports a successful 20-tool stdio check. A stopped daemon before the first submission is expected. The bundle needs no recipient Rust, Python or Node. Restart the host, install/enable the local plugin and separately verify host MCP connectivity. The shared 0.1.8 npm candidate also carries Windows bytes; the normal registry route remains unavailable until publication.
 
 The default native installation is `%LOCALAPPDATA%\AgentJobRelay\plugin`; state is `%LOCALAPPDATA%\AgentJobRelay\state`. Explicit `--state-dir`/AJR_STATE_DIR and existing installation profiles retain their recorded selection. Configuration/removal preserves other entries and task history. Do not move state into a plugin/npm cache.
 
@@ -22,7 +22,7 @@ The default native installation is `%LOCALAPPDATA%\AgentJobRelay\plugin`; state 
 
 After publication, the self-hosted catalog and OpenCode use the same Windows x86_64 native payload with a static MSVC runtime; recipient machines need Node.js/npm, without Rust or Visual Studio. Follow [release installation](release.md#consumer-install-after-publication). The Windows catalog MCP launcher uses Node plus the system command processor to invoke pinned npx arguments. Terminal use has a `relay.cmd` entry point.
 
-Default npm state lives in `%LOCALAPPDATA%\AgentJobRelay\profiles\codex` or `opencode`, outside host/npm caches. `AJR_STATE_DIR` may explicitly select an existing profile; no automatic profile migration or daemon restart occurs. OpenCode V1 requires 1.19.4 and native >=0.1.7. Its Node/Bun pipe is checked against the exact server process and restricted to a private DACL before sessions register.
+Default npm state lives in `%LOCALAPPDATA%\AgentJobRelay\profiles\codex` or `opencode`, outside host/npm caches. `AJR_STATE_DIR` may explicitly select an existing profile; no automatic profile migration or upgrade-driven daemon replacement occurs. OpenCode V1 requires 1.19.4 and native >=0.1.7. Its Node/Bun pipe is checked against the exact server process and restricted to a private DACL before sessions register.
 
 Actual Windows npm installation, native execution, history after relocation, corrupt-native refusal, Codex 0.164.0 catalog/20-tool discovery and OpenCode package-name loading/MCP submission/matching-session agent-loop continuation are checked with `scripts/check_windows_packages.mjs`. OpenCode uses a local simulated model. These checks do not establish Windows Desktop UI installation or continuation.
 
@@ -48,17 +48,23 @@ $submitted = & $ajr start --cwd "$PWD" --shell 'Start-Sleep -Seconds 2; Write-Ou
 
 Expected: a single completed Job/Run with exit 0 and `background-ok` in the log. Explicit argv execution is available after `--`; batch files require an explicit cmd shell. The Windows `--shell` default is PowerShell. MCP uses the same state and behavior.
 
-## Start before a restrictive host
+## Automatic startup
 
-Codex CLI 0.164.0 places its MCP process in a non-breakaway cleanup Job Object. A cold `job_start` therefore refuses independent daemon creation instead of pretending the workload can survive host cleanup. Before starting Codex, run the following in a normal external PowerShell terminal:
+Normal use needs no manual `daemon start`, login startup registration or administrator setup. The first task/session request starts the selected daemon; existing daemons are reused. After a daemon stop/crash or Windows restart, the next submission/registration starts it again. This does not replay jobs or keep commands alive across an OS restart. Doctor remains read-only.
+
+The runtime tries native detached creation first. If a cleanup Job Object (including Codex CLI 0.164.0 MCP) denies breakaway, it uses Windows PowerShell/local CIM to start a bounded helper of the same executable. Both ends verify process instance/image, SID, integrity level, privilege inventory and private pipe security before transferring the caller's Unicode environment/cwd. No environment file, remote target, alternate user, elevation, scheduled task, startup entry or service installation is used. Runners still use native detached creation and Job Object containment.
+
+Use `doctor` / `job_doctor` to inspect `daemon_launch_method`: `windows_native`, `windows_cim` or `foreground`. CLI doctor also reports the current automatic-startup policy and `outside_terminal_command`. `AJR_WINDOWS_STARTUP=auto` is the default; `direct` disables CIM for future startup attempts. Restricted/AppContainer/low-integrity tokens and local policies that deny CIM are refused explicitly.
+
+If automatic startup is blocked, copy the exact `outside_terminal_command` from diagnostics/errors into an external PowerShell terminal. It already contains the selected program and state path. For a default offline install, this equivalent command selects the recorded profile:
 
 ```powershell
 & "$ajrInstall\relay.cmd" daemon start --install-root $ajrInstall
 ```
 
-Expected: `daemon` is `reachable`, with no submitted job or session. The command exits after starting the independent daemon, and repeated calls reuse it. `--install-root` selects the installation's recorded state even if the shell exports another state path. For the npm catalog after publication, use `npx --yes --ignore-scripts --registry=https://registry.npmjs.org --package=agent-job-relay-runtime@0.1.7 agent-job-relay codex daemon start` outside Codex instead. Use the same profile as MCP; repeat after a machine restart or explicit daemon stop. A terminal opened by the restrictive host may inherit its job restriction and is not sufficient.
+The command exits once ready; repeated calls reuse the daemon. A terminal opened inside the restrictive host can inherit its restriction and may not suffice. `daemon stop` preserves independent runners/history. There is no resident restart watchdog: recovery happens on the next submission/registration.
 
-The prestarted daemon launches independent runners and allows MCP job submission from the restricted client. An actual installed Codex MCP/model check through Codex-Manager (`gpt-6.1-sol`/`low`) passed start, one bounded wait, status and logs with a single completed native job/exit 0; it ran as guest-agent SYSTEM, with no logged-in interactive user. This requirement does not grant Codex automatic chat resume; the CLI still offers tools/inbox only. Desktop behavior must be checked separately.
+Native tests cover cold restricted-host startup, host job destruction, daemon-crash restart, environment/identity isolation and policy refusal. Real installed Codex model/MCP acceptance must start with no prestarted daemon. Current VM tests run under guest-agent SYSTEM; ordinary interactive-user and Windows Desktop UI/observed continuation remain separate acceptance.
 
 ## Update, recover and remove
 
@@ -68,6 +74,6 @@ Use the new bundle's launcher, finish active jobs, explicitly stop the original 
 
 ## Execution boundaries
 
-An enclosing host Job Object must permit breakaway for independent daemon/runner launch. A restricted host that forbids it receives a launch error; the runtime does not escape through a Windows service. Cargo's cleanup job is such a test environment, so native behavioral fixtures use local CIM to launch their owned test processes under the same SID outside Cargo. Runtime users need no CIM dependency.
+Native independent daemon/runner creation requires breakaway. Daemon startup can instead use the verified same-user CIM helper when a cleanup job blocks it; the helper must still launch an independent native daemon. Local policy or provider job limits can refuse that route. Cargo's cleanup job is such a test environment, so native behavioral fixtures use local CIM to launch their owned test processes under the same SID outside Cargo. Normal direct startup needs no CIM; restricted-host automatic startup needs built-in Windows PowerShell/local CIM to be permitted.
 
 Runner-owned Job Objects terminate contained descendants on cancellation, timeout or runner death. Console Ctrl-Break is best effort before force termination. Processes that cannot join the job do not execute the user command. State and pipe security require the current user's SID, private DACLs and non-reparse paths. Physical power loss, filesystem exhaustion and Desktop version compatibility remain distinct qualifications. See [architecture decision](adr/0011-windows-native-runtime.md) and [testing](testing.md).

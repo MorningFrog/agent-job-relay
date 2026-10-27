@@ -9,7 +9,7 @@ Tasks run in the background. Agents pick up when needed.
 任务在后台运行，Agent 在需要时接棒。
 </div>
 
-让长时间命令独立于 Agent 连接运行，保存结果，并在宿主支持时通知发起任务的聊天。**v0.1.7 是尚未发布的 Linux/Windows x86_64 开发版本。** Desktop 唤醒使用实验性接口；Windows 桌面端续接尚未验证，macOS 运行时暂不支持。OpenCode V1 提供实验性插件候选包；Claude Code 提供仅收件箱通知的开发框架，需要社区验证。
+让长时间命令独立于 Agent 连接运行，保存结果，并在宿主支持时通知发起任务的聊天。**v0.1.8 是尚未发布的 Linux/Windows x86_64 开发版本。** Desktop 唤醒使用实验性接口；Windows 桌面端续接尚未验证，macOS 运行时暂不支持。OpenCode V1 提供实验性插件候选包；Claude Code 提供仅收件箱通知的开发框架，需要社区验证。
 
 OpenCode/Claude 的开发安装及验证边界见[宿主插件指南](docs/host-plugins.md)。
 
@@ -44,7 +44,7 @@ AJR_INSTALL_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/agent-job-relay"
 
 ## Windows
 
-使用可信的 Windows 离线 bundle 及其中的 `relay.cmd` 启动器。原生执行、进程树监管、MCP、离线维护及 npm 安装后的宿主加载已通过 Windows 11 虚拟机验证。0.1.7 候选包同时携带 Linux 与 Windows 程序，尚未发布。Codex CLI 0.164.0 需要先在宿主外的 PowerShell 终端对同一状态目录执行 `daemon start`，然后才能通过 MCP 提交任务。安装、任务示例及运行边界见 [Windows 指南](docs/windows.md)。
+使用可信的 Windows 离线 bundle 及其中的 `relay.cmd` 启动器。原生执行、进程树监管、MCP、离线维护及 npm 安装后的宿主加载已通过 Windows 11 虚拟机验证。0.1.8 候选包同时携带 Linux 与 Windows 程序，尚未发布。Windows 现已支持按需自动启动 daemon；Codex MCP 清理限制下会使用经过身份验证的同用户本地 CIM 引导。若本机策略禁止 CIM，诊断会提供可直接复制的宿主外启动命令。安装、任务示例及运行边界见 [Windows 指南](docs/windows.md)。
 
 ## 在聊天中使用
 

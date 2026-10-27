@@ -9,7 +9,7 @@ Tasks run in the background. Agents pick up when needed.
 任务在后台运行，Agent 在需要时接棒。
 </div>
 
-Run long commands independently of the Agent connection, keep their results, and notify the initiating chat when the host supports it. **v0.1.7 is an unreleased Linux/Windows x86_64 development version.** Desktop wake uses an experimental interface; Windows Desktop continuation is unverified and macOS runtime is unsupported. OpenCode V1 has an experimental plugin package candidate; Claude Code has an inbox-only development framework that needs community verification.
+Run long commands independently of the Agent connection, keep their results, and notify the initiating chat when the host supports it. **v0.1.8 is an unreleased Linux/Windows x86_64 development version.** Desktop wake uses an experimental interface; Windows Desktop continuation is unverified and macOS runtime is unsupported. OpenCode V1 has an experimental plugin package candidate; Claude Code has an inbox-only development framework that needs community verification.
 
 For OpenCode/Claude development setup and evidence boundaries, see [host plugins](docs/host-plugins.md).
 
@@ -44,7 +44,7 @@ Use your original path for a custom installation. Keep that directory: both MCP 
 
 ## Windows
 
-Use a trusted Windows offline bundle and its `relay.cmd` launcher. Native execution, process-tree supervision, MCP, offline maintenance and installed npm/host-loader behavior are verified in a Windows 11 VM. The 0.1.7 candidate carries both Linux and Windows executables; publication is pending. Codex CLI 0.164.0 requires `daemon start` for the same profile from an outside PowerShell terminal before MCP submission. Follow the [Windows guide](docs/windows.md) for installation, task examples and execution boundaries.
+Use a trusted Windows offline bundle and its `relay.cmd` launcher. Native execution, process-tree supervision, MCP, offline maintenance and installed npm/host-loader behavior are verified in a Windows 11 VM. The 0.1.8 candidate carries both Linux and Windows executables; publication is pending. Windows now starts the daemon on demand, including Codex MCP cleanup jobs, through a verified same-user local CIM bootstrap when needed. If local policy blocks CIM, diagnostics provide a copyable outside-terminal fallback. Follow the [Windows guide](docs/windows.md) for installation, task examples and execution boundaries.
 
 ## Use from chat
 

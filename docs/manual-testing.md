@@ -140,3 +140,10 @@ The npm packages are unpublished and their names are provisional. First run the 
 4. Inspect the selected persistent profile before and after host refresh/removal. Expected: state stays outside caches and history is retained; no daemon is stopped implicitly. If migrating an offline installation, explicitly review its recorded state rather than accepting a new profile as a repair.
 
 Clean Desktop UI installation/public-registry acceptance remains open. The earlier installed 0.1.5 active-job restart/continuation scenario is already qualified separately and need not be repeated merely to refill evidence. OpenCode real-provider/restart and Claude account-backed checks remain in [host plugins](host-plugins.md).
+
+## Windows automatic startup
+
+1. Use a fresh disposable profile and the 0.1.8 installed entry point, without running `daemon start`. Submit a single bounded job from the actual host. Expected: one Job/Run completes; doctor reports `windows_cim` if host cleanup denies direct creation, otherwise `windows_native`. Record host/model evidence separately.
+2. Close the host while an owned gated task runs. Expected: the original runner/task remains alive and persists its final result. Native automated coverage additionally destroys an enclosing cleanup Job Object.
+3. In an isolated profile only, simulate daemon failure during a gated task, then make a new submission/registration. Expected: automatic startup reuses that profile, the original task remains single-attempt and history is retained. Recovery occurs on a request, not a resident restart watchdog.
+4. Set `AJR_WINDOWS_STARTUP=direct` before launching a restrictive host with a cold profile. Expected: explicit refusal before job submission. Diagnostics/errors provide the exact literal-quoted external PowerShell fallback for that profile. Restore `auto` afterward. Restricted-token and invalid-parent cases have native automated coverage; never change policy, elevate or switch accounts to turn a refusal into a pass.

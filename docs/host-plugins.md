@@ -20,7 +20,7 @@ The selected target is **OpenCode 1.19.4** and `@opencode-ai/plugin`/SDK **1.19.
 For candidate package builds and the no-source-checkout installed-tarball check, follow [release preparation](release.md). To stage an installed development copy after preparing `.tmp/release-candidate`:
 
 ```bash
-npm install --prefix .tmp/host-plugins --cache .tmp/npm-cache --ignore-scripts --no-audit --no-fund ./.tmp/release-candidate/agent-job-relay-runtime-0.1.7.tgz ./.tmp/release-candidate/agent-job-relay-opencode-v1-0.1.7.tgz
+npm install --prefix .tmp/host-plugins --cache .tmp/npm-cache --ignore-scripts --no-audit --no-fund ./.tmp/release-candidate/agent-job-relay-runtime-0.1.8.tgz ./.tmp/release-candidate/agent-job-relay-opencode-v1-0.1.8.tgz
 ```
 
 Use a new staging path for another copy rather than nesting copies. Configure the following once in your chosen OpenCode project, replacing the absolute paths with the built/staged paths and a short separate persistent state path:
@@ -36,7 +36,7 @@ Use a new staging path for another copy rather than nesting copies. Configure th
 
 Published candidates default to their bundled runtime and persistent opencode profile; the tuple above demonstrates explicit development overrides. Normal npm-name installation is unavailable until publication. The plugin configures only its `agent_job_relay` MCP name and refuses an existing entry with that name. It requires native >=0.1.6 on Linux and >=0.1.7 on Windows; an older running daemon must be updated/stopped explicitly for the same profile, never silently replaced. A long socket path fails clearly; it does not switch profiles or use a shared temporary directory. Keep state outside plugin/cache directories.
 
-On Windows, use the bundled `.exe` and a persistent Windows path (JSON requires escaped backslashes). The native helper pins the Node/Bun pipe's server process and secures its owner/DACL before registration. For Windows candidate checks and the Codex outside-host daemon prerequisite, see [Windows operation](windows.md).
+On Windows, use the bundled `.exe` and a persistent Windows path (JSON requires escaped backslashes). The native helper pins the Node/Bun pipe's server process and secures its owner/DACL before registration. For Windows candidate checks and Windows automatic-startup/fallback behavior, see [Windows operation](windows.md).
 
 The `tool.execute.before` hook obtains the real `sessionID`, verifies it through the public session API, registers/probes an owned bridge, then supplies `spec.session` to the actual MCP `job_start`. It overrides model-supplied caller keys. The plugin adds workflow guidance; everyday prompts need no internal path or session key. Other MCP tools stay available from the same core. Do not use Desktop `session connect`/`wake_me` in this host.
 

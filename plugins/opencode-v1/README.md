@@ -6,7 +6,7 @@ After this version is published, add the pinned package to your project's `openc
 
 ```json
 {
-  "plugin": ["agent-job-relay-opencode-v1@0.1.7"]
+  "plugin": ["agent-job-relay-opencode-v1@0.1.8"]
 }
 ```
 

@@ -2,7 +2,7 @@
 
 ## Start here
 
-Read `PROJECT_SPEC.md`, `docs/architecture.md` and `docs/IMPLEMENTATION_STATUS.md` first. The specification governs scope; report limitations honestly. This is one Rust package/executable with CLI, MCP, daemon and runner modes; Linux and Windows have verified native runtime cores; Windows requires breakaway permission from enclosing host jobs.
+Read `PROJECT_SPEC.md`, `docs/architecture.md` and `docs/IMPLEMENTATION_STATUS.md` first. The specification governs scope; report limitations honestly. This is one Rust package/executable with CLI, MCP, daemon and runner modes; Linux and Windows have verified native runtime cores; Windows daemon startup can use a verified same-user local CIM bootstrap when a cleanup job blocks direct launch; runners still require native breakaway.
 
 ## Architecture and behavior
 
@@ -14,6 +14,7 @@ Read `PROJECT_SPEC.md`, `docs/architecture.md` and `docs/IMPLEMENTATION_STATUS.m
 - Same-chat notification recovery must preserve valid delivery IDs, expiry and attempt history, fence stale claims and exclude accepted/expired events. Renew opted-in leases only after verifying the original endpoint and current claim; never move targets implicitly.
 - Explicit upgrade stops must select the installed profile and revalidate the original peer before any legacy signal; never use process-name/group kills or PID alone.
 - Host-plugin checks must distinguish the actual loader/session API from a simulated model. Claude Code has no maintainer account: keep its scaffold inbox-only and request community tests/PRs until real host evidence exists.
+- Windows automatic CIM bootstrap is daemon-only: authenticate both process instances/images/SIDs/integrity levels/privilege inventories, reject restricted/AppContainer/low-integrity tokens, transfer environment only over private bounded IPC, and never install tasks/services, elevate or launch arbitrary job commands through the broker.
 - Prefer documented public host interfaces and document private API compatibility risks. Preserve practical CLI/setup/doctor/removal and modified or foreign installation/marketplace content.
 
 ## Testing and artifacts

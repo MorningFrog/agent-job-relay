@@ -62,9 +62,9 @@ pub async fn start_daemon(config: &Config) -> Result<Value> {
 
 /// Start only our own per-state daemon, without a system service or PATH edit.
 async fn ensure_daemon(config: &Config) -> Result<()> {
-    tokio::time::timeout(Duration::from_secs(8), ensure_daemon_inner(config))
+    tokio::time::timeout(Duration::from_secs(if cfg!(windows) { 20 } else { 8 }), ensure_daemon_inner(config))
         .await
-        .context("daemon readiness timed out (8s); run foreground daemon with the same --state-dir for diagnostics")?
+        .context("daemon readiness timed out; run foreground daemon with the same --state-dir for diagnostics")?
 }
 async fn ensure_daemon_inner(config: &Config) -> Result<()> {
     match ipc::call(config, Request::Doctor).await {
@@ -97,9 +97,16 @@ async fn ensure_daemon_inner(config: &Config) -> Result<()> {
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null());
-        crate::platform::spawn_background(command).context(
-            "cannot start independent daemon; run agent-job-relay --state-dir <same-path> daemon start in a terminal outside the host; use foreground daemon for diagnostics",
-        )?;
+        #[cfg(windows)]
+        let guidance = format!(
+            "cannot automatically start daemon; outside PowerShell fallback: {}",
+            crate::platform::outside_start_command(config)?
+        );
+        #[cfg(not(windows))]
+        let guidance = "cannot start independent daemon; run agent-job-relay --state-dir <same-path> daemon start in a terminal outside the host; use foreground daemon for diagnostics";
+        crate::platform::launch_daemon(command, config)
+            .await
+            .context(guidance)?;
     }
     let deadline = tokio::time::Instant::now() + Duration::from_secs(8);
     loop {

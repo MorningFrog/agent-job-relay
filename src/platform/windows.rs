@@ -264,33 +264,46 @@ pub fn detach(command: &mut std::process::Command) -> Result<()> {
     command.creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_BREAKAWAY_FROM_JOB);
     Ok(())
 }
-/// Spawn only daemon/runner modes. No inheritable host handles cross this
-/// boundary, including capture pipes unrelated to the child's standard handles.
-/// Windows has no zombie reaping requirement after these handles are closed.
-pub fn spawn_background(command: std::process::Command) -> Result<()> {
-    fn quote(value: &OsStr) -> Vec<u16> {
-        let mut out = vec![b'"' as u16];
-        let mut slashes = 0;
-        for value in value.encode_wide() {
-            if value == b'\\' as u16 {
-                slashes += 1;
-                continue;
-            }
-            out.extend(std::iter::repeat_n(
-                b'\\' as u16,
-                if value == b'"' as u16 {
-                    slashes * 2 + 1
-                } else {
-                    slashes
-                },
-            ));
-            slashes = 0;
-            out.push(value);
+fn quote(value: &OsStr) -> Vec<u16> {
+    let mut out = vec![b'"' as u16];
+    let mut slashes = 0;
+    for value in value.encode_wide() {
+        if value == b'\\' as u16 {
+            slashes += 1;
+            continue;
         }
-        out.extend(std::iter::repeat_n(b'\\' as u16, slashes * 2));
-        out.push(b'"' as u16);
-        out
+        out.extend(std::iter::repeat_n(
+            b'\\' as u16,
+            if value == b'"' as u16 {
+                slashes * 2 + 1
+            } else {
+                slashes
+            },
+        ));
+        slashes = 0;
+        out.push(value);
     }
+    out.extend(std::iter::repeat_n(b'\\' as u16, slashes * 2));
+    out.push(b'"' as u16);
+    out
+}
+
+/// Spawn daemon/runner modes without inheritable handles, including host capture pipes.
+/// Closing process/thread handles requires no Windows zombie reaping.
+pub fn spawn_background(command: std::process::Command) -> Result<()> {
+    spawn_with_environment(command, std::env::vars_os().collect())
+}
+fn environment_order(a: &OsStr, b: &OsStr) -> std::cmp::Ordering {
+    let a: Vec<_> = a.encode_wide().collect();
+    let b: Vec<_> = b.encode_wide().collect();
+    unsafe { CompareStringOrdinal(a.as_ptr(), a.len() as i32, b.as_ptr(), b.len() as i32, 1) }
+        .cmp(&2)
+}
+
+fn spawn_with_environment(
+    command: std::process::Command,
+    mut environment: Vec<(std::ffi::OsString, std::ffi::OsString)>,
+) -> Result<()> {
     let program = Path::new(command.get_program());
     ensure!(
         program.is_absolute(),
@@ -302,20 +315,13 @@ pub fn spawn_background(command: std::process::Command) -> Result<()> {
         line.extend(quote(arg));
     }
     line.push(0);
-    let compare = |a: &OsStr, b: &OsStr| {
-        let a: Vec<_> = a.encode_wide().collect();
-        let b: Vec<_> = b.encode_wide().collect();
-        unsafe { CompareStringOrdinal(a.as_ptr(), a.len() as i32, b.as_ptr(), b.len() as i32, 1) }
-            .cmp(&2)
-    };
-    let mut environment: Vec<_> = std::env::vars_os().collect();
     for (key, value) in command.get_envs() {
-        environment.retain(|(old, _)| !compare(old, key).is_eq());
+        environment.retain(|(old, _)| !environment_order(old, key).is_eq());
         if let Some(value) = value {
             environment.push((key.into(), value.into()));
         }
     }
-    environment.sort_by(|(a, _), (b, _)| compare(a, b));
+    environment.sort_by(|(a, _), (b, _)| environment_order(a, b));
     let mut block = Vec::<u16>::new();
     for (key, value) in environment {
         block.extend(key.encode_wide());
@@ -376,7 +382,9 @@ fn handle_identity(handle: HANDLE, pid: u32) -> Result<String> {
     unsafe {
         check(GetExitCodeProcess(handle, &mut code))?;
     }
-    ensure!(code == STILL_ACTIVE as u32, "process has exited");
+    if code != STILL_ACTIVE as u32 {
+        return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "process has exited").into());
+    }
     Ok(format!(
         "windows:{pid}:{}",
         ((created.dwHighDateTime as u64) << 32) | created.dwLowDateTime as u64
@@ -825,3 +833,7 @@ pub fn prepare_bridge(config: &crate::config::Config) -> Result<serde_json::Valu
 pub fn verify_bridge_endpoint(stream: &ClientStream) -> Result<()> {
     verify_security(stream.as_raw_handle())
 }
+
+mod startup;
+pub(super) use startup::launch_daemon;
+pub use startup::{bootstrap, outside_start_command};

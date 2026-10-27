@@ -215,3 +215,19 @@ pub const DEFAULT_SHELL: &str = if cfg!(windows) {
 } else {
     "/bin/sh"
 };
+
+/// Automatic daemon startup preserves the selected profile and caller environment.
+pub async fn launch_daemon(
+    command: std::process::Command,
+    config: &crate::config::Config,
+) -> Result<()> {
+    #[cfg(windows)]
+    return windows::launch_daemon(command, config).await;
+    #[cfg(not(windows))]
+    {
+        let _ = config;
+        let mut command = command;
+        command.env("AJR_DAEMON_LAUNCH_METHOD", "unix_native");
+        spawn_background(command)
+    }
+}

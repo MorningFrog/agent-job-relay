@@ -45,7 +45,7 @@ export async function createBridge({ client, executable, stateDir, directory }) 
   const delivered = new Map(); // In-process dedupe only; host-restart exactly-once is not promised.
   let closed = false;
   async function request(value) {
-    const { stdout } = await exec(executable, ["--state-dir", stateDir, "request", JSON.stringify(value)], { timeout: 15000, maxBuffer: 1048576 });
+    const { stdout } = await exec(executable, ["--state-dir", stateDir, "request", JSON.stringify(value)], { timeout: 25000, maxBuffer: 1048576 });
     return JSON.parse(stdout);
   }
   async function exists(sessionID, signal = AbortSignal.timeout(2000)) {

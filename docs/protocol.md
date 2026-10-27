@@ -62,10 +62,14 @@ Registration optionally sets renew_on_delivery=true (default false for old/manua
 
 Before extending the session by its configured lease duration, a transaction rechecks the unchanged registration/expiry, connected flag and active target with the current unexpired claim token. Renewal and its audit commit together. The original delivery ID and event TTL remain unchanged. Changed/invalidated endpoints never renew automatically; concurrent refresh retries from the new snapshot. The probe provides endpoint/capability evidence, not Agent execution confirmation. Doctor exposes same_chat_recovery and delivery_time_renewal capability flags; automatic binding refuses an older daemon before registration/job mutation and requires an explicit same-profile stop/update. Manual opted-out registration omits the new false field for older wire compatibility. Schema v6 is unchanged.
 
-## Public plugin bridge (source 0.1.7)
+## Public plugin bridge (source 0.1.8)
 
 A `plugin_bridge` registration uses an explicit owned endpoint, identical caller/destination and experimental opt-in. The core pins the endpoint fingerprint and same-user peer, then sends one length-prefixed JSON-RPC request per connection: `relay/probe` or `relay/deliver`, with `protocol_version=1`, `agent_kind`, `session_id`, `caller_session_id`, `instance_id` and `host_id`. Delivery adds only stable `delivery_id`, `event_id`, `job_id` and terminal `kind`. No command/output is included. Responses cap at 16 KiB within three seconds.
 
 A result echoes protocol/agent/session/instance/host and `can_resume=true`; delivery also requires `accepted=true` and matching delivery/event/job IDs. Errors do not route to another adapter. An accepted result does not prove a model ran. Opted-in renewal and explicit scoped recovery reuse the existing transaction/audit/claim fences, matching the exact adapter discriminator. Doctor advertises `plugin_bridge=true`. IPC v1/SQLite v6 stay unchanged, but older executables do not understand the new adapter records; they must not be used to operate this profile.
 
 OpenCode V1 injects a fresh binding from the host tool context into shared MCP. Claude's scaffold provides an inbox key from explicit skill session substitution; it advertises no auto-resume. Host packages and verification boundaries are in [host plugins](host-plugins.md).
+
+## Windows daemon startup diagnostics
+
+Doctor adds `daemon_launch_method` (`windows_native`, `windows_cim`, `unix_native` or `foreground`). CLI Windows diagnostics include the current `AJR_WINDOWS_STARTUP` policy and a literal-quoted same-profile `outside_terminal_command`. These are diagnostic fields, not job/session identities or proof of host continuation. The internal random startup pipe transfers bounded version/environment/cwd data only after mutual process/image/SID/integrity and private-DACL validation; it is not a public workload execution API. See [ADR 0012](adr/0012-windows-on-demand-bootstrap.md). SQLite v6 and public IPC v1 remain unchanged.
