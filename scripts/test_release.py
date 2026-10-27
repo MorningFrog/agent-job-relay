@@ -595,6 +595,103 @@ class ReleaseTests(unittest.TestCase):
         mutation.assert_not_called()
         command.assert_not_called()
 
+    def public_download(self, url, **_kwargs):
+        for entry in self.meta.values():
+            if not isinstance(entry, dict):
+                continue
+            tarball = f"{actions.REGISTRY}/{entry['name']}/-/{entry['tarball']}"
+            if url == f"{actions.REGISTRY}/{entry['name']}/{self.version}":
+                return {**entry, "dist": {"integrity": entry["integrity"], "tarball": tarball}}
+            if url == tarball:
+                return (self.directory / entry["tarball"]).read_bytes()
+        raise AssertionError("Unexpected public request")
+
+    def test_public_install_retries_etarget_with_fresh_state_and_no_credentials(self):
+        installs, commands = [], []
+        before = {p.name: p.read_bytes() for p in self.directory.iterdir()}
+        credentials = {key: "fake-private-value" for key in ("GH_TOKEN", "GITHUB_TOKEN", "NODE_AUTH_TOKEN", "NPM_TOKEN", "NPM_STAGE_TOKEN", "NPM_ID_TOKEN", "ACTIONS_ID_TOKEN_REQUEST_TOKEN", "ACTIONS_ID_TOKEN_REQUEST_URL")}
+
+        def run(argv, **kwargs):
+            commands.append(argv)
+            env, root = kwargs["env"], Path(kwargs["cwd"])
+            self.assertTrue(all(key not in env for key in credentials))
+            self.assertEqual(env["HOME"], str(root))
+            for key in ("AJR_STATE_DIR", "CODEX_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME"):
+                self.assertTrue(Path(env[key]).is_relative_to(root))
+            if argv[:2] == ["npm", "install"]:
+                cache = Path(env["npm_config_cache"])
+                for old_root, old_cache in installs:
+                    self.assertNotEqual((root, cache), (old_root, old_cache))
+                    self.assertFalse(old_root.exists())
+                    self.assertFalse(old_cache.exists())
+                self.assertIn("--prefer-online", argv)
+                self.assertIn("--ignore-scripts", argv)
+                self.assertEqual(argv[-2:], [f"{name}@{self.version}" for name in metadata.PACKAGES.values()])
+                installs.append((root, cache))
+                (root / "partial-install").touch()
+                cache.mkdir(parents=True)
+                (cache / "stale-metadata").touch()
+                if len(installs) == 1:
+                    return subprocess.CompletedProcess(argv, 1, "", "npm error code ETARGET\nfake-private-value")
+            return subprocess.CompletedProcess(argv, 0, f"agent-job-relay {self.version}\n" if "--version" in argv else "", "")
+
+        with self.registry_clock() as sleep, patch.dict(os.environ, credentials), patch.object(actions, "request", side_effect=self.public_download), patch.object(actions.subprocess, "run", side_effect=run), patch.object(actions, "github") as github, patch.object(actions, "summary"):
+            actions.verify_public(self.directory)
+        self.assertEqual(len(installs), 2)
+        self.assertEqual(len(commands), 4)
+        self.assertEqual(sleep.call_count, 1)
+        self.assertTrue(all(not path.exists() for pair in installs for path in pair))
+        github.assert_not_called()
+        self.assertEqual(before, {p.name: p.read_bytes() for p in self.directory.iterdir()})
+
+    def test_public_install_etarget_timeout_never_mutates_publication(self):
+        def run(argv, **_kwargs):
+            self.assertEqual(argv[:2], ["npm", "install"])
+            return subprocess.CompletedProcess(argv, 1, "", "npm error code ETARGET")
+
+        with self.registry_clock() as sleep, patch.object(actions, "request", side_effect=self.public_download), patch.object(actions.subprocess, "run", side_effect=run), patch.object(actions, "github") as github, patch.object(actions, "summary"):
+            with self.assertRaisesRegex(ValueError, "clean npm installation.*ETARGET.*rerun Check Release only"):
+                actions.verify_public(self.directory)
+        self.assertEqual(sum(call.args[0] for call in sleep.call_args_list), 120)
+        github.assert_not_called()
+
+    def test_public_install_permanent_errors_stop_immediately_without_logging_output(self):
+        for code in ("E401", "E403", "EINTEGRITY", None):
+            error = f"npm error code {code}\n" if code else ""
+            result = subprocess.CompletedProcess([], 1, "fake-private-stdout", error + "fake-private-stderr")
+            with self.subTest(code=code), self.registry_clock() as sleep, patch.object(actions, "request", side_effect=self.public_download), patch.object(actions.subprocess, "run", return_value=result) as run, patch.object(actions, "summary"):
+                with self.assertRaises(actions.CommandError) as failure:
+                    actions.verify_public(self.directory)
+                self.assertEqual(failure.exception.npm_code, code)
+                self.assertNotIn("fake-private", str(failure.exception))
+                run.assert_called_once()
+                sleep.assert_not_called()
+
+    def test_public_native_version_and_import_failures_are_not_retried(self):
+        for failed_step in ("version", "import"):
+            def run(argv, **_kwargs):
+                if "--version" in argv:
+                    return subprocess.CompletedProcess(argv, 0, "wrong version" if failed_step == "version" else f"agent-job-relay {self.version}", "")
+                if "--input-type=module" in argv:
+                    return subprocess.CompletedProcess(argv, 1, "", "npm error code ETARGET")
+                return subprocess.CompletedProcess(argv, 0, "", "")
+
+            with self.subTest(step=failed_step), self.registry_clock() as sleep, patch.object(actions, "request", side_effect=self.public_download), patch.object(actions.subprocess, "run", side_effect=run) as commands, patch.object(actions, "summary"):
+                with self.assertRaises((ValueError, actions.CommandError)):
+                    actions.verify_public(self.directory)
+                self.assertEqual(sum(call.args[0][:2] == ["npm", "install"] for call in commands.call_args_list), 1)
+                sleep.assert_not_called()
+
+    def test_public_tarball_conflict_stops_before_install_without_retry(self):
+        def download(url, **kwargs):
+            return b"foreign bytes" if kwargs.get("binary") else self.public_download(url)
+
+        with self.registry_clock() as sleep, patch.object(actions, "request", side_effect=download), patch.object(actions, "command") as command:
+            with self.assertRaisesRegex(ValueError, "Public tarball bytes differ"):
+                actions.verify_public(self.directory)
+            sleep.assert_not_called()
+            command.assert_not_called()
+
     def test_receipt_is_bound_to_candidate_bytes_and_actual_publisher_run(self):
         receipt = {**actions.receipt_fields(self.candidate, "runtime"), "publisher_run_id": "456", "publisher_run_attempt": "1", "publisher_revision": self.revision}
         run = {**self.run, "id": 456, "path": ".github/workflows/release-publish.yml", "run_attempt": 1, "conclusion": "failure"}

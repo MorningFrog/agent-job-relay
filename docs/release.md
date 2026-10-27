@@ -69,9 +69,9 @@ Expect **Publication submitted**. Public synchronization is still a separate res
 
 ### Check public availability
 
-Run **Check Release** with the same original candidate ID/recovery setting. It has only contents/actions read permissions and no npm publishing credential/OIDC permission. Only this checking phase allows a bounded two-minute read-only propagation window; byte conflicts and newer/unknown channels stop immediately. It verifies public npm integrity/tarball SHA-256, the sealed channel, isolated registry installation/native version/OpenCode import, public GitHub notes/assets and the original source tag.
+Run **Check Release** with the same original candidate ID/recovery setting. It has only contents/actions read permissions and no npm publishing credential/OIDC permission. Metadata visibility and clean npm installation each have a two-minute read-only propagation retry window: npm's install metadata can lag its version/channel endpoints. Only installation ETARGET errors are retried, with a fresh install directory/cache and online metadata preference each time. Byte conflicts, newer/unknown channels, other installation errors and native/import failures stop immediately. It verifies public npm integrity/tarball SHA-256, the sealed channel, isolated registry installation/native version/OpenCode import, public GitHub notes/assets and the original source tag.
 
-Expect **Public verification passed**. If synchronization is pending, rerun only Check Release (or only Release All's failed check job). No publication is repeated by the checker.
+Expect **Public verification passed**. If synchronization is pending, rerun only Check Release (or only Release All's failed check job). After a checking-tool repair, start a new Check Release run on main with the original candidate ID and recover_candidate checked; re-running the old job uses its old code. No publication is repeated by the checker.
 
 ## Failure and recovery
 

@@ -73,14 +73,20 @@ def github(path, **kwargs):
     return request(f"https://api.github.com/repos/{REPOSITORY}{suffix}", token=token, **kwargs)
 
 
+class CommandError(RuntimeError):
+    def __init__(self, argv, returncode, npm_code=None):
+        self.npm_code = npm_code
+        code = f", {npm_code}" if npm_code else ""
+        super().__init__(f"{Path(str(argv[0])).name} {argv[1]} failed (exit {returncode}{code}); remote output withheld")
+
+
 def command(argv, env=None, cwd=REPO, binary=False):
     result = subprocess.run(list(map(str, argv)), cwd=cwd, env=env, capture_output=True, text=not binary, timeout=180)
     if result.returncode:
         # npm/HTTP errors may contain tokens, signed URLs or private stage metadata.
         error_text = result.stderr.decode(errors="replace") if binary else result.stderr
         codes = re.findall(r"npm error code ([A-Z][A-Z0-9_]+)", error_text)
-        code = f", {codes[0]}" if codes else ""
-        raise RuntimeError(f"{Path(str(argv[0])).name} {argv[1]} failed (exit {result.returncode}{code}); remote output withheld")
+        raise CommandError(argv, result.returncode, codes[0] if codes else None)
     return result.stdout
 
 
@@ -468,22 +474,33 @@ def verify_public(directory):
     for key in PACKAGES:
         entry = meta[key]
         published = public_package(entry)
-        require(published is not None, "Approve both npm stages before finalization")
+        require(published is not None, "Both npm versions must be public before verification; rerun Check Release only")
         tarball_url = published["dist"]["tarball"]
         require(tarball_url.startswith(REGISTRY + "/"), "Unexpected registry tarball origin")
         data = request(tarball_url, binary=True)
         require(hashlib.sha256(data).hexdigest() == sha256(directory / entry["tarball"]), "Public tarball bytes differ from candidate")
-    with npm_environment("public") as env:
-        with tempfile.TemporaryDirectory(prefix="release-public-", dir=REPO / ".tmp") as temp:
+
+    def install():
+        # npm's install metadata can lag the version/dist-tag endpoints. Retry
+        # only missing versions, with no cached metadata or partial installation.
+        with npm_environment("public") as env, tempfile.TemporaryDirectory(prefix="release-public-", dir=REPO / ".tmp") as temp:
             root = Path(temp)
             # No publishing credentials or real application state reach the install.
             for key in ("GH_TOKEN", "GITHUB_TOKEN"):
                 env.pop(key, None)
             env.update(HOME=temp, XDG_STATE_HOME=str(root / "state"), XDG_CONFIG_HOME=str(root / "config"), XDG_CACHE_HOME=str(root / "cache"), AJR_STATE_DIR=str(root / "state"), CODEX_HOME=str(root / "codex"))
-            command(["npm", "install", "--prefix", root, "--ignore-scripts", "--no-audit", "--no-fund", f"--registry={REGISTRY}", *[f"{name}@{meta['version']}" for name in PACKAGES.values()]], env=env, cwd=root)
+            try:
+                command(["npm", "install", "--prefix", root, "--prefer-online", "--ignore-scripts", "--no-audit", "--no-fund", f"--registry={REGISTRY}", *[f"{name}@{meta['version']}" for name in PACKAGES.values()]], env=env, cwd=root)
+            except CommandError as error:
+                if error.npm_code != "ETARGET":
+                    raise
+                return False
             modules = root / "node_modules"
             require(command(["node", modules / PACKAGES["runtime"] / "cli.mjs", "--version"], env=env, cwd=root).strip() == f"agent-job-relay {meta['version']}", "Public native runtime version mismatch")
             command(["node", "--input-type=module", "-e", "const p=await import(process.argv[1]);if(typeof p.AgentJobRelay!=='function')process.exit(1)", (modules / PACKAGES["opencode"] / "index.mjs").as_uri()], env=env, cwd=root)
+            return True
+
+    wait_for_registry(install, bool, "clean npm installation (ETARGET); rerun Check Release only")
     summary("Public npm tarballs match the candidate; clean registry installation, native --version and OpenCode module import passed. Candidate host-loader checks remain distinct from real-provider/ChatGPT UI acceptance.")
 
 
