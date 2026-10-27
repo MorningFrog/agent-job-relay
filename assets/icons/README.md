@@ -1,6 +1,6 @@
 # Icon artwork
 
-`agent-job-relay.vectorcraft` is the editable source of truth, redrawn with the VectorCraft CLI MCP. It contains a transparent 1024 × 1024 RGB artboard and 24 vector objects in four named layers: Relay arrows, Agent, Completed job and Relay checkpoint. No fonts, linked files or raster artwork are required.
+`agent-job-relay.vectorcraft` is the editable source of truth, redrawn with the VectorCraft CLI MCP. It contains a transparent 1024 × 1024 RGB artboard and 21 vector objects in three named layers: Relay arrows, Agent and Completed job. Two curved arrows connect the agent and completed job; no separate checkpoint dot is used. No fonts, linked files or raster artwork are required.
 
 | File | Use |
 |---|---|

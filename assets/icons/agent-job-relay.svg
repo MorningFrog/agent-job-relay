@@ -20,8 +20,8 @@
   <g id="Relay_arrows" data-name="Relay arrows">
     <path id="Outbound_relay_arc" data-name="Outbound relay arc" d="M480 206 C650 168 800 252 843 416" fill="none" stroke="#087dfa" stroke-width="50" stroke-linecap="round" stroke-linejoin="round"/>
     <path id="Outbound_arrowhead" data-name="Outbound arrowhead" d="M782 405 L843 460 L895 401" fill="none" stroke="#087dfa" stroke-width="50" stroke-linecap="round" stroke-linejoin="round"/>
-    <path id="Return_relay_left" data-name="Return relay left" d="M296 720 C354 811 426 853 496 863" fill="none" stroke="#087dfa" stroke-width="50" stroke-linecap="round" stroke-linejoin="round"/>
-    <path id="Return_relay_right" data-name="Return relay right" d="M546 862 C605 853 654 821 682 786" fill="none" stroke="#087dfa" stroke-width="50" stroke-linecap="round" stroke-linejoin="round"/>
+    <path id="Return_relay_arc" data-name="Return relay arc" d="M686 814 C559 912 370 878 306 770" fill="none" stroke="#087dfa" stroke-width="50" stroke-linecap="round" stroke-linejoin="round"/>
+    <path id="Return_arrowhead" data-name="Return arrowhead" d="M262 814 L284 732 L366 754" fill="none" stroke="#087dfa" stroke-width="50" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
   <g id="Agent">
     <path id="Antenna_stem" data-name="Antenna stem" d="M384 268 L384 332" fill="none" stroke="#09286b" stroke-width="44" stroke-linecap="round" stroke-miterlimit="10"/>
@@ -43,10 +43,5 @@
     <path id="Completion_check" data-name="Completion check" d="M754 622 L789 657 L858 589" fill="none" stroke="#00be91" stroke-width="31" stroke-linecap="round" stroke-linejoin="round"/>
     <path id="Job_detail_first_line" data-name="Job detail first line" d="M748 692 L869 692" fill="none" stroke="#91a6ca" stroke-width="23" stroke-linecap="round" stroke-miterlimit="10"/>
     <path id="Job_detail_second_line" data-name="Job detail second line" d="M748 730 L869 730" fill="none" stroke="#91a6ca" stroke-width="23" stroke-linecap="round" stroke-miterlimit="10"/>
-  </g>
-  <g id="Relay_checkpoint" data-name="Relay checkpoint">
-    <path id="Checkpoint_rim" data-name="Checkpoint rim" d="M440 863 C440 818.817 475.817 783 520 783 C564.183 783 600 818.817 600 863 C600 907.183 564.183 943 520 943 C475.817 943 440 907.183 440 863 Z" fill="#09286b"/>
-    <path id="Checkpoint_inset" data-name="Checkpoint inset" d="M466 863 C466 833.177 490.177 809 520 809 C549.823 809 574 833.177 574 863 C574 892.823 549.823 917 520 917 C490.177 917 466 892.823 466 863 Z" fill="#ffffff"/>
-    <path id="Checkpoint_status" data-name="Checkpoint status" d="M489 863 C489 845.879 502.879 832 520 832 C537.121 832 551 845.879 551 863 C551 880.121 537.121 894 520 894 C502.879 894 489 880.121 489 863 Z" fill="#00be91"/>
   </g>
 </svg>
