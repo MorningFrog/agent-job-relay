@@ -6,6 +6,16 @@ PRs and reproducible test reports are welcome. **Claude Code needs community hel
 
 Read [AGENTS.md](AGENTS.md), [PROJECT_SPEC.md](PROJECT_SPEC.md), [architecture](docs/architecture.md) and [implementation status](docs/IMPLEMENTATION_STATUS.md). Use [TODO.md](docs/TODO.md) as the backlog. Keep one Rust/MCP core, exact caller/session ownership and independent command/delivery lifetimes. Do not turn host acceptance into a confirmed-resume claim.
 
+## Code and documentation conventions
+
+- Keep one Rust package/executable. Put CLI syntax/dispatch in `src/cli/`, shared behavior in library modules and OS behavior in `src/platform/`. Unsupported operations must fail explicitly.
+- Follow `cargo fmt` and warning-free Clippy. Validate inputs and preserve caller/session/profile ownership; avoid implicit command replay, profile changes or unrelated process cleanup.
+- Add behavioral tests for meaningful correctness/regression risk, especially state transitions, recovery, SQLite transactions, process trees and IPC permissions. Reuse existing fixtures; avoid tests that merely copy implementation details or check README wording.
+- Use isolated `.tmp/` or `target/` test state. Keep credentials, databases, raw host transcripts and generated reports out of commits. Never modify real user configuration/services as test setup or cleanup.
+- Update relevant guides and implementation status when behavior changes. Keep English/Chinese READMEs aligned, Markdown paragraphs on one source line, and paths portable. Maintain only the latest applicable evidence; use Git history for old runs.
+
+## Required checks
+
 Before submitting a code change, run:
 
 ```bash
@@ -37,4 +47,19 @@ Use disposable repository-local `.tmp/` state and cleanly stop only your test in
 
 ## PR scope and history
 
-Use concise English Conventional Commits and describe the concrete behavior change, validation and material limits. Keep generated artifacts under ignored `.tmp/` or `target/`. Preserve modified/foreign installation content and default data retention. Release preparation and the manual-only GitHub candidate/draft workflow are in scope; see [release guidance](docs/release.md). Actual pushes/publication still need maintainer confirmation. Do not add automatic push/tag publication, release credentials, independent OS installers or official directory submissions.
+Use concise English Conventional Commits and describe the concrete behavior change, validation and material limits. Keep generated artifacts under ignored `.tmp/` or `target/`. Preserve modified/foreign installation content and default data retention. Release preparation and the separate manual preparation/publication workflows are in scope; see [release guidance](docs/release.md). Actual pushes/publication still need maintainer confirmation. Do not add automatic push/tag publication, release credentials, independent OS installers or official directory submissions.
+
+## Maintainer-only manual releases
+
+**Publishing npm packages, changing release channels and publishing GitHub Releases are maintainer-only operations, performed manually.** Contributor pushes, PRs, tags and Release events must never trigger publication. GitHub's `release` environment is restricted to `main`; repository/Actions access and any environment approval rules define who may authorize a release. Contributors can prepare and test a change but cannot treat a merged PR or green CI as permission to publish.
+
+The normal update sequence is:
+
+1. Update the version in `Cargo.toml`, synchronize the lockfile and package/plugin pins, and add the matching version section to `CHANGELOG.md`. Complete the checks above and obtain review before pushing the approved source to main.
+2. Manually run **Prepare Release** with `channel=latest` for a formal release. It builds/tests Linux and Windows and seals the downloadable candidate, without publishing credentials. Review its files/Release Notes and save its original Run ID.
+3. Manually run **Publish Release** with that Run ID and `dry_run` checked. This validates the candidate and npm OIDC from the actual publishing workflow. A successful preparation alone is not a credential check.
+4. After review, manually run **Publish Release** with the same Run ID and `dry_run` unchecked. It publishes the exact reviewed files and completes GitHub publication only after public-package checks pass.
+
+Use `next` only for an intentional experimental prerelease; it does not change npm's default `latest`. Keep main unchanged during a release, and never replace bytes under a staged/published version. A documented tooling-only recovery mode can reuse the original candidate after a release-script repair; it cannot admit payload/version changes.
+
+For npm Trusted Publisher settings, exact Actions inputs, retry limits and the maintainer's one-time manual first-package bootstrap, follow the [maintainer release guide](docs/release.md). Subsequent automated releases use OIDC configured for **`release-publish.yml`**; they do not use a stored npm publishing token. An Agent may prepare code, tests and artifacts, but the maintainer remains responsible for manually authorizing release execution.

@@ -14,7 +14,7 @@ Windows 11 x64/Rust MSVC 1.99.1 passes all four delivery gates: fmt, all-target 
 
 Actual Codex 0.164.0 with the installed offline plugin and `gpt-6.1-sol`/`low` passes cold-profile MCP submission under both SYSTEM and an ordinary interactive Windows user, without a prestarted daemon. Each test completes one Job/Run with exit 0 and the expected output; doctor reports `windows_cim`.
 
-Windows npm-package checks pass native execution, history after relocation, corrupt-payload refusal and Codex 20-tool discovery. OpenCode 1.19.4 passes actual package loading, caller-context MCP and matching-session continuation with a simulated model; the control session stays untouched. These checks use a loopback registry for unpublished candidates.
+Windows npm-package checks pass native execution, history after relocation, corrupt-payload refusal and Codex 20-tool discovery. OpenCode 1.19.4 passes actual package loading, caller-context MCP and matching-session continuation with a simulated model; the control session stays untouched. These host-loader checks use a loopback registry for candidate bytes. The matching published 0.1.8 tarballs also pass clean public-registry installation; that is separate from real host/provider acceptance.
 
 ## Windows ChatGPT Desktop
 

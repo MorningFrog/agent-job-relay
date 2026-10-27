@@ -4,7 +4,7 @@
 
 本教程将 Linux x86_64/glibc 原生程序安装到稳定的用户目录，并登记个人 **AgentJobRelay Local** 市场。新建市场时，在 ChatGPT Desktop 中应选择 **`agent-job-relay@agent-job-relay-local`**。仅完成编译不会安装或启用插件。
 
-仓库自带的 `.agents/plugins/marketplace.json` 对应另一个在线候选入口 `agent-job-relay@agent-job-relay`。它的 MCP 启动器会下载尚未发布的 npm 运行时，目前会报 `E404`。本地安装教程不需要把这个源码仓库添加为 marketplace，也不需要 Node.js 或 npm。
+仓库自带的 `.agents/plugins/marketplace.json` 对应另一个在线候选入口 `agent-job-relay@agent-job-relay`。它的 MCP 启动器会下载已发布且固定版本的 npm 运行时，并使用独立状态配置。本地安装教程不需要把这个源码仓库添加为 marketplace，也不需要 Node.js 或 npm。
 
 Windows 请使用 [Windows 指南](windows.md)中的构建和 bootstrap 命令。macOS 和 ARM 尚不支持原生运行。
 
@@ -119,4 +119,4 @@ codex plugin add agent-job-relay@agent-job-relay-local
 
 ## 能看到技能，但没有 job_start 时
 
-先核对选中的市场入口。`agent-job-relay-runtime` 的 `npm E404` 表示正在使用尚未发布的在线候选版，应按第 6 步安装并选择本地市场条目，然后新建聊天。若第 5 步成功但本地条目仍无工具，应刷新或重新安装该条目并重连 ChatGPT Desktop MCP；宿主仍无法加载时停止验收。不要手改缓存清单、移动状态目录，或改用其他插件提交任务来完成验收。
+先核对选中的市场入口。若 `agent-job-relay-runtime` 报 `npm E404`，应检查在线入口固定的版本、registry 和网络；本教程仍按第 6 步安装并选择本地市场条目，然后新建聊天。若第 5 步成功但本地条目仍无工具，应刷新或重新安装该条目并重连 ChatGPT Desktop MCP；宿主仍无法加载时停止验收。不要手改缓存清单、移动状态目录，或改用其他插件提交任务来完成验收。

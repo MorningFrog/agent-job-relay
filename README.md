@@ -9,7 +9,7 @@ Tasks run in the background. Agents pick up when needed.
 任务在后台运行，Agent 在需要时接棒。
 </div>
 
-Run long commands independently of the Agent connection, keep their results, and notify the initiating chat when the host supports it. **v0.1.8 is an unreleased Linux/Windows x86_64 development version.** ChatGPT Desktop same-chat continuation is verified on Linux and Windows using an experimental interface; Windows verification uses Full access. macOS runtime is unsupported. OpenCode V1 has an experimental plugin package candidate; Claude Code has an inbox-only development framework that needs community verification.
+Run long commands independently of the Agent connection, keep their results, and notify the initiating chat when the host supports it. **v0.1.8 is a published Linux/Windows x86_64 version.** ChatGPT Desktop same-chat continuation is verified on Linux and Windows using an experimental interface; Windows verification uses Full access. macOS runtime is unsupported. OpenCode V1 has an experimental plugin package candidate; Claude Code has an inbox-only development framework that needs community verification.
 
 For OpenCode/Claude development setup and evidence boundaries, see [host plugins](docs/host-plugins.md).
 
@@ -22,9 +22,9 @@ For ChatGPT Desktop, use a trusted offline bundle for your Linux system. For an 
 ./relay plugin bootstrap --apply
 ```
 
-This installs the native runtime and registers its local plugin marketplace. No Rust, Python or Node is needed. Preview is the default; `--apply` writes the installation and owned configuration. There is no public download or automatic online installer yet. If you only have source, follow [Install from source](#install-from-source).
+This installs the native runtime and registers its local plugin marketplace. No Rust, Python or Node is needed. Preview is the default; `--apply` writes the installation and owned configuration. Published npm/marketplace installation is described in the [release guide](docs/release.md#consumer-installation). If you only have source, follow [Install from source](#install-from-source).
 
-Restart ChatGPT Desktop, open Plugins, select your local marketplace (**AgentJobRelay Local** for a new marketplace), and install/enable AgentJobRelay. Start a new local chat and select `agent-job-relay@agent-job-relay-local` (or your existing personal marketplace's name). The separate `agent-job-relay@agent-job-relay` entry uses the unpublished npm runtime and is not the working local installation. Host UI discovery still requires manual acceptance on your host version.
+Restart ChatGPT Desktop, open Plugins, select your local marketplace (**AgentJobRelay Local** for a new marketplace), and install/enable AgentJobRelay. Start a new local chat and select `agent-job-relay@agent-job-relay-local` (or your existing personal marketplace's name). The separate `agent-job-relay@agent-job-relay` entry uses the published npm runtime and its own profile; keep it distinct from this native local installation. Host UI discovery still requires manual acceptance on your host version.
 
 Check the default installation:
 
@@ -38,7 +38,7 @@ Use your original path for a custom installation. Keep that directory: both MCP 
 
 ## Windows
 
-Use a trusted Windows offline bundle and its `relay.cmd` launcher. Native execution, process-tree supervision, MCP, offline maintenance and installed npm/host-loader behavior are verified on Windows 11. The 0.1.8 candidate carries both Linux and Windows executables; publication is pending. Windows now starts the daemon on demand, including Codex MCP cleanup jobs, through a verified same-user local CIM bootstrap when needed. If local policy blocks CIM, diagnostics provide a copyable outside-terminal fallback. Follow the [Windows guide](docs/windows.md) for installation, task examples and execution boundaries.
+Use a trusted Windows offline bundle and its `relay.cmd` launcher. Native execution, process-tree supervision, MCP, offline maintenance and installed npm/host-loader behavior are verified on Windows 11. The published 0.1.8 runtime carries both Linux and Windows executables. Windows now starts the daemon on demand, including Codex MCP cleanup jobs, through a verified same-user local CIM bootstrap when needed. If local policy blocks CIM, diagnostics provide a copyable outside-terminal fallback. Follow the [Windows guide](docs/windows.md) for installation, task examples and execution boundaries.
 
 ## Use from chat
 
@@ -91,17 +91,17 @@ Uninstall preserves task data and backups. Modified or unknown install files are
 | Symptom | Next step |
 |---|---|
 | Plugin or MCP tools missing | Refresh the plugin in the host and reconnect. A loaded skill alone does not prove MCP loaded. |
-| `npm E404` for `agent-job-relay-runtime` | The online candidate is selected. Follow [local source installation](docs/source-install.md), then select `agent-job-relay@agent-job-relay-local`. |
+| `npm E404` for `agent-job-relay-runtime` | Check the pinned version, registry and network for the online entry; the separate native route is [local source installation](docs/source-install.md). |
 | Local self-check passes, but chat tools fail | Invoke `job_doctor` from the host; a local stdio check does not establish host connectivity. |
 | Update reports an active runtime | Finish jobs, then explicitly stop the daemon for the original installation. |
 | Notification does not arrive | Check session/delivery state; use same-chat recovery when needed. See [usage](docs/usage.md). |
 | Ownership check refuses changes | Preserve the files and inspect the reported changes/backup. |
 
-## Plugin release candidates
+## Plugin releases
 
-Source is public on [GitHub](https://github.com/MorningFrog/agent-job-relay). Candidate implementations provide the OpenCode npm plugin, shared runtime package and ChatGPT self-hosted marketplace; **the two main npm packages remain unpublished, so normal online installation is not available yet.** Maintain existing installations through the [offline route](#quick-install).
+Source and release assets are public on [GitHub](https://github.com/MorningFrog/agent-job-relay). The runtime and OpenCode packages are published at `0.1.8`; use explicit versions or a verified npm channel. Online marketplace/OpenCode installation is described in the [release guide](docs/release.md#consumer-installation). Existing native installations keep the [offline maintenance route](#quick-install).
 
-The GitHub **Release** workflow runs manually only: dry-run builds and verifies a Cargo-versioned candidate, then a separate manual run promotes those exact files to npm and GitHub. First publication uses stage-only npm access and maintainer 2FA approval; later releases use OIDC. Release Notes come from CHANGELOG. Pushes, PRs and tags never publish. See the [release walkthrough](docs/release.md) for setup, approval, retries and future online installation. A self-hosted marketplace is separate from OpenAI's official directory.
+Only maintainers publish, through two manual workflows: **Prepare Release** builds/tests a Cargo-versioned candidate, and **Publish Release** checks OIDC in dry-run before publishing those exact files. Formal releases default to `latest`; Release Notes come from CHANGELOG. Pushes, PRs and tags never publish. See [contributor conventions](CONTRIBUTING.md) and the [maintainer release guide](docs/release.md). A self-hosted marketplace is separate from OpenAI's official directory.
 
 ## Install from source
 
@@ -118,8 +118,8 @@ The result is the native local plugin in **AgentJobRelay Local**, normally refer
 | ChatGPT Desktop same-chat continuation | Verified on Linux and Windows | v0.1.8 continues the initiating chat after task completion. Windows verification uses Full access; see [live evidence](docs/live-e2e.md). |
 | OpenCode V1 | Experimental plugin candidate | Actual loader, MCP and session API pass with a simulated model; real-provider sessions, restart recovery and V2 remain open. |
 | Claude Code | Inbox-only scaffold | Synthetic caller and MCP launcher checks pass; actual Claude loader/account/model verification needs community help. |
-| npm runtime and self-hosted marketplace | Candidates prepared, unpublished | Installed package and loader checks pass on Linux/Windows using a loopback registry; public-registry installation remains pending. |
-| CI and release | Native Linux/Windows checks and manual release workflow defined | Linux/Windows native and installed-package CI, macOS portable checks and the full manual Release dry-run pass; npm approval and completed publication remain pending. |
+| npm runtime and self-hosted marketplace | Version 0.1.8 published | Linux/Windows package/loader checks and clean public-registry installation pass; official directory approval is separate. |
+| CI and release | Separate manual preparation/publication workflows | Native/package CI and the initial token-staged release pass; the next OIDC release still needs maintainer qualification. |
 | macOS runtime | Unimplemented | Portable compilation checks only; native execution remains unsupported. |
 | Output monitoring/interruption | Deferred | Awaits an explicit implementation request; log reads and manual stop are available. |
 

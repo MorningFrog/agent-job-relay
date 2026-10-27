@@ -40,7 +40,7 @@ Expected: version matches the bundle, owned marketplace entry matches, and `stdi
 
 ## 2. Refresh the plugin in ChatGPT Desktop
 
-Restart/reconnect ChatGPT Desktop and use its Plugins interface to refresh/reinstall AgentJobRelay from the existing local marketplace. A newly created marketplace is `agent-job-relay-local`, labeled AgentJobRelay Local; an older one may have a custom name/label. Select `agent-job-relay@agent-job-relay-local` for a new catalog. Disable the separate online candidate `agent-job-relay@agent-job-relay` if enabled; its unpublished npm runtime cannot qualify local acceptance. Keep the native installation present. Legacy caches without the new runtime profile require host refresh first; do not try to repair them by changing their receipts.
+Restart/reconnect ChatGPT Desktop and use its Plugins interface to refresh/reinstall AgentJobRelay from the existing local marketplace. A newly created marketplace is `agent-job-relay-local`, labeled AgentJobRelay Local; an older one may have a custom name/label. Select `agent-job-relay@agent-job-relay-local` for a new catalog. For this native local acceptance, disable the separate npm-backed `agent-job-relay@agent-job-relay` entry if enabled; it uses a different profile and cannot qualify the local installation. Keep the native installation present. Legacy caches without the new runtime profile require host refresh first; do not try to repair them by changing their receipts.
 
 Open a new local chat and select the plugin. Expected: the plugin and its MCP tools are available, without changing other plugins. Record UI discovery separately from tool connectivity. If the host offers no refresh or cannot load the plugin, record that host/version limitation and stop this acceptance path.
 
@@ -132,7 +132,7 @@ Expected: the last command fails with a modified-file error, leaving your edit a
 
 ## Self-hosted marketplace candidate
 
-The two main npm packages are selected but unpublished. First run the isolated [candidate checks](release.md#local-package-checks); do not treat a loopback-registry pass as a normal online installation. After the exact reviewed runtime npm version and marketplace commit are publicly available, manually qualify a clean supported Linux ChatGPT Desktop profile:
+The two main npm packages are published at 0.1.8. Candidate and clean public-registry installation checks pass; a loopback-registry pass alone is not online ChatGPT Desktop UI acceptance. To qualify the exact public runtime version and marketplace commit, use a clean supported Linux ChatGPT Desktop profile:
 
 1. Confirm Node.js 20+/npm are on the ChatGPT Desktop/terminal PATH. Add `MorningFrog/agent-job-relay` with `codex plugin marketplace add`, restart ChatGPT Desktop and choose the **AgentJobRelay** marketplace. Expected: one AgentJobRelay entry with the correct version and an explicit experimental Linux/Windows support description.
 2. Install/enable it in a new local chat and invoke `job_doctor`. Expected: actual MCP connectivity and the reviewed packaged version; no developer executable path is requested. CLI loader discovery alone is insufficient.

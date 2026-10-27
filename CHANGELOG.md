@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Separate maintainer-only Prepare Release and Publish Release workflows. Default formal candidates to latest, validate OIDC from the actual publication workflow in dry-run, and reuse matching partial publications without rebuilding.
+- Document code conventions, required checks and manual release ownership in CONTRIBUTING.md, with detailed subsequent-version and first-package instructions in the release guide.
+
+### Fixed
+
+- Confirm npm channel updates are publicly visible at the reviewed version before completing GitHub publication.
+
 ## [0.1.8] - 2026-10-27
 
 ### Added

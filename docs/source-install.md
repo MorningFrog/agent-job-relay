@@ -4,7 +4,7 @@ English | [简体中文](source-install.zh-CN.md)
 
 This walkthrough installs the native Linux x86_64/glibc build into a stable user directory and registers the personal **AgentJobRelay Local** marketplace. With a newly created marketplace, select **`agent-job-relay@agent-job-relay-local`** in ChatGPT Desktop. Building alone does not install or enable the plugin.
 
-The repository's `.agents/plugins/marketplace.json` exposes the separate `agent-job-relay@agent-job-relay` online candidate. Its MCP launcher downloads an unpublished npm runtime and currently fails with `E404`. Adding the repository as a marketplace is not a step in this local installation. Neither Node.js nor npm is needed for the local plugin.
+The repository's `.agents/plugins/marketplace.json` exposes the separate `agent-job-relay@agent-job-relay` online candidate. Its MCP launcher downloads the published, pinned npm runtime and uses a separate profile. Adding the repository as a marketplace is not a step in this local installation. Neither Node.js nor npm is needed for the local plugin.
 
 For Windows, use the build and bootstrap commands in the [Windows guide](windows.md). macOS and ARM runtime execution are unsupported.
 
@@ -119,4 +119,4 @@ Expected: the Agent obtains a fresh terminal binding, submits through AgentJobRe
 
 ## If the skill appears but job_start is missing
 
-Check which marketplace entry you selected. `npm E404` for `agent-job-relay-runtime` identifies the unpublished online candidate. Select/install the local marketplace entry in step 6, then use a new chat. If step 5 passes but the local entry still has no tools, refresh/reinstall that entry and reconnect ChatGPT Desktop MCP; stop acceptance if the host cannot load it. Do not edit cached manifests, move state or submit through a different plugin to make the check pass.
+Check which marketplace entry you selected. `npm E404` for `agent-job-relay-runtime` requires checking the online entry's pinned version, registry and network. Select/install the local marketplace entry in step 6, then use a new chat. If step 5 passes but the local entry still has no tools, refresh/reinstall that entry and reconnect ChatGPT Desktop MCP; stop acceptance if the host cannot load it. Do not edit cached manifests, move state or submit through a different plugin to make the check pass.

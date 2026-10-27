@@ -9,7 +9,7 @@ Tasks run in the background. Agents pick up when needed.
 任务在后台运行，Agent 在需要时接棒。
 </div>
 
-让长时间命令独立于 Agent 连接运行，保存结果，并在宿主支持时通知发起任务的聊天。**v0.1.8 是尚未发布的 Linux/Windows x86_64 开发版本。** ChatGPT Desktop 同聊天续接已在 Linux 和 Windows 中完成验证，使用实验性接口；Windows 验证使用 Full access 权限。macOS 运行时暂不支持。OpenCode V1 提供实验性插件候选包；Claude Code 提供仅收件箱通知的开发框架，需要社区验证。
+让长时间命令独立于 Agent 连接运行，保存结果，并在宿主支持时通知发起任务的聊天。**v0.1.8 是已发布的 Linux/Windows x86_64 版本。** ChatGPT Desktop 同聊天续接已在 Linux 和 Windows 中完成验证，使用实验性接口；Windows 验证使用 Full access 权限。macOS 运行时暂不支持。OpenCode V1 提供实验性插件候选包；Claude Code 提供仅收件箱通知的开发框架，需要社区验证。
 
 OpenCode/Claude 的开发安装及验证边界见[宿主插件指南](docs/host-plugins.md)。
 
@@ -22,9 +22,9 @@ ChatGPT Desktop 使用适合当前 Linux 系统、来源可信的离线包。已
 ./relay plugin bootstrap --apply
 ```
 
-这会安装原生运行时并登记本地插件 marketplace，无需 Rust、Python 或 Node。默认仅预览，`--apply` 才写入安装文件和所属配置。当前没有公开下载或自动在线安装器。如果只有源码，请按[从源码安装](#从源码安装)操作。
+这会安装原生运行时并登记本地插件 marketplace，无需 Rust、Python 或 Node。默认仅预览，`--apply` 才写入安装文件和所属配置。已发布的 npm/marketplace 在线安装见[发布指南](docs/release.md#consumer-installation)。如果只有源码，请按[从源码安装](#从源码安装)操作。
 
-重启 ChatGPT Desktop，打开 Plugins，选择本地 marketplace（新建时名为 **AgentJobRelay Local**），安装并启用 AgentJobRelay。打开新的本地聊天，选择 `agent-job-relay@agent-job-relay-local`（已有个人市场使用其原名称）。另一个 `agent-job-relay@agent-job-relay` 入口依赖尚未发布的 npm 运行时，不能作为当前可用的本地安装。宿主界面的发现与安装仍需在实际宿主版本上人工验收。
+重启 ChatGPT Desktop，打开 Plugins，选择本地 marketplace（新建时名为 **AgentJobRelay Local**），安装并启用 AgentJobRelay。打开新的本地聊天，选择 `agent-job-relay@agent-job-relay-local`（已有个人市场使用其原名称）。另一个 `agent-job-relay@agent-job-relay` 入口使用已发布的 npm 运行时及独立状态配置，应与这里的原生本地安装区分。宿主界面的发现与安装仍需在实际宿主版本上人工验收。
 
 检查默认安装：
 
@@ -38,7 +38,7 @@ AJR_INSTALL_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/agent-job-relay"
 
 ## Windows
 
-使用可信的 Windows 离线 bundle 及其中的 `relay.cmd` 启动器。原生执行、进程树监管、MCP、离线维护及 npm 安装后的宿主加载已通过 Windows 11 验证。0.1.8 候选包同时携带 Linux 与 Windows 程序，尚未发布。Windows 现已支持按需自动启动 daemon；Codex MCP 清理限制下会使用经过身份验证的同用户本地 CIM 引导。若本机策略禁止 CIM，诊断会提供可直接复制的宿主外启动命令。安装、任务示例及运行边界见 [Windows 指南](docs/windows.md)。
+使用可信的 Windows 离线 bundle 及其中的 `relay.cmd` 启动器。原生执行、进程树监管、MCP、离线维护及 npm 安装后的宿主加载已通过 Windows 11 验证。已发布的 0.1.8 运行时同时携带 Linux 与 Windows 程序。Windows 现已支持按需自动启动 daemon；Codex MCP 清理限制下会使用经过身份验证的同用户本地 CIM 引导。若本机策略禁止 CIM，诊断会提供可直接复制的宿主外启动命令。安装、任务示例及运行边界见 [Windows 指南](docs/windows.md)。
 
 ## 在聊天中使用
 
@@ -91,17 +91,17 @@ Agent 会绑定当前聊天、提交任务、结束回合，并在收到通知�
 | 现象 | 下一步 |
 |---|---|
 | 看不到插件或 MCP 工具 | 在宿主中刷新插件并重新连接；技能加载不代表 MCP 已加载。 |
-| `agent-job-relay-runtime` 报 `npm E404` | 选中了在线候选入口。按[本地源码安装教程](docs/source-install.zh-CN.md)操作，再选择 `agent-job-relay@agent-job-relay-local`。 |
+| `agent-job-relay-runtime` 报 `npm E404` | 检查在线入口固定的版本、registry 及网络；独立的原生安装方式见[本地源码安装教程](docs/source-install.zh-CN.md)。 |
 | 本地自检通过，但聊天工具不可用 | 从宿主调用 `job_doctor`；本地 stdio 自检不能证明宿主连通。 |
 | 更新提示运行时仍在使用 | 等待任务结束，再显式停止原安装对应的 Daemon。 |
 | 没有收到通知 | 检查会话和投递状态，必要时做同聊天恢复，见[使用指南](docs/usage.md)。 |
 | 所有权检查拒绝修改 | 保留文件，检查报告的改动和备份。 |
 
-## 插件发布候选版
+## 插件发布
 
-源码已公开在 [GitHub](https://github.com/MorningFrog/agent-job-relay)。OpenCode npm 插件、共用运行时包和 ChatGPT 自建插件市场已提供候选实现；**两个 npm 主包尚未发布，目前不能使用正常的在线安装命令。** 现有安装继续按[离线方式](#快速安装)维护。
+源码及发布附件已公开在 [GitHub](https://github.com/MorningFrog/agent-job-relay)。运行时和 OpenCode 包均已发布 `0.1.8`，请使用明确版本或已核验的 npm 频道。在线 marketplace/OpenCode 安装见[发布指南](docs/release.md#consumer-installation)。已有原生安装继续按[离线方式](#快速安装)维护。
 
-GitHub 的 **Release** 工作流只能手动运行：dry-run 从 Cargo 读取版本并构建验证候选包，再由另一次手动运行将同一批文件发布到 npm 和 GitHub。首次使用 stage-only npm 权限并由维护者完成 2FA 批准，后续使用 OIDC；Release Notes 从 CHANGELOG 提取。提交、PR 和 tag 不会自动发布。配置、批准、重试及未来在线安装步骤见[发布指南](docs/release.md)。自建市场与 OpenAI 官方插件库是不同渠道。
+发布仅限维护者通过两个手动工作流执行：**Prepare Release** 构建并验证 Cargo 版本对应的候选包，**Publish Release** 先在 dry-run 中核对 OIDC，再发布同一批文件。正式发布默认使用 `latest`，Release Notes 来自 CHANGELOG。提交、PR 和 tag 不会自动发布。代码规范见[贡献指南](CONTRIBUTING.md)，具体步骤见[维护者发布指南](docs/release.md)。自建市场与 OpenAI 官方插件库是不同渠道。
 
 ## 从源码安装
 
@@ -118,8 +118,8 @@ GitHub 的 **Release** 工作流只能手动运行：dry-run 从 Cargo 读取版
 | ChatGPT Desktop 同聊天续接 | Linux 和 Windows 已验证 | v0.1.8 在任务完成后可续接发起任务的聊天。Windows 验证使用 Full access 权限，见[实测记录](docs/live-e2e.md)。 |
 | OpenCode V1 | 实验性插件候选版 | 实际加载器、MCP 和会话 API 配合模拟模型验证通过；真实服务商会话、重启恢复及 V2 仍待完成。 |
 | Claude Code | 仅收件箱通知的框架 | 合成调用者和 MCP 启动器检查通过；实际 Claude 加载器、账号及模型验证需要社区协助。 |
-| npm 运行时与自建市场 | 候选包已准备，未发布 | Linux/Windows 上使用本地回环 registry 的安装与加载器检查通过；公开 registry 安装待验证。 |
-| CI 与发布 | 已定义 Linux/Windows 原生检查及手动发布流程 | Linux/Windows 原生与安装包 CI、macOS 可移植检查及完整手动 Release dry-run 通过；npm 批准及完整发布仍待完成。 |
+| npm 运行时与自建市场 | 0.1.8 已发布 | Linux/Windows 安装包与加载器检查及公开 registry 全新安装通过；官方目录批准属于独立流程。 |
+| CI 与发布 | 分离的手动准备与发布流程 | 原生/安装包 CI 及首次 token 暂存发布通过；下一次 OIDC 发布仍需维护者验证。 |
 | macOS 运行时 | 未实现 | 仅有可移植部分编译检查，尚不支持原生执行。 |
 | 输出监控/中断 | 已暂缓 | 等待明确的实现请求；当前可读取日志和手动停止任务。 |
 

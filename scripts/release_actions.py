@@ -23,7 +23,8 @@ REPOSITORY = "MorningFrog/agent-job-relay"
 # These files do not contribute bytes to the runtime, npm packages or marketplace.
 # Recovery is opt-in and still verifies the original candidate and every asset.
 RECOVERY_PATHS = frozenset({
-    ".github/workflows/release.yml", "scripts/release_actions.py", "scripts/test_release.py",
+    ".github/workflows/release.yml", ".github/workflows/release-publish.yml",
+    "scripts/release_actions.py", "scripts/test_release.py", "CONTRIBUTING.md",
     "README.md", "README.zh-CN.md", "docs/release.md", "docs/testing.md",
     "docs/architecture.md", "docs/IMPLEMENTATION_STATUS.md", "docs/TODO.md",
     "docs/adr/0013-unified-manual-release.md",
@@ -141,6 +142,16 @@ def check_channel(name, channel, selected):
     return tags
 
 
+def prepare():
+    revision = actions_context()
+    source = source_metadata()
+    repo = github("")
+    require(repo["full_name"] == REPOSITORY, "Unexpected GitHub repository")
+    check_tag(source["tag"], revision)
+    output("version", source["version"])
+    summary(f"Preparing **{source['version']}** from Cargo.toml with matching pins and CHANGELOG. Build jobs receive no publishing credentials. After reviewing the candidate, use **Publish Release** with dry-run enabled to check the actual publishing identity.")
+
+
 def preflight(auth):
     revision = actions_context()
     if os.environ.get("CANDIDATE_RUN_ID"):
@@ -158,6 +169,7 @@ def preflight(auth):
             require(not expected or expected == username, "npm token belongs to a different expected user")
         summary(f"npm stage token authenticates as `{username}`. Staging permission and new-name eligibility still require an actual stage operation; dry-run does not upload.")
     else:
+        require(os.environ.get("GITHUB_WORKFLOW_REF") == f"{REPOSITORY}/.github/workflows/release-publish.yml@refs/heads/main", "OIDC checks must run from Publish Release on main; configure npm's Trusted Publisher for release-publish.yml")
         url = os.environ.get("ACTIONS_ID_TOKEN_REQUEST_URL")
         token = os.environ.get("ACTIONS_ID_TOKEN_REQUEST_TOKEN")
         require(url and token and url.startswith("https://"), "Missing GitHub OIDC context / id-token: write permission")
@@ -168,6 +180,24 @@ def preflight(auth):
         summary("npm OIDC token exchange succeeded for both packages. Actual upload, direct-publish policy and provenance acceptance are not exercised by dry-run.")
     summary(f"Source version: **{source['version']}**, tag `{source['tag']}`. GitHub repository access verified; write permission/rules are not proven without a write. No registry version, tag or Release was created.")
     output("version", source["version"])
+
+
+def preview(directory, auth, channel, run_id=""):
+    if run_id:
+        candidate = validate(directory, run_id)
+        channel = candidate["channel"]
+    meta = check_candidate(directory)
+    with npm_environment(auth) as env:
+        for key in PACKAGES:
+            entry = meta[key]
+            published = public_package(entry)
+            check_channel(entry["name"], channel, entry["version"])
+            if published is not None:
+                summary(f"`{entry['name']}@{entry['version']}` already has matching public integrity; preview upload skipped.")
+                continue
+            argv = ["npm", "stage", "publish"] if auth == "stage" else ["npm", "publish"]
+            command([*argv, directory / entry["tarball"], "--dry-run", "--ignore-scripts", "--access=public", f"--tag={channel}", f"--registry={REGISTRY}"], env=env)
+    summary(f"**Publication dry-run passed:** version `{meta['version']}`, sealed channel `{channel}`. No npm stage/version/dist-tag or GitHub Release was changed. Actual write/provenance acceptance is checked during publication.")
 
 
 def check_tag(tag, revision):
@@ -371,6 +401,8 @@ def finalize(directory, run_id, auth):
             tags = check_channel(name, candidate["channel"], candidate["version"])
             if tags.get(candidate["channel"]) != candidate["version"]:
                 command(["npm", "dist-tag", "add", f"{name}@{candidate['version']}", candidate["channel"], f"--registry={REGISTRY}"], env=env)
+                tags = check_channel(name, candidate["channel"], candidate["version"])
+            require(tags.get(candidate["channel"]) == candidate["version"], "npm channel is not yet publicly visible at the reviewed version; retry this candidate before GitHub completion")
     release = draft_release(directory, candidate)
     if release["draft"]:
         github(f"releases/{release['id']}", method="PATCH", payload={"draft": False, "make_latest": "true" if candidate["channel"] == "latest" else "false"})
@@ -379,10 +411,10 @@ def finalize(directory, run_id, auth):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("operation", choices=["source", "preflight", "run", "seal", "validate", "preview", "publish", "finalize"])
+    parser.add_argument("operation", choices=["source", "prepare", "preflight", "run", "seal", "validate", "preview", "publish", "finalize"])
     parser.add_argument("--release", type=Path, default=REPO / ".tmp/release-candidate")
     parser.add_argument("--candidate-run-id", default="")
-    parser.add_argument("--channel", choices=["next", "latest"], default="next")
+    parser.add_argument("--channel", choices=["latest", "next"], default="latest")
     parser.add_argument("--auth", choices=["stage", "oidc"], default="stage")
     args = parser.parse_args()
     try:
@@ -390,6 +422,8 @@ def main():
             meta = source_metadata()
             print(json.dumps(meta))
             output("version", meta["version"])
+        elif args.operation == "prepare":
+            prepare()
         elif args.operation == "preflight":
             preflight(args.auth)
         elif args.operation == "run":
@@ -398,21 +432,13 @@ def main():
         elif args.operation == "seal":
             revision = actions_context()
             candidate = seal_candidate(args.release, args.channel, REPOSITORY, revision, os.environ["GITHUB_RUN_ID"])
-            summary(f"**Verified candidate:** version `{candidate['version']}`, channel `{candidate['channel']}`, original Run ID **{candidate['run_id']}**. Linux/Windows native and package/loader jobs passed. Dry-run created no npm version, tag or GitHub Release.")
+            summary(f"**Verified candidate:** version `{candidate['version']}`, channel `{candidate['channel']}`, original Run ID **{candidate['run_id']}**. Linux/Windows native and package/loader jobs passed. Prepare Release created no npm version, tag or GitHub Release; check OIDC credentials with a Publish Release dry-run before publishing.")
             summary((args.release / "release-notes.md").read_text())
         elif args.operation == "validate":
             candidate = validate(args.release, args.candidate_run_id)
             summary(f"Reviewed candidate verified: `{candidate['version']}`, channel `{candidate['channel']}`, source `{candidate['revision']}`. Promotion will not rebuild.")
         elif args.operation == "preview":
-            check_candidate(args.release)
-            with npm_environment(args.auth) as env:
-                for key in PACKAGES:
-                    entry = json.loads((args.release / "release.json").read_text())[key]
-                    public_package(entry)
-                    check_channel(entry["name"], args.channel, entry["version"])
-                    argv = ["npm", "stage", "publish"] if args.auth == "stage" else ["npm", "publish"]
-                    command([*argv, args.release / entry["tarball"], "--dry-run", "--ignore-scripts", "--access=public", f"--tag={args.channel}", f"--registry={REGISTRY}"], env=env)
-            summary("npm publication previews passed for both tarballs; no stage/version was uploaded. New package-name acceptance and write policy remain unproven until actual staging/publishing.")
+            preview(args.release, args.auth, args.channel, args.candidate_run_id)
         elif args.operation == "publish":
             publish(args.release.resolve(), args.candidate_run_id, args.auth)
         else:

@@ -143,6 +143,51 @@ class ReleaseTests(unittest.TestCase):
                 self.assertEqual(env["NODE_AUTH_TOKEN"], "fake-stage-token")
                 self.assertNotIn("fake", Path(env["npm_config_userconfig"]).read_text())
 
+    def test_prepare_checks_source_without_publishing_credentials(self):
+        with patch.object(actions, "actions_context", return_value=self.revision), patch.object(actions, "github", return_value={"full_name": actions.REPOSITORY}), patch.object(actions, "check_tag") as tag, patch.object(actions, "command") as npm, patch.object(actions, "request") as exchange, patch.object(actions, "output"), patch.object(actions, "summary"):
+            actions.prepare()
+            tag.assert_called_once_with("v" + self.version, self.revision)
+            npm.assert_not_called()
+            exchange.assert_not_called()
+
+    def test_oidc_preflight_rejects_the_prepare_workflow_identity(self):
+        with patch.dict(os.environ, {"CANDIDATE_RUN_ID": "", "GITHUB_WORKFLOW_REF": f"{actions.REPOSITORY}/.github/workflows/release.yml@refs/heads/main"}), patch.object(actions, "actions_context", return_value=self.revision), patch.object(actions, "github", return_value={"full_name": actions.REPOSITORY}), patch.object(actions, "check_tag"), patch.object(actions, "request") as exchange:
+            with self.assertRaisesRegex(ValueError, "Publish Release"):
+                actions.preflight("oidc")
+            exchange.assert_not_called()
+
+    def test_oidc_preflight_exchanges_for_both_packages_from_publish_workflow(self):
+        env = {"CANDIDATE_RUN_ID": "", "GITHUB_WORKFLOW_REF": f"{actions.REPOSITORY}/.github/workflows/release-publish.yml@refs/heads/main", "ACTIONS_ID_TOKEN_REQUEST_URL": "https://identity.example.invalid/token", "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "fake-request-token"}
+        token = {"token_type": "oidc", "token": "fake-short-lived-token", "expires": "2026-10-28T01:00:00Z"}
+        with patch.dict(os.environ, env), patch.object(actions, "actions_context", return_value=self.revision), patch.object(actions, "github", return_value={"full_name": actions.REPOSITORY}), patch.object(actions, "check_tag"), patch.object(actions, "request", side_effect=[{"value": "fake-jwt"}, token, token]) as exchange, patch.object(actions, "summary"), patch.object(actions, "output"):
+            actions.preflight("oidc")
+        self.assertEqual(exchange.call_count, 3)
+        for call, name in zip(exchange.call_args_list[1:], metadata.PACKAGES.values()):
+            self.assertTrue(call.args[0].endswith("/package/" + name))
+            self.assertEqual(call.kwargs["method"], "POST")
+
+    def test_oidc_preview_uses_the_sealed_channel_and_never_uploads(self):
+        candidate = {**self.candidate, "channel": "latest"}
+        before = {p.name: p.read_bytes() for p in self.directory.iterdir()}
+        with patch.object(actions, "validate", return_value=candidate) as validate, patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "public_package", return_value=None), patch.object(actions, "check_channel", return_value={}), patch.object(actions, "command", return_value="{}") as commands, patch.object(actions, "summary"), patch.dict(os.environ, {"NPM_STAGE_TOKEN": "fake", "NODE_AUTH_TOKEN": "fake"}):
+            actions.preview(self.directory, "oidc", "next", "123")
+        validate.assert_called_once_with(self.directory, "123")
+        self.assertEqual(commands.call_count, 2)
+        for call in commands.call_args_list:
+            self.assertEqual(call.args[0][:2], ["npm", "publish"])
+            self.assertIn("--dry-run", call.args[0])
+            self.assertIn("--tag=latest", call.args[0])
+            self.assertNotIn("NODE_AUTH_TOKEN", call.kwargs["env"])
+            self.assertNotIn("NPM_STAGE_TOKEN", call.kwargs["env"])
+        self.assertEqual(before, {p.name: p.read_bytes() for p in self.directory.iterdir()})
+
+    def test_publication_preview_reuses_a_matching_partially_published_version(self):
+        with patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "public_package", side_effect=[{}, None]), patch.object(actions, "check_channel", return_value={}), patch.object(actions, "command", return_value="{}") as commands, patch.object(actions, "github") as github, patch.object(actions, "summary"):
+            actions.preview(self.directory, "oidc", "latest", "123")
+        self.assertEqual(commands.call_count, 1)
+        self.assertIn(self.directory / self.meta["opencode"]["tarball"], commands.call_args.args[0])
+        github.assert_not_called()
+
     def test_matching_stage_is_reused_only_after_byte_and_tag_check(self):
         entry = self.meta["runtime"]
         tarball = self.directory / entry["tarball"]
@@ -410,6 +455,14 @@ class ReleaseTests(unittest.TestCase):
     def test_authenticated_redirect_cannot_forward_a_token(self):
         with self.assertRaisesRegex(RuntimeError, "redirects"):
             actions.NoCredentialRedirect().redirect_request(None, None, 302, "redirect", {}, "https://foreign.invalid")
+
+    def test_channel_update_must_be_public_before_github_completion(self):
+        with patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "verify_public"), patch.object(actions, "request", return_value={}), patch.object(actions, "command", return_value="") as command, patch.object(actions, "draft_release") as draft, patch.object(actions, "github") as github, patch.dict(os.environ, {"NPM_STAGE_TOKEN": "fake"}):
+            with self.assertRaisesRegex(ValueError, "not yet publicly visible"):
+                actions.finalize(self.directory, "123", "stage")
+        self.assertEqual(command.call_args.args[0][:3], ["npm", "dist-tag", "add"])
+        draft.assert_not_called()
+        github.assert_not_called()
 
 
 if __name__ == "__main__":
