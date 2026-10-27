@@ -13,12 +13,6 @@ Run long commands independently of the Agent connection, keep their results, and
 
 For OpenCode/Claude development setup and evidence boundaries, see [host plugins](docs/host-plugins.md).
 
-## Plugin release candidates
-
-Source is public on [GitHub](https://github.com/MorningFrog/agent-job-relay). Candidate implementations provide the OpenCode npm plugin, shared runtime package and ChatGPT self-hosted marketplace; **npm account verification and final package names are pending, so normal online installation is not available yet.** Maintain existing installations through the offline route below.
-
-The GitHub **Release candidate** workflow runs manually only: it builds artifacts by default or optionally creates a prerelease draft for manual publication. Pushes, PRs and tags never publish. See [release preparation](docs/release.md) for builds, installed-package checks and future online installation. A self-hosted marketplace is separate from OpenAI's official directory.
-
 ## Quick install
 
 For Desktop, use a trusted offline bundle for your Linux system. For an existing installation, go directly to [Updating](#updating). For a first installation, open a terminal in the received bundle directory and run:
@@ -102,6 +96,12 @@ Uninstall preserves task data and backups. Modified or unknown install files are
 | Notification does not arrive | Check session/delivery state; use same-chat recovery when needed. See [usage](docs/usage.md). |
 | Ownership check refuses changes | Preserve the files and inspect the reported changes/backup. |
 
+## Plugin release candidates
+
+Source is public on [GitHub](https://github.com/MorningFrog/agent-job-relay). Candidate implementations provide the OpenCode npm plugin, shared runtime package and ChatGPT self-hosted marketplace; **npm account verification and final package names are pending, so normal online installation is not available yet.** Maintain existing installations through the [offline route](#quick-install).
+
+The GitHub **Release candidate** workflow runs manually only: it builds artifacts by default or optionally creates a prerelease draft for manual publication. Pushes, PRs and tags never publish. See [release preparation](docs/release.md) for builds, installed-package checks and future online installation. A self-hosted marketplace is separate from OpenAI's official directory.
+
 ## Build a bundle
 
 For developers or users without an offline bundle, build from the repository root with Rust stable, Cargo and a C toolchain. The declared Rust 1.89 minimum has not been independently verified; local checks used 1.99.1.
@@ -114,6 +114,22 @@ AJR_BUNDLE="$PWD/.tmp/agent-job-relay-offline"
 ```
 
 Choose a new output directory for each export. Then use that directory's `relay plugin bootstrap` as in Quick install, or transfer the directory while preserving executable permissions. This is a local delivery artifact, not a marketplace ZIP or published release. See [developer verification](docs/testing.md) for build gates and isolated loader checks.
+
+## Implementation and verification
+
+| Area | Implementation | Verification and remaining scope |
+|---|---|---|
+| Linux runtime and offline maintenance | Implemented | Automated execution, lifecycle, recovery and installation tests pass. |
+| Windows runtime and automatic startup | Implemented | Native VM tests and actual Codex MCP cold startup pass; ordinary interactive-user execution and Desktop continuation remain unverified. |
+| Desktop same-chat continuation | Experimental private interface | Installed plugin 0.1.5 passed active-job restart/rebind/continuation. UI actions are user-attested; matching records and Agent execution were observed. Clean UI installation and broader compatibility remain open. |
+| OpenCode V1 | Experimental plugin candidate | Actual loader, MCP and session API pass with a simulated model; real-provider sessions, restart recovery and V2 remain open. |
+| Claude Code | Inbox-only scaffold | Synthetic caller and MCP launcher checks pass; actual Claude loader/account/model verification needs community help. |
+| npm runtime and self-hosted marketplace | Candidates prepared, unpublished | Installed package and loader checks pass on Linux/Windows using a loopback registry; public-registry installation remains pending. |
+| CI and release | Native Linux/Windows checks and manual release workflow defined | Earlier remote CI passed; updated Windows native/release jobs await a remote run. Release workflow remains untriggered. |
+| macOS runtime | Unimplemented | Portable compilation checks only; native execution remains unsupported. |
+| Output monitoring/interruption | Deferred | Awaits an explicit implementation request; log reads and manual stop are available. |
+
+Current results and version-specific limits are maintained in [implementation status](docs/IMPLEMENTATION_STATUS.md) and [live evidence](docs/live-e2e.md). Official directory submission requires separate approval; independent OS installers/package repositories are cancelled. **Community testing and PRs are welcome, especially for Claude Code and container-based version checks.**
 
 ## Documentation and support
 
@@ -129,9 +145,5 @@ Choose a new output directory for each export. Then use that directory's `relay 
 | Host frameworks and community testing | [Host plugins](docs/host-plugins.md), [Contributing](CONTRIBUTING.md) |
 | Release candidates and manual Actions | [Release](docs/release.md) |
 | Planned work and changes | [Roadmap](docs/TODO.md), [changelog](CHANGELOG.md) |
-
-Linux execution, offline plugin management and the Codex CLI 0.164.0 loader have isolated automated coverage. Local gates pass on Linux and Windows. Updated native Windows CI/release jobs await a remote run; earlier remote CI covered portable Windows/macOS checks. Desktop 26.1021.22027 with plugin 0.1.5 passed a coordinated active-job restart, rebind and same-chat continuation check, with matching recovery/event/delivery records. UI enablement/version/restart are user-attested; bridge changes were measured and Agent continuation observed. Clean UI installation and other host versions remain unverified. Shared npm runtime/self-hosted marketplace candidates are prepared but unpublished; official directory submission and output monitoring/interruption remain pending. Independent OS installers and package repositories are cancelled.
-
-OpenCode 1.19.4 was checked with its actual loader, MCP and session API using a local simulated model; real-provider sessions and V2 still need verification. Claude Code was checked only through synthetic caller helpers and the actual MCP launcher; no Claude account/loader/model run is claimed. **Community testing and PRs are welcome, especially for Claude Code and container-based version checks.**
 
 MIT licensed. Independently implemented; Vanth was studied read-only for behavior requirements. See [reference audit](docs/reference-audit.md).

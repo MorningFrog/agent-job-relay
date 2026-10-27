@@ -1,53 +1,43 @@
 # TODO / Roadmap
 
-## Scope
+## Scope and baseline
 
-Distribute through Agent plugins around one Rust/MCP runtime, targeting ChatGPT Desktop/Codex, Claude Code and OpenCode. Local development, easy installation/update and data-preserving removal come first. **Prepare and verify now; publish/push only after final confirmation.** The npm account is awaiting verification and package names are provisional. Release operations must be manually triggered. Official directory approval remains separate.
+Distribute one Rust/MCP runtime through ChatGPT Desktop/Codex, Claude Code and OpenCode plugins. Prepare and verify locally; pushing, publishing and official submissions require final confirmation. Release operations must be manually triggered. The npm account is awaiting verification and package names remain provisional.
 
-## Current baseline
+Source 0.1.8 implements Linux/Windows native execution, offline plugin maintenance, checked forward repair, shared-MCP caller binding, same-chat recovery and delivery-time renewal. Dual-platform npm/marketplace candidates and the manual release workflow are prepared. OpenCode V1 has actual-loader checks with a simulated model; Claude remains an inbox-only scaffold. Current results and completed acceptance belong in [implementation status](IMPLEMENTATION_STATUS.md) and [live evidence](live-e2e.md), rather than repeated run histories here.
 
-- Source **0.1.8**, Linux and Windows native core: offline native plugin export/bootstrap/update, explicit checked cache refresh, pinned profiles, owned configuration, shared-MCP caller binding, public host-plugin bridge, TTL-bounded retries, same-chat recovery and verified delivery-time renewal are implemented and tested.
-- The isolated actual Codex CLI 0.164.0 loader bootstraps a relocated offline bundle, checks its actual cache and discovers **20 tools**. Current read-only checks confirm installed native **0.1.5**, actual MCP connectivity and matching state; Desktop **26.1021.22027**/plugin enablement is user-attested.
-- CLI live wake and installed MCP submission/same-chat continuation passed by user confirmation, with persisted task/log/delivery correlation. The 0.1.5 active-job restart/rebind/continuation check passed with measured endpoint change and matching audit/event/delivery; UI/version/restart are user-attested. Clean install and broader compatibility remain open. Detailed evidence belongs in [implementation status](IMPLEMENTATION_STATUS.md) and [live E2E](live-e2e.md).
+## Host integration and distribution
 
-## Host integration and plugin delivery
+- [ ] **P1:** finalize npm account/ownership, package names and publisher provenance; review the tested artifacts before approved publication, then verify public-registry installation. See [release preparation](release.md).
+- [ ] **P1:** after approved push, run the updated native Windows CI and manually triggered dual-platform release workflow. Earlier remote CI does not verify these updated jobs.
+- [ ] **P1:** verify clean Desktop UI installation, additional host versions, results completed while Desktop is closed, real multi-day renewal and receiver deduplication. Keep the passed active-job restart/rebind/continuation scenario complete; do not repeat it merely to refill evidence.
+- [ ] **P1:** obtain OpenCode real-provider, server restart/recovery and broader version evidence. Keep V2 as a separate future entry; consolidate shared descriptor metadata only where useful and test each actual loader.
+- [ ] **P1, community help:** verify Claude's actual loader, skill session substitution and account-backed MCP workflow. Research public asyncRewake/channels before implementing continuation; keep the scaffold inbox-only until verified. See [host plugins](host-plugins.md) and [contributing](../CONTRIBUTING.md).
+- [ ] **P1:** qualify host-driven bootstrap and authenticated artifact provenance. Offline hashes and loopback registry checks do not establish online publisher identity.
+- [ ] **P2, later authorization:** prepare official-platform eligibility, publisher identity, listing assets, permissions and review materials. Recheck OpenAI local-MCP eligibility, Claude directory requirements and OpenCode's supported package mechanism; publication alone does not establish official approval.
 
-- **Completed P0 acceptance:** real installed MCP submission, successful quality-gate workload and completion-triggered same-chat continuation, with no CLI fallback, are user-confirmed and correlated with persisted records. Do not repeat this test merely to refill evidence; see [live E2E](live-e2e.md).
-- **Completed live acceptance (2026-10-26):** Desktop 26.1021.22027/plugin 0.1.5 active-job restart/rebind and same-chat continuation passed. UI/version/restart are user-attested; bridge identity change, unchanged Job/Run, recovery audit, exit 0 and one accepted delivery to the recovered target are correlated with observed Agent execution. Clean UI installation and other host versions remain separate.
-- **Completed local increment:** offline `plugin pack/bootstrap/update`, version/profile preservation, managed cache launchers and explicit snapshot inspection/refresh. Recipients need no Rust. Installation/cache upgrade provenance is separate from live wake acceptance; see [ADR 0007](adr/0007-offline-plugin-runtime.md).
-- **Candidate implementation completed:** shared Linux/Windows native-runtime/OpenCode npm packages and `.agents/plugins/marketplace.json` for ChatGPT, with exact version pins, no install scripts, integrity/glibc checks and persistent profiles outside caches. Actual Bun name/version installation and Codex marketplace/MCP discovery pass through a loopback registry; npm publication, final package names and clean public-registry/Desktop UI acceptance remain pending. Offline installs retain their separate stable-root/cache lifecycle. See [release preparation](release.md).
-- **Manual release workflow completed locally:** all gates, packaged host checks, downloadable artifacts and optional prerelease draft; no push/tag release or npm publishing. Remote CI passes all three jobs, including Linux packaged OpenCode/Claude-framework checks. Retained SIGINT handling during blocked reconciliation has a deterministic regression. The manual Release candidate workflow remains untriggered. Workflows pin Node.js 24 actions and omit bulky test debug symbols without removing behavior cases.
-- **P1:** finalize npm ownership/verification and protected publisher provenance before publication; review the same tested bytes, then verify public-registry installation. Native plugin artifacts do not revive independent OS packages.
-- **Framework completed; community help needed:** Claude Code has documented manifest/MCP/skill layout, explicit session-substitution binder and inbox-only capability. Synthetic helper/actual MCP-entry checks pass, but no maintainer account or actual Claude loader/model test is available. Welcome account-backed tests and PRs; research public asyncRewake/channels before implementing continuation. See [host plugins](host-plugins.md) and [contributing](../CONTRIBUTING.md).
-- **OpenCode V1 local increment completed:** target CLI/SDK/plugin 1.19.4, actual caller-context MCP binding and public session callback. Real loader/MCP/agent-loop continuation passed with a local simulated model and an untouched control session. Real-provider accounts, server restart/recovery and more versions need community evidence. V2 was researched separately and has no runnable entry point yet; Docker/version-matrix PRs are welcome.
-- **P1:** consolidate shared descriptor metadata where useful, but test each real loader; V2 remains a separate entry. The offline Codex bundle keeps its stable absolute native command; the self-hosted candidate uses a pinned npm command without root-variable expansion.
-- **Windows installed-host checks completed:** the 0.1.8 original portable-plus-compatibility self-hosted catalog discovers 20 tools in actual Codex 0.164.0 with account null, without changing production manifests in the fixture. Actual OpenCode 1.19.4 package-name loading/MCP/agent-loop continuation passes with a simulated model and untouched control session. See [testing](testing.md).
-- **Completed local increment:** durable install/update/cache replacement journals and explicit checked forward repair with retained backups/history. Setup/marketplace cross-file recovery, interrupted uninstall and pre-journal/legacy remnants remain follow-up work; distinguish source removal, host-cache uninstall and user-data deletion.
-- **P2, later authorization required:** prepare official platform eligibility, publisher identity, listing assets, permissions, update provenance and review materials. Recheck OpenAI local-MCP eligibility, Claude marketplace/directory requirements and OpenCode's supported package mechanism; package publication does not itself prove official approval.
+## Runtime and maintenance
 
-## Testing and maintenance
+- [ ] **P1:** verify Windows ordinary interactive-user execution and real Desktop continuation. Existing native/model checks ran under guest-agent SYSTEM; consult the [Windows guide](windows.md) for the verified daemon-only CIM route and policy/token fallback.
+- [ ] **P1:** implement and natively verify macOS process identity, lifecycle and IPC. Plugin packaging and portable compilation do not establish runtime support.
+- [ ] **P1:** strengthen Linux containment for escaped descendants/runner death and add longer soak plus controlled disk/power-loss tests. Current process-group cancellation assumes trusted non-daemonizing workloads.
+- [ ] **P1:** strengthen per-call identity authentication for shared hosts. Current caller identity is trusted input; never infer it from a latest-session record.
+- [ ] **P1:** add backup/export, migration maintenance, retention previews and configurable budgets. Purge needs its own explicit design and is separate from uninstall.
+- [ ] **P1:** extend interrupted-operation handling to setup/marketplace cross-file writes, uninstall and pre-journal/legacy remnants. Existing per-directory install/cache repair finishes recorded replacements forward and preserves backups/history.
+- [ ] **P1:** independently verify the declared Rust 1.89 minimum or update it from build evidence.
+- [ ] **P2:** negotiated standard MCP Tasks, richer progress and optional public Codex writer integration for explicitly owned sessions. Tasks alone do not wake chats.
 
-- **Completed:** testing/artifact rules now prioritize behavioral regression coverage; remove README wording/structure assertions, retain required fixtures and keep only concise current verification in documentation. Generated outputs/reports/logs remain ignored.
+## Deferred by user request
 
-## Runtime backlog
-
-- **P1, deferred user request (2026-10-26): task output monitoring and interruption.** Log reads/`logs --follow` and manual `job_stop` do not implement it. Define monitored conditions, Agent/runtime responsibility, who decides to interrupt, bounded output handling, duplicate-trigger and false-positive protection, and acceptance scenarios in a later increment. Record only until implementation is requested.
-- **P1:** qualify events completed while Desktop is closed and real long-job renewal when an appropriate use case occurs. Active-job restart/rebind/continuation passed on Desktop 26.1021.22027/plugin 0.1.5; multi-day expiry is still injected. Broader host compatibility and receiver deduplication remain open.
-- **P1:** strengthen Linux containment for escaped descendants/runner death; add longer soak and controlled disk/power-loss tests. Current process-group cancellation assumes trusted non-daemonizing workloads.
-- **Windows native core completed:** Windows 11 VM passes all-target Clippy, 35 tests (20 Windows-specific plus 15 portable) and release build. SID/DACL pipes, crash-fenced Job Objects, daemon/runner independence, argv/shell/logs, cold-start handle isolation, MCP and offline lifecycle are covered; Desktop transport/recovery uses fake hosts. See [Windows guide](windows.md).
-- **Windows package/workflow increment completed locally:** shared dual-platform npm payloads, exact-version catalog launchers, all-target native CI and Windows/Linux manual release assembly/checks. Updated workflows still need a remote run after approved push. Windows now starts on demand through verified same-user local CIM when Codex MCP cleanup blocks direct creation; no startup task/service registration or ordinary manual preparation is required. Policy/token denial retains a copyable same-profile outside-terminal fallback. Real installed Codex MCP cold startup passed through `gpt-6.1-sol`/`low` with no prestarted daemon, one completed workload and doctor reporting `windows_cim`; native startup/host destruction/crash recovery tests also pass under guest-agent SYSTEM. Ordinary-user and Windows Desktop continuation remain separate acceptance.
-- **P1:** implement and natively verify macOS identity, lifecycle and IPC. Plugin delivery alone proves no OS support.
-- **P1:** strengthen per-call identity authentication for shared hosts. Delivery-time renewal beyond 24 hours is implemented, but caller identity remains trusted input; never infer it from a latest-session record.
-- **P1:** add backup/export, migration maintenance, retention previews and configurable budgets. Purge needs its own explicit design and is not plugin uninstall.
-- **P2:** negotiated standard MCP Tasks, richer progress and optional public Codex writer integration for explicitly owned sessions. Tasks alone do not wake chats.
+**Task output monitoring and interruption (2026-10-26)** remains deferred until explicitly requested for implementation. Existing log reads/`logs --follow` and manual `job_stop` do not implement it. A future design must define monitored conditions, Agent/runtime responsibility, interruption decisions, bounded output handling, duplicate-trigger/false-positive protection and acceptance scenarios.
 
 ## Cancelled work
 
-Independent `.deb`/APT, `.rpm`/DNF, AppImage, Windows installers/WinGet, macOS `.dmg`/Homebrew, Flatpak/Flathub, PyPI/uv packaging and their repository/publication pipelines are cancelled. No such installer, signing/notarization or automatic publication workflow was implemented. Reopen only on a new user request.
+Independent `.deb`/APT, `.rpm`/DNF, AppImage, Windows installers/WinGet, macOS `.dmg`/Homebrew, Flatpak/Flathub, PyPI/uv packaging and their repository/publication pipelines are cancelled. Reopen only on a new user request. Native payloads inside plugins do not revive independent OS packages.
 
 ## Reference links
 
-These links informed the 2026-10-26 plugin direction; recheck current requirements before implementing a host or seeking publication:
+Recheck current requirements before implementing a host or seeking publication:
 
 - https://developers.openai.com/plugins/build/plugins
 - https://developers.openai.com/plugins/deploy/desktop-only
