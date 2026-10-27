@@ -16,10 +16,19 @@ pub async fn exchange(session: &AgentSession, claim: Option<&Claim>) -> Result<(
             .endpoint
             .as_ref()
             .context("plugin bridge endpoint missing")?;
+        // Opening a Windows pipe just to fingerprint it can report PIPE_BUSY
+        // before the asynchronous connection path has a chance to wait.
         let unchanged = || {
-            session.endpoint_identity.is_some()
-                && crate::platform::endpoint_identity(endpoint).ok().as_ref()
-                    == session.endpoint_identity.as_ref()
+            #[cfg(unix)]
+            {
+                session.endpoint_identity.is_some()
+                    && crate::platform::endpoint_identity(endpoint).ok().as_ref()
+                        == session.endpoint_identity.as_ref()
+            }
+            #[cfg(windows)]
+            {
+                session.endpoint_identity.is_some()
+            }
         };
         ensure!(
             unchanged(),

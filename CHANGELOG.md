@@ -18,6 +18,10 @@
 
 - Preserve bounded Windows installed-package failure diagnostics and run the installed native/host checks in ordinary CI as well as manual release dry-runs.
 
+### Fixed
+
+- Wait asynchronously for a busy Windows host pipe, then authenticate the actual connected instance before Desktop/plugin exchanges. Avoid a separate fingerprint connection that could fail before the bounded wait; Unix socket checks remain unchanged.
+
 ### Known limitations
 
 - Linux and Windows x86_64 are supported; macOS and ARM native runtimes are unavailable. OpenCode V1 targets 1.19.4 with actual-loader tests using a simulated model; Claude Code remains an inbox-only scaffold.

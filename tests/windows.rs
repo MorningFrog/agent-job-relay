@@ -661,6 +661,47 @@ async fn mcp_exit_leaves_native_job_running() {
 }
 
 #[tokio::test]
+async fn desktop_probe_waits_for_busy_pipe_and_authenticates_the_connected_instance() {
+    use agent_job_relay::{
+        adapters,
+        session::{Adapter, AgentSession, Registration},
+    };
+    let endpoint = PathBuf::from(format!(r"\\.\pipe\AJR-busy-host-{}", id()));
+    let mut listener = platform::Listener::bind(&endpoint).unwrap();
+    let occupied = platform::connect_host(&endpoint).await.unwrap();
+    let identity = platform::connected_endpoint_identity(&occupied, &endpoint).unwrap();
+    let host = tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        drop(listener.accept().await.unwrap());
+        let mut pipe = listener.accept().await.unwrap();
+        let first = ipc::read_frame(&mut pipe, 65536).await.unwrap();
+        assert_eq!(first["method"], "tools/list");
+        ipc::write_frame(&mut pipe, &json!({"jsonrpc":"2.0","id":first["id"],"result":{"tools":[{"namespace":"codex_app","name":"send_message_to_thread"}]}})).await.unwrap();
+    });
+    let session = AgentSession {
+        key: id(),
+        registration: Registration {
+            agent_kind: "codex_desktop".into(),
+            session_id: "busy-pipe-chat".into(),
+            caller_thread_id: Some("busy-pipe-chat".into()),
+            instance_id: "busy-pipe-host".into(),
+            host_id: "fake-windows-host".into(),
+            adapter: Adapter::DesktopExperimental,
+            endpoint: Some(endpoint),
+            lease_seconds: 30,
+            experimental: true,
+            renew_on_delivery: true,
+        },
+        expires_at: now() + 30_000,
+        connected: true,
+        endpoint_identity: Some(identity),
+    };
+    adapters::probe(&session).await.unwrap();
+    drop(occupied);
+    host.await.unwrap();
+}
+
+#[tokio::test]
 async fn named_pipe_desktop_routing_recovery_and_renewal_are_fenced() {
     use agent_job_relay::{
         adapters,

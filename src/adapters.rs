@@ -78,14 +78,29 @@ async fn desktop(session: &AgentSession, claim: Option<&Claim>) -> Result<()> {
             .endpoint
             .as_ref()
             .context("Desktop endpoint missing")?;
-        let current = crate::platform::endpoint_identity(endpoint).map_err(|_| {
-            anyhow::anyhow!("Desktop endpoint unavailable; refresh registration after host restart")
-        })?;
+        // Unix can inspect the socket without opening it. A Windows fingerprint
+        // consumes a pipe instance; authenticate the actual connection below so
+        // a temporarily busy instance gets the bounded asynchronous wait.
+        #[cfg(unix)]
+        {
+            let current = crate::platform::endpoint_identity(endpoint).map_err(|_| {
+                anyhow::anyhow!(
+                    "Desktop endpoint unavailable; refresh registration after host restart"
+                )
+            })?;
+            ensure!(
+                session.endpoint_identity.as_ref() == Some(&current),
+                DeliveryError(
+                    FailureKind::RebindRequired,
+                    "Desktop endpoint instance changed; explicitly refresh registration or rebind"
+                )
+            );
+        }
         ensure!(
-            session.endpoint_identity.as_ref() == Some(&current),
+            session.endpoint_identity.is_some(),
             DeliveryError(
                 FailureKind::RebindRequired,
-                "Desktop endpoint instance changed; explicitly refresh registration or rebind"
+                "Desktop endpoint identity missing; explicitly refresh registration"
             )
         );
         tokio::time::timeout(std::time::Duration::from_secs(3),async {
