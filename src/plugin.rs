@@ -17,13 +17,17 @@ const BUNDLE: &str = "bundle.json";
 const PAYLOAD: &[&str] = &[
     ".codex-plugin/plugin.json",
     ".mcp.json",
-    "relay",
+    crate::platform::LAUNCHER_FILE,
     "skills/background-jobs/SKILL.md",
     "assets/icon.svg",
     "LICENSE",
-    "bin/agent-job-relay",
+    crate::platform::NATIVE_FILE,
 ];
+#[cfg(not(windows))]
 const BOOTSTRAP: &str = "#!/bin/sh\nset -eu\nbundle_root=$(CDPATH= cd -- \"$(dirname -- \"$0\")\" && pwd)\nexec \"$bundle_root/payload/bin/agent-job-relay\" \"$@\"\n";
+
+#[cfg(windows)]
+const BOOTSTRAP: &str = "@echo off\r\nsetlocal DisableDelayedExpansion\r\n\"%~dp0payload\\bin\\agent-job-relay.exe\" %*\r\nexit /b %errorlevel%\r\n";
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -68,7 +72,7 @@ fn write_tree(root: &Path, files: &BTreeMap<String, Artifact>) -> Result<()> {
     for (name, artifact) in files {
         deploy::write_artifact(&root.join(name), artifact)?;
     }
-    File::open(root)?.sync_all()?;
+    crate::platform::sync_directory(root)?;
     Ok(())
 }
 pub(crate) fn verify_tree(root: &Path, files: &BTreeMap<String, String>) -> Result<()> {
@@ -111,7 +115,7 @@ pub fn pack(output: PathBuf, apply: bool) -> Result<Value> {
         .map(|(name, file)| (format!("payload/{name}"), file))
         .collect();
     files.insert(
-        "relay".into(),
+        crate::platform::LAUNCHER_FILE.into(),
         Artifact {
             bytes: BOOTSTRAP.as_bytes().into(),
             executable: true,
@@ -142,8 +146,8 @@ pub fn pack(output: PathBuf, apply: bool) -> Result<Value> {
         let stage = parent.join(format!(".ajr-bundle-{}", id()));
         let result = (|| -> Result<()> {
             write_tree(&stage, &files)?;
-            std::fs::rename(&stage, &output)?;
-            File::open(parent)?.sync_all()?;
+            crate::platform::rename_directory(&stage, &output)?;
+            crate::platform::sync_directory(parent)?;
             Ok(())
         })();
         if stage.exists() {
@@ -155,7 +159,7 @@ pub fn pack(output: PathBuf, apply: bool) -> Result<Value> {
     Ok(
         json!({"mode":mode(apply),"output":output,"version":bundle.version,"platform":bundle.platform,
         "contains":"native executable and embedded plugin resources; no user state or credentials",
-        "next_step":"Transfer the directory, then run its relay plugin bootstrap --dry-run / --apply. No Rust compiler is needed on the recipient's compatible Linux system.",
+        "next_step":"Transfer the directory, then run its relay plugin bootstrap --dry-run / --apply. No Rust compiler is needed on a matching supported platform.",
         "publication":"none; local development artifact only"}),
     )
 }
@@ -178,7 +182,7 @@ fn read_bundle(root: &Path) -> Result<(Bundle, BTreeMap<String, Artifact>)> {
     let expected: BTreeSet<String> = PAYLOAD
         .iter()
         .map(|n| format!("payload/{n}"))
-        .chain(std::iter::once("relay".into()))
+        .chain(std::iter::once(crate::platform::LAUNCHER_FILE.into()))
         .collect();
     ensure!(
         bundle.files.keys().cloned().collect::<BTreeSet<_>>() == expected,
@@ -194,7 +198,10 @@ fn read_bundle(root: &Path) -> Result<(Bundle, BTreeMap<String, Artifact>)> {
                 (*name).into(),
                 Artifact {
                     bytes: deploy::read_file(&root.join("payload").join(name))?,
-                    executable: matches!(*name, "relay" | "bin/agent-job-relay"),
+                    executable: matches!(
+                        *name,
+                        crate::platform::LAUNCHER_FILE | crate::platform::NATIVE_FILE
+                    ),
                 },
             ))
         })
@@ -273,7 +280,8 @@ pub fn bootstrap(
         "marketplace configuration must remain outside the installation"
     );
     ensure!(
-        deploy::digest(&deploy::read_file(&exe)?) == bundle.files["payload/bin/agent-job-relay"],
+        deploy::digest(&deploy::read_file(&exe)?)
+            == bundle.files[&format!("payload/{}", crate::platform::NATIVE_FILE)],
         "bootstrap image differs from the bundle"
     );
     check_update(&root, &bundle.version)?;
@@ -412,7 +420,10 @@ pub fn refresh_cache(root: PathBuf, cache: PathBuf, apply: bool) -> Result<Value
             name.clone(),
             Artifact {
                 bytes: deploy::read_file(&root.join(name))?,
-                executable: matches!(name.as_str(), "relay" | "bin/agent-job-relay"),
+                executable: matches!(
+                    name.as_str(),
+                    crate::platform::LAUNCHER_FILE | crate::platform::NATIVE_FILE
+                ),
             },
         );
     }

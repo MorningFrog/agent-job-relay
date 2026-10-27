@@ -1,15 +1,15 @@
 //! Owner-checked plugin bridge; the plugin calls its host's public session API.
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 use crate::delivery::{DeliveryError, FailureKind};
 use crate::{delivery::Claim, session::AgentSession};
 use anyhow::Result;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 use anyhow::{Context, ensure};
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 use serde_json::json;
 
 pub async fn exchange(session: &AgentSession, claim: Option<&Claim>) -> Result<()> {
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     {
         let endpoint = session
             .registration
@@ -30,7 +30,7 @@ pub async fn exchange(session: &AgentSession, claim: Option<&Claim>) -> Result<(
         );
         tokio::time::timeout(std::time::Duration::from_secs(3), async {
             let mut socket = crate::platform::connect_host(endpoint).await?;
-            ensure!(unchanged(), DeliveryError(FailureKind::RebindRequired, "plugin endpoint changed while connecting"));
+            ensure!(crate::platform::connected_endpoint_identity(&socket, endpoint).ok().as_ref()==session.endpoint_identity.as_ref(), DeliveryError(FailureKind::RebindRequired, "plugin endpoint changed while connecting"));
             let r = &session.registration;
             let mut params = json!({"protocol_version":1,"agent_kind":r.agent_kind,"session_id":r.session_id,"caller_session_id":r.caller_thread_id,"instance_id":r.instance_id,"host_id":r.host_id});
             if let Some(c) = claim {
@@ -54,7 +54,7 @@ pub async fn exchange(session: &AgentSession, claim: Option<&Claim>) -> Result<(
             Ok(())
         }).await.context("plugin bridge deadline exceeded (3s)")?
     }
-    #[cfg(not(unix))]
+    #[cfg(not(any(unix, windows)))]
     {
         let _ = (session, claim);
         anyhow::bail!("plugin bridge requires verified Linux IPC");

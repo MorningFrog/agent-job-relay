@@ -1,0 +1,19 @@
+# ADR 0011: Windows native runtime and supervision
+
+## Decision
+
+Keep one executable and the existing SQLite v6/IPC v1 state machines. Windows-specific ownership, pipes, process identity and Job Objects live in `src/platform/windows.rs`; macOS remains unsupported for background execution.
+
+Use private state directories/files with the current token's owner SID and a protected DACL granting access only to that SID and LocalSystem. Refuse foreign owners, broader access and reparse points, including junction ancestors. The per-profile local named pipe derives from the state path and SID. Its first instance is exclusive, remote clients are rejected, and both ends verify the peer process token's SID. Process creation time distinguishes reused PIDs. Host fingerprints include the server process instance and pipe name; same-process pipe recreation is not an independently observed host-generation change.
+
+Spawn daemon and runner modes through `CreateProcessW` with handle inheritance disabled, detached process/group flags and an explicitly rebuilt Unicode environment. Configuring null standard streams alone does not prevent unrelated inheritable capture handles from crossing a Windows process boundary. Closing the returned process/thread handles needs no Unix-style zombie reaping. An enclosing Job Object that forbids breakaway causes an explicit launch failure; the runtime does not change that policy or use a service to escape it.
+
+The runner owns a private, non-inheritable, named Job Object with `KILL_ON_JOB_CLOSE`. A short internal workload helper opens and joins that job before reading/executing the user command, then closes its own job handle. If the runner dies before the join, opening fails; if it dies during the join, closing the last handle kills the helper. User code never starts in an unassigned suspended-process window. The runner's pinned process handle and Job Object scope cancellation; no process-name search or PID-only kill is used. Console Ctrl-Break is best effort, followed by bounded job-wide termination. Runner death terminates its contained descendants and leaves conservative orphan recovery without replay.
+
+Support explicit PowerShell and cmd shell forms, and refuse batch files in argv mode. Keep state outside installations/caches, render `.exe`/`.cmd` entry points, and reuse checked forward-only install/cache journals. Windows publishes files/directories with write-through rename; it has no POSIX directory fsync. This does not qualify physical power-loss behavior or claim a cross-file transaction.
+
+## Verification boundaries
+
+Native Windows tests cover command arguments/exit codes, output budgets, process trees, MCP exit, daemon stop/crash, runner death, PID fencing, private ACLs/junction refusal, malformed pipes, inbox routing, simulated Desktop pipe recovery/renewal and offline lifecycle operations. A cold-submission regression checks that the caller's capture pipes reach EOF while its background workload remains alive. Cargo's enclosing Windows cleanup job does not permit breakaway, so the test harness launches its owned fixture processes through local CIM under the same SID; this is test infrastructure, not a runtime dependency or fallback.
+
+Real Codex loading/model/MCP evidence and Desktop UI/observed continuation are separate acceptance steps. `accepted_by_host` continues to mean acceptance only. Native Windows support does not imply macOS support, official listing, an independent OS installer or authorization to publish.

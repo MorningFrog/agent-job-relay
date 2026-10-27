@@ -2,7 +2,7 @@
 
 ## Start here
 
-Read `PROJECT_SPEC.md`, `docs/architecture.md` and `docs/IMPLEMENTATION_STATUS.md` first. The specification governs scope; report limitations honestly. This is one Rust package/executable with CLI, MCP, daemon and runner modes; Linux is the verified runtime.
+Read `PROJECT_SPEC.md`, `docs/architecture.md` and `docs/IMPLEMENTATION_STATUS.md` first. The specification governs scope; report limitations honestly. This is one Rust package/executable with CLI, MCP, daemon and runner modes; Linux and Windows have verified native runtime cores; Windows requires breakaway permission from enclosing host jobs.
 
 ## Architecture and behavior
 

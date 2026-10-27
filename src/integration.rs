@@ -33,7 +33,7 @@ fn checked_read(path: &Path) -> Result<Option<String>> {
     match std::fs::symlink_metadata(path) {
         Ok(m) => {
             ensure!(
-                m.is_file() && !m.file_type().is_symlink(),
+                m.is_file() && !crate::platform::is_link(&m),
                 "refusing non-regular configuration/receipt: {}",
                 path.display()
             );
@@ -67,10 +67,7 @@ fn desired(
             "plugin --config must be <marketplace-root>/.agents/plugins/marketplace.json"
         );
         let relative = root.strip_prefix(marketplace).context("installation must be inside the marketplace root; use an installation under HOME for a personal marketplace, or a repo-local installation for a repo marketplace")?;
-        let source = format!(
-            "./{}",
-            relative.to_str().context("plugin path is not UTF-8")?
-        );
+        let source = format!("./{}", crate::deployment::relative_name(relative)?);
         return Ok(
             json!({"name":"agent-job-relay","source":{"source":"local","path":source},"policy":{"installation":"AVAILABLE","authentication":"ON_INSTALL"},"category":"Productivity"}),
         );
@@ -192,9 +189,8 @@ fn atomic_write(path: &Path, raw: &[u8]) -> Result<()> {
         f.write_all(raw)?;
         f.sync_all()?;
         drop(f);
-        std::fs::rename(&tmp, path)?;
-        #[cfg(unix)]
-        std::fs::File::open(path.parent().context("config parent missing")?)?.sync_all()?;
+        crate::platform::publish_file(&tmp, path)?;
+        crate::platform::sync_directory(path.parent().context("config parent missing")?)?;
         Ok(())
     })();
     if result.is_err() {
@@ -325,7 +321,11 @@ pub fn default_path(client: Client) -> Result<PathBuf> {
         Client::Codex => {
             let root = std::env::var_os("CODEX_HOME")
                 .map(PathBuf::from)
-                .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".codex")))
+                .or_else(|| {
+                    std::env::var_os("HOME")
+                        .or_else(|| std::env::var_os("USERPROFILE"))
+                        .map(|h| PathBuf::from(h).join(".codex"))
+                })
                 .context("HOME/CODEX_HOME unavailable; pass --config")?;
             Ok(root.join("config.toml"))
         }
@@ -333,7 +333,9 @@ pub fn default_path(client: Client) -> Result<PathBuf> {
             bail!("JSON clients use different paths; provide --config /absolute/path/to/mcp.json")
         }
         Client::Plugin => Ok(PathBuf::from(
-            std::env::var_os("HOME").context("HOME unavailable; pass --config")?,
+            std::env::var_os("HOME")
+                .or_else(|| std::env::var_os("USERPROFILE"))
+                .context("HOME unavailable; pass --config")?,
         )
         .join(".agents/plugins/marketplace.json")),
     }

@@ -9,7 +9,7 @@ Tasks run in the background. Agents pick up when needed.
 任务在后台运行，Agent 在需要时接棒。
 </div>
 
-Run long commands independently of the Agent connection, keep their results, and notify the initiating chat when the host supports it. **v0.1.6 is an unreleased Linux x86_64 development version.** Desktop wake uses an experimental interface; Windows/macOS are not supported. OpenCode V1 has an experimental plugin package candidate; Claude Code has an inbox-only development framework that needs community verification.
+Run long commands independently of the Agent connection, keep their results, and notify the initiating chat when the host supports it. **v0.1.6 is an unreleased Linux/Windows x86_64 development version.** Desktop wake uses an experimental interface; Windows Desktop continuation is unverified and macOS runtime is unsupported. OpenCode V1 has an experimental plugin package candidate; Claude Code has an inbox-only development framework that needs community verification.
 
 For OpenCode/Claude development setup and evidence boundaries, see [host plugins](docs/host-plugins.md).
 
@@ -41,6 +41,10 @@ AJR_INSTALL_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/agent-job-relay"
 ```
 
 Use your original path for a custom installation. Keep that directory: both MCP and cached terminal launchers use its managed runtime. State and history are stored separately; PATH and system services are unchanged. Already installed? Follow [Updating](#updating). Custom paths and standalone MCP setup are in the [installation guide](docs/installation.md).
+
+## Windows
+
+Use a trusted Windows offline bundle and its `relay.cmd` launcher. Native execution, process-tree supervision, MCP and offline maintenance are verified in a Windows 11 VM; current npm candidates remain Linux-only while Windows packaging is prepared. Follow the [Windows guide](docs/windows.md) for PowerShell installation, task examples and execution boundaries.
 
 ## Use from chat
 

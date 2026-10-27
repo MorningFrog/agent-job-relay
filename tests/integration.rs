@@ -116,7 +116,7 @@ fn cli_preview_clean_home_and_doctor_are_actionable() {
         .arg("doctor")
         .output()
         .unwrap();
-    if cfg!(target_os = "linux") {
+    if cfg!(any(target_os = "linux", windows)) {
         assert!(
             out.status.success(),
             "{}",

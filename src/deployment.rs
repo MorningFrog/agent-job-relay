@@ -52,7 +52,7 @@ pub(crate) fn checked_path(path: &Path) -> Result<()> {
         walked.push(component.as_os_str());
         if let Ok(m) = std::fs::symlink_metadata(&walked) {
             ensure!(
-                !m.file_type().is_symlink(),
+                !crate::platform::is_link(&m),
                 "refusing a symlink in install/state path: {}",
                 walked.display()
             );
@@ -63,7 +63,7 @@ pub(crate) fn checked_path(path: &Path) -> Result<()> {
 pub(crate) fn read_file(path: &Path) -> Result<Vec<u8>> {
     let m = std::fs::symlink_metadata(path)?;
     ensure!(
-        m.is_file() && !m.file_type().is_symlink() && m.len() <= MAX_FILE,
+        m.is_file() && !crate::platform::is_link(&m) && m.len() <= MAX_FILE,
         "refusing non-regular or oversized install file: {}",
         path.display()
     );
@@ -101,7 +101,7 @@ pub(crate) fn read_receipt(root: &Path) -> Result<Receipt> {
         );
     }
     ensure!(
-        r.files.contains_key("bin/agent-job-relay")
+        r.files.contains_key(crate::platform::NATIVE_FILE)
             && (r.files.contains_key("plugin.json")
                 || r.files.contains_key(".codex-plugin/plugin.json")),
         "incomplete installation receipt"
@@ -134,17 +134,26 @@ pub fn installed_root() -> Result<PathBuf> {
         "run install --apply first, then use the installed relay launcher for setup plugin",
     )?;
     ensure!(
-        r.root.join("bin/agent-job-relay").is_file(),
+        r.root.join(crate::platform::NATIVE_FILE).is_file(),
         "original installation is unavailable; reinstall before configuring the marketplace"
     );
     Ok(r.root)
 }
 pub fn default_root() -> Result<PathBuf> {
-    Ok(std::env::var_os("XDG_DATA_HOME")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))
-        .context("HOME/XDG_DATA_HOME unavailable; pass --root")?
-        .join("agent-job-relay"))
+    #[cfg(windows)]
+    return Ok(PathBuf::from(
+        std::env::var_os("LOCALAPPDATA").context("LOCALAPPDATA unavailable; pass --root")?,
+    )
+    .join("AgentJobRelay")
+    .join("plugin"));
+    #[cfg(not(windows))]
+    {
+        Ok(std::env::var_os("XDG_DATA_HOME")
+            .map(PathBuf::from)
+            .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))
+            .context("HOME/XDG_DATA_HOME unavailable; pass --root")?
+            .join("agent-job-relay"))
+    }
 }
 /// Management launched through a custom installation defaults to that install,
 /// rather than asking users to repeat its path or selecting another profile.
@@ -187,8 +196,12 @@ pub(crate) fn payload() -> Result<BTreeMap<String, Artifact>> {
             false,
         ),
         (
-            "relay",
-            include_bytes!("../plugins/agent-job-relay/relay"),
+            crate::platform::LAUNCHER_FILE,
+            if cfg!(windows) {
+                include_bytes!("../plugins/agent-job-relay/relay.cmd")
+            } else {
+                include_bytes!("../plugins/agent-job-relay/relay")
+            },
             true,
         ),
         (
@@ -217,7 +230,7 @@ pub(crate) fn payload() -> Result<BTreeMap<String, Artifact>> {
     files.get_mut(".codex-plugin/plugin.json").unwrap().bytes =
         serde_json::to_vec_pretty(&identity)?;
     files.insert(
-        "bin/agent-job-relay".into(),
+        crate::platform::NATIVE_FILE.into(),
         Artifact {
             bytes: read_file(&std::env::current_exe()?)?,
             executable: true,
@@ -240,21 +253,22 @@ pub(crate) fn render(
             && mcp["mcpServers"]["agent-job-relay"].is_object(),
         "invalid bundled MCP configuration"
     );
-    mcp["mcpServers"]["agent-job-relay"]["command"] = json!(root.join("bin/agent-job-relay"));
+    mcp["mcpServers"]["agent-job-relay"]["command"] =
+        json!(root.join(crate::platform::NATIVE_FILE));
     mcp["mcpServers"]["agent-job-relay"]["args"] =
         json!(["--state-dir", config.root, "mcp", "--shared-host"]);
     files.get_mut(".mcp.json").unwrap().bytes = serde_json::to_vec_pretty(&mcp)?;
-    let launcher = std::str::from_utf8(&files["relay"].bytes)?;
+    let launcher = std::str::from_utf8(&files[crate::platform::LAUNCHER_FILE].bytes)?;
     ensure!(
         launcher.contains("__AJR_INSTALLED_STATE__")
             && launcher.contains("__AJR_INSTALLED_EXECUTABLE__"),
         "bundled launcher lacks installation placeholders"
     );
-    files.get_mut("relay").unwrap().bytes = launcher
+    files.get_mut(crate::platform::LAUNCHER_FILE).unwrap().bytes = launcher
         .replace("__AJR_INSTALLED_STATE__", &shell_quote(&config.root)?)
         .replace(
             "__AJR_INSTALLED_EXECUTABLE__",
-            &shell_quote(&root.join("bin/agent-job-relay"))?,
+            &shell_quote(&root.join(crate::platform::NATIVE_FILE))?,
         )
         .into_bytes();
     let identity: Value = serde_json::from_slice(&files[".codex-plugin/plugin.json"].bytes)?;
@@ -282,37 +296,45 @@ pub(crate) fn render(
     Ok(files)
 }
 fn shell_quote(path: &Path) -> Result<String> {
-    Ok(format!(
-        "'{}'",
-        path.to_str()
-            .context("installed path must be UTF-8")?
-            .replace('\'', "'\"'\"'")
-    ))
+    #[cfg(windows)]
+    {
+        let text = path.to_str().context("installed path must be UTF-8")?;
+        ensure!(
+            !text.contains(['\"', '\r', '\n', '\0']),
+            "path cannot be represented in a Windows launcher"
+        );
+        Ok(text.replace('%', "%%"))
+    }
+    #[cfg(not(windows))]
+    {
+        Ok(format!(
+            "'{}'",
+            path.to_str()
+                .context("installed path must be UTF-8")?
+                .replace('\'', "'\"'\"'")
+        ))
+    }
+}
+pub(crate) fn relative_name(path: &Path) -> Result<String> {
+    path.components()
+        .map(|c| c.as_os_str().to_str().context("non-UTF-8 relative path"))
+        .collect::<Result<Vec<_>>>()
+        .map(|parts| parts.join("/"))
 }
 pub(crate) fn actual_files(root: &Path, dir: &Path, files: &mut BTreeSet<String>) -> Result<()> {
     for item in std::fs::read_dir(dir)? {
         let path = item?.path();
         let m = std::fs::symlink_metadata(&path)?;
         ensure!(
-            !m.file_type().is_symlink(),
+            !crate::platform::is_link(&m),
             "unmanaged symlink in install; preserve and review it"
         );
         if m.is_dir() {
-            files.insert(format!(
-                "{}/",
-                path.strip_prefix(root)?
-                    .to_str()
-                    .context("non-UTF-8 install directory")?
-            ));
+            files.insert(format!("{}/", relative_name(path.strip_prefix(root)?)?));
             actual_files(root, &path, files)?;
         } else {
             ensure!(m.is_file(), "unmanaged special file in install");
-            files.insert(
-                path.strip_prefix(root)?
-                    .to_str()
-                    .context("non-UTF-8 install filename")?
-                    .into(),
-            );
+            files.insert(relative_name(path.strip_prefix(root)?)?);
         }
     }
     Ok(())
@@ -383,7 +405,16 @@ pub(crate) fn idle_guards(state: &Path, install_root: &Path) -> Result<Vec<File>
     Ok(locks)
 }
 pub(crate) fn write_artifact(path: &Path, file: &Artifact) -> Result<()> {
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    if file.executable {
+        ensure!(
+            path.extension().is_some_and(
+                |ext| ext.eq_ignore_ascii_case("exe") || ext.eq_ignore_ascii_case("cmd")
+            ),
+            "Windows executable artifacts require .exe or .cmd"
+        );
+    }
+    #[cfg(not(any(unix, windows)))]
     ensure!(
         !file.executable,
         "native executable installation is not implemented on this platform"
@@ -516,7 +547,7 @@ pub(crate) fn change_artifacts(
         &config.root
     };
     Ok(
-        json!({"mode":mode,"changed":changed,"action":if remove{"remove owned local installation"}else{"install native executable and Desktop plugin"},"root":root,"executable":root.join("bin/agent-job-relay"),"launcher":root.join("relay"),"state_dir":state,"backup":backup,"data":"preserved","configuration":"not changed; setup codex/plugin is a separate preview/apply operation","next_step":if remove{"Remove any owned MCP/marketplace entry before uninstall; plugin cache copies are managed by the host. State and installation backups are retained."}else{"Run the installed relay launcher with setup plugin --dry-run or setup codex --dry-run. Install the plugin from its local marketplace, then start a new chat."}}),
+        json!({"mode":mode,"changed":changed,"action":if remove{"remove owned local installation"}else{"install native executable and Desktop plugin"},"root":root,"executable":root.join(crate::platform::NATIVE_FILE),"launcher":root.join(crate::platform::LAUNCHER_FILE),"state_dir":state,"backup":backup,"data":"preserved","configuration":"not changed; setup codex/plugin is a separate preview/apply operation","next_step":if remove{"Remove any owned MCP/marketplace entry before uninstall; plugin cache copies are managed by the host. State and installation backups are retained."}else{"Run the installed relay launcher with setup plugin --dry-run or setup codex --dry-run. Install the plugin from its local marketplace, then start a new chat."}}),
     )
 }
 fn remove_empty_dirs(dir: &Path) -> Result<()> {

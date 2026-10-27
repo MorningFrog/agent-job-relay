@@ -1,8 +1,5 @@
 use anyhow::{Context, Result, ensure};
-use std::{
-    fs::{File, OpenOptions},
-    path::PathBuf,
-};
+use std::{fs::File, path::PathBuf};
 #[derive(Clone, Debug)]
 pub struct Config {
     pub root: PathBuf,
@@ -16,13 +13,16 @@ impl Config {
                 if let Some(p) = std::env::var_os("XDG_STATE_HOME") {
                     PathBuf::from(p).join("agent-job-relay")
                 } else if let Some(p) = std::env::var_os("LOCALAPPDATA") {
-                    PathBuf::from(p).join("AgentJobRelay")
+                    PathBuf::from(p).join("AgentJobRelay").join("state")
                 } else {
                     PathBuf::from(std::env::var_os("HOME").unwrap_or_default())
                         .join(".local/state/agent-job-relay")
                 }
             }),
         };
+        let root = crate::platform::normalized_path(root);
+        #[cfg(windows)]
+        crate::platform::check_path(&root)?;
         ensure!(
             root.is_absolute(),
             "state directory must be absolute (use --state-dir)"
@@ -35,7 +35,7 @@ impl Config {
         Ok(())
     }
     pub fn socket(&self) -> PathBuf {
-        self.root.join("relay.sock")
+        crate::platform::local_endpoint(&self.root)
     }
     pub fn run_dir(&self, run: &str) -> PathBuf {
         self.root.join("runs").join(run)
@@ -54,8 +54,13 @@ impl Config {
     }
 }
 pub fn open_append(path: &std::path::Path) -> Result<File> {
-    let mut o = OpenOptions::new();
-    o.create(true).append(true);
-    crate::platform::secure_options(&mut o);
-    Ok(o.open(path)?)
+    #[cfg(windows)]
+    return crate::platform::open_private_file(path, false, true);
+    #[cfg(not(windows))]
+    {
+        let mut o = std::fs::OpenOptions::new();
+        o.create(true).append(true);
+        crate::platform::secure_options(&mut o);
+        Ok(o.open(path)?)
+    }
 }

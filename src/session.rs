@@ -120,10 +120,7 @@ impl Store {
                     .endpoint
                     .as_ref()
                     .context("explicit host endpoint required; no session scanning is performed")?;
-                ensure!(
-                    ep.is_absolute() && ep.as_os_str().len() < 104,
-                    "host endpoint must be an absolute Unix socket path shorter than 104 bytes"
-                );
+                crate::platform::validate_endpoint(ep)?;
                 ensure!(
                     r.caller_thread_id
                         .as_ref()

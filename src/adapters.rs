@@ -3,7 +3,7 @@ use crate::{
     delivery::{Claim, DeliveryError, FailureKind},
     session::{Adapter, AgentSession},
 };
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 use anyhow::Context;
 use anyhow::{Result, bail, ensure};
 use serde_json::{Value, json};
@@ -23,13 +23,13 @@ pub async fn probe(session: &AgentSession) -> Result<Value> {
         Adapter::PluginBridge => {
             crate::plugin_bridge::exchange(session, None).await?;
             Ok(
-                json!({"transport":"owned plugin Unix socket","available":true,"can_confirm_resume":false}),
+                json!({"transport":"owned local plugin endpoint","available":true,"can_confirm_resume":false}),
             )
         }
         Adapter::DesktopExperimental => {
             desktop(session, None).await?;
             Ok(
-                json!({"transport":"experimental Desktop Unix socket","available":true,"can_confirm_resume":false,"live_e2e":"not verified"}),
+                json!({"transport":"experimental local Desktop endpoint","available":true,"can_confirm_resume":false,"live_e2e":"not verified"}),
             )
         }
     }
@@ -56,9 +56,8 @@ pub async fn deliver(config: &Config, c: &Claim) -> Result<&'static str> {
             file.write_all(&raw).await?;
             file.sync_all().await?;
             drop(file);
-            tokio::fs::rename(&temp, &path).await?;
-            let d = std::fs::File::open(dir)?;
-            tokio::task::spawn_blocking(move || d.sync_all()).await??;
+            crate::platform::publish_file(&temp, &path)?;
+            crate::platform::sync_directory(&dir)?;
             Ok("notification_recorded")
         }
         Adapter::PluginBridge => {
@@ -72,7 +71,7 @@ pub async fn deliver(config: &Config, c: &Claim) -> Result<&'static str> {
     }
 }
 async fn desktop(session: &AgentSession, claim: Option<&Claim>) -> Result<()> {
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     {
         let endpoint = session
             .registration
@@ -91,7 +90,7 @@ async fn desktop(session: &AgentSession, claim: Option<&Claim>) -> Result<()> {
         );
         tokio::time::timeout(std::time::Duration::from_secs(3),async {
             let mut s=crate::platform::connect_host(endpoint).await.map_err(|_|anyhow::anyhow!("Desktop connection unavailable; no fallback was attempted"))?;
-            ensure!(crate::platform::endpoint_identity(endpoint).ok().as_ref()==session.endpoint_identity.as_ref(),DeliveryError(FailureKind::RebindRequired,"Desktop endpoint changed while connecting; refresh registration"));
+            ensure!(crate::platform::connected_endpoint_identity(&s, endpoint).ok().as_ref()==session.endpoint_identity.as_ref(),DeliveryError(FailureKind::RebindRequired,"Desktop endpoint changed while connecting; refresh registration"));
             let tools=rpc(&mut s,1,"tools/list",json!({"threadStartKind":"all"})).await?;
             let list=tools.get("tools").or_else(||tools.get("toolsList")).and_then(Value::as_array).ok_or(DeliveryError(FailureKind::Permanent,"malformed Desktop tools catalog"))?;
             ensure!(list.iter().any(|t|(t["namespace"]=="codex_app"&&t["name"]=="send_message_to_thread")||t["name"]=="codex_app/send_message_to_thread"),DeliveryError(FailureKind::Permanent,"Desktop does not advertise send_message_to_thread; no fallback was attempted"));
@@ -104,15 +103,15 @@ async fn desktop(session: &AgentSession, claim: Option<&Claim>) -> Result<()> {
             Ok(())
         }).await.context("Desktop sequence deadline exceeded (3s)")?
     }
-    #[cfg(not(unix))]
+    #[cfg(not(any(unix, windows)))]
     {
         let _ = (session, claim);
         bail!("experimental Desktop transport requires a verified native platform implementation")
     }
 }
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 async fn rpc(
-    s: &mut tokio::net::UnixStream,
+    s: &mut crate::platform::ClientStream,
     id: u32,
     method: &str,
     params: Value,

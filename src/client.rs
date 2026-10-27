@@ -20,10 +20,7 @@ fn desktop_registration() -> Result<(Registration, String)> {
         thread.len() <= 256 && !thread.contains('\0'),
         "invalid inherited Desktop thread identity"
     );
-    ensure!(
-        endpoint.is_absolute() && endpoint.as_os_str().len() < 104,
-        "inherited Desktop endpoint must be an absolute Unix socket path shorter than 104 bytes"
-    );
+    crate::platform::validate_endpoint(&endpoint)?;
     let fingerprint=crate::platform::endpoint_identity(&endpoint).context("inherited Desktop endpoint is unavailable or not owned; reconnect the client to the current host")?;
     let registration = Registration {
         agent_kind: "codex_desktop".into(),
@@ -70,10 +67,7 @@ async fn ensure_daemon_inner(config: &Config) -> Result<()> {
         Err(e) => return Err(e),
     }
     config.prepare()?;
-    ensure!(
-        config.socket().as_os_str().len() < 104,
-        "state path too long for Unix socket; use a shorter --state-dir"
-    );
+    crate::platform::validate_local_endpoint(&config.socket())?;
     let lock = crate::platform::private_file(&config.root.join("startup.lock"))?;
     let owns_startup = match lock.try_lock() {
         Ok(()) => true,
@@ -97,13 +91,9 @@ async fn ensure_daemon_inner(config: &Config) -> Result<()> {
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null());
-        crate::platform::detach(&mut command)?;
-        let mut child=tokio::process::Command::from(command).kill_on_drop(false).spawn().context("cannot auto-start daemon; run agent-job-relay daemon in a terminal for diagnostics")?;
-        tokio::spawn(async move {
-            if let Err(e) = child.wait().await {
-                tracing::error!(error=%e,"auto-started daemon reap failed");
-            }
-        });
+        crate::platform::spawn_background(command).context(
+            "cannot auto-start daemon; run agent-job-relay daemon in a terminal for diagnostics",
+        )?;
     }
     let deadline = tokio::time::Instant::now() + Duration::from_secs(8);
     loop {

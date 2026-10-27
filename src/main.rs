@@ -41,6 +41,9 @@ enum Commands {
         #[arg(long)]
         shared_host: bool,
     },
+    #[cfg(windows)]
+    #[command(hide = true)]
+    WindowsWorkload { job_id: String, job_name: String },
     /// Preview/install a stable native executable and local Desktop plugin
     Install {
         #[arg(long)]
@@ -103,7 +106,7 @@ enum Commands {
     Start {
         #[arg(long, conflicts_with = "command")]
         shell: Option<String>,
-        #[arg(long, default_value = "/bin/sh")]
+        #[arg(long, default_value = agent_job_relay::platform::DEFAULT_SHELL)]
         interpreter: String,
         #[arg(long)]
         cwd: Option<PathBuf>,
@@ -189,7 +192,7 @@ enum PluginCommand {
         #[arg(long)]
         apply: bool,
     },
-    /// Export an offline Linux bundle with native runtime; no recipient Rust toolchain
+    /// Export an offline native-platform bundle with native runtime; no recipient Rust toolchain
     Pack {
         #[arg(long)]
         output: PathBuf,
@@ -680,6 +683,10 @@ async fn run(cli: Cli) -> Result<()> {
             return Ok(());
         }
         Commands::Request { json } => serde_json::from_str(&json)?,
+        #[cfg(windows)]
+        Commands::WindowsWorkload { job_id, job_name } => {
+            return agent_job_relay::runner::windows_workload(config, job_id, job_name).await;
+        }
         Commands::Daemon { command: None } => return agent_job_relay::daemon::serve(config).await,
         Commands::Daemon {
             command: Some(DaemonCommand::Stop { .. }),

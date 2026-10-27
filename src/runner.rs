@@ -5,11 +5,10 @@ use crate::{
 };
 use anyhow::{Context, Result, ensure};
 use rusqlite::params;
-use std::{process::Stdio, time::Duration};
-use tokio::{
-    io::{AsyncRead, AsyncReadExt, AsyncWriteExt},
-    process::Command,
-};
+#[cfg(not(windows))]
+use std::process::Stdio;
+use std::time::Duration;
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 pub const LOG_CAP: u64 = 16 * 1024 * 1024;
 async fn capture(mut source: impl AsyncRead + Unpin, path: std::path::PathBuf) -> Result<bool> {
     let file = crate::platform::private_file(&path)?;
@@ -85,34 +84,41 @@ async fn execute(config: &Config, store: &Store, job: &Job, spec: &StartSpec) ->
             )
             .await;
     }
-    let mut command = match &spec.command {
-        CommandSpec::Exec { program, args } => {
-            let mut c = std::process::Command::new(program);
-            c.args(args);
-            c
-        }
-        CommandSpec::Shell {
-            interpreter,
-            script,
-        } => {
-            let mut c = std::process::Command::new(interpreter);
-            c.args(["-c", script]);
-            c
-        }
+    #[cfg(not(windows))]
+    let (mut child, mut group_guard) = {
+        let mut command = match &spec.command {
+            CommandSpec::Exec { program, args } => {
+                let mut c = std::process::Command::new(program);
+                c.args(args);
+                c
+            }
+            CommandSpec::Shell {
+                interpreter,
+                script,
+            } => {
+                let mut c = std::process::Command::new(interpreter);
+                c.args(["-c", script]);
+                c
+            }
+        };
+        command
+            .current_dir(&spec.cwd)
+            .envs(&spec.env)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        crate::platform::workload(&mut command)?;
+        let child = tokio::process::Command::from(command)
+            .kill_on_drop(true)
+            .spawn()
+            .context("cannot spawn executable (check program and cwd)")?;
+        let pid = child.id().context("missing workload PID")?;
+        let group_guard = crate::platform::GroupGuard::new(pid);
+        (child, group_guard)
     };
-    command
-        .current_dir(&spec.cwd)
-        .envs(&spec.env)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    crate::platform::workload(&mut command)?;
-    let mut child = Command::from(command)
-        .kill_on_drop(true)
-        .spawn()
-        .context("cannot spawn executable (check program and cwd)")?;
+    #[cfg(windows)]
+    let (mut child, mut group_guard) = crate::platform::spawn_workload(config, job)?;
     let pid = child.id().context("missing workload PID")?;
-    let mut group_guard = crate::platform::GroupGuard::new(pid);
     let ident = crate::platform::identity(pid);
     let j = job.job_id.clone();
     let r = job.run_id.clone();
@@ -136,7 +142,7 @@ async fn execute(config: &Config, store: &Store, job: &Job, spec: &StartSpec) ->
         })
         .await
     {
-        crate::platform::signal_group(pid, 9)?;
+        group_guard.signal(9)?;
         child.wait().await?;
         return Err(e);
     }
@@ -162,9 +168,9 @@ async fn execute(config: &Config, store: &Store, job: &Job, spec: &StartSpec) ->
             result=child.wait()=>{break result?;},
             Some(error)=output_errors.recv()=>{
                 capture_error=Some(error);forced=Some("failed");
-                crate::platform::signal_group(pid,15)?;
+                group_guard.signal(15)?;
                 tokio::time::sleep(Duration::from_millis(500)).await;
-                crate::platform::signal_group(pid,9)?;
+                group_guard.signal(9)?;
                 break child.wait().await?;
             },
             _=tick.tick()=>{
@@ -172,18 +178,18 @@ async fn execute(config: &Config, store: &Store, job: &Job, spec: &StartSpec) ->
                 let timed=spec.timeout_seconds.is_some_and(|s|started.elapsed()>=Duration::from_secs(s));
                 if state.cancel_requested||timed {
                     forced=Some(if state.cancel_requested {"cancelled"} else {"timeout"});
-                    crate::platform::signal_group(pid,15)?;
+                    group_guard.signal(15)?;
                     tokio::time::sleep(Duration::from_millis(500)).await;
-                    crate::platform::signal_group(pid,9)?;
+                    group_guard.signal(9)?;
                     break child.wait().await?;
                 }
             }
         }
     };
     // Workloads are non-daemonizing: collect descendants that kept pipes open.
-    crate::platform::signal_group(pid, 15)?;
+    group_guard.signal(15)?;
     tokio::time::sleep(Duration::from_millis(50)).await;
-    crate::platform::signal_group(pid, 9)?;
+    group_guard.signal(9)?;
     group_guard.disarm();
     let outputs = tokio::time::timeout(Duration::from_secs(2), async {
         Ok::<_, anyhow::Error>(((&mut out).await??, (&mut err).await??))
@@ -223,4 +229,39 @@ async fn execute(config: &Config, store: &Store, job: &Job, spec: &StartSpec) ->
             detail,
         )
         .await
+}
+
+#[cfg(windows)]
+pub async fn windows_workload(config: Config, job: String, name: String) -> Result<()> {
+    crate::platform::join_workload(&name)?;
+    crate::core::validate_id(&job)?;
+    let store = Store::new(config);
+    let spec: StartSpec = store
+        .call(move |db| {
+            let raw: String = db.query_row(
+                "SELECT spec FROM jobs WHERE id=? AND status='running'",
+                [job],
+                |r| r.get(0),
+            )?;
+            Ok(serde_json::from_str(&raw)?)
+        })
+        .await?;
+    let mut command = match spec.command {
+        CommandSpec::Exec { program, args } => {
+            let mut c = std::process::Command::new(program);
+            c.args(args);
+            c
+        }
+        CommandSpec::Shell {
+            interpreter,
+            script,
+        } => crate::platform::shell_command(&interpreter, &script),
+    };
+    let status = command
+        .current_dir(spec.cwd)
+        .envs(spec.env)
+        .stdin(std::process::Stdio::null())
+        .status()
+        .context("cannot spawn Windows workload")?;
+    std::process::exit(status.code().unwrap_or(1));
 }

@@ -53,11 +53,19 @@ impl StartSpec {
             self.cwd.is_absolute(),
             "cwd must be an explicit absolute directory"
         );
-        self.cwd = self.cwd.canonicalize()?;
+        self.cwd = crate::platform::normalized_path(self.cwd.canonicalize()?);
         ensure!(self.cwd.is_dir(), "cwd must be a directory");
         let strings = match &self.command {
             CommandSpec::Exec { program, args } => {
                 ensure!(!program.is_empty(), "program is required");
+                #[cfg(windows)]
+                ensure!(
+                    !std::path::Path::new(program)
+                        .extension()
+                        .is_some_and(|ext| ext.eq_ignore_ascii_case("cmd")
+                            || ext.eq_ignore_ascii_case("bat")),
+                    "batch files require an explicit shell command/interpreter"
+                );
                 ensure!(args.len() <= 256, "at most 256 arguments");
                 let mut s = vec![program.as_str()];
                 s.extend(args.iter().map(String::as_str));

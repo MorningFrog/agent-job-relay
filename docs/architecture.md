@@ -19,7 +19,7 @@ Launch intent commits before spawn. Runner takes a per-run OS lock and atomicall
 
 Sessions bind agent kind, logical session ID, host instance and lease. Targets bind the immutable registration key; refresh requires the same identity. Rebinding a new host instance requires an explicit target change, never a latest-session guess. Delivery: pending → leased → accepted_by_host OR retry_wait → dead_letter. Expired claims can be reclaimed. Stable event/target IDs provide receiver dedupe; there is no exactly-once promise. Host ack is not proof of agent execution.
 
-Linux is the verified runtime target. Other OS execution and IPC must fail clearly until their native security/lifecycle adapters are implemented and tested.
+Linux and Windows x86_64 have native runtime verification. Windows uses private SID/DACL named pipes, peer process-token checks and runner-owned Job Objects with a pre-execution helper join. Daemon/runner spawning disables handle inheritance so host capture pipes cannot leak. Other OS execution/IPC still fail explicitly; see [ADR 0011](adr/0011-windows-native-runtime.md).
 
 ## Client and installation boundaries
 

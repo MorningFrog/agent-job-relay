@@ -9,7 +9,7 @@ Tasks run in the background. Agents pick up when needed.
 任务在后台运行，Agent 在需要时接棒。
 </div>
 
-让长时间命令独立于 Agent 连接运行，保存结果，并在宿主支持时通知发起任务的聊天。**v0.1.6 是尚未发布的 Linux x86_64 开发版本。** Desktop 唤醒使用实验性接口；目前不支持 Windows/macOS。OpenCode V1 提供实验性插件候选包；Claude Code 提供仅收件箱通知的开发框架，需要社区验证。
+让长时间命令独立于 Agent 连接运行，保存结果，并在宿主支持时通知发起任务的聊天。**v0.1.6 是尚未发布的 Linux/Windows x86_64 开发版本。** Desktop 唤醒使用实验性接口；Windows 桌面端续接尚未验证，macOS 运行时暂不支持。OpenCode V1 提供实验性插件候选包；Claude Code 提供仅收件箱通知的开发框架，需要社区验证。
 
 OpenCode/Claude 的开发安装及验证边界见[宿主插件指南](docs/host-plugins.md)。
 
@@ -41,6 +41,10 @@ AJR_INSTALL_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/agent-job-relay"
 ```
 
 自定义安装请使用原目录。保留该目录：MCP 和缓存中的终端启动器都使用其中受管理的运行时。状态及历史另行保存，安装不修改 PATH 或系统服务。已经安装时，见[更新](#更新)。自定义路径和独立 MCP 配置见[安装指南](docs/installation.md)。
+
+## Windows
+
+使用可信的 Windows 离线 bundle 及其中的 `relay.cmd` 启动器。原生执行、进程树监管、MCP 与离线维护已通过 Windows 11 虚拟机验证；当前 npm 候选包仍仅携带 Linux 程序，Windows 打包正在补齐。PowerShell 安装、任务示例及运行边界见 [Windows 指南](docs/windows.md)。
 
 ## 在聊天中使用
 

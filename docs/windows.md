@@ -1,0 +1,53 @@
+# Windows native runtime
+
+The native x86_64 runtime supports durable background execution, bounded logs, cancellation/timeouts, daemon/runner recovery, MCP, inbox notifications and offline plugin maintenance. Windows 11 VM behavior tests pass. Desktop named-pipe transport/recovery tests use simulated hosts; Windows Desktop UI installation and observed same-chat continuation still need real-host acceptance. Ordinary Codex CLI integration has an inbox and does not automatically resume a chat.
+
+## Install a trusted Windows offline bundle
+
+Open PowerShell in the received Windows bundle directory:
+
+```powershell
+.\relay.cmd plugin bootstrap --dry-run
+.\relay.cmd plugin bootstrap --apply
+$ajrInstall = Join-Path $env:LOCALAPPDATA 'AgentJobRelay\plugin'
+& "$ajrInstall\relay.cmd" --version
+& "$ajrInstall\relay.cmd" doctor --client plugin --check-mcp
+```
+
+Expected: the preview identifies the chosen installation/state and marketplace entry; apply installs the native executable and `.cmd` launcher. Doctor reports a successful 20-tool stdio check. A stopped daemon before the first submission is expected. The bundle needs no recipient Rust, Python or Node. Restart the host, install/enable the local plugin and separately verify host MCP connectivity. Windows npm delivery is being prepared; the current npm candidates still carry Linux bytes only.
+
+The default native installation is `%LOCALAPPDATA%\AgentJobRelay\plugin`; state is `%LOCALAPPDATA%\AgentJobRelay\state`. Explicit `--state-dir`/AJR_STATE_DIR and existing installation profiles retain their recorded selection. Configuration/removal preserves other entries and task history. Do not move state into a plugin/npm cache.
+
+## Build when no bundle is available
+
+Install stable Rust MSVC and the Visual Studio C++ tools, then run from source:
+
+```powershell
+cargo build --release --locked
+.\target\release\agent-job-relay.exe plugin pack --output "$PWD\.tmp\windows-bundle" --apply
+```
+
+Transfer the complete Windows bundle, then use its `relay.cmd` bootstrap. A Linux bundle is not a Windows payload.
+
+## Run and inspect a task
+
+```powershell
+$ajr = Join-Path $env:LOCALAPPDATA 'AgentJobRelay\plugin\bin\agent-job-relay.exe'
+$submitted = & $ajr start --cwd "$PWD" --shell 'Start-Sleep -Seconds 2; Write-Output background-ok' | ConvertFrom-Json
+& $ajr wait $submitted.job.job_id --seconds 5
+& $ajr logs $submitted.job.job_id
+```
+
+Expected: a single completed Job/Run with exit 0 and `background-ok` in the log. Explicit argv execution is available after `--`; batch files require an explicit cmd shell. The Windows `--shell` default is PowerShell. MCP uses the same state and behavior.
+
+## Update, recover and remove
+
+Use the new bundle's launcher, finish active jobs, explicitly stop the original installation's daemon, and preview/apply `plugin update --root <original-install> --from <new-bundle>`. Keep the recorded state. Close host MCP processes when replacing their Windows executable/cache files; Windows may retain an executable image lock. An interrupted operation retains its journal/backups; run `plugin repair --path <exact-directory>` from the new bundle to preview and finish forward after releasing the lock. Never delete a cache or switch state to hide an update failure.
+
+`daemon stop --install-root <original-install>` leaves runners independent. Installation/cache/configuration operations remain separate and never stop daemons automatically. Normal removal keeps SQLite history/logs; independent Windows installers and WinGet distribution are not planned.
+
+## Execution boundaries
+
+An enclosing host Job Object must permit breakaway for independent daemon/runner launch. A restricted host that forbids it receives a launch error; the runtime does not escape through a Windows service. Cargo's cleanup job is such a test environment, so native behavioral fixtures use local CIM to launch their owned test processes under the same SID outside Cargo. Runtime users need no CIM dependency.
+
+Runner-owned Job Objects terminate contained descendants on cancellation, timeout or runner death. Console Ctrl-Break is best effort before force termination. Processes that cannot join the job do not execute the user command. State and pipe security require the current user's SID, private DACLs and non-reparse paths. Physical power loss, filesystem exhaustion and Desktop version compatibility remain distinct qualifications. See [architecture decision](adr/0011-windows-native-runtime.md) and [testing](testing.md).

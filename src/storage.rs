@@ -27,7 +27,7 @@ impl Store {
             let _permit = permit;
             if let Ok(m) = std::fs::symlink_metadata(&path) {
                 ensure!(
-                    m.is_file() && !m.file_type().is_symlink(),
+                    m.is_file() && !crate::platform::is_link(&m),
                     "database must be a regular file, not a symbolic link"
                 );
             }

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{
     collections::BTreeMap,
-    fs::{File, OpenOptions},
+    fs::File,
     io::Write,
     path::{Path, PathBuf},
 };
@@ -79,7 +79,7 @@ fn sync_tree(root: &Path) -> Result<()> {
             sync_tree(&path)?;
         }
     }
-    File::open(root)?.sync_all()?;
+    crate::platform::sync_directory(root)?;
     Ok(())
 }
 fn snapshot(root: &Path) -> Result<Snapshot> {
@@ -176,7 +176,7 @@ impl Operation {
                 );
             }
             ensure!(
-                files.contains_key("bin/agent-job-relay")
+                files.contains_key(crate::platform::NATIVE_FILE)
                     && (files.contains_key(PROFILE)
                         || (self.kind == Kind::Install && files.contains_key(RECEIPT))),
                 "incomplete operation snapshot"
@@ -284,15 +284,15 @@ impl Operation {
     fn finish(&self) -> Result<()> {
         if self.phase()? != "installed" {
             if self.root.try_exists()? {
-                std::fs::rename(&self.root, self.backup())?;
-                File::open(self.root.parent().unwrap())?.sync_all()?;
+                crate::platform::rename_directory(&self.root, &self.backup())?;
+                crate::platform::sync_directory(self.root.parent().unwrap())?;
             }
-            std::fs::rename(self.stage(), &self.root)?;
-            File::open(self.root.parent().unwrap())?.sync_all()?;
+            crate::platform::rename_directory(&self.stage(), &self.root)?;
+            crate::platform::sync_directory(self.root.parent().unwrap())?;
         }
         self.verify(&self.root, &self.after)?;
         std::fs::remove_file(journal(&self.root)?)?;
-        File::open(self.root.parent().unwrap())?.sync_all()?;
+        crate::platform::sync_directory(self.root.parent().unwrap())?;
         Ok(())
     }
 }
@@ -365,10 +365,7 @@ fn publish(op: &Operation) -> Result<()> {
         .parent()
         .unwrap()
         .join(format!(".ajr-journal-{}", op.id));
-    let mut options = OpenOptions::new();
-    options.write(true).create_new(true);
-    crate::platform::secure_options(&mut options);
-    let mut out = options.open(&tmp)?;
+    let mut out = crate::platform::create_new_file(&tmp)?;
     out.write_all(&serde_json::to_vec_pretty(op)?)?;
     out.sync_all()?;
     drop(out);
@@ -376,8 +373,8 @@ fn publish(op: &Operation) -> Result<()> {
         !exists(&path)?,
         "operation journal appeared; preserve and inspect it"
     );
-    std::fs::rename(tmp, &path)?;
-    File::open(op.root.parent().unwrap())?.sync_all()?;
+    crate::platform::publish_file(&tmp, &path)?;
+    crate::platform::sync_directory(op.root.parent().unwrap())?;
     Ok(())
 }
 /// Inspect only an explicitly selected operation; never discover caches/backups.
@@ -466,14 +463,14 @@ mod tests {
         }
         fn files(&self, revision: &str, receipt: bool) -> BTreeMap<String, Artifact> {
             let entries: &[(&str, &[u8])] = &[
-                ("bin/agent-job-relay", b"native fixture"),
+                (crate::platform::NATIVE_FILE, b"native fixture"),
                 (
                     ".codex-plugin/plugin.json",
                     br#"{"name":"agent-job-relay","version":"0.1.4"}"#,
                 ),
                 (".mcp.json", br#"{"mcpServers":{"agent-job-relay":{}}}"#),
                 (
-                    "relay",
+                    crate::platform::LAUNCHER_FILE,
                     b"__AJR_INSTALLED_STATE__ __AJR_INSTALLED_EXECUTABLE__",
                 ),
                 ("LICENSE", revision.as_bytes()),

@@ -314,3 +314,56 @@ pub fn interrupt_signal() -> Result<tokio::signal::unix::Signal> {
         tokio::signal::unix::SignalKind::interrupt(),
     )?)
 }
+
+pub type ClientStream = tokio::net::UnixStream;
+pub type ServerStream = tokio::net::UnixStream;
+pub struct Listener(tokio::net::UnixListener);
+impl Listener {
+    pub fn bind(path: &Path) -> Result<Self> {
+        use std::os::unix::fs::FileTypeExt;
+        super::validate_endpoint(path)?;
+        if path.exists() {
+            ensure!(
+                std::fs::symlink_metadata(path)?.file_type().is_socket(),
+                "refusing to replace a non-socket IPC path"
+            );
+            std::fs::remove_file(path)?;
+        }
+        let listener = tokio::net::UnixListener::bind(path)?;
+        std::fs::set_permissions(path, Permissions::from_mode(0o600))?;
+        Ok(Self(listener))
+    }
+    pub async fn accept(&mut self) -> Result<tokio::net::UnixStream> {
+        Ok(self.0.accept().await?.0)
+    }
+}
+pub fn cleanup_endpoint(path: &Path) -> Result<()> {
+    std::fs::remove_file(path)?;
+    Ok(())
+}
+pub fn peer_pid(stream: &ClientStream) -> Result<Option<u32>> {
+    Ok(stream
+        .peer_cred()?
+        .pid()
+        .filter(|p| *p > 1)
+        .map(|p| p as u32))
+}
+pub fn local_endpoint(root: &Path) -> std::path::PathBuf {
+    root.join("relay.sock")
+}
+pub fn connected_endpoint_identity(_: &ClientStream, path: &Path) -> Result<String> {
+    endpoint_identity(path)
+}
+
+pub fn spawn_background(mut command: Command) -> Result<()> {
+    detach(&mut command)?;
+    let mut child = tokio::process::Command::from(command)
+        .kill_on_drop(false)
+        .spawn()?;
+    tokio::spawn(async move {
+        if let Err(error) = child.wait().await {
+            tracing::error!(%error, "background process reap failed");
+        }
+    });
+    Ok(())
+}

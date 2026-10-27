@@ -1,10 +1,10 @@
 use crate::{config::Config, core::*, storage::Store};
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 use anyhow::Context;
 use anyhow::Result;
 use rusqlite::params;
 use std::process::Stdio;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 use std::time::Duration;
 pub async fn tick(store: &Store) -> Result<()> {
     let active = store.active().await?;
@@ -27,15 +27,8 @@ pub async fn tick(store: &Store) -> Result<()> {
                         .stdin(Stdio::null())
                         .stdout(Stdio::null())
                         .stderr(Stdio::null());
-                    crate::platform::detach(&mut c)?;
-                    match tokio::process::Command::from(c).spawn() {
-                        Ok(mut child) => {
-                            tokio::spawn(async move {
-                                if let Err(e) = child.wait().await {
-                                    tracing::error!(error=%e,"runner reap failed");
-                                }
-                            });
-                        }
+                    match crate::platform::spawn_background(c) {
+                        Ok(()) => {}
                         Err(e) => {
                             store
                                 .finish(
@@ -75,24 +68,11 @@ pub async fn serve(config: Config) -> Result<()> {
     let _lock = config.daemon_lock()?;
     let store = Store::new(config.clone());
     store.init().await?;
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     {
-        use std::os::unix::fs::{FileTypeExt, PermissionsExt};
         let path = config.socket();
-        anyhow::ensure!(
-            path.as_os_str().len() < 104,
-            "state path too long for Unix socket; use shorter --state-dir"
-        );
-        if path.exists() {
-            let m = std::fs::symlink_metadata(&path)?;
-            anyhow::ensure!(
-                m.file_type().is_socket(),
-                "refusing to replace a non-socket IPC path"
-            );
-            std::fs::remove_file(&path)?;
-        }
-        let listener = tokio::net::UnixListener::bind(&path).context("cannot bind relay socket")?;
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))?;
+        let mut listener =
+            crate::platform::Listener::bind(&path).context("cannot bind private relay endpoint")?;
         // Keep the receiver alive while reconciliation awaits database work.
         // Recreating ctrl_c() inside select loses signals in that interval.
         let mut interrupt = crate::platform::interrupt_signal()?;
@@ -104,7 +84,7 @@ pub async fn serve(config: Config) -> Result<()> {
             tokio::select! {
                 _=interrupt.recv()=>break,
                 _=tick.tick()=>{if let Err(e)=self::tick(&store).await {tracing::error!(error=%e,"reconciliation failed");}},
-                r=listener.accept()=>{let (s,_)=r?;let permit=match slots.clone().try_acquire_owned(){Ok(p)=>p,Err(_)=>continue};
+                r=listener.accept()=>{let s=r?;let permit=match slots.clone().try_acquire_owned(){Ok(p)=>p,Err(_)=>continue};
                     let service=store.clone();tasks.spawn(async move{let _permit=permit;match crate::ipc::handle(s,service).await {Ok(shutdown)=>shutdown,Err(e)=>{tracing::debug!(error=%e,"IPC request rejected");false}}});},
                 Some(r)=tasks.join_next()=>{match r {Ok(true)=>break,Ok(false)=>{},Err(e)=>tracing::error!(error=%e,"IPC worker panicked")}}
             }
@@ -112,7 +92,7 @@ pub async fn serve(config: Config) -> Result<()> {
         delivery_task.abort();
         let _ = delivery_task.await;
         tasks.shutdown().await;
-        std::fs::remove_file(path)?;
+        crate::platform::cleanup_endpoint(&path)?;
     }
     Ok(())
 }
