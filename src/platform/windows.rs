@@ -347,6 +347,7 @@ fn spawn_with_environment(
             DETACHED_PROCESS
                 | CREATE_NEW_PROCESS_GROUP
                 | CREATE_BREAKAWAY_FROM_JOB
+                | CREATE_SUSPENDED
                 | CREATE_UNICODE_ENVIRONMENT,
             block.as_ptr().cast(),
             cwd.as_ref().map_or(std::ptr::null(), |p| p.as_ptr()),
@@ -357,9 +358,41 @@ fn spawn_with_environment(
             "independent Windows launch failed; an enclosing host Job Object may forbid breakaway",
         )?;
     }
-    let _thread = owned(process.hThread)?;
-    let _process = owned(process.hProcess)?;
-    Ok(())
+    let thread = owned(process.hThread)?;
+    let child = owned(process.hProcess)?;
+    // BREAKAWAY can leave an inner job yet retain a restrictive outer job.
+    // Inspect the pinned child before any runtime code or state access occurs.
+    let ready = (|| -> Result<()> {
+        let mut in_job = 0;
+        unsafe {
+            check(IsProcessInJob(
+                child.as_raw_handle(),
+                null_mut(),
+                &mut in_job,
+            ))?;
+        }
+        if in_job != 0 {
+            return Err(std::io::Error::from_raw_os_error(
+                ERROR_ACCESS_DENIED as i32,
+            ))
+            .context("native background process still inherits a host Job Object");
+        }
+        if unsafe { ResumeThread(thread.as_raw_handle()) } == u32::MAX {
+            return Err(std::io::Error::last_os_error())
+                .context("cannot resume independent Windows runtime");
+        }
+        Ok(())
+    })();
+    if ready.is_err() {
+        // This is only our newly created, suspended process handle, never a PID
+        // lookup or a process that has executed a command or acquired a profile.
+        ensure!(
+            unsafe { TerminateProcess(child.as_raw_handle(), 1) } != 0,
+            "cannot discard newly created suspended runtime: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+    ready
 }
 fn process_handle(pid: u32, access: u32) -> Result<OwnedHandle> {
     owned(unsafe { OpenProcess(access, 0, pid) })

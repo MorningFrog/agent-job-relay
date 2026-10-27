@@ -20,6 +20,8 @@
 
 ### Fixed
 
+- Validate complete Windows Job Object detachment on a newly created suspended daemon/runner before resuming it. Nested-host partial breakaway now triggers the existing daemon-only CIM path; direct-only mode refuses before state/workload execution. Preserve underlying runner-launch errors.
+
 - Wait asynchronously for a busy Windows host pipe, then authenticate the actual connected instance before Desktop/plugin exchanges. Avoid a separate fingerprint connection that could fail before the bounded wait; Unix socket checks remain unchanged.
 
 ### Known limitations

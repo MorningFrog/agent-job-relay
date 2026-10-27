@@ -20,7 +20,7 @@ The default native installation is `%LOCALAPPDATA%\AgentJobRelay\plugin`; state 
 
 ## npm and host plugins
 
-After publication, the self-hosted catalog and OpenCode use the same Windows x86_64 native payload with a static MSVC runtime; recipient machines need Node.js/npm, without Rust or Visual Studio. Follow [release installation](release.md#consumer-install-after-publication). The Windows catalog MCP launcher uses Node plus the system command processor to invoke pinned npx arguments. Terminal use has a `relay.cmd` entry point.
+After publication, the self-hosted catalog and OpenCode use the same Windows x86_64 native payload with a static MSVC runtime; recipient machines need Node.js/npm, without Rust or Visual Studio. Follow [release installation](release.md#consumer-installation-after-publication). The Windows catalog MCP launcher uses Node plus the system command processor to invoke pinned npx arguments. Terminal use has a `relay.cmd` entry point.
 
 Default npm state lives in `%LOCALAPPDATA%\AgentJobRelay\profiles\codex` or `opencode`, outside host/npm caches. `AJR_STATE_DIR` may explicitly select an existing profile; no automatic profile migration or upgrade-driven daemon replacement occurs. OpenCode V1 requires 1.19.4 and native >=0.1.7. Its Node/Bun pipe is checked against the exact server process and restricted to a private DACL before sessions register.
 
@@ -60,7 +60,7 @@ Expected: a single completed Job/Run with exit 0 and `background-ok` in the log.
 
 Normal use needs no manual `daemon start`, login startup registration or administrator setup. The first task/session request starts the selected daemon; existing daemons are reused. After a daemon stop/crash or Windows restart, the next submission/registration starts it again. This does not replay jobs or keep commands alive across an OS restart. Doctor remains read-only.
 
-The runtime tries native detached creation first. If a cleanup Job Object (including Codex CLI 0.164.0 MCP) denies breakaway, it uses Windows PowerShell/local CIM to start a bounded helper of the same executable. Both ends verify process instance/image, SID, integrity level, privilege inventory and private pipe security before transferring the caller's Unicode environment/cwd. No environment file, remote target, alternate user, elevation, scheduled task, startup entry or service installation is used. Runners still use native detached creation and Job Object containment.
+The runtime tries native detached creation first, keeping the new child suspended until its process handle confirms complete detachment. Partial escape from an inner Job Object is refused before runtime code or state access, so a remaining outer restriction cannot strand the next runner. If a cleanup Job Object (including Codex CLI 0.164.0 MCP) denies breakaway, it uses Windows PowerShell/local CIM to start a bounded helper of the same executable. Both ends verify process instance/image, SID, integrity level, privilege inventory and private pipe security before transferring the caller's Unicode environment/cwd. No environment file, remote target, alternate user, elevation, scheduled task, startup entry or service installation is used. Runners still use native detached creation and Job Object containment.
 
 Use `doctor` / `job_doctor` to inspect `daemon_launch_method`: `windows_native`, `windows_cim` or `foreground`. CLI doctor also reports the current automatic-startup policy and `outside_terminal_command`. `AJR_WINDOWS_STARTUP=auto` is the default; `direct` disables CIM for future startup attempts. Restricted/AppContainer/low-integrity tokens and local policies that deny CIM are refused explicitly.
 
@@ -72,7 +72,7 @@ If automatic startup is blocked, copy the exact `outside_terminal_command` from 
 
 The command exits once ready; repeated calls reuse the daemon. A terminal opened inside the restrictive host can inherit its restriction and may not suffice. `daemon stop` preserves independent runners/history. There is no resident restart watchdog: recovery happens on the next submission/registration.
 
-Native tests cover cold restricted-host startup, host job destruction, daemon-crash restart, environment/identity isolation and policy refusal. Real installed Codex model/MCP acceptance must start with no prestarted daemon. Native VM tests pass under guest-agent SYSTEM and the ordinary interactive user; the cold-profile installed MCP/model workflow also passes under both. Actual Windows ChatGPT Desktop continuation is verified separately; see [live evidence](live-e2e.md).
+Native tests cover nested host jobs, direct-only refusal before state/workload execution, cold restricted-host startup, host job destruction, daemon-crash restart, environment/identity isolation and policy refusal. Real installed Codex model/MCP acceptance must start with no prestarted daemon. Native VM tests pass under guest-agent SYSTEM and the ordinary interactive user; the cold-profile installed MCP/model workflow also passes under both. Actual Windows ChatGPT Desktop continuation is verified separately; see [live evidence](live-e2e.md).
 
 ## Update, recover and remove
 

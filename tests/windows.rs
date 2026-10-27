@@ -1324,6 +1324,112 @@ async fn automatic_start_survives_host_job_destruction_and_recovers_after_daemon
 }
 
 #[tokio::test]
+async fn nested_host_job_requires_a_fully_detached_daemon_before_submission() {
+    let dir = tempfile::tempdir_in(common::root()).unwrap();
+    let config = Config::new(Some(dir.path().join("nested-state"))).unwrap();
+    let mut r = Rig {
+        dir,
+        config,
+        daemon: None,
+        jobs: Mutex::new(Vec::new()),
+    };
+    let mut host = tokio::process::Command::new(fixture())
+        .arg("host-nested-start")
+        .arg(env!("CARGO_BIN_EXE_agent-job-relay"))
+        .arg(&r.config.root)
+        .arg(r.dir.path())
+        .env("AJR_WINDOWS_STARTUP", "auto")
+        .stdin(Stdio::null())
+        .kill_on_drop(true)
+        .spawn()
+        .unwrap();
+    tokio::time::timeout(Duration::from_secs(30), async {
+        while !r.dir.path().join("host.stdout.json").exists() {
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+    })
+    .await
+    .unwrap();
+    let peer = platform::connect_host(&r.config.socket()).await.unwrap();
+    let pid = platform::peer_pid(&peer).unwrap().unwrap();
+    r.daemon = Some(DaemonProcess {
+        pid,
+        identity: platform::identity(pid).unwrap(),
+    });
+    drop(peer);
+    assert_eq!(
+        std::fs::read_to_string(r.dir.path().join("host.exit")).unwrap(),
+        "0",
+        "{}",
+        std::fs::read_to_string(r.dir.path().join("host.stderr")).unwrap()
+    );
+    let value: Value =
+        serde_json::from_slice(&std::fs::read(r.dir.path().join("host.stdout.json")).unwrap())
+            .unwrap();
+    let job = value["job"].clone();
+    r.jobs
+        .lock()
+        .unwrap()
+        .push(job["job_id"].as_str().unwrap().into());
+    r.ready("ready").await;
+    let doctor = ipc::call(&r.config, Request::Doctor).await.unwrap();
+    assert_eq!(doctor["daemon_launch_method"], "windows_cim");
+    std::fs::write(r.dir.path().join("close-host"), b"close").unwrap();
+    tokio::time::timeout(Duration::from_secs(5), host.wait())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(r.status(&job).await["status"], "running");
+    r.release();
+    assert_eq!(r.terminal(&job).await["status"], "completed");
+}
+
+#[tokio::test]
+async fn direct_mode_nested_host_refuses_before_runtime_or_workload_execution() {
+    let dir = tempfile::tempdir_in(common::root()).unwrap();
+    let state = dir.path().join("direct-nested-state");
+    let mut host = tokio::process::Command::new(fixture())
+        .arg("host-nested-start")
+        .arg(env!("CARGO_BIN_EXE_agent-job-relay"))
+        .arg(&state)
+        .arg(dir.path())
+        .env("AJR_WINDOWS_STARTUP", "direct")
+        .stdin(Stdio::null())
+        .kill_on_drop(true)
+        .spawn()
+        .unwrap();
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while !dir.path().join("host.stdout.json").exists() {
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+    })
+    .await
+    .unwrap();
+    assert_ne!(
+        std::fs::read_to_string(dir.path().join("host.exit")).unwrap(),
+        "0"
+    );
+    assert!(
+        std::fs::read_to_string(dir.path().join("host.stderr"))
+            .unwrap()
+            .contains("mode=direct")
+    );
+    std::fs::write(dir.path().join("close-host"), b"close").unwrap();
+    tokio::time::timeout(Duration::from_secs(5), host.wait())
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        !state.join("relay.sqlite3").exists(),
+        "suspended native child must not initialize state"
+    );
+    assert!(
+        !dir.path().join("ready").exists(),
+        "refused launch must never execute the workload"
+    );
+}
+
+#[tokio::test]
 async fn bootstrap_refuses_changed_parent_or_another_executable_before_transfer() {
     for expected in [
         "windows:stale-instance".to_string(),

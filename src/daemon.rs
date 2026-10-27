@@ -36,7 +36,7 @@ pub async fn tick(store: &Store) -> Result<()> {
                                     "failed",
                                     None,
                                     None,
-                                    format!("runner spawn failed: {e}"),
+                                    format!("runner spawn failed: {e:#}"),
                                 )
                                 .await?
                         }

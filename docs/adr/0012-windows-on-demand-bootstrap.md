@@ -4,6 +4,8 @@
 
 The user requested automatic startup with as little manual preparation as possible. Replace ADR 0011's direct-only daemon startup with an on-demand, same-user local CIM bootstrap when native creation fails with access denied inside a Job Object. Keep direct native runner launch and Job Object containment unchanged. No startup entry, scheduled task, credential, service installation or persistent helper is needed.
 
+Native background creation is suspended until the pinned child handle confirms that no host Job Object remains. Windows can report successful breakaway from an inner job while retaining an outer restriction, so CreateProcess success alone is insufficient. Reject and terminate only that newly created suspended instance before any runtime code/state access, then let automatic daemon startup use the same checked CIM path. Direct-only mode refuses without a job/database; runners never use CIM. Resume only a fully detached child.
+
 Windows documents that `Win32_Process.Create` does not inherit the caller's Job Object. Its provider can impose its own job limits; the helper must still successfully launch an independent native daemon. Invoke the built-in Windows PowerShell/CIM interface without profiles, remote targets or elevation. Only the absolute current executable, fixed helper mode, explicit state path and private rendezvous identity enter that command. Job commands never enter CIM. Hidden new-console startup is used because the provider rejects the attempted no-window creation flag combination.
 
 Before transferring anything, validate the helper's returned PID against a pinned process handle, creation time, current-user SID, integrity level, privilege inventory, executable image and connected pipe client. The helper independently validates the server instance/image/token and pipe DACL. Reject restricted tokens, AppContainers and integrity below medium; the broker must not turn a sandbox token into a broader process under the same account.
@@ -14,7 +16,7 @@ The daemon reports its launch method through doctor. Default `AJR_WINDOWS_STARTU
 
 ## Verification
 
-Native regressions cover cold launch inside a non-breakaway job, Unicode/quoted paths and environment, removal of chat identities, capture EOF, destruction of the host's cleanup job, daemon-crash restart without replay, direct-only refusal, incorrect parent instances/images and restricted/low-integrity token refusal. Actual installed Codex model/MCP acceptance must begin with no prestarted daemon. Ordinary interactive-user and real Windows ChatGPT Desktop acceptance remain separate from guest-agent SYSTEM tests.
+Native regressions cover nested inner-breakaway/outer-restrictive jobs, refusal before suspended-child state access, cold launch inside a non-breakaway job, Unicode/quoted paths and environment, removal of chat identities, capture EOF, destruction of the host's cleanup job, daemon-crash restart without replay, direct-only refusal, incorrect parent instances/images and restricted/low-integrity token refusal. Actual installed Codex model/MCP acceptance must begin with no prestarted daemon. Ordinary interactive-user and real Windows ChatGPT Desktop acceptance remain separate from guest-agent SYSTEM tests.
 
 ## Sources
 

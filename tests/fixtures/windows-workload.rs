@@ -3,7 +3,7 @@ use std::{io::{self, Write}, path::PathBuf, process::{Command, Stdio}, thread, t
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     match args.get(1).map(String::as_str).unwrap_or("") {
-        "host-start" => restricted_host(&args),
+        "host-start" | "host-nested-start" => restricted_host(&args),
         "echo" => { for arg in &args[2..] { println!("{arg}"); } eprintln!("stderr-marker"); }
         "env" => { for key in &args[2..] { println!("{key}={}", std::env::var(key).unwrap_or_default()); } }
         "exit" => std::process::exit(args[2].parse().unwrap()),
@@ -58,6 +58,17 @@ fn restricted_host(args: &[String]) {
         assert_ne!(SetInformationJobObject(job, 9, (&limits as *const Limits).cast(), std::mem::size_of_val(&limits) as u32),0);
         assert_ne!(AssignProcessToJobObject(job, GetCurrentProcess()),0);
     }
+    // BREAKAWAY may leave this inner job while retaining the restrictive outer
+    // job. CreateProcess success alone does not establish process independence.
+    let inner = if args[1] == "host-nested-start" {
+        let inner = unsafe { CreateJobObjectW(null_mut(), null_mut()) };assert!(!inner.is_null());
+        limits.basic.flags=0x2800; // KILL_ON_JOB_CLOSE | BREAKAWAY_OK.
+        unsafe {
+            assert_ne!(SetInformationJobObject(inner, 9, (&limits as *const Limits).cast(), std::mem::size_of_val(&limits) as u32),0);
+            assert_ne!(AssignProcessToJobObject(inner, GetCurrentProcess()),0);
+        }
+        Some(inner)
+    } else { None };
     let dir = PathBuf::from(&args[4]);
     let output = Command::new(&args[2]).arg("--state-dir").arg(&args[3]).args(["start", "--cwd"]).arg(&dir)
         .arg("--").arg(std::env::current_exe().unwrap()).arg("gate").arg(&dir)
@@ -70,6 +81,9 @@ fn restricted_host(args: &[String]) {
         if dir.join("close-host").exists() { break; }
         thread::sleep(Duration::from_millis(20));
     }
-    unsafe { CloseHandle(job); } // Terminates the host and every child still in its cleanup job.
+    unsafe {
+        if let Some(inner) = inner { CloseHandle(inner); }
+        CloseHandle(job);
+    } // Terminates the host and every child still in either cleanup job.
     unreachable!();
 }
