@@ -54,6 +54,136 @@ async fn claim(s: &Store, key: String, cwd: PathBuf) -> agent_job_relay::deliver
     s.claim().await.unwrap().unwrap()
 }
 #[tokio::test]
+async fn dispatcher_runs_four_chats_concurrently_without_overlapping_one_chat() {
+    let (dir, store) = store().await;
+    let endpoint = dir.path().join("parallel.sock");
+    let listener = tokio::net::UnixListener::bind(&endpoint).unwrap();
+    let mut jobs = Vec::new();
+    for (chat, instance) in [
+        ("slow", "one"),
+        ("slow", "two"),
+        ("fast-1", "one"),
+        ("fast-2", "one"),
+        ("fast-3", "one"),
+        ("fast-4", "one"),
+    ] {
+        let session = store
+            .register(registration(endpoint.clone(), chat, instance))
+            .await
+            .unwrap();
+        let job = store
+            .start(StartSpec {
+                command: CommandSpec::Exec {
+                    program: "true".into(),
+                    args: vec![],
+                },
+                cwd: dir.path().into(),
+                env: Default::default(),
+                timeout_seconds: None,
+                session: Some(session.key),
+                idempotency_key: None,
+            })
+            .await
+            .unwrap();
+        store
+            .finish(
+                job.job_id.clone(),
+                "completed",
+                Some(0),
+                None,
+                "done".into(),
+            )
+            .await
+            .unwrap();
+        jobs.push(job.job_id);
+    }
+    let rows = store.deliveries(None, 0, 100).await.unwrap();
+    let ids: Vec<_> = rows["deliveries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|d| d["id"].as_str().unwrap().to_owned())
+        .collect();
+    let (sent, mut received) = tokio::sync::mpsc::channel(8);
+    // Dropping either JoinSet aborts its children, including on assertion failure.
+    let mut tasks = tokio::task::JoinSet::new();
+    tasks.spawn(async move {
+        let mut connections = tokio::task::JoinSet::new();
+        loop {
+            tokio::select! {
+                result=listener.accept()=>{
+                    let (mut stream, _)=result.unwrap();
+                    let sent=sent.clone();
+                    connections.spawn(async move {
+                        let list=ipc::read_frame(&mut stream,65536).await.unwrap();
+                        ipc::write_frame(&mut stream,&json!({"jsonrpc":"2.0","id":list["id"],
+                            "result":{"tools":[{"namespace":"codex_app","name":"send_message_to_thread"}]}})).await.unwrap();
+                        let request=ipc::read_frame(&mut stream,65536).await.unwrap();
+                        let (release, wait)=tokio::sync::oneshot::channel::<()>();
+                        sent.send((request["params"]["callId"].as_str().unwrap().to_owned(),release)).await.unwrap();
+                        wait.await.unwrap();
+                        ipc::write_frame(&mut stream,&json!({"jsonrpc":"2.0","id":request["id"],"result":{"success":true}})).await.unwrap();
+                    });
+                },
+                Some(result)=connections.join_next()=>{result.unwrap();},
+            }
+        }
+    });
+    tasks.spawn(agent_job_relay::delivery::worker(store.clone()));
+    let mut held = std::collections::HashMap::new();
+    for _ in 0..4 {
+        let (id, release) = tokio::time::timeout(Duration::from_secs(2), received.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        held.insert(id, release);
+    }
+    for index in [0, 2, 3, 4] {
+        assert!(held.contains_key(&ids[index]));
+    }
+    let rows = store.deliveries(None, 0, 100).await.unwrap();
+    assert_eq!(rows["deliveries"][1]["status"], "pending");
+    assert_eq!(rows["deliveries"][5]["status"], "pending");
+    assert!(received.try_recv().is_err());
+    // A fast destination frees a slot for another chat while the first is held.
+    held.remove(&ids[2]).unwrap().send(()).unwrap();
+    let (id, release) = tokio::time::timeout(Duration::from_secs(2), received.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(id, ids[5]);
+    held.insert(id, release);
+    // The second registration of the slow chat starts only after its first ack.
+    held.remove(&ids[0]).unwrap().send(()).unwrap();
+    let (id, release) = tokio::time::timeout(Duration::from_secs(2), received.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(id, ids[1]);
+    held.insert(id, release);
+    for (_, release) in held {
+        release.send(()).unwrap();
+    }
+    tokio::time::timeout(Duration::from_secs(2), async {
+        loop {
+            let rows = store.deliveries(None, 0, 100).await.unwrap();
+            if rows["deliveries"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|d| d["status"] == "accepted_by_host")
+            {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+    tasks.shutdown().await;
+}
+
+#[tokio::test]
 async fn fake_desktop_fragmented_catalog_fields_routing_and_acceptance_only() {
     let (d, s) = store().await;
     let ep = d.path().join("host.sock");

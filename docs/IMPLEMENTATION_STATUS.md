@@ -2,7 +2,7 @@
 
 ## Current baseline
 
-Last verified: **2026-10-28 (Asia/Shanghai)**. Source **0.1.8**, published; one Rust package/executable provides CLI, stdio MCP, daemon and runner modes. SQLite schema is **v6**, local IPC is **v1**. Local Linux checks use x86_64, kernel 7.0.0-38-generic and Rust/Cargo 1.99.1, edition 2024. Cargo.lock pins rmcp 3.7.0, Tokio 1.54.1 and rusqlite 0.41.0; the declared Rust 1.89 minimum is not independently verified.
+Last verified: **2026-10-28 (Asia/Shanghai)**. Version **0.1.8** is published; current source includes unreleased scheduling and release-workflow improvements. One Rust package/executable provides CLI, stdio MCP, daemon and runner modes. SQLite schema is **v6**, local IPC is **v1**. Local Linux checks use x86_64, kernel 7.0.0-38-generic and Rust/Cargo 1.99.1, edition 2024. Cargo.lock pins rmcp 3.7.0, Tokio 1.54.1 and rusqlite 0.41.0; the declared Rust 1.89 minimum is not independently verified.
 
 Stages 0–2 implement design, native execution, MCP/delivery and setup; Stage 3 has the host-specific evidence below, and Stage 4 has local quality/documentation gates. Linux and Windows have verified native runtime cores; macOS runtime is unimplemented. Read [PROJECT_SPEC.md](../PROJECT_SPEC.md), [architecture](architecture.md) and [AGENTS.md](../AGENTS.md) before changing behavior. Use [TODO.md](TODO.md) for remaining work, [live-e2e.md](live-e2e.md) for current live evidence and Git history for previous increments.
 
@@ -12,9 +12,10 @@ Stages 0–2 implement design, native execution, MCP/delivery and setup; Stage 3
 |---|---|
 | Execution | Explicit argv or opt-in shell, validated cwd/env/timeout, durable idempotency, separate Job/Run identities and attempt=1; deliberate reruns require a new job/key |
 | Lifecycle | Detached runner, per-run lock/CAS startup, independent workload groups/Windows Job Objects, conservative orphan classification and no automatic execution replay |
-| Storage/output | SQLite WAL/FULL/foreign keys, bounded blocking workers, short transactions, v1/v4→v6 migrations, capped raw stdout/stderr and byte cursors |
+| Storage/output | SQLite WAL/FULL/foreign keys, bounded blocking workers and connection reuse, failed/unfinished transaction eviction, short transactions, v1/v4→v6 migrations, capped raw stdout/stderr and byte cursors |
 | Cancellation/security | Graceful then bounded forced tree stop, Linux subreaper, private Unix sockets/Windows SID-DACL pipes, peer checks, bounded requests/pages and symlink refusal |
-| Delivery | Atomic terminal state/Event/Outbox, stable IDs, fenced 10-second claims, three-second attempts, retries until 24-hour TTL, jitter/backoff capped at five minutes, explicit retry/dead letters |
+| Delivery | Atomic terminal state/Event/Outbox, stable IDs, fenced 10-second claims, up to four concurrent three-second attempts with per-logical-chat exclusion, retries until 24-hour TTL, jitter/backoff capped at five minutes, explicit retry/dead letters |
+| Idle scheduling | Local-write wake signals, fallback checks backing off from 100 ms to one second, 100 ms active-job reconciliation, read-only empty-queue checks; independent runners remain observable without a live submission connection |
 | Recovery/renewal | Same-chat preview/apply with immutable targets and atomic audit, preserved IDs/history/TTL, live-claim exclusion and stale-ack fencing; opted-in renewal verifies the same endpoint/current claim |
 | MCP/session binding | 20 tools; actual caller binding rather than shared-process identity. ChatGPT Desktop uses current terminal, OpenCode V1 uses tool context, Claude scaffold uses explicit skill substitution and inbox-only capability |
 | Installation | Stable native/plugin bundle, separate state profile, owned configuration/marketplace preview/apply/removal, modified/foreign-content refusal and data preservation |
@@ -32,9 +33,9 @@ The binary keeps process initialization in `src/main.rs`, command syntax in `src
 
 | Check | Result and boundary |
 |---|---|
-| Linux delivery gates | `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --all-targets` and `cargo build --release` pass; **82 tests passed, 0 failed, 0 ignored** |
+| Linux delivery gates | `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --all-targets` and `cargo build --release` pass; **86 tests passed, 0 failed, 0 ignored** |
 | Release orchestration | **36 behavioral checks** pass for source/pins/CHANGELOG, credential-free preparation, exact publication OIDC identity, sealed-channel dry-run/partial-publication reuse, source/Git-tree fences, immutable assets, stage/public integrity, visible channel completion and paginated draft/exact-ID uploads; actionlint accepts CI and both release workflows. Fixture tests do not establish actual OIDC publication |
-| Linux suite groups | 8 library, 4 bridge, 14 convenience/installed MCP, 10 delivery/migration, 7 ChatGPT Desktop simulation/renewal, 4 integration, 5 onboarding, 10 offline plugin/cache, 3 legacy-upgrade, 4 recovery, 13 runtime |
+| Linux suite groups | 8 library, 4 bridge, 14 convenience/installed MCP, 13 delivery/storage/migration, 8 ChatGPT Desktop simulation/renewal/dispatch, 4 integration, 5 onboarding, 10 offline plugin/cache, 3 legacy-upgrade, 4 recovery, 13 runtime |
 | Offline Codex loader | Actual CLI 0.164.0 bootstraps a relocated bundle, validates the host-created cache and discovers 20 tools. No model turn, daemon, workload or real ChatGPT Desktop endpoint |
 | Local source walkthrough | Matching English/Chinese commands pass in an isolated HOME: build/export, bootstrap, explicit local-plugin installation, unchanged update and stdio doctor. Actual Codex 0.164.0 loader discovers 20 tools; no personal configuration change or ChatGPT Desktop UI acceptance |
 | npm/marketplace candidates | Actual tarball/native execution, retained history after relocation, corrupt-payload refusal and Codex 0.164.0 catalog/tool discovery pass on Linux/Windows through a loopback registry; no public npm write or ChatGPT Desktop contact |
@@ -46,7 +47,7 @@ The binary keeps process initialization in `src/main.rs`, command syntax in `src
 | Windows ChatGPT Desktop | v0.1.8 verified with official 26.1021.3705.0/bundled Codex 0.164.0-alpha.11.1, GPT-6 Luna / Low and user-selected Full access: actual MCP submission and automatic same-chat result inspection after the submitting turn ends. The live workload correctly reports failure; the test isolation fix and native gates are checked separately |
 | Remote CI/publication | [Three-platform CI passed](https://github.com/MorningFrog/agent-job-relay/actions/runs/40540826972), including installed Linux/Windows npm packages with actual Codex/OpenCode loaders. [Initial release completed](https://github.com/MorningFrog/agent-job-relay/actions/runs/40543226403): both public 0.1.8 tarballs match the reviewed candidate, clean registry installation/native version/module import pass, and GitHub Release is public. That token-staged release used next; the separated workflows and subsequent OIDC/provenance need their own maintainer-operated qualification |
 
-The current v0.1.8 source passes the four delivery gates on Linux and the Windows 11 VM. Reproduction commands and behavioral coverage are in [testing](testing.md).
+Current source passes the four delivery gates on Linux, including the unreleased connection-reuse, idle-backoff and concurrent-dispatch changes. The Windows native results above cover the published baseline; these scheduling changes have not been natively reverified on Windows. This increment adds only targeted regression coverage and the required Linux gates; no new real-host acceptance or long-running reliability campaign was performed. Reproduction commands and behavioral coverage are in [testing](testing.md).
 
 Automated ChatGPT Desktop transport, host replacement, recovery and renewal use fake hosts. The long-job test injects expiry 48 hours into the past; real multi-day renewal is unqualified. Install-repair tests reconstruct persisted states around directory renames and verify CLI repair/history preservation; physical power-loss/ENOSPC remains unqualified. Generated state, endpoints and logs stay in ignored repository-local `.tmp/` or `target/`.
 

@@ -4,10 +4,12 @@ use anyhow::Context;
 use anyhow::Result;
 use rusqlite::params;
 use std::process::Stdio;
-#[cfg(any(unix, windows))]
-use std::time::Duration;
 pub async fn tick(store: &Store) -> Result<()> {
+    reconcile(store).await.map(|_| ())
+}
+async fn reconcile(store: &Store) -> Result<bool> {
     let active = store.active().await?;
+    let has_active = !active.is_empty();
     for job in active {
         match job.status.as_str() {
             "queued" => {
@@ -60,7 +62,7 @@ pub async fn tick(store: &Store) -> Result<()> {
             _ => {}
         }
     }
-    Ok(())
+    Ok(has_active)
 }
 pub async fn serve(config: Config) -> Result<()> {
     crate::platform::require_runtime()?;
@@ -77,13 +79,20 @@ pub async fn serve(config: Config) -> Result<()> {
         // Recreating ctrl_c() inside select loses signals in that interval.
         let mut interrupt = crate::platform::interrupt_signal()?;
         let delivery_task = tokio::spawn(crate::delivery::worker(store.clone()));
-        let mut tick = tokio::time::interval(Duration::from_millis(100));
+        let mut backoff = crate::scheduling::IdleBackoff::new();
+        let mut next_tick = tokio::time::Instant::now();
         let slots = std::sync::Arc::new(tokio::sync::Semaphore::new(32));
         let mut tasks = tokio::task::JoinSet::new();
         loop {
             tokio::select! {
                 _=interrupt.recv()=>break,
-                _=tick.tick()=>{if let Err(e)=self::tick(&store).await {tracing::error!(error=%e,"reconciliation failed");}},
+                _=crate::scheduling::wait_for_work(&store.job_changes,next_tick)=>{
+                    let active=match reconcile(&store).await {
+                        Ok(active)=>active,
+                        Err(e)=>{tracing::error!(error=%e,"reconciliation failed");false}
+                    };
+                    next_tick=tokio::time::Instant::now()+backoff.next(active);
+                },
                 r=listener.accept()=>{let s=r?;let permit=match slots.clone().try_acquire_owned(){Ok(p)=>p,Err(_)=>continue};
                     let service=store.clone();tasks.spawn(async move{let _permit=permit;match crate::ipc::handle(s,service).await {Ok(shutdown)=>shutdown,Err(e)=>{tracing::debug!(error=%e,"IPC request rejected");false}}});},
                 Some(r)=tasks.join_next()=>{match r {Ok(true)=>break,Ok(false)=>{},Err(e)=>tracing::error!(error=%e,"IPC worker panicked")}}

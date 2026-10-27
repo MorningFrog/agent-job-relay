@@ -4,7 +4,7 @@
 
 Distribute one Rust/MCP runtime through ChatGPT Desktop/Codex, Claude Code and OpenCode plugins. Prepare and verify locally; pushing, publishing and official submissions require final confirmation. Release operations must be manually triggered. Both 0.1.8 npm packages and GitHub Release are public; subsequent OIDC publication/provenance still needs maintainer qualification.
 
-Source 0.1.8 implements Linux/Windows native execution, offline plugin maintenance, checked forward repair, shared-MCP caller binding, same-chat recovery and delivery-time renewal. Dual-platform npm/marketplace delivery is published; manual preparation and OIDC publication now have separate workflow entry points. OpenCode V1 has actual-loader checks with a simulated model; Claude remains an inbox-only scaffold. Current results and completed acceptance belong in [implementation status](IMPLEMENTATION_STATUS.md) and [live evidence](live-e2e.md), rather than repeated run histories here.
+Source 0.1.8 implements Linux/Windows native execution, offline plugin maintenance, checked forward repair, shared-MCP caller binding, same-chat recovery and delivery-time renewal. Unreleased source adds connection reuse, local-write wake signals with idle backoff and bounded concurrent notification dispatch. Dual-platform npm/marketplace delivery is published; manual preparation and OIDC publication now have separate workflow entry points. OpenCode V1 has actual-loader checks with a simulated model; Claude remains an inbox-only scaffold. Current results and completed acceptance belong in [implementation status](IMPLEMENTATION_STATUS.md) and [live evidence](live-e2e.md), rather than repeated run histories here.
 
 ## Host integration and distribution
 

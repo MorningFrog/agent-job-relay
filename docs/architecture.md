@@ -11,6 +11,7 @@ One package and executable; CLI, stdio MCP, daemon and runner modes.
 | MCP tools and client convenience | `src/mcp.rs`, `src/client.rs`, `src/diagnostics.rs` |
 | Job intent, execution and persistence | `src/core.rs`, `src/daemon.rs`, `src/runner.rs`, `src/storage.rs` |
 | Session binding and notifications | `src/session.rs`, `src/adapters.rs`, `src/plugin_bridge.rs`, `src/delivery.rs`, `src/recovery.rs`, `src/renewal.rs` |
+| Idle scheduling and local wake signals | `src/scheduling.rs`, `src/storage.rs` |
 | Local transport and OS primitives | `src/ipc.rs`, `src/platform/` |
 | Configuration and plugin lifecycle | `src/config.rs`, `src/integration.rs`, `src/deployment.rs`, `src/plugin.rs`, `src/lifecycle.rs` |
 
@@ -25,7 +26,9 @@ Icon artwork lives in `assets/icons/agent-job-relay.vectorcraft`; the README/off
 - Runner → SQLite final state + event + delivery outbox in one transaction.
 - Daemon → capability adapter → explicit session endpoint → host acceptance.
 
-SQLite WAL, FULL synchronous, foreign keys, busy timeout, versioned schema. Each operation runs on a bounded blocking worker and uses its own connection; short IMMEDIATE write transactions serialize across daemon and runner processes. No SQLite lock crosses await. Stable UUID job/run/event/target IDs, event sequence is an SQLite monotonic integer. No external message broker, HTTP listener or telemetry. The daemon retains its SIGINT receiver across reconciliation/database awaits, so a graceful-stop request is not lost between select-loop polls.
+SQLite WAL, FULL synchronous, foreign keys, busy timeout, versioned schema. Store clones share a cache of up to four idle connections; a process-wide semaphore bounds blocking database operations to four. Connections are checked out exclusively, and failed operations or unfinished transactions discard their connection. Short IMMEDIATE write transactions serialize across daemon and runner processes. No SQLite lock crosses await. Stable UUID job/run/event/target IDs, event sequence is an SQLite monotonic integer. No external message broker, HTTP listener or telemetry. The daemon retains its SIGINT receiver across reconciliation/database awaits, so a graceful-stop request is not lost between select-loop polls.
+
+In-process writes signal reconciliation and delivery immediately. Idle fallback checks back off from 100 ms to one second; reconciliation keeps its 100 ms cadence while jobs are active. Independent runners still persist directly to SQLite, and cross-process changes are discovered by the bounded fallback without requiring a live daemon. An empty delivery queue uses read-only checks instead of opening a write transaction.
 
 Job: queued → launching → running → completed/failed/cancelled/timeout/orphaned. Run records attempt=1, runner identity, workload identity, exit code/signal. Retrying a submission with the same key and identical spec returns the original; a changed spec conflicts. Execution is never replayed after launching uncertainty.
 
@@ -33,7 +36,7 @@ Launch intent commits before spawn. Runner takes a per-run OS lock and atomicall
 
 ## Sessions and delivery
 
-Sessions bind agent kind, logical session ID, host instance and lease. Targets bind the immutable registration key; refresh requires the same identity. Rebinding a new host instance requires an explicit target change, never a latest-session guess. Delivery: pending → leased → accepted_by_host OR retry_wait → dead_letter. Expired claims can be reclaimed. Stable event/target IDs provide receiver dedupe; there is no exactly-once promise. Host ack is not proof of agent execution.
+Sessions bind agent kind, logical session ID, host instance and lease. Targets bind the immutable registration key; refresh requires the same identity. Rebinding a new host instance requires an explicit target change, never a latest-session guess. Delivery: pending → leased → accepted_by_host OR retry_wait → dead_letter. Expired claims can be reclaimed. Up to four attempts run concurrently across chats. Transactional claims exclude any other live claim for the same adapter/agent/host/logical session, including another registration instance, and select ready records in insertion order. Retry backoff retains its existing semantics; a waiting retry does not block newer ready notifications. Stable event/target IDs provide receiver dedupe; there is no exactly-once promise. Host ack is not proof of agent execution.
 
 Linux and Windows x86_64 have native runtime verification. Windows uses private SID/DACL named pipes, peer process-token checks and runner-owned Job Objects with a pre-execution helper join. Daemon/runner spawning disables handle inheritance so host capture pipes cannot leak. Background Windows processes remain suspended until their pinned child handle confirms full Job Object detachment; a partial inner-job breakaway is discarded before code/state access so automatic daemon startup can use its checked CIM path. Runners still require native detachment. The Windows daemon-only bootstrap uses private bounded environment transfer and rejects broader/restricted token changes (ADR 0012). Other OS execution/IPC still fail explicitly; see [ADR 0011](adr/0011-windows-native-runtime.md).
 

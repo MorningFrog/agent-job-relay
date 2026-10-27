@@ -1,15 +1,29 @@
 use crate::{config::Config, core::*};
 use anyhow::{Result, bail, ensure};
 use rusqlite::{Connection, OptionalExtension, params};
-use std::sync::{Arc, OnceLock};
-use tokio::sync::Semaphore;
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex, OnceLock};
+use tokio::sync::{Notify, Semaphore};
+const DB_WORKERS: usize = 4;
+struct CachedConnection {
+    path: PathBuf,
+    db: Connection,
+}
 #[derive(Clone)]
 pub struct Store {
     pub config: Config,
+    connections: Arc<Mutex<Vec<CachedConnection>>>,
+    pub(crate) job_changes: Arc<Notify>,
+    pub(crate) delivery_changes: Arc<Notify>,
 }
 impl Store {
     pub fn new(config: Config) -> Self {
-        Self { config }
+        Self {
+            config,
+            connections: Arc::new(Mutex::new(Vec::new())),
+            job_changes: Arc::new(Notify::new()),
+            delivery_changes: Arc::new(Notify::new()),
+        }
     }
     pub async fn call<T, F>(&self, f: F) -> Result<T>
     where
@@ -18,23 +32,62 @@ impl Store {
     {
         static SLOTS: OnceLock<Arc<Semaphore>> = OnceLock::new();
         let permit = SLOTS
-            .get_or_init(|| Arc::new(Semaphore::new(4)))
+            .get_or_init(|| Arc::new(Semaphore::new(DB_WORKERS)))
             .clone()
             .acquire_owned()
             .await?;
         let path = self.config.root.join("relay.sqlite3");
+        let connections = self.connections.clone();
+        let job_changes = self.job_changes.clone();
+        let delivery_changes = self.delivery_changes.clone();
         tokio::task::spawn_blocking(move || {
             let _permit = permit;
-            if let Ok(m) = std::fs::symlink_metadata(&path) {
+            let metadata = std::fs::symlink_metadata(&path).ok();
+            if let Some(m) = &metadata {
                 ensure!(
-                    m.is_file() && !crate::platform::is_link(&m),
+                    m.is_file() && !crate::platform::is_link(m),
                     "database must be a regular file, not a symbolic link"
                 );
             }
-            let mut db = Connection::open(path)?;
-            db.busy_timeout(std::time::Duration::from_secs(5))?;
-            db.execute_batch("PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL;")?;
-            f(&mut db)
+            let cached = connections
+                .lock()
+                .map_err(|_| anyhow::anyhow!("database pool poisoned"))?
+                .pop()
+                .filter(|cached| cached.path == path && metadata.is_some());
+            let mut db = match cached {
+                Some(cached) => cached.db,
+                None => {
+                    let db = Connection::open(&path)?;
+                    db.busy_timeout(std::time::Duration::from_secs(5))?;
+                    db.execute_batch("PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL;")?;
+                    db
+                }
+            };
+            let before = db.total_changes();
+            let mut result = f(&mut db);
+            let changed = db.total_changes() != before;
+            // Never hand an unfinished transaction to another operation. Failed
+            // connections are dropped, preserving rollback-on-close semantics.
+            if !db.is_autocommit() && result.is_ok() {
+                result = Err(anyhow::anyhow!(
+                    "database operation left an unfinished transaction"
+                ));
+            }
+            if result.is_ok() {
+                let mut pool = connections
+                    .lock()
+                    .map_err(|_| anyhow::anyhow!("database pool poisoned"))?;
+                if pool.len() < DB_WORKERS {
+                    pool.push(CachedConnection { path, db });
+                }
+            } else {
+                drop(db);
+            }
+            if changed {
+                job_changes.notify_one();
+                delivery_changes.notify_one();
+            }
+            result
         })
         .await?
     }

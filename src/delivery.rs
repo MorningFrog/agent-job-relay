@@ -89,11 +89,14 @@ impl Store {
     }
     pub async fn claim(&self) -> Result<Option<Claim>> {
         self.call(|db|{
+        // An empty queue needs only reads, not a write transaction every poll.
+        let t=now();
+        let expired:bool=db.query_row("SELECT EXISTS(SELECT 1 FROM deliveries WHERE expires<=? AND status IN ('pending','retry_wait','leased'))",[t],|r|r.get(0))?;
+        if !expired && candidate(db,t)?.is_none() {return Ok(None);}
         let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;let t=now();
         tx.execute("UPDATE deliveries SET status='dead_letter',last_error='delivery TTL expired',failure_kind='expired',token=NULL,lease_until=NULL WHERE expires<=? AND status IN ('pending','retry_wait','leased')",[t])?;
         tx.execute("UPDATE delivery_attempts SET ended=?,outcome='ttl_expired',error='delivery TTL expired' WHERE ended IS NULL AND delivery_id IN (SELECT id FROM deliveries WHERE status='dead_letter')",[t])?;
-        let candidate:Option<(String,String)>=tx.query_row("SELECT d.id,t.session_key FROM deliveries d JOIN targets t ON t.id=d.target_id WHERE t.active=1 AND d.expires>? AND ((d.status IN ('pending','retry_wait') AND d.next_at<=?) OR (d.status='leased' AND d.lease_until<=?)) ORDER BY d.rowid LIMIT 1",params![t,t,t],|r|Ok((r.get(0)?,r.get(1)?))).optional()?;
-        let Some((d,key))=candidate else {tx.commit()?;return Ok(None);};
+        let Some((d,key))=candidate(&tx,t)? else {tx.commit()?;return Ok(None);};
         tx.execute("UPDATE delivery_attempts SET ended=?,outcome='lease_expired',error='daemon disconnected before recording outcome' WHERE delivery_id=? AND ended IS NULL",params![t,d])?;
         let token=id();tx.execute("UPDATE deliveries SET status='leased',token=?,lease_until=?,attempts=attempts+1 WHERE id=?",params![token,t+10000,d])?;
         let delivery=tx.query_row("SELECT rowid,id,event_id,target_id,status,attempts,expires,last_error,failure_kind,next_at FROM deliveries WHERE id=?",[&d],read_delivery)?;
@@ -122,6 +125,25 @@ impl Store {
     }).await
     }
 }
+fn candidate(db: &rusqlite::Connection, at: i64) -> Result<Option<(String, String)>> {
+    // Serialize attempts for the same logical destination, even across host
+    // registrations. Other chats can progress while this destination is slow.
+    Ok(db.query_row(
+        "SELECT d.id,t.session_key FROM deliveries d
+         JOIN targets t ON t.id=d.target_id JOIN sessions s ON s.key=t.session_key
+         WHERE t.active=1 AND d.expires>?1
+         AND ((d.status IN ('pending','retry_wait') AND d.next_at<=?1)
+              OR (d.status='leased' AND d.lease_until<=?1))
+         AND NOT EXISTS(SELECT 1 FROM deliveries busy
+             JOIN targets bt ON bt.id=busy.target_id JOIN sessions bs ON bs.key=bt.session_key
+             WHERE busy.id<>d.id AND busy.status='leased' AND busy.lease_until>?1 AND busy.expires>?1
+             AND bs.agent=s.agent AND bs.logical=s.logical AND bs.host=s.host
+             AND json_extract(bs.registration,'$.adapter')=json_extract(s.registration,'$.adapter'))
+         ORDER BY d.rowid LIMIT 1",
+        [at],
+        |r| Ok((r.get(0)?,r.get(1)?)),
+    ).optional()?)
+}
 fn read_delivery(r: &rusqlite::Row<'_>) -> rusqlite::Result<Delivery> {
     Ok(Delivery {
         sequence: r.get(0)?,
@@ -137,24 +159,48 @@ fn read_delivery(r: &rusqlite::Row<'_>) -> rusqlite::Result<Delivery> {
     })
 }
 pub async fn worker(store: Store) {
+    const CONCURRENCY: usize = 4;
+    let mut tasks = tokio::task::JoinSet::new();
+    let mut backoff = crate::scheduling::IdleBackoff::new();
+    let mut next_scan = tokio::time::Instant::now();
     loop {
-        let result = async {
-            if let Some(mut claim) = store.claim().await? {
-                let outcome = tokio::time::timeout(std::time::Duration::from_secs(3), async {
-                    store.renew_delivery_session(&mut claim).await?;
-                    crate::adapters::deliver(&store.config, &claim).await
-                })
-                .await
-                .context("host delivery deadline exceeded (3s)")
-                .and_then(|r| r);
-                store.complete_claim(claim, outcome).await?;
+        tokio::select! {
+            _=crate::scheduling::wait_for_work(&store.delivery_changes,next_scan), if tasks.len()<CONCURRENCY => {
+                let mut claimed=false;
+                while tasks.len()<CONCURRENCY {
+                    match store.claim().await {
+                        Ok(Some(claim))=>{
+                            claimed=true;
+                            let service=store.clone();
+                            tasks.spawn(async move {deliver_claim(service,claim).await});
+                        },
+                        Ok(None)=>break,
+                        Err(e)=>{tracing::error!(error=%e,"delivery dispatcher failed");break;}
+                    }
+                }
+                next_scan=tokio::time::Instant::now()+backoff.next(claimed);
+            },
+            Some(result)=tasks.join_next()=>{
+                match result {
+                    Ok(Ok(()))=>{},
+                    Ok(Err(e))=>tracing::error!(error=%e,"delivery attempt failed"),
+                    Err(e)=>tracing::error!(error=%e,"delivery worker panicked"),
+                }
+                backoff.next(true);
+                next_scan=tokio::time::Instant::now();
             }
-            Ok::<_, anyhow::Error>(())
         }
-        .await;
-        if let Err(e) = result {
-            tracing::error!(error=%e,"delivery dispatcher failed");
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     }
+}
+
+async fn deliver_claim(store: Store, mut claim: Claim) -> Result<()> {
+    let outcome = tokio::time::timeout(std::time::Duration::from_secs(3), async {
+        store.renew_delivery_session(&mut claim).await?;
+        crate::adapters::deliver(&store.config, &claim).await
+    })
+    .await
+    .context("host delivery deadline exceeded (3s)")
+    .and_then(|r| r);
+    store.complete_claim(claim, outcome).await?;
+    Ok(())
 }

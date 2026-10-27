@@ -63,6 +63,86 @@ impl Fixture {
     }
 }
 #[tokio::test]
+async fn idle_dispatch_reads_without_waiting_for_a_database_writer() {
+    let f = Fixture::new().await;
+    let db = rusqlite::Connection::open(f.store.config.root.join("relay.sqlite3")).unwrap();
+    db.execute_batch("BEGIN IMMEDIATE").unwrap();
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_secs(1), f.store.claim())
+            .await
+            .expect("an idle dispatcher must not request the SQLite writer lock")
+            .unwrap()
+            .is_none()
+    );
+    db.execute_batch("ROLLBACK").unwrap();
+}
+
+#[tokio::test]
+async fn pooled_operations_discard_unfinished_transactions_and_keep_profiles_separate() {
+    let f = Fixture::new().await;
+    for fail in [true, false] {
+        assert!(
+            f.store.call(move |db| {
+                db.execute_batch("BEGIN IMMEDIATE; INSERT INTO sessions(key,agent,logical,instance,host,registration,expires,connected) VALUES('uncommitted','test','test','test','test','{}',0,0)")?;
+                if fail { anyhow::bail!("operation failed before commit"); }
+                Ok(())
+            }).await.is_err()
+        );
+        assert_eq!(
+            f.store
+                .call(|db| Ok(
+                    db.query_row("SELECT count(*) FROM sessions", [], |r| r.get::<_, i64>(0))?
+                ))
+                .await
+                .unwrap(),
+            0
+        );
+    }
+    let a = f.session("profile-a", "one").await;
+    let other = Fixture::new().await;
+    let mut switched = f.store.clone();
+    switched.config = other.store.config.clone();
+    assert!(switched.session(a.clone()).await.is_err());
+    assert_eq!(f.store.session(a.clone()).await.unwrap().key, a);
+}
+
+#[tokio::test]
+async fn concurrent_claims_serialize_the_logical_chat_and_skip_busy_destinations() {
+    let f = Fixture::new().await;
+    let a = f.session("a", "one").await;
+    let same_chat = f.session("a", "two").await;
+    let b = f.session("b", "one").await;
+    let mut jobs = Vec::new();
+    for key in [&a, &same_chat, &b] {
+        let job = f.job(key).await;
+        f.store
+            .finish(
+                job.job_id.clone(),
+                "completed",
+                Some(0),
+                None,
+                "done".into(),
+            )
+            .await
+            .unwrap();
+        jobs.push(job.job_id);
+    }
+    let (first, second) = tokio::join!(f.store.claim(), f.store.claim());
+    let claims = [first.unwrap().unwrap(), second.unwrap().unwrap()];
+    assert!(claims.iter().any(|c| c.event["job_id"] == jobs[0]));
+    assert!(claims.iter().any(|c| c.event["job_id"] == jobs[2]));
+    assert!(f.store.claim().await.unwrap().is_none());
+    for claim in claims {
+        f.store
+            .complete_claim(claim, Ok("notification_recorded"))
+            .await
+            .unwrap();
+    }
+    let next = f.store.claim().await.unwrap().unwrap();
+    assert_eq!(next.event["job_id"], jobs[1]);
+}
+
+#[tokio::test]
 async fn completion_outbox_is_atomic_and_duplicate_finish_is_safe() {
     let f = Fixture::new().await;
     let s = f.session("a", "one").await;

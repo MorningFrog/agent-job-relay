@@ -4,6 +4,8 @@
 
 ### Changed
 
+- Reuse bounded SQLite connections, wake workers on local writes, and back off idle reconciliation/delivery checks to one second without acquiring a writer lock for an empty notification queue.
+- Dispatch up to four chat notifications concurrently while transactionally keeping each logical destination's attempts serial across registration instances.
 - Separate maintainer-only Prepare Release and Publish Release workflows. Default formal candidates to latest, validate OIDC from the actual publication workflow in dry-run, and reuse matching partial publications without rebuilding.
 - Document code conventions, required checks and manual release ownership in CONTRIBUTING.md, with detailed subsequent-version and first-package instructions in the release guide.
 

@@ -16,5 +16,6 @@ pub mod plugin_bridge;
 pub mod recovery;
 pub mod renewal;
 pub mod runner;
+mod scheduling;
 pub mod session;
 pub mod storage;

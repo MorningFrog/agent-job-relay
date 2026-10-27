@@ -123,7 +123,7 @@ The result is the native local plugin in **AgentJobRelay Local**, normally refer
 | macOS runtime | Unimplemented | Portable compilation checks only; native execution remains unsupported. |
 | Output monitoring/interruption | Deferred | Awaits an explicit implementation request; log reads and manual stop are available. |
 
-Current results and version-specific limits are maintained in [implementation status](docs/IMPLEMENTATION_STATUS.md) and [live evidence](docs/live-e2e.md). Official directory submission requires separate approval; independent OS installers/package repositories are cancelled. **Community testing and PRs are welcome, especially for Claude Code and container-based version checks.**
+Unreleased source reduces idle database work and permits notifications to up to four chats concurrently. Current results and version-specific limits are maintained in [implementation status](docs/IMPLEMENTATION_STATUS.md) and [live evidence](docs/live-e2e.md). Official directory submission requires separate approval; independent OS installers/package repositories are cancelled. **Community testing and PRs are welcome, especially for Claude Code and container-based version checks.**
 
 ## Documentation and support
 

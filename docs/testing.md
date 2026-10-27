@@ -27,9 +27,9 @@ Keep generated test state, outputs, reports and logs under ignored repository-lo
 |---|---|---|
 | Library | MCP schemas, legacy launch-readiness and interrupted replacement recovery/refusal/locks | Local checks plus deterministic filesystem fault states |
 | Runtime | Execution/output/cursors, idempotency, process trees, cancellation/timeout, daemon/runner independence, launch recovery, quotas, IPC/security | Real Linux children and injected failure windows |
-| Delivery | Terminal/outbox transactions, migrations, exact routing, fenced attempts, retries/TTL/dead letters | Real SQLite and persistence simulations |
+| Delivery | Terminal/outbox transactions, migrations, exact routing, fenced attempts, retries/TTL/dead letters, read-only idle claims, pooled transaction/profile isolation and per-chat claim exclusion | Real SQLite and persistence simulations |
 | Public plugin bridge | Exact caller/session/delivery echoes, frame limits, endpoint replacement, scoped recovery and same-endpoint renewal | Real SQLite plus fake owned socket host |
-| ChatGPT Desktop | Framing, catalog/identity checks, endpoint replacement and fenced lease renewal | Fake hosts; no real restart/multi-day proof |
+| ChatGPT Desktop | Framing, catalog/identity checks, endpoint replacement, fenced lease renewal and four-chat dispatch with same-chat exclusion | Fake hosts; no real restart/multi-day proof |
 | Convenience | CLI/MCP binding, multi-caller routing, installed shared MCP, loaded-image spawn, recovery and long-job renewal | Real CLI/MCP processes plus fake hosts |
 | Integration | Preview/apply, comments/foreign-entry preservation, ownership refusal and removal | Isolated files |
 | Onboarding | Installed launcher/profile, manifests, marketplace setup, active-runtime refusal and data-preserving removal | Isolated installed processes/files |
