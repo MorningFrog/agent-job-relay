@@ -30,9 +30,26 @@ impl Store {
         T: Send + 'static,
         F: FnOnce(&mut Connection) -> Result<T> + Send + 'static,
     {
+        self.operation(f, false).await
+    }
+    /// Read-only work has reserved capacity even when writers wait on SQLite.
+    pub async fn read<T, F>(&self, f: F) -> Result<T>
+    where
+        T: Send + 'static,
+        F: FnOnce(&mut Connection) -> Result<T> + Send + 'static,
+    {
+        self.operation(f, true).await
+    }
+    async fn operation<T, F>(&self, f: F, read: bool) -> Result<T>
+    where
+        T: Send + 'static,
+        F: FnOnce(&mut Connection) -> Result<T> + Send + 'static,
+    {
+        static READERS: OnceLock<Arc<Semaphore>> = OnceLock::new();
         static SLOTS: OnceLock<Arc<Semaphore>> = OnceLock::new();
-        let permit = SLOTS
-            .get_or_init(|| Arc::new(Semaphore::new(DB_WORKERS)))
+        let slots = if read { &READERS } else { &SLOTS };
+        let permit = slots
+            .get_or_init(|| Arc::new(Semaphore::new(if read { 2 } else { DB_WORKERS })))
             .clone()
             .acquire_owned()
             .await?;
@@ -95,7 +112,7 @@ impl Store {
         self.call(|db| {
             let v: i64 = db.pragma_query_value(None, "user_version", |r| r.get(0))?;
             ensure!(
-                v <= 6,
+                v <= 7,
                 "database schema is newer than this executable; downgrade refused"
             );
             db.pragma_update(None, "journal_mode", "WAL")?;
@@ -130,6 +147,15 @@ impl Store {
                         session_key TEXT NOT NULL REFERENCES sessions(key), details TEXT NOT NULL);
                     PRAGMA user_version=6; COMMIT;")?;
             }
+            if v < 7 {
+                db.execute_batch("BEGIN IMMEDIATE;
+                    CREATE INDEX IF NOT EXISTS jobs_status ON jobs(status);
+                    CREATE INDEX IF NOT EXISTS sessions_lease ON sessions(connected,expires);
+                    CREATE INDEX IF NOT EXISTS targets_session ON targets(session_key);
+                    CREATE INDEX IF NOT EXISTS deliveries_target ON deliveries(target_id);
+                    CREATE INDEX IF NOT EXISTS deliveries_lease ON deliveries(status,lease_until);
+                    PRAGMA user_version=7; COMMIT;")?;
+            }
             Ok(())
         })
         .await
@@ -156,14 +182,14 @@ impl Store {
     }
     pub async fn status(&self, j: String) -> Result<Job> {
         validate_id(&j)?;
-        self.call(move |db| read_job(db, &j)).await
+        self.read(move |db| read_job(db, &j)).await
     }
     pub async fn list(&self, after: i64, limit: u32) -> Result<Vec<Job>> {
         ensure!(
             (1..=100).contains(&limit) && after >= 0,
             "limit must be 1..100 and cursor nonnegative"
         );
-        self.call(move |db| {
+        self.read(move |db| {
             let mut s = db.prepare("SELECT id FROM jobs WHERE rowid>? ORDER BY rowid LIMIT ?")?;
             let ids = s
                 .query_map(params![after, limit], |r| r.get::<_, String>(0))?
@@ -173,11 +199,17 @@ impl Store {
         .await
     }
     pub async fn active(&self) -> Result<Vec<Job>> {
-        self.call(|db| {
+        self.read(|db| {
             let mut q=db.prepare("SELECT id FROM jobs WHERE status IN ('queued','launching','running') ORDER BY rowid")?;
             let ids=q.query_map([],|r|r.get::<_,String>(0))?.collect::<rusqlite::Result<Vec<_>>>()?;
             ids.iter().map(|j|read_job(db,j)).collect()
         }).await
+    }
+    pub async fn cancel_requested(&self, j: String) -> Result<bool> {
+        self.read(move |db| {
+            Ok(db.query_row("SELECT cancel FROM jobs WHERE id=?", [j], |r| r.get(0))?)
+        })
+        .await
     }
     pub async fn stop(&self, j: String) -> Result<Job> {
         validate_id(&j)?;
@@ -202,7 +234,7 @@ impl Store {
             (1..=100).contains(&limit) && after >= 0,
             "invalid event limit/cursor"
         );
-        self.call(move|db|{ read_job(db,&j)?; let mut q=db.prepare("SELECT seq,id,job_id,run_id,kind,at,payload FROM events WHERE job_id=? AND seq>? ORDER BY seq LIMIT ?")?;
+        self.read(move|db|{ read_job(db,&j)?; let mut q=db.prepare("SELECT seq,id,job_id,run_id,kind,at,payload FROM events WHERE job_id=? AND seq>? ORDER BY seq LIMIT ?")?;
             let rows=q.query_map(params![j,after,limit],|r|Ok(Event{seq:r.get(0)?,event_id:r.get(1)?,job_id:r.get(2)?,run_id:r.get(3)?,kind:r.get(4)?,at:r.get(5)?,payload:serde_json::from_str(&r.get::<_,String>(6)?).unwrap_or_default()}))?;
             Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?) }).await
     }
@@ -224,8 +256,8 @@ impl Store {
     }
 }
 pub fn read_job(db: &Connection, j: &str) -> Result<Job> {
-    let row=db.query_row("SELECT j.id,j.run_id,j.status,j.spec,j.created,j.updated,j.cancel,r.runner_pid,r.runner_identity,r.workload_pid,r.workload_identity,r.exit_code,r.signal,r.detail FROM jobs j JOIN runs r ON r.id=j.run_id WHERE j.id=?",[j],|r|{
-        Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,String>(3)?,r.get::<_,i64>(4)?,r.get::<_,i64>(5)?,r.get::<_,bool>(6)?,r.get::<_,Option<u32>>(7)?,r.get::<_,Option<String>>(8)?,r.get::<_,Option<u32>>(9)?,r.get::<_,Option<String>>(10)?,r.get::<_,Option<i32>>(11)?,r.get::<_,Option<i32>>(12)?,r.get::<_,Option<String>>(13)?))
+    let row=db.query_row("SELECT j.id,j.run_id,j.status,j.spec,j.created,j.updated,j.cancel,r.runner_pid,r.runner_identity,r.workload_pid,r.workload_identity,r.exit_code,r.signal,r.detail,j.rowid,r.attempt,r.status,r.started,r.ended FROM jobs j JOIN runs r ON r.id=j.run_id WHERE j.id=?",[j],|r|{
+        Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,String>(3)?,r.get::<_,i64>(4)?,r.get::<_,i64>(5)?,r.get::<_,bool>(6)?,r.get::<_,Option<u32>>(7)?,r.get::<_,Option<String>>(8)?,r.get::<_,Option<u32>>(9)?,r.get::<_,Option<String>>(10)?,r.get::<_,Option<i32>>(11)?,r.get::<_,Option<i32>>(12)?,r.get::<_,Option<String>>(13)?,r.get::<_,i64>(14)?,r.get::<_,u32>(15)?,r.get::<_,String>(16)?,r.get::<_,Option<i64>>(17)?,r.get::<_,Option<i64>>(18)?))
     }).optional()?;
     let Some((
         job_id,
@@ -242,16 +274,16 @@ pub fn read_job(db: &Connection, j: &str) -> Result<Job> {
         exit_code,
         signal,
         detail,
+        sequence,
+        attempt,
+        run_status,
+        started_at,
+        ended_at,
     )) = row
     else {
         bail!("job not found");
     };
     let spec: StartSpec = serde_json::from_str(&spec)?;
-    let (attempt, run_status, started_at, ended_at) = db.query_row(
-        "SELECT attempt,status,started,ended FROM runs WHERE id=?",
-        [&run_id],
-        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
-    )?;
     let run = Run {
         run_id: run_id.clone(),
         job_id: job_id.clone(),
@@ -266,7 +298,6 @@ pub fn read_job(db: &Connection, j: &str) -> Result<Job> {
         exit_code,
         signal,
     };
-    let sequence = db.query_row("SELECT rowid FROM jobs WHERE id=?", [j], |r| r.get(0))?;
     Ok(Job {
         run,
         sequence,

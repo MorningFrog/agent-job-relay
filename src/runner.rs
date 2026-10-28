@@ -174,10 +174,10 @@ async fn execute(config: &Config, store: &Store, job: &Job, spec: &StartSpec) ->
                 break child.wait().await?;
             },
             _=tick.tick()=>{
-                let state=store.status(job.job_id.clone()).await?;
+                let cancelled=store.cancel_requested(job.job_id.clone()).await?;
                 let timed=spec.timeout_seconds.is_some_and(|s|started.elapsed()>=Duration::from_secs(s));
-                if state.cancel_requested||timed {
-                    forced=Some(if state.cancel_requested {"cancelled"} else {"timeout"});
+                if cancelled||timed {
+                    forced=Some(if cancelled {"cancelled"} else {"timeout"});
                     group_guard.signal(15)?;
                     tokio::time::sleep(Duration::from_millis(500)).await;
                     group_guard.signal(9)?;

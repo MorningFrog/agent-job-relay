@@ -79,29 +79,42 @@ pub async fn serve(config: Config) -> Result<()> {
         // Recreating ctrl_c() inside select loses signals in that interval.
         let mut interrupt = crate::platform::interrupt_signal()?;
         let delivery_task = tokio::spawn(crate::delivery::worker(store.clone()));
-        let mut backoff = crate::scheduling::IdleBackoff::new();
-        let mut next_tick = tokio::time::Instant::now();
+        let (stop, stopped) = tokio::sync::watch::channel(false);
+        let reconcile_task = tokio::spawn(reconciliation_worker(store.clone(), stopped));
         let slots = std::sync::Arc::new(tokio::sync::Semaphore::new(32));
         let mut tasks = tokio::task::JoinSet::new();
         loop {
             tokio::select! {
                 _=interrupt.recv()=>break,
-                _=crate::scheduling::wait_for_work(&store.job_changes,next_tick)=>{
-                    let active=match reconcile(&store).await {
-                        Ok(active)=>active,
-                        Err(e)=>{tracing::error!(error=%e,"reconciliation failed");false}
-                    };
-                    next_tick=tokio::time::Instant::now()+backoff.next(active);
-                },
                 r=listener.accept()=>{let s=r?;let permit=match slots.clone().try_acquire_owned(){Ok(p)=>p,Err(_)=>continue};
                     let service=store.clone();tasks.spawn(async move{let _permit=permit;match crate::ipc::handle(s,service).await {Ok(shutdown)=>shutdown,Err(e)=>{tracing::debug!(error=%e,"IPC request rejected");false}}});},
                 Some(r)=tasks.join_next()=>{match r {Ok(true)=>break,Ok(false)=>{},Err(e)=>tracing::error!(error=%e,"IPC worker panicked")}}
             }
         }
+        let _ = stop.send(true);
+        reconcile_task.await?;
         delivery_task.abort();
         let _ = delivery_task.await;
         tasks.shutdown().await;
         crate::platform::cleanup_endpoint(&path)?;
     }
     Ok(())
+}
+
+async fn reconciliation_worker(store: Store, mut stopped: tokio::sync::watch::Receiver<bool>) {
+    let mut backoff = crate::scheduling::IdleBackoff::new();
+    let mut deadline = tokio::time::Instant::now();
+    loop {
+        tokio::select! {
+            biased;
+            _ = stopped.changed() => break,
+            _ = crate::scheduling::wait_for_work(&store.job_changes, deadline) => {
+                let active = match reconcile(&store).await {
+                    Ok(active) => active,
+                    Err(e) => { tracing::error!(error=%e, "reconciliation failed"); false }
+                };
+                deadline = tokio::time::Instant::now() + backoff.next(active);
+            }
+        }
+    }
 }

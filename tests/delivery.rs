@@ -488,7 +488,7 @@ async fn version_one_database_upgrades_without_losing_job_or_run() {
             .call(|db| Ok(db.pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0))?))
             .await
             .unwrap(),
-        6
+        7
     );
 }
 
@@ -527,5 +527,65 @@ async fn version_four_upgrade_preserves_pending_delivery_and_attempt_history() {
             .unwrap()
             .len(),
         1
+    );
+}
+
+#[tokio::test]
+async fn status_has_reserved_capacity_when_all_writer_workers_are_busy() {
+    let f = Fixture::new().await;
+    let job = f
+        .store
+        .start(StartSpec {
+            command: CommandSpec::Exec {
+                program: "true".into(),
+                args: vec![],
+            },
+            cwd: f._dir.path().into(),
+            env: Default::default(),
+            timeout_seconds: None,
+            session: None,
+            idempotency_key: None,
+        })
+        .await
+        .unwrap();
+    let (started, mut entered) = tokio::sync::mpsc::channel(4);
+    let mut release = Vec::new();
+    let mut workers = Vec::new();
+    for _ in 0..4 {
+        let (send, recv) = std::sync::mpsc::channel();
+        release.push(send);
+        let started = started.clone();
+        let store = f.store.clone();
+        workers.push(tokio::spawn(async move {
+            store
+                .call(move |_| {
+                    started.blocking_send(()).unwrap();
+                    recv.recv().unwrap();
+                    Ok(())
+                })
+                .await
+                .unwrap();
+        }));
+    }
+    for _ in 0..4 {
+        entered.recv().await.unwrap();
+    }
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(1),
+        f.store.status(job.job_id),
+    )
+    .await;
+    for send in release {
+        send.send(()).unwrap();
+    }
+    for worker in workers {
+        worker.await.unwrap();
+    }
+    assert_eq!(
+        result
+            .expect("reads must not queue behind occupied writer workers")
+            .unwrap()
+            .status,
+        "queued"
     );
 }
