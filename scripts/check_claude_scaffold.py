@@ -39,7 +39,9 @@ async def main():
         config = json.loads((plugin / ".mcp.json").read_text())["mcpServers"]["agent-job-relay"]
         command = [config["command"].replace("${CLAUDE_PLUGIN_ROOT}", str(plugin)), *config["args"]]
         with (root / "mcp.stderr").open("wb") as errors:
-            child = await asyncio.create_subprocess_exec(*command, env=env, cwd=root, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=errors)
+            # The full tool catalog exceeds asyncio's default 64-KiB line cap.
+            # Match the bounded reader used by the actual Codex loader check.
+            child = await asyncio.create_subprocess_exec(*command, env=env, cwd=root, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=errors, limit=1024 * 1024)
             async def rpc(number, method, params):
                 child.stdin.write((json.dumps({"jsonrpc": "2.0", "id": number, "method": method, "params": params}) + "\n").encode()); await child.stdin.drain()
                 async def read():
