@@ -6,7 +6,7 @@
 
 ## Current release handoff
 
-Source version **0.1.11** adds the npm `ajr` entry and awaits a new manual release; online npm installation resolves published **0.1.10**. The 0.1.10 native/package baseline has Linux and Windows evidence; new 0.1.11 checks and remaining platform/host limits are recorded in [implementation status](IMPLEMENTATION_STATUS.md). Push CI and Prepare Release qualify the exact remote revision separately.
+Source version **0.1.11** adds the npm `ajr` entry and awaits a new manual release; online npm installation resolves published **0.1.10**. The 0.1.11 runtime/packages pass [Linux/Windows native and installed-package CI](https://github.com/MorningFrog/agent-job-relay/actions/runs/40714294262), including Windows `ajr.cmd`; remaining platform/host limits are recorded in [implementation status](IMPLEMENTATION_STATUS.md). The final release revision and new sealed candidate must pass their own checks.
 
 After push CI passes, follow [Release All](#quick-path-release-all) on main with an empty candidate_run_id, channel=latest, dry_run checked and recover_candidate unchecked. Review that new candidate before promoting its exact bytes. Previous candidates cannot be reused for 0.1.11: runtime, package and CHANGELOG changes require fresh preparation, and recover_candidate does not bypass that fence. Local test bundles are not sealed Actions release candidates.
 

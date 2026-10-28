@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.1.11] - Unreleased
+## [0.1.11] - 2026-10-28
 
 ### Added
 
@@ -13,7 +13,7 @@
 
 ### Verification boundary
 
-- All four Linux delivery gates pass (111 tests), along with 61 release-tool checks and actual Codex discovery of 22 tools. Installed-package checks cover npm global command registration, profile selection, shared task history and authenticated Web access. The new Windows checks require a native run; no new real-host continuation acceptance is claimed.
+- All four Linux delivery gates pass (111 tests), along with 61 release-tool checks. Remote Windows native gates pass (59 tests), and macOS compilation/portable tests pass without native runtime support. Installed Linux/Windows packages pass npm global command registration, profile selection, shared task history, authenticated Web access and actual host-loader checks, including Windows `ajr.cmd` and Codex discovery of 22 tools. OpenCode uses a simulated model; no new real-host continuation acceptance is claimed.
 
 ## [0.1.10] - 2026-10-28
 

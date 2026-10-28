@@ -2,7 +2,7 @@
 
 [Documentation index](README.md) · [Implementation status](IMPLEMENTATION_STATUS.md) · [Manual acceptance](manual-testing.md)
 
-Live-verified baseline: **AgentJobRelay v0.1.8**, verified on **2026-10-27 (Asia/Shanghai)**. Published 0.1.9 has separate automated checks. The 0.1.10 archive/backup/monitor/Web UI baseline has Linux/Windows native and candidate-package evidence; the new 0.1.11 npm short CLI has isolated Linux package/loader checks without new real-host continuation acceptance. Raw reports, logs and private identifiers stay in ignored repository-local storage; earlier results remain in Git history.
+Live-verified baseline: **AgentJobRelay v0.1.8**, verified on **2026-10-27 (Asia/Shanghai)**. Published 0.1.10 has separate automated native/package/public-install checks. The 0.1.10 archive/backup/monitor/Web UI baseline has Linux/Windows native and candidate-package evidence; the 0.1.11 npm short CLI passes remote Linux/Windows native/package checks without new real-host continuation acceptance. Raw reports, logs and private identifiers stay in ignored repository-local storage; earlier results remain in Git history.
 
 ## Linux ChatGPT Desktop
 
@@ -12,11 +12,11 @@ See [latest published installation](installation.md#quick-install-the-latest-rel
 
 ## Windows native runtime and MCP
 
-The 0.1.10 baseline passes Windows 11 x64/Rust MSVC 1.99.1 delivery gates under SYSTEM and a non-elevated ordinary user: fmt, all-target Clippy, 59 native/portable tests and static-CRT release build. Coverage includes independent process lifetimes, monitoring/tree stop after daemon loss, Web HTTP auth/control, schema v9 archives/backups, private IPC, offline maintenance, automatic CIM startup and simulated ChatGPT Desktop recovery/renewal. Current test totals and candidate verification boundaries are maintained in [implementation status](IMPLEMENTATION_STATUS.md).
+The 0.1.11 Windows Actions run passes fmt, all-target Clippy, 59 native/portable tests and static-CRT release build. The separate 0.1.10 Windows 11 x64/Rust MSVC 1.99.1 VM baseline passes under SYSTEM and a non-elevated ordinary user; those identities were not rerun for 0.1.11. Coverage includes independent process lifetimes, monitoring/tree stop after daemon loss, Web HTTP auth/control, schema v9 archives/backups, private IPC, offline maintenance, automatic CIM startup and simulated ChatGPT Desktop recovery/renewal. Current test totals and candidate verification boundaries are maintained in [implementation status](IMPLEMENTATION_STATUS.md).
 
 The separate v0.1.8 actual Codex 0.164.0 check with the installed offline plugin and `gpt-6.1-sol`/`low` passes cold-profile MCP submission under both SYSTEM and an ordinary interactive Windows user, without a prestarted daemon. Each test completes one Job/Run with exit 0 and the expected output; doctor reports `windows_cim`.
 
-The local dual-platform 0.1.10 npm candidate passes Windows native execution, history after relocation, corrupt-payload refusal, embedded Web assets/authenticated inspection, installed CLI monitoring/stop/offline inspection and Codex 22-tool discovery under both SYSTEM and a non-elevated ordinary user. OpenCode 1.19.4 passes actual package loading, caller-context MCP and matching-session continuation with a simulated model; the control session stays untouched. These host-loader checks use a loopback registry for candidate bytes. Public 0.1.9 byte/install checks are recorded in [implementation status](IMPLEMENTATION_STATUS.md); they remain separate from real host/provider acceptance.
+The local dual-platform 0.1.10 npm candidate passes Windows native execution, history after relocation, corrupt-payload refusal, embedded Web assets/authenticated inspection, installed CLI monitoring/stop/offline inspection and Codex 22-tool discovery under both SYSTEM and a non-elevated ordinary user. OpenCode 1.19.4 passes actual package loading, caller-context MCP and matching-session continuation with a simulated model; the control session stays untouched. These host-loader checks use a loopback registry for candidate bytes. Public 0.1.10 byte/install checks are recorded in [implementation status](IMPLEMENTATION_STATUS.md); they remain separate from real host/provider acceptance.
 
 ## Windows ChatGPT Desktop
 
@@ -28,7 +28,7 @@ The live task correctly reported a test failure caused by inherited `AJR_STATE_D
 
 ## Distribution
 
-Both npm 0.1.9 packages and the formal GitHub Release are public, with OIDC publication/provenance and local public-byte/install checks recorded separately. Online npm installation now resolves 0.1.10 and its matching Git tag exists; this increment did not repeat public candidate-byte/provenance checks. Source 0.1.11 adds the npm short CLI and awaits a new manual release candidate. No official-directory submission occurred. See [implementation status](IMPLEMENTATION_STATUS.md) and [release preparation](release.md).
+Both npm 0.1.10 packages and the matching formal GitHub Release are public. The manual Release All pipeline and read-only public-byte/install checker passed; both packages expose npm provenance. These distribution checks are separate from real-host continuation acceptance. Source 0.1.11 passes remote native/package CI, including the Windows npm short-command shim, and awaits a new sealed manual release candidate. No official-directory submission occurred. See [implementation status](IMPLEMENTATION_STATUS.md) and [release preparation](release.md).
 
 ## Runtime monitoring boundary
 
