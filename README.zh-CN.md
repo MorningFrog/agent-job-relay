@@ -105,7 +105,7 @@ Agent 会绑定当前聊天、提交任务、结束回合，并在收到通知�
 | npm 运行时与自建市场 | 已发布 | Linux/Windows 安装包与加载器检查及公开 registry 全新安装通过；官方目录批准属于独立流程。 |
 | CI 与发布 | 手动准备、发布、检查及 Release All | 原生/安装包 CI、两个 npm 包的 OIDC 发布和 GitHub Release 完成均通过；公开包本地安装验证通过，修复后的独立 Actions 检查待维护者运行。 |
 | macOS 运行时 | 未实现 | 仅有可移植部分编译检查，尚不支持原生执行。 |
-| 检查、监控与 Web UI | 已在未发布的 0.1.10 源码实现 | Linux 行为、安装入口及本地浏览器操作已验证；Windows 和运行中告警的宿主验证仍待完成。 |
+| 检查、监控与 Web UI | 已在未发布的 0.1.10 源码实现 | Linux/Windows 原生与安装包检查通过，Linux 本地浏览器操作已验证；运行中告警的真实宿主验证仍待完成。 |
 
 当前版本新增统一的 `plugin install` 和 `connect [--recover [--apply]]` 入口、聊天与工作目录绑定对象，以及默认精简的 MCP 返回（`full=true` 查看完整记录），见[日常使用](docs/usage.md)和[统一维护](docs/installation.md#unified-install-and-update)。同时减少空闲时的数据库访问，并允许最多四个聊天并发接收通知。当前结果与版本限制统一维护在[实施状态](docs/IMPLEMENTATION_STATUS.md)及[真实验证记录](docs/live-e2e.md)。官方目录投稿需要单独批准，独立系统安装包及软件仓库计划已取消。**欢迎社区测试和 PR，尤其是 Claude Code 及容器化版本验证。**
 

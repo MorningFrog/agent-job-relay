@@ -1,6 +1,6 @@
 # Windows native runtime
 
-The native x86_64 runtime supports durable background execution, bounded logs, cancellation/timeouts, daemon/runner recovery, MCP, inbox notifications and offline plugin maintenance. Windows 11 VM behavior tests pass. v0.1.8 is verified with ChatGPT Desktop for actual MCP submission and same-chat continuation using Full access. Named-pipe recovery/renewal tests use simulated hosts. Ordinary Codex CLI integration has an inbox and does not automatically resume a chat.
+The native x86_64 runtime supports durable background execution, bounded logs, cancellation/timeouts, daemon/runner recovery, MCP, inbox notifications and offline plugin maintenance. Unreleased 0.1.10 additionally supports independent runner monitoring, inspect and the bundled default-on React/Vite UI; see [runtime monitoring](runtime-monitoring.md). Windows 11 VM gates pass under SYSTEM and a non-elevated ordinary user; current counts and package evidence are in [implementation status](IMPLEMENTATION_STATUS.md). v0.1.8 is verified with ChatGPT Desktop for actual MCP submission and same-chat continuation using Full access. Named-pipe recovery/renewal tests use simulated hosts. Ordinary Codex CLI integration has an inbox and does not automatically resume a chat.
 
 ## Install the latest published package
 
@@ -8,7 +8,7 @@ Use the [PowerShell quick-install steps](installation.md#chatgpt-desktop--codex)
 
 Default npm state lives in `%LOCALAPPDATA%\AgentJobRelay\profiles\codex` or `opencode`, outside host/npm caches. `AJR_STATE_DIR` may explicitly select an existing profile; no automatic profile migration or upgrade-driven daemon replacement occurs. OpenCode V1 targets 1.19.4. Its Node/Bun pipe is checked against the exact server process and restricted to a private DACL before sessions register.
 
-Actual Windows npm installation, native execution, history after relocation, corrupt-native refusal, Codex 0.164.0 catalog/20-tool discovery and OpenCode package-name loading/MCP submission/matching-session agent-loop continuation are checked with `scripts/check_windows_packages.mjs`. OpenCode uses a local simulated model. These checks do not establish Windows ChatGPT Desktop continuation; live evidence remains version-specific.
+`scripts/check_windows_packages.mjs` checks actual npm installation/native execution, history after relocation and corrupt-payload refusal. The 0.1.10 candidate additionally passes bundled JS/CSS loading, authenticated inspection, CLI monitoring/stop and offline inspection under SYSTEM and a non-elevated ordinary user. Codex 0.164.0 discovers 22 tools; OpenCode 1.19.4 passes actual package loading, MCP submission and matching-session continuation using a local simulated model. These checks do not establish Windows browser interaction or real ChatGPT Desktop continuation; live evidence remains version-specific.
 
 ## Alternative: a trusted Windows offline bundle
 
@@ -22,7 +22,7 @@ $ajrInstall = Join-Path $env:LOCALAPPDATA 'AgentJobRelay\plugin'
 & "$ajrInstall\relay.cmd" doctor --client plugin --check-mcp
 ```
 
-Expected: the preview identifies the chosen installation/state and marketplace entry; apply installs the native executable and `.cmd` launcher. Doctor reports a successful 20-tool stdio check. A stopped daemon before the first submission is expected. The bundle needs no recipient Rust, Python or Node. Restart the host, install/enable the local plugin and separately verify host MCP connectivity.
+Expected: the preview identifies the chosen installation/state and marketplace entry; apply installs the native executable and `.cmd` launcher. Doctor reports a successful stdio tool check (20 tools in published 0.1.9; 22 in unreleased 0.1.10). A stopped daemon before the first submission is expected. The bundle needs no recipient Rust, Python or Node. Restart the host, install/enable the local plugin and separately verify host MCP connectivity.
 
 The default native installation is `%LOCALAPPDATA%\AgentJobRelay\plugin`; state is `%LOCALAPPDATA%\AgentJobRelay\state`. Explicit `--state-dir`/AJR_STATE_DIR and existing installation profiles retain their recorded selection. Configuration/removal preserves other entries and task history. Do not move state into a plugin/npm cache.
 

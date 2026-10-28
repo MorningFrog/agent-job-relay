@@ -21,7 +21,8 @@ Published 0.1.9 includes connection reuse, local-write wake signals with idle ba
 - [ ] **P1:** strengthen Linux containment for escaped descendants/runner death and add longer soak plus controlled disk/power-loss tests. Current process-group cancellation assumes trusted non-daemonizing workloads.
 - [ ] **P1:** strengthen per-call identity authentication for shared hosts. Current caller identity is trusted input; never infer it from a latest-session record.
 - [x] Implement automatic age/count/log-budget archiving, transparent cold reads, consistent rolling backups/restore, recorded interruption recovery, migration fencing and live-session quota accounting. See [data maintenance](data-maintenance.md).
-- [ ] **P1:** natively qualify the new data-maintenance changes on Windows and under longer disk-pressure/soak tests. Independent-storage backup automation and destructive history purge need separate designs; uninstall remains data-preserving.
+- [x] Natively qualify schema v9 data maintenance on Windows under SYSTEM and a non-elevated ordinary user.
+- [ ] **P1:** qualify maintenance under longer disk-pressure/soak tests. Independent-storage backup automation and destructive history purge need separate designs; uninstall remains data-preserving.
 - [ ] **P1:** extend interrupted-operation handling to setup/marketplace cross-file writes, uninstall and pre-journal/legacy remnants. Existing per-directory install/cache repair finishes recorded replacements forward and preserves backups/history.
 - [ ] **P1:** independently verify the declared Rust 1.89 minimum or update it from build evidence.
 - [ ] **P2:** negotiated standard MCP Tasks, richer progress and optional public Codex writer integration for explicitly owned sessions. Tasks alone do not wake chats.
@@ -30,7 +31,9 @@ Published 0.1.9 includes connection reuse, local-write wake signals with idle ba
 
 - [x] Implement Agent-independent inspect/watch, revision-fenced persistent output/silence/elapsed rules, bounded recent tails, automatic tree cancellation, optional same-chat alerts and preserved archive/backup/audit history.
 - [x] Bundle a React + Vite task manager in the native executable, default-on authenticated loopback access, exact-profile management commands and CLI/MCP/plugin entry points. See [runtime monitoring](runtime-monitoring.md).
-- [ ] **P1:** natively qualify the new monitor/Web UI/schema v9 behavior on Windows and test real running-alert continuation in ChatGPT Desktop/OpenCode. Existing completion acceptance does not qualify this path.
+- [x] Natively qualify monitor/Web UI/schema v9 on Windows, including independent runner detection/tree stop, bounded tails, silence rearming, authenticated HTTP control and installed-package resources.
+- [ ] **P1:** test real running-alert continuation in ChatGPT Desktop/OpenCode. Existing completion acceptance does not qualify this path.
+- [ ] **P2:** qualify Windows browser interaction with the bundled panel; native HTTP/package checks and Linux browser acceptance are already complete.
 - [ ] **P2:** evaluate structured progress, additional bounded matching conditions and native desktop notification channels from concrete usage. Rules currently fire once per revision; runtime alert records remain usable without any host or viewer.
 
 ## Cancelled work

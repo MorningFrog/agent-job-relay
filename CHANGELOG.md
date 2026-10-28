@@ -17,9 +17,13 @@
 - Migrate development profiles to schema v9 only after the old daemon stops and old active runs finish. Count live session registrations rather than all historical sessions against the registration quota.
 - Retain line-table debug information while keeping installed debug fixtures within the existing native payload size limit; CI retains its smaller symbol-free setting.
 
+### Fixed
+
+- Reserve an 8-MiB main stack for the Windows MSVC executable so the expanded CLI command tree parses reliably, and resolve native descriptor output relative to the PowerShell working directory.
+
 ### Verification boundary
 
-- These changes are unreleased. All four Linux delivery gates pass (110 tests), React/Vite production assets build, and isolated npm/native UI plus actual Codex/OpenCode loader checks pass; OpenCode uses a simulated model. New monitoring/Web UI behavior requires separate Windows and real-host qualification. Linux behavioral verification covers automatic operation, budgets, archive/backup recovery, hot/cold queries, migration fences and control responsiveness; Windows native/package and real-host acceptance need separate qualification.
+- These changes are unreleased. All four Linux gates pass (110 tests); Windows 11 MSVC gates pass under SYSTEM and a non-elevated ordinary user (59 tests each). React/Vite production builds and dual-platform npm/native Web checks plus actual Codex/OpenCode loader checks pass; OpenCode uses a simulated model. Native verification covers independent monitoring/stopping, revision fences, authenticated Web control, schema v9 maintenance/recovery and existing runtime isolation. Real running-alert host continuation, Windows browser interaction, physical disk/power faults and prolonged load remain unqualified.
 
 ## [0.1.9] - 2026-10-28
 

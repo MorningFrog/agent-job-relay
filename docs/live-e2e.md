@@ -1,6 +1,6 @@
 # Current live verification
 
-Live-verified baseline: **AgentJobRelay v0.1.8**, verified on **2026-10-27 (Asia/Shanghai)**. Published 0.1.9 has separate automated checks. Current unreleased archive/backup/control changes add Linux behavioral evidence only; no new real-host continuation acceptance is claimed. Raw reports, logs and private identifiers stay in ignored repository-local storage; earlier results remain in Git history.
+Live-verified baseline: **AgentJobRelay v0.1.8**, verified on **2026-10-27 (Asia/Shanghai)**. Published 0.1.9 has separate automated checks. Current unreleased 0.1.10 archive/backup/monitor/Web UI changes add Linux/Windows native and candidate-package evidence; no new real-host continuation acceptance is claimed. Raw reports, logs and private identifiers stay in ignored repository-local storage; earlier results remain in Git history.
 
 ## Linux ChatGPT Desktop
 
@@ -10,11 +10,11 @@ See [latest published installation](installation.md#quick-install-the-latest-rel
 
 ## Windows native runtime and MCP
 
-The published baseline passes Windows 11 x64/Rust MSVC 1.99.1 delivery gates: fmt, all-target Clippy, native/portable tests and static-CRT release build. Coverage includes independent process lifetimes, cancellation/timeouts, private IPC, offline maintenance, automatic CIM startup and simulated ChatGPT Desktop recovery/renewal. Current test totals and candidate verification boundaries are maintained in [implementation status](IMPLEMENTATION_STATUS.md).
+Unreleased 0.1.10 passes Windows 11 x64/Rust MSVC 1.99.1 delivery gates under SYSTEM and a non-elevated ordinary user: fmt, all-target Clippy, 59 native/portable tests and static-CRT release build. Coverage includes independent process lifetimes, monitoring/tree stop after daemon loss, Web HTTP auth/control, schema v9 archives/backups, private IPC, offline maintenance, automatic CIM startup and simulated ChatGPT Desktop recovery/renewal. Current test totals and candidate verification boundaries are maintained in [implementation status](IMPLEMENTATION_STATUS.md).
 
-Actual Codex 0.164.0 with the installed offline plugin and `gpt-6.1-sol`/`low` passes cold-profile MCP submission under both SYSTEM and an ordinary interactive Windows user, without a prestarted daemon. Each test completes one Job/Run with exit 0 and the expected output; doctor reports `windows_cim`.
+The separate v0.1.8 actual Codex 0.164.0 check with the installed offline plugin and `gpt-6.1-sol`/`low` passes cold-profile MCP submission under both SYSTEM and an ordinary interactive Windows user, without a prestarted daemon. Each test completes one Job/Run with exit 0 and the expected output; doctor reports `windows_cim`.
 
-Windows npm-package checks pass native execution, history after relocation, corrupt-payload refusal and Codex 20-tool discovery. OpenCode 1.19.4 passes actual package loading, caller-context MCP and matching-session continuation with a simulated model; the control session stays untouched. These host-loader checks use a loopback registry for candidate bytes. The matching published 0.1.8 tarballs also pass clean public-registry installation; that is separate from real host/provider acceptance.
+The local dual-platform 0.1.10 npm candidate passes Windows native execution, history after relocation, corrupt-payload refusal, embedded Web assets/authenticated inspection, installed CLI monitoring/stop/offline inspection and Codex 22-tool discovery under both SYSTEM and a non-elevated ordinary user. OpenCode 1.19.4 passes actual package loading, caller-context MCP and matching-session continuation with a simulated model; the control session stays untouched. These host-loader checks use a loopback registry for candidate bytes. Public 0.1.9 byte/install checks are recorded in [implementation status](IMPLEMENTATION_STATUS.md); they remain separate from real host/provider acceptance.
 
 ## Windows ChatGPT Desktop
 
@@ -30,4 +30,4 @@ Both npm 0.1.9 packages and the formal GitHub Release are public, with OIDC publ
 
 ## Unreleased runtime monitoring boundary
 
-The 0.1.10 React/Vite panel has isolated local browser verification for live task inspection, rule editing/application, alert evidence and manual stopping. This is local UI/runtime evidence only. No real ChatGPT Desktop/OpenCode running-alert continuation was performed for these changes; the previously verified task-completion baseline remains unchanged. Windows monitor/Web UI/schema v9 native/package qualification is still pending.
+The 0.1.10 React/Vite panel has isolated local browser verification for live task inspection, rule editing/application, alert evidence and manual stopping. This is local UI/runtime evidence only. No real ChatGPT Desktop/OpenCode running-alert continuation was performed for these changes; the previously verified task-completion baseline remains unchanged. Windows monitor/Web UI/schema v9 native and installed-package checks pass; Windows browser interaction and real mid-run host continuation remain separate qualifications.
