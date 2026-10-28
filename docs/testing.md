@@ -25,6 +25,8 @@ Keep generated test state, outputs, reports and logs under ignored repository-lo
 
 The four configuration-integration fixtures run serially within their test binary. This prevents a parallel CLI fork from briefly inheriting another fixture's configuration lock before exec; each case keeps its own isolated paths and all assertions. Runtime concurrency cases continue to exercise their existing explicit concurrent workloads.
 
+Plugin update/repair preservation checks checkpoint committed WAL pages before comparing complete database hashes. Terminal state and daemon-lock release can precede the last pooled connection closing; checkpoint timing alone must not look like data loss. The interrupted-repair fixture seeds committed WAL history before taking its snapshot and verifies that record remains readable after repair, alongside the existing backup/journal and database-preservation assertions.
+
 ## Behavior coverage
 
 | Suite | Coverage | Boundary |

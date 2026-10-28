@@ -20,6 +20,7 @@
 
 - Reserve an 8-MiB main stack for the Windows MSVC executable so the expanded CLI command tree parses reliably, and resolve native descriptor output relative to the PowerShell working directory.
 - Read expanded MCP tool catalogs in the Claude scaffold check with a bounded 1-MiB line limit.
+- Stabilize plugin update/repair preservation checks by including committed WAL history in checkpointed database snapshots.
 
 ### Verification boundary
 

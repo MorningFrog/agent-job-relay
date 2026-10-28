@@ -120,6 +120,20 @@ impl Rig {
     fn stop(&self) {
         ok(self.installed(&["daemon", "stop"]));
     }
+    fn database_hash(&self) -> String {
+        // Terminal state and daemon-lock release can precede the last pooled
+        // connection closing. Include committed WAL pages before hashing;
+        // a later normal checkpoint must not look like lifecycle data damage.
+        let path = self.state.join("relay.sqlite3");
+        let db = rusqlite::Connection::open(&path).unwrap();
+        db.busy_timeout(Duration::from_secs(5)).unwrap();
+        let busy: i64 = db
+            .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(busy, 0, "test database checkpoint is blocked");
+        drop(db);
+        hash(&std::fs::read(path).unwrap())
+    }
     fn wait(&self, job: &str) {
         let deadline = Instant::now() + Duration::from_secs(5);
         loop {
@@ -292,7 +306,7 @@ fn update_keeps_history_and_marketplace_and_refreshes_checked_cache_snapshots() 
     let job = job["job"]["job_id"].as_str().unwrap();
     r.wait(job);
     r.stop();
-    let database = std::fs::read(r.state.join("relay.sqlite3")).unwrap();
+    let database = r.database_hash();
     let marketplace = r.dir.path().join("home/.agents/plugins/marketplace.json");
     let registration = std::fs::read(&marketplace).unwrap();
     let first = r.snapshot("cache with receipt", true);
@@ -305,10 +319,7 @@ fn update_keeps_history_and_marketplace_and_refreshes_checked_cache_snapshots() 
     let updated = ok(r.update(&[&first, &second], true));
     assert_eq!(updated["install"]["state_dir"], s(&r.state));
     assert!(Path::new(updated["install"]["backup"].as_str().unwrap()).exists());
-    assert_eq!(
-        std::fs::read(r.state.join("relay.sqlite3")).unwrap(),
-        database
-    );
+    assert_eq!(r.database_hash(), database);
     assert_eq!(std::fs::read(marketplace).unwrap(), registration);
     assert!(!r.dir.path().join("unrelated-state").exists());
     let status = ok(r.source(&[
@@ -554,7 +565,22 @@ fn cli_repairs_a_missing_installation_after_interrupted_update_without_losing_hi
     let job = ok(r.installed(&["start", "--", "/bin/echo", "history before repair"]));
     r.wait(job["job"]["job_id"].as_str().unwrap());
     r.stop();
-    let database = std::fs::read(r.state.join("relay.sqlite3")).unwrap();
+    // Seed committed WAL history before taking the preservation snapshot,
+    // without depending on when the runner/daemon closes its pool.
+    let wal = rusqlite::Connection::open(r.state.join("relay.sqlite3")).unwrap();
+    wal.pragma_update(None, "wal_autocheckpoint", 0).unwrap();
+    wal.execute(
+        "UPDATE runs SET detail='history retained in WAL' WHERE job_id=?",
+        [job["job"]["job_id"].as_str().unwrap()],
+    )
+    .unwrap();
+    assert!(
+        std::fs::metadata(r.state.join("relay.sqlite3-wal"))
+            .unwrap()
+            .len()
+            > 32
+    );
+    let database = r.database_hash();
     let operation = uuid::Uuid::new_v4().to_string();
     let stage = r
         .install
@@ -619,9 +645,15 @@ fn cli_repairs_a_missing_installation_after_interrupted_update_without_losing_hi
     assert_eq!(result["state_dir"], s(&r.state));
     assert_eq!(result["backup"], s(&backup));
     assert_eq!(std::fs::read(r.install.join(skill_name)).unwrap(), revised);
+    assert_eq!(r.database_hash(), database);
     assert_eq!(
-        std::fs::read(r.state.join("relay.sqlite3")).unwrap(),
-        database
+        wal.query_row(
+            "SELECT detail FROM runs WHERE job_id=?",
+            [job["job"]["job_id"].as_str().unwrap()],
+            |r| r.get::<_, String>(0)
+        )
+        .unwrap(),
+        "history retained in WAL"
     );
     assert!(backup.join(receipt_name).exists());
     assert!(!journal.exists());
