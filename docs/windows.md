@@ -1,6 +1,8 @@
 # Windows native runtime
 
-The native x86_64 runtime supports durable background execution, bounded logs, cancellation/timeouts, daemon/runner recovery, MCP, inbox notifications and offline plugin maintenance. Unreleased 0.1.10 additionally supports independent runner monitoring, inspect and the bundled default-on React/Vite UI; see [runtime monitoring](runtime-monitoring.md). Windows 11 VM gates pass under SYSTEM and a non-elevated ordinary user; current counts and package evidence are in [implementation status](IMPLEMENTATION_STATUS.md). v0.1.8 is verified with ChatGPT Desktop for actual MCP submission and same-chat continuation using Full access. Named-pipe recovery/renewal tests use simulated hosts. Ordinary Codex CLI integration has an inbox and does not automatically resume a chat.
+[Documentation index](README.md) · [Install](installation.md) · [Updating](updating.md) · [Uninstalling](uninstalling.md)
+
+The native x86_64 runtime supports durable background execution, bounded logs, cancellation/timeouts, daemon/runner recovery, MCP, inbox notifications and offline plugin maintenance. Runtime 0.1.10 and newer also support independent runner monitoring, inspect and the bundled default-on React/Vite UI; see [runtime monitoring](runtime-monitoring.md). Windows 11 VM gates pass under SYSTEM and a non-elevated ordinary user; current counts and package evidence are in [implementation status](IMPLEMENTATION_STATUS.md). v0.1.8 is verified with ChatGPT Desktop for actual MCP submission and same-chat continuation using Full access. Named-pipe recovery/renewal tests use simulated hosts. Ordinary Codex CLI integration has an inbox and does not automatically resume a chat.
 
 ## Install the latest published package
 
@@ -15,14 +17,14 @@ Default npm state lives in `%LOCALAPPDATA%\AgentJobRelay\profiles\codex` or `ope
 Open PowerShell in the received Windows bundle directory:
 
 ```powershell
-.\relay.cmd plugin bootstrap --dry-run
-.\relay.cmd plugin bootstrap --apply
+.\relay.cmd plugin install --dry-run
+.\relay.cmd plugin install --apply
 $ajrInstall = Join-Path $env:LOCALAPPDATA 'AgentJobRelay\plugin'
 & "$ajrInstall\relay.cmd" --version
 & "$ajrInstall\relay.cmd" doctor --client plugin --check-mcp
 ```
 
-Expected: the preview identifies the chosen installation/state and marketplace entry; apply installs the native executable and `.cmd` launcher. Doctor reports a successful stdio tool check (20 tools in published 0.1.9; 22 in unreleased 0.1.10). A stopped daemon before the first submission is expected. The bundle needs no recipient Rust, Python or Node. Restart the host, install/enable the local plugin and separately verify host MCP connectivity.
+Expected: the preview identifies the chosen installation/state and marketplace entry; apply installs the native executable and `.cmd` launcher. Doctor reports a successful stdio tool check (22 tools in runtime 0.1.10 and newer). A stopped daemon before the first submission is expected. The bundle needs no recipient Rust, Python or Node. Restart the host, install/enable the local plugin and separately verify host MCP connectivity.
 
 The default native installation is `%LOCALAPPDATA%\AgentJobRelay\plugin`; state is `%LOCALAPPDATA%\AgentJobRelay\state`. Explicit `--state-dir`/AJR_STATE_DIR and existing installation profiles retain their recorded selection. Configuration/removal preserves other entries and task history. Do not move state into a plugin/npm cache.
 
@@ -45,7 +47,7 @@ cargo build --release --locked
 .\target\release\agent-job-relay.exe plugin pack --output "$PWD\.tmp\windows-bundle" --apply
 ```
 
-Transfer the complete Windows bundle, then use its `relay.cmd` bootstrap. A Linux bundle is not a Windows payload.
+Transfer the complete Windows bundle, then use its `relay.cmd plugin install` entry (or compatible `plugin bootstrap` on older bundles). A Linux bundle is not a Windows payload.
 
 ## Run and inspect a task
 
@@ -77,6 +79,8 @@ The command exits once ready; repeated calls reuse the daemon. A terminal opened
 Native tests cover nested host jobs, direct-only refusal before state/workload execution, cold restricted-host startup, host job destruction, daemon-crash restart, environment/identity isolation and policy refusal. Real installed Codex model/MCP acceptance must start with no prestarted daemon. Native VM tests pass under guest-agent SYSTEM and the ordinary interactive user; the cold-profile installed MCP/model workflow also passes under both. Actual Windows ChatGPT Desktop continuation is verified separately; see [live evidence](live-e2e.md).
 
 ## Update, recover and remove
+
+Follow [native updates and repair](updating.md#unified-install-and-update), [same-chat recovery](usage.md#recover-notifications) or [uninstallation](uninstalling.md) for the complete procedure. The Windows-specific file-lock boundaries below also apply.
 
 Use the new bundle's launcher, finish active jobs, explicitly stop the original installation's daemon, and preview/apply `plugin update --root <original-install> --from <new-bundle>`. Keep the recorded state. Close host MCP processes when replacing their Windows executable/cache files; Windows may retain an executable image lock. An interrupted operation retains its journal/backups; run `plugin repair --path <exact-directory>` from the new bundle to preview and finish forward after releasing the lock. Never delete a cache or switch state to hide an update failure.
 

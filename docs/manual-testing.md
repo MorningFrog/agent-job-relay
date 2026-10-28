@@ -1,5 +1,7 @@
 # Manual acceptance
 
+[Documentation index](README.md) · [Install](installation.md) · [Troubleshooting](troubleshooting.md) · [Automated testing](testing.md)
+
 This procedure checks the reader's actual installation and ChatGPT Desktop workflow. Use a trusted compatible offline bundle; no source rebuild is required. Test configuration, local stdio, host discovery, actual MCP calls and same-chat continuation as separate outcomes. The isolated automated baseline is in [implementation status](IMPLEMENTATION_STATUS.md); previously passed CLI wake tests do not need repeating.
 
 AgentJobRelay v0.1.8 is verified with ChatGPT Desktop on Linux, including same-chat continuation after task completion; see [live verification](live-e2e.md#linux-chatgpt-desktop). Use this procedure for a new installation or relevant change. Do not repeat an unchanged passed workflow merely to refill evidence.

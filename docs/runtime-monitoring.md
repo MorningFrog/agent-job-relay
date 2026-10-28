@@ -1,12 +1,14 @@
 # Inspect and monitor tasks
 
-These interfaces require runtime 0.1.10 or newer, including the running daemon. The 0.1.11 npm package adds `ajr`, defaulting to the online ChatGPT/Codex profile; until it is published, use `agent-job-relay codex`. Commands below use `ajr`; `ajr opencode` selects OpenCode. Offline installations use their own `relay` / `relay.cmd` and recorded profile. `doctor` reports explicit argv for the selected profile. Keep the same profile when moving between plugin, terminal and browser; see [CLI installation](installation.md#terminal-and-web-ui).
+[Documentation index](README.md) · [Command reference](commands.md) · [Daily usage](usage.md)
+
+These interfaces require runtime 0.1.10 or newer, including the running daemon. Commands below use the published online ChatGPT/Codex entry, `agent-job-relay codex`; substitute `agent-job-relay opencode` for OpenCode or the installed `relay` / `relay.cmd` for a native offline profile. The source 0.1.11 npm package also provides `ajr`, awaiting publication. Keep the same profile between plugin, terminal and browser; see [command entry points](commands.md#choose-the-entry-point-and-profile). `doctor` reports explicit argv for the selected profile.
 
 ## Open the bundled Web UI
 
 ```bash
-ajr ui
-ajr ui <job-id> --no-open
+agent-job-relay codex ui
+agent-job-relay codex ui <job-id> --no-open
 ```
 
 Expected: the first command opens the task manager and prints its access URL; `--no-open` prints it for manual opening. UI resources are built with React + Vite and embedded in the native executable, including offline/npm distributions. Recipients need no frontend installation. Each daemon enables its loopback HTTP listener by default on an available port. Opening `ui` starts/reuses the selected daemon without submitting a job or binding a chat. `ui --install-root <installation>` selects an offline installation's recorded profile. Browser access does not establish an Agent identity.
@@ -18,10 +20,10 @@ The access credential is generated per daemon, delivered through private IPC and
 ## Inspect from a terminal
 
 ```bash
-ajr inspect
-ajr inspect <job-id>
-ajr inspect <job-id> --watch
-ajr inspect <job-id> --json
+agent-job-relay codex inspect
+agent-job-relay codex inspect <job-id>
+agent-job-relay codex inspect <job-id> --watch
+agent-job-relay codex inspect <job-id> --json
 ```
 
 Expected: summaries identify the selected profile and runtime connection; a task view includes observation timestamps, output tails, rules, stop requests and recent events. Overview pages use descending `before`/`next_cursor`; active jobs are returned separately. JSON watch produces bounded newline-delimited snapshots; a human terminal redraws once per second. Ctrl-C ends the viewer only. Agent clients use `job_inspect` once when needed rather than running a watch loop.
@@ -33,14 +35,14 @@ Each stream retains a rolling 64 KiB tail and total-byte offset independently fr
 ## Install persistent rules
 
 ```bash
-ajr start --no-output 10m --action alert -- <program> <arguments...>
-ajr monitor add <job-id> --contains 'CUDA out of memory' --stream stderr --action stop --grace 30s
-ajr monitor add <job-id> --elapsed 2h --action alert
-ajr monitor list <job-id>
-ajr monitor update <job-id> <rule-id> --revision 1 --no-output 20m --action alert
-ajr monitor disable <job-id> <rule-id> --revision 2
-ajr monitor enable <job-id> <rule-id> --revision 3
-ajr monitor remove <job-id> <rule-id> --revision 4
+agent-job-relay codex start --no-output 10m --action alert -- <program> <arguments...>
+agent-job-relay codex monitor add <job-id> --contains 'CUDA out of memory' --stream stderr --action stop --grace 30s
+agent-job-relay codex monitor add <job-id> --elapsed 2h --action alert
+agent-job-relay codex monitor list <job-id>
+agent-job-relay codex monitor update <job-id> <rule-id> --revision 1 --no-output 20m --action alert
+agent-job-relay codex monitor disable <job-id> <rule-id> --revision 2
+agent-job-relay codex monitor enable <job-id> <rule-id> --revision 3
+agent-job-relay codex monitor remove <job-id> <rule-id> --revision 4
 ```
 
 Expected: rules persist and their applied revision advances after the runner loads them. Commands accept seconds or `s`, `m`, `h`, `d` suffixes. Start accepts one initial CLI rule; MCP `spec.monitor_rules` accepts up to 16. All three interfaces share the same validation and revision fences. Rules cannot be changed on terminal jobs. A revision conflict requires inspecting again; it must not overwrite a concurrent edit.
@@ -54,20 +56,12 @@ Each rule revision triggers once; enable it again to rearm. At most 16 rule iden
 ## Stop and observe the result
 
 ```bash
-ajr stop <job-id> --grace 30s --wait 10s
-ajr stop <job-id> --grace 0 --wait 5s
+agent-job-relay codex stop <job-id> --grace 30s --wait 10s
+agent-job-relay codex stop <job-id> --grace 0 --wait 5s
 ```
 
 Expected: `stop_outcome=requested` means the request was persisted; `terminal_observed` means a terminal state was read before the bounded wait ended. Inspect the actual status: a previously completed job stays completed. Defaults are five seconds of grace and no client wait; grace accepts 0–300 seconds and wait accepts 0–30. Repeated requests cannot extend an existing grace period. Reasons and graceful/forced outcomes are retained in task evidence. Windows Ctrl-Break is best effort; escalation remains Job Object scoped. Linux cancellation covers trusted non-daemonizing process groups, with existing containment limits.
 
 `daemon stop` stops dispatch and Web access; independent runners continue their rules, logs and final persistence. Restarting the same profile resumes notification dispatch and starts a new Web listener. Database write failures can prevent durable evidence/control, as described in [limitations](limitations.md); UI availability never substitutes for runner health.
 
-## Build and verify source
-
-```bash
-npm ci --prefix web --ignore-scripts --no-audit --no-fund
-npm run build --prefix web
-cargo build --release
-```
-
-Node.js 24 is used by CI; Node is a source-build dependency, not an offline native recipient requirement. `build.rs` embeds the generated assets and fails explicitly if they are absent. CI and manual Prepare Release build the frontend before native gates. Built assets and dependency directories remain ignored. Upgrade to schema v9 only after old runs finish and the selected daemon is explicitly stopped. Schema v8 backups restore forward into a new profile; original backup bytes remain unchanged. Linux/Windows native gates and installed-package Web checks pass; this does not establish real running-alert host continuation or Windows browser interaction. See [testing](testing.md) and [data maintenance](data-maintenance.md).
+Source builds generate and embed the frontend before Cargo checks. Use [source installation](source-install.md) for build/export commands and [testing](testing.md) for developer gates; recipients use the bundled assets. See [data maintenance](data-maintenance.md) before a schema upgrade.

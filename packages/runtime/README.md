@@ -10,12 +10,12 @@ Install once with npm's standard command registration:
 
 ```bash
 npm install --global --ignore-scripts --registry=https://registry.npmjs.org agent-job-relay-runtime@latest
-ajr list
-ajr start --shell 'echo hello'
-ajr ui
+agent-job-relay codex list
+agent-job-relay codex start --shell 'echo hello'
+agent-job-relay codex ui
 ```
 
-Version 0.1.11 adds `ajr`, defaulting to the same persistent `codex` profile as the online ChatGPT/Codex plugin. `ajr opencode <arguments>` selects OpenCode. npm's global command directory must be on PATH; use a user-writable npm installation. Windows also provides `ajr.cmd` for PowerShell script-policy restrictions. Host plugin installation alone does not register global commands. Remove the CLI with `npm uninstall --global --ignore-scripts agent-job-relay-runtime`; history and existing processes remain.
+Source version 0.1.11 adds `ajr` (awaiting publication), defaulting to the same persistent `codex` profile as the online ChatGPT/Codex plugin. `ajr opencode <arguments>` selects OpenCode. npm's global command directory must be on PATH; use a user-writable npm installation. Windows also provides `ajr.cmd` for PowerShell script-policy restrictions. Host plugin installation alone does not register global commands. Remove the CLI with `npm uninstall --global --ignore-scripts agent-job-relay-runtime`; history and existing processes remain.
 
 The full `agent-job-relay` entry retains its original default profile; `agent-job-relay codex ui` is equivalent to `ajr ui`. Explicit `--state-dir` takes priority over `AJR_STATE_DIR` and host defaults. Offline native installations retain their separate recorded profile and installed launcher.
 
@@ -27,4 +27,6 @@ Development: this source directory intentionally has no native payload. Build an
 
 Windows starts its daemon on demand, including host cleanup jobs, through verified same-user local CIM when native startup is denied. No login task/service is installed. Built-in Windows PowerShell/CIM must be permitted; diagnostics provide a copyable same-profile outside-terminal fallback when policy blocks it. `AJR_WINDOWS_STARTUP=direct` disables CIM.
 
-The runtime embeds its React + Vite task manager in the native executable. Use `ajr ui` to open the matching profile; `--no-open` prints its local access URL. Daemons enable the authenticated loopback listener by default, without a separate frontend installation. `inspect`, persistent `monitor` and configurable `stop` work without a live Agent. Access URLs contain local credentials; ordinary diagnostics omit them. An older running daemon produces an upgrade instruction; finish its jobs and explicitly stop that same profile before retrying. Source builds generate assets with Node.js 24 before Cargo, while recipients use the packaged bytes.
+The runtime embeds its React + Vite task manager in the native executable. Use `agent-job-relay codex ui` (or source 0.1.11 `ajr ui`) to open the matching profile; `--no-open` prints its local access URL. Daemons enable the authenticated loopback listener by default, without a separate frontend installation. `inspect`, persistent `monitor` and configurable `stop` work without a live Agent. Access URLs contain local credentials; ordinary diagnostics omit them. An older running daemon produces an upgrade instruction; finish its jobs and explicitly stop that same profile before retrying. Source builds generate assets with Node.js 24 before Cargo, while recipients use the packaged bytes.
+
+Use the [documentation index](https://github.com/MorningFrog/agent-job-relay/blob/main/docs/README.md) for task guides, the [command reference](https://github.com/MorningFrog/agent-job-relay/blob/main/docs/commands.md) for CLI/MCP lookup, and [updating](https://github.com/MorningFrog/agent-job-relay/blob/main/docs/updating.md) for profile-preserving maintenance.

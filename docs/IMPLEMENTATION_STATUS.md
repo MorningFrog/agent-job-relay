@@ -1,10 +1,21 @@
 # Implementation status
 
+[Documentation index](README.md) · [Live verification](live-e2e.md) · [Backlog](TODO.md) · [Changelog](../CHANGELOG.md)
+
 ## Current baseline
 
-Last verified: **2026-10-28 (Asia/Shanghai)**. Online npm installation resolves published **0.1.10**, and its matching Git tag exists. Source **0.1.11** adds standard npm registration of `ajr`, defaulting to the online ChatGPT/Codex profile, explicit profile overrides, task-manager prompts and an actionable old-daemon Web UI preflight. It awaits a new manual release candidate; public candidate-byte/provenance checks for 0.1.10 were not repeated in this increment. **0.1.8** remains the real ChatGPT Desktop acceptance baseline. One Rust package/executable provides CLI, stdio MCP, daemon and runner modes. Runtime 0.1.10 and newer use SQLite **v9**, including automatic data maintenance, Agent-independent inspect/monitor, configurable stops and a default-on bundled React/Vite Web UI. Local IPC remains **v1**, with 22 MCP tools. The 0.1.10 native baseline has Linux/Windows evidence; new 0.1.11 Windows checks and real-host running-alert qualification remain open. Local Linux checks use x86_64, kernel 7.0.0-38-generic and Rust/Cargo 1.99.1, edition 2024. Cargo.lock pins rmcp 3.7.0, Tokio 1.54.1, rusqlite 0.41.0 and axum 0.8.9; frontend pins React 19.3.1 and Vite 8.3.5; the declared Rust 1.89 minimum is not independently verified.
+Last verified: **2026-10-28 (Asia/Shanghai)**. This document records the current implementation and verification handoff. Use [features](features.md) for the user-facing capability overview and [TODO](TODO.md) for remaining work.
 
-Stages 0–2 implement design, native execution, MCP/delivery and setup; Stage 3 has the host-specific evidence below, and Stage 4 has local quality/documentation gates. Linux and Windows have verified native runtime cores; macOS runtime is unimplemented. Read [PROJECT_SPEC.md](../PROJECT_SPEC.md), [architecture](architecture.md) and [AGENTS.md](../AGENTS.md) before changing behavior. Use [TODO.md](TODO.md) for remaining work, [live-e2e.md](live-e2e.md) for current live evidence and Git history for previous increments.
+| Baseline | Current state |
+|---|---|
+| Published npm | **0.1.10**, with a matching Git tag; public candidate-byte/provenance checks were not repeated in the latest increment |
+| Source | **0.1.11**, adding standard npm `ajr` registration, online Codex profile defaults, overrides, task-manager prompts and old-daemon Web UI preflight; awaits a new manual release candidate |
+| Real ChatGPT Desktop acceptance | **0.1.8**, Linux and Windows same-chat continuation; Windows uses Full access |
+| Native runtime | Linux and Windows verified; macOS execution/IPC unimplemented |
+| Storage and interfaces | One Rust package/executable, SQLite **v9** since 0.1.10, local IPC **v1**, **22 MCP tools** |
+| Qualification still needed | New 0.1.11 Windows checks and real-host running-alert continuation |
+
+Stages 0–2 implement design, native execution, MCP/delivery and setup; Stage 3 has the host-specific evidence below, and Stage 4 has local quality/documentation gates. Read [PROJECT_SPEC.md](../PROJECT_SPEC.md), [architecture](architecture.md) and [AGENTS.md](../AGENTS.md) before changing behavior. [Live verification](live-e2e.md) distinguishes observed host execution from simulations; previous increments remain in Git history.
 
 ## Implemented behavior
 
@@ -32,6 +43,8 @@ Submissions and explicit session registrations start the per-state daemon on dem
 The binary keeps process initialization in `src/main.rs`, command syntax in `src/cli/args.rs` and profile selection/dispatch in `src/cli/mod.rs`. Shared behavior stays in library modules; the CLI reorganization preserves commands, defaults, output and runtime semantics. See the [source map](architecture.md#source-map).
 
 ## Verification
+
+Local Linux checks use x86_64, kernel 7.0.0-38-generic and Rust/Cargo 1.99.1, edition 2024. Cargo.lock pins rmcp 3.7.0, Tokio 1.54.1, rusqlite 0.41.0 and axum 0.8.9; frontend pins React 19.3.1 and Vite 8.3.5. The declared Rust 1.89 minimum is not independently verified.
 
 | Check | Result and boundary |
 |---|---|

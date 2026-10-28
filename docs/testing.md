@@ -1,5 +1,7 @@
 # Automated testing and evidence
 
+[Documentation index](README.md) · [Contributing](../CONTRIBUTING.md) · [Implementation status](IMPLEMENTATION_STATUS.md)
+
 For reader-facing installation and ChatGPT Desktop acceptance steps, use [manual testing](manual-testing.md). This guide covers developer verification. Tests keep state, fake endpoints and logs under repository-local `.tmp/`; they do not modify personal settings, services, unrelated application state or real ChatGPT Desktop endpoints.
 
 ## Required checks
@@ -100,7 +102,7 @@ Actual Windows Codex MCP/model acceptance has passed from a cold profile with no
 
 Windows installed-package reproduction uses `scripts/check_windows_packages.mjs`; see [release preparation](release.md). It tests actual npm installation/native execution, relocation/history preservation, embedded JS/CSS loading, unauthenticated API refusal, authenticated same-profile inspection and corrupt-payload refusal. For 0.1.10 it also exercises installed CLI rule creation, alert inspection, bounded stopping and offline inspection. Codex uses the original portable-plus-compatibility catalog with only registry transport replaced by a loopback fixture; OpenCode uses the real Bun package-name loader, MCP caller hook and public session API with a simulated model. A matching-session response and empty control session are required. This does not establish public npm availability or ChatGPT Desktop acceptance.
 
-## Unreleased data-maintenance verification
+## Data-maintenance verification
 
 Run `cargo test --test data` for data-maintenance scenarios and `cargo test --test delivery --test runtime` for reserved-read and control-response regressions. Tests reconstruct archive rollback/post-commit cleanup and backup sealed/unsealed states, verify exact IDs/expiry/attempts and checksum/foreign-file refusal, and restore active intents as orphaned without execution. The daemon case proves maintenance runs without a manual call. These controlled state/fault tests pass on Linux and Windows; physical disk/power faults and prolonged load need separate qualification. See [data maintenance](data-maintenance.md).
 

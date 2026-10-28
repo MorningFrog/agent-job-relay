@@ -1,6 +1,10 @@
 # Automatic data maintenance
 
+[Documentation index](README.md) · [Command reference](commands.md) · [Updating](updating.md)
+
 Version 0.1.10 and newer use schema v9; 0.1.9 uses schema v6. Finish existing workloads and explicitly stop the selected old daemon before upgrading. Migration refuses an old daemon lock or launching/running jobs; older executables refuse the new schema. Keep the same state profile and never downgrade a used database.
+
+Examples use the online ChatGPT/Codex profile. Substitute the appropriate [command prefix](commands.md#choose-the-entry-point-and-profile) for OpenCode or a native offline installation; keep the original profile for all operations.
 
 ## Default operation
 
@@ -13,10 +17,10 @@ The daemon creates a complete local database/log backup on the first maintenance
 ## Inspect capacity and change budgets
 
 ```bash
-agent-job-relay data status
-agent-job-relay data policy
-agent-job-relay data policy --hot-jobs 500 --hot-log-mib 128
-agent-job-relay data policy --hot-jobs 500 --hot-log-mib 128 --apply
+agent-job-relay codex data status
+agent-job-relay codex data policy
+agent-job-relay codex data policy --hot-jobs 500 --hot-log-mib 128
+agent-job-relay codex data policy --hot-jobs 500 --hot-log-mib 128 --apply
 ```
 
 Expected: status reports hot/archived job counts, session quota, database/reusable bytes, available disk space at the last scan, the last scan, recent backup IDs and maintenance errors. Policy changes are previews until `--apply`; the daemon reloads them on its next check. Other options are `--archive-after-days`, `--backup-hours` and `--backup-keep`. Zero archive days archives eligible terminal history at the next check. The documented defaults require no configuration.
@@ -24,8 +28,8 @@ Expected: status reports hot/archived job counts, session quota, database/reusab
 To preview or immediately run a maintenance batch:
 
 ```bash
-agent-job-relay data maintain
-agent-job-relay data maintain --apply
+agent-job-relay codex data maintain
+agent-job-relay codex data maintain --apply
 ```
 
 Expected: preview reports eligible archival work without compressing/deleting logs or making a backup. Apply also creates a due backup and rotates verified backups. A running maintenance operation holds the profile's lock; another invocation reports that it is busy. File errors and protected notifications can defer archiving. Inspect `data status` or `job_doctor` if the hot quota is near its limit.
@@ -33,7 +37,7 @@ Expected: preview reports eligible archival work without compressing/deleting lo
 ## Back up and restore
 
 ```bash
-agent-job-relay data backup
+agent-job-relay codex data backup
 ```
 
 Expected: the command prints a completed backup ID and directory. Each backup contains a SQLite online snapshot, bounded stdout/stderr files and a SHA-256 manifest. Completed-job output is immutable; active output is a bounded prefix and may extend beyond the database snapshot time. External workload files, inherited environment, host configuration, endpoint/lock files and raw inbox receipt files are not copied. Durable notification/event records are included in SQLite. Command specifications and logs can contain secrets; backup files retain the same private ownership requirements as state files.
@@ -41,7 +45,7 @@ Expected: the command prints a completed backup ID and directory. Each backup co
 For restore, replace both placeholders below with absolute paths. The destination must not exist and its parent must already exist:
 
 ```bash
-agent-job-relay data restore --from "<backup-directory>" --to "<new-state-directory>"
+agent-job-relay codex data restore --from "<backup-directory>" --to "<new-state-directory>"
 agent-job-relay --state-dir "<new-state-directory>" data check
 ```
 

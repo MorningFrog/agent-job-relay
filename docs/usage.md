@@ -1,17 +1,10 @@
 # Using AgentJobRelay
 
-Start with [installation](installation.md#terminal-and-web-ui). The 0.1.11 npm CLI provides `ajr`, defaulting to the online ChatGPT/Codex plugin profile; use `ajr opencode` for OpenCode. Published 0.1.10 uses `agent-job-relay codex`. Commands below use AJR_RELAY for the selected entry:
+[Documentation index](README.md) · [Command reference](commands.md) · [Troubleshooting](troubleshooting.md)
 
-```bash
-AJR_RELAY=ajr
-```
+Start with [installation](installation.md#terminal-and-web-ui). Examples use the published online ChatGPT/Codex entry, `agent-job-relay codex`. Substitute `agent-job-relay opencode` for OpenCode or your installed `relay` / `relay.cmd` for a native offline installation. Keep the original recorded profile; see [command entry points](commands.md#choose-the-entry-point-and-profile).
 
-For an existing offline installation, retain its recorded profile and set AJR_INSTALL_ROOT to its actual root, or use the default:
-
-```bash
-AJR_INSTALL_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/agent-job-relay"
-AJR_RELAY="$AJR_INSTALL_ROOT/relay"
-```
+The source 0.1.11 npm package adds `ajr`, awaiting publication. For a native offline installation, invoke `"$AJR_INSTALL_ROOT/relay"` after setting AJR_INSTALL_ROOT to its original absolute root, normally `${XDG_DATA_HOME:-$HOME/.local/share}/agent-job-relay` on Linux.
 
 Windows PowerShell commands and automatic-startup/fallback guidance are in the [Windows guide](windows.md). `daemon start` explicitly starts/reuses the selected runtime without a job/session; `daemon stop` leaves independent runners and history intact.
 
@@ -28,20 +21,20 @@ A fresh binding comes from this chat's terminal, not the shared MCP process. Mis
 ## Run and inspect commands through CLI
 
 ```bash
-"$AJR_RELAY" start --timeout 60 --idempotency-key build-001 -- cargo check
-"$AJR_RELAY" start --shell 'printf "out\n"; printf "err\n" >&2'
-"$AJR_RELAY" list
+agent-job-relay codex start --timeout 60 --idempotency-key build-001 -- cargo check
+agent-job-relay codex start --shell 'printf "out\n"; printf "err\n" >&2'
+agent-job-relay codex list
 ```
 
 Use the returned `job.job_id` as JOB_ID:
 
 ```bash
-"$AJR_RELAY" status "$JOB_ID"
-"$AJR_RELAY" logs "$JOB_ID"
-"$AJR_RELAY" logs "$JOB_ID" --stream stderr --cursor 0 --limit 8192
-"$AJR_RELAY" events "$JOB_ID"
-"$AJR_RELAY" wait "$JOB_ID" --after 0 --seconds 10
-"$AJR_RELAY" stop "$JOB_ID"
+agent-job-relay codex status "$JOB_ID"
+agent-job-relay codex logs "$JOB_ID"
+agent-job-relay codex logs "$JOB_ID" --stream stderr --cursor 0 --limit 8192
+agent-job-relay codex events "$JOB_ID"
+agent-job-relay codex wait "$JOB_ID" --after 0 --seconds 10
+agent-job-relay codex stop "$JOB_ID"
 ```
 
 `--` separates executable arguments from relay options; a shell is always explicit. CLI resolves an omitted cwd to the current directory; MCP requires an absolute cwd, supplied explicitly or by a fresh terminal binding. Jobs inherit the daemon's environment; MCP/request `env` overrides are persisted privately and omitted from status. Commands execute with your OS permissions.
@@ -54,7 +47,7 @@ Lists/events/deliveries return `next_cursor`; use `--after` for the next page. L
 
 Use one fresh terminal binding object for the caller and workspace.
 
-1. In this chat's terminal, run `"$AJR_RELAY" connect --cwd <absolute-project>`.
+1. In this chat's terminal, run `agent-job-relay codex connect --cwd <absolute-project>`.
 2. Pass the returned `binding` object to `job_start` with only `spec.command` and any deliberate overrides.
 3. Retain `job.job_id`, follow `next_step` and end the turn for a long wake-bound job.
 4. Match/deduplicate the notification delivery ID and inspect bounded results.
@@ -81,8 +74,8 @@ For a CLI submission from the current ChatGPT Desktop chat's terminal, use `star
 From the same chat's terminal:
 
 ```bash
-"$AJR_RELAY" connect --recover
-"$AJR_RELAY" connect --recover --apply
+agent-job-relay codex connect --recover
+agent-job-relay codex connect --recover --apply
 ```
 
 The compatible alternative is `session recover [--apply]`. Add `--full` for the complete registration and recovery audit. The first command refreshes/probes the current binding and previews eligible targets without moving deliveries or sending a chat message. Apply restores only the matching logical chat/caller/host. It preserves delivery IDs, original expiry and attempt history; accepted/expired events and live claims are excluded. Commands are never rerun. Use `--after` with returned pagination. MCP accepts `job_recover_session` with the same fresh `binding` object; the compatible `session_key` argument remains available.
@@ -96,20 +89,20 @@ Temporary delivery failures retry with bounded backoff until the event's 24-hour
 Manual inbox registration is available for hosts that cannot provide the automatic binding:
 
 ```bash
-"$AJR_RELAY" session register --agent codex_cli --session-id demo-thread --instance-id demo-instance --host-id local
+agent-job-relay codex session register --agent codex_cli --session-id demo-thread --instance-id demo-instance --host-id local
 ```
 
 Use the returned `session.key` as SESSION_KEY, not the logical session_id:
 
 ```bash
-"$AJR_RELAY" session probe "$SESSION_KEY"
-"$AJR_RELAY" start --session "$SESSION_KEY" -- echo notified
-"$AJR_RELAY" inbox "$SESSION_KEY"
+agent-job-relay codex session probe "$SESSION_KEY"
+agent-job-relay codex start --session "$SESSION_KEY" -- echo notified
+agent-job-relay codex inbox "$SESSION_KEY"
 ```
 
 For actual integrations, use explicit real identities. Manual registrations default to a one-hour lease, with a 24-hour maximum. ChatGPT Desktop additionally requires an authorized endpoint/caller and `--experimental`; its private API may change. Low-level `target add --replay` / `target rebind` are advanced operations with different replay semantics; see [protocol](protocol.md).
 
-`daemon stop` stops dispatch only; runners continue and persist results. A later submission restarts the daemon. Foreground `daemon` is available for diagnosis, with no login service installed. A legacy missing-runner-image failure needs diagnosis and explicit same-profile update; preserve the failed job and do not switch state or replay it silently. See [installation](installation.md#updating-an-existing-installation) for safe upgrades.
+`daemon stop` stops dispatch only; runners continue and persist results. A later submission restarts the daemon. Foreground `daemon` is available for diagnosis, with no login service installed. A legacy missing-runner-image failure needs diagnosis and explicit same-profile update; preserve the failed job and do not switch state or replay it silently. See [updating](updating.md#updating-an-existing-installation) for safe upgrades.
 
 For exact MCP tool schemas, byte limits, storage/delivery states and legacy compatibility, see [protocol](protocol.md). Command output is untrusted data; operational and containment limits are in [security](security.md) and [limitations](limitations.md).
 
@@ -117,6 +110,6 @@ For exact MCP tool schemas, byte limits, storage/delivery states and legacy comp
 
 For OpenCode V1, use the plugin's actual tool-context binding and MCP tools; ChatGPT Desktop `session connect`/`wake_me` is not its workflow. For Claude Code, the experimental skill uses the real substituted session ID and an inbox-only binding, with explicit result inspection and no automatic wake promise. See [host setup and capability limits](host-plugins.md). These development packages do not install a second execution runtime.
 
-## Automatic capacity maintenance (unreleased source)
+## Automatic data maintenance
 
-The daemon automatically archives eligible terminal history and creates rolling local backups; no recurring manual command is required. Use `agent-job-relay data status` for budgets/backup IDs/errors, `data policy` for configuration previews, `data backup` for an additional snapshot and `data check` for explicit integrity validation. Existing history/log queries include cold records. Upgrade/restore instructions and the default policy are in [data maintenance](data-maintenance.md); published 0.1.9 remains schema v6.
+The daemon automatically archives eligible terminal history and creates rolling local backups; no recurring manual command is required. Use `data status` through the selected command prefix for budgets/backup IDs/errors, `data policy` for configuration previews, `data backup` for an additional snapshot and `data check` for explicit integrity validation. Existing history/log queries include cold records. Upgrade/restore instructions and the default policy are in [data maintenance](data-maintenance.md); runtime 0.1.10 and newer use schema v9.

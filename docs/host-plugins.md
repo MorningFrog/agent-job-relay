@@ -1,5 +1,7 @@
 # Host plugins and community verification
 
+[Documentation index](README.md) · [Install](installation.md) · [Features and support](features.md)
+
 One Rust/MCP runtime remains responsible for jobs, results, outbox attempts, recovery and leases. Host packages supply actual caller identity and translate a completion request to that host's public API. Shared runtime/OpenCode npm packages and the self-hosted ChatGPT marketplace are public; start with [latest published installation](installation.md#quick-install-the-latest-release). Maintainers use separate manual Prepare Release and Publish Release workflows; see the [release guide](release.md). These are not official directory listings. Linux and Windows x86_64 have verified native runtimes and ChatGPT Desktop same-chat continuation.
 
 ## Current evidence

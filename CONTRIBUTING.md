@@ -4,7 +4,7 @@ PRs and reproducible test reports are welcome. **Claude Code needs community hel
 
 ## Start with a bounded change
 
-Read [AGENTS.md](AGENTS.md), [PROJECT_SPEC.md](PROJECT_SPEC.md), [architecture](docs/architecture.md) and [implementation status](docs/IMPLEMENTATION_STATUS.md). Use [TODO.md](docs/TODO.md) as the backlog. Keep one Rust/MCP core, exact caller/session ownership and independent command/delivery lifetimes. Do not turn host acceptance into a confirmed-resume claim.
+Use the [documentation index](docs/README.md) to find task guides. Read [AGENTS.md](AGENTS.md), [PROJECT_SPEC.md](PROJECT_SPEC.md), [architecture](docs/architecture.md) and [implementation status](docs/IMPLEMENTATION_STATUS.md). Use [TODO.md](docs/TODO.md) as the backlog. Keep one Rust/MCP core, exact caller/session ownership and independent command/delivery lifetimes. Do not turn host acceptance into a confirmed-resume claim.
 
 ## Code and documentation conventions
 
@@ -53,18 +53,6 @@ Use concise English Conventional Commits and describe the concrete behavior chan
 
 ## Maintainer-only manual releases
 
-**Publishing npm packages, changing release channels and publishing GitHub Releases are maintainer-only operations, performed manually.** Contributor pushes, PRs, tags and Release events must never trigger publication. GitHub's `release` environment is restricted to `main`; repository/Actions access and any environment approval rules define who may authorize a release. Contributors can prepare and test a change but cannot treat a merged PR or green CI as permission to publish.
+Only maintainers authorize publication. **Release All** is the manual prepare/preview/publish/check entry and defaults to dry-run; the separate workflows remain available. Publication promotes the exact reviewed candidate bytes, derives versions from Cargo.toml and notes from CHANGELOG, and uses the configured release-publish.yml OIDC identity. Pushes, PRs, tags and Release events never publish.
 
-The normal update sequence is:
-
-1. Update the version in `Cargo.toml`, synchronize the lockfile and package/plugin pins, and add the matching version section to `CHANGELOG.md`. Complete the checks above and obtain review before pushing the approved source to main.
-2. Manually run **Prepare Release** with `channel=latest` for a formal release. It builds/tests Linux and Windows and seals the downloadable candidate, without publishing credentials. Review its files/Release Notes and save its original Run ID.
-3. Manually run **Publish Release** with that Run ID and `dry_run` checked. This validates the candidate and npm OIDC from the actual publishing workflow. A successful preparation alone is not a credential check.
-4. After review, manually run **Publish Release** with the same Run ID and `dry_run` unchecked. It submits the exact reviewed files, retains upload-acceptance receipts and publishes GitHub without waiting for public registry synchronization.
-5. Manually run **Check Release** with the same candidate ID to verify public bytes, channel and installation. This check has no remote write permission; a check failure requires only a check retry.
-
-**Release All** is the unified manual shortcut for this sequence. Its default dry-run prepares/reuses a candidate and checks the actual publisher identity. Unchecking dry-run also publishes and starts a separate checking job. Reuse the original candidate ID after review or partial failure; successful child runs are retained, and failed children resume their original Run IDs. The wrapper dispatches release-publish.yml so npm Trusted Publisher configuration stays unchanged.
-
-Use `next` only for an intentional experimental prerelease; it does not change npm's default `latest`. Keep main unchanged during a release, and never replace bytes under a staged/published version. A documented tooling-only recovery mode can reuse the original candidate after a release-script repair; it cannot admit payload/version changes.
-
-For npm Trusted Publisher settings, exact Actions inputs, retry limits and the maintainer's one-time manual first-package bootstrap, follow the [maintainer release guide](docs/release.md). Subsequent automated releases use OIDC configured for **`release-publish.yml`**; they do not use a stored npm publishing token. An Agent may prepare code, tests and artifacts, but the maintainer remains responsible for manually authorizing release execution.
+Follow the [maintainer release guide](docs/release.md) for Actions inputs, candidate review, Trusted Publisher settings, first-package bootstrap and partial-failure recovery. Keep the original successful preparation Run ID for retries; a read-only public check failure does not authorize republication.

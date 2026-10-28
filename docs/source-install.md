@@ -1,5 +1,7 @@
 # Install the local plugin from source
 
+[Documentation index](README.md) · [Published installation](installation.md) · [Updating](updating.md)
+
 English | [简体中文](source-install.zh-CN.md)
 
 This walkthrough installs the native Linux x86_64/glibc build into a stable user directory and registers the personal **AgentJobRelay Local** marketplace. With a newly created marketplace, select **`agent-job-relay@agent-job-relay-local`** in ChatGPT Desktop. Building alone does not install or enable the plugin.
@@ -90,7 +92,7 @@ Expected: the preview retains the original state directory; apply retains histor
 
 Expected: the installed version matches the build, the owned marketplace entry matches, and `stdio_self_check.status` is `passed` with 22 tools. A stopped daemon before the first submission is normal. This check submits no job and establishes local stdio discovery, not ChatGPT Desktop tool connectivity or chat continuation.
 
-Keep AJR_INSTALL_ROOT present: cached MCP and terminal launchers use its native executable. Rebuilding `target/release` alone does not update this installation. Task state/history stays separate; [maintenance](installation.md) covers profiles, updates and removal.
+Keep AJR_INSTALL_ROOT present: cached MCP and terminal launchers use its native executable. Rebuilding `target/release` alone does not update this installation. Task state/history stays separate; [installation profiles](installation.md#custom-directories-and-stored-data), [updates](updating.md) and [uninstallation](uninstalling.md) cover later maintenance.
 
 ## 6. Install and select the correct plugin in ChatGPT Desktop
 

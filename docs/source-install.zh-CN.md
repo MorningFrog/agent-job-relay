@@ -1,5 +1,7 @@
 # 从源码安装本地插件
 
+[文档导航](README.md) · [已发布版本安装](installation.md) · [更新指南](updating.md)
+
 [English](source-install.md) | 简体中文
 
 本教程将 Linux x86_64/glibc 原生程序安装到稳定的用户目录，并登记个人 **AgentJobRelay Local** 市场。新建市场时，在 ChatGPT Desktop 中应选择 **`agent-job-relay@agent-job-relay-local`**。仅完成编译不会安装或启用插件。
@@ -90,7 +92,7 @@ AJR_INSTALL_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/agent-job-relay"
 
 预期：已安装版本与构建版本一致，受管理的 marketplace 条目匹配，`stdio_self_check.status` 为 `passed`，工具数为 20。首次提交任务前 daemon 处于 stopped 状态是正常的。该检查不提交任务，只验证本机 stdio 工具发现，不能证明 ChatGPT Desktop 已连接或聊天能自动续接。
 
-请保留 AJR_INSTALL_ROOT：缓存中的 MCP 和终端启动器都使用该目录中的原生程序。仅重新编译 `target/release` 不会更新已安装运行时。任务状态和历史另行保存；状态配置、更新和卸载见[维护指南](installation.md)。
+请保留 AJR_INSTALL_ROOT：缓存中的 MCP 和终端启动器都使用该目录中的原生程序。仅重新编译 `target/release` 不会更新已安装运行时。任务状态和历史另行保存；[状态配置](installation.md#custom-directories-and-stored-data)、[更新](updating.md)和[卸载](uninstalling.md)分别见对应指南。
 
 ## 6. 在 ChatGPT Desktop 中安装并选择正确的插件
 

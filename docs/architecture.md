@@ -1,5 +1,7 @@
 # Architecture
 
+[Documentation index](README.md) · [Protocol](protocol.md) · [Implementation status](IMPLEMENTATION_STATUS.md)
+
 One package and executable; CLI, stdio MCP, daemon and runner modes.
 
 ## Source map

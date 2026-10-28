@@ -1,8 +1,10 @@
 # Local and MCP protocols (v0.1)
 
+[Documentation index](README.md) · [Command reference](commands.md) · [Architecture](architecture.md)
+
 ## IPC
 
-Linux owner-only Unix socket `<state>/relay.sock`; same effective UID required. No TCP listener. One request and response per connection, 4-byte little-endian unsigned length followed by UTF-8 JSON. Request cap 128 KiB, response cap 1 MiB; 5-second framing deadline, at most 32 simultaneous connections. Client deadline 40 seconds; event wait 1–30 seconds. Unsupported versions fail explicitly.
+Linux owner-only Unix socket `<state>/relay.sock`; same effective UID required. Runtime IPC has no TCP listener; the separately authenticated loopback Web API is described below. One request and response per connection, 4-byte little-endian unsigned length followed by UTF-8 JSON. Request cap 128 KiB, response cap 1 MiB; 5-second framing deadline, at most 32 simultaneous connections. Client deadline 40 seconds; event wait 1–30 seconds. Unsupported versions fail explicitly.
 
 Request: `{"protocol_version":1,"request":{"op":"doctor"}}`. Response: `{"protocol_version":1,"ok":true,"result":{...}}` or an error string. `agent-job-relay request '{"op":"doctor"}'` wraps the envelope for you.
 
@@ -74,11 +76,11 @@ OpenCode V1 injects a fresh binding from the host tool context into shared MCP. 
 
 Doctor adds `daemon_launch_method` (`windows_native`, `windows_cim`, `unix_native` or `foreground`). CLI Windows diagnostics include the current `AJR_WINDOWS_STARTUP` policy and a literal-quoted same-profile `outside_terminal_command`. These are diagnostic fields, not job/session identities or proof of host continuation. The internal random startup pipe transfers bounded version/environment/cwd data only after mutual process/image/SID/integrity and private-DACL validation; it is not a public workload execution API. See [ADR 0012](adr/0012-windows-on-demand-bootstrap.md). SQLite v6 and public IPC v1 remain unchanged.
 
-## Automatic data maintenance (unreleased schema v9)
+## Automatic data maintenance (schema v9)
 
 The new CLI-only `data` commands add no MCP tools or IPC operation/version changes. Existing bounded status/list/events/deliveries/attempts/inbox/log operations include cold history. Stable cursor high-water marks prevent reuse after hot-row removal; idempotency spans both tiers. Explicit delivery/target mutations restore terminal relational history atomically without launching workloads. Doctor's store result establishes connection/schema health; `store_check` names that scope and `capacity` reports maintenance health. `data check` runs explicit SQLite integrity/foreign-key checks. Schema v9 requires stopping old daemons and finishing old active runs before migration. Backup manifests and cold snapshots have independent format version 1. See [data maintenance](data-maintenance.md).
 
-## Runtime monitoring and Web UI (unreleased 0.1.10)
+## Runtime monitoring and Web UI (0.1.10 and newer)
 
 IPC v1 adds inspect (optional job_id/before/limit), monitor (job_id plus optional tagged mutation) and private ui_info. MCP exposes job_inspect/job_monitor, for 22 tools; ui_info/shutdown remain CLI/private-IPC operations. StartSpec.monitor_rules defaults to an omitted empty vector, preserving old canonical idempotency bytes. A rule has condition no_output/elapsed/contains, action alert/stop, optional notify_agent and grace_seconds (default 5). Update/enable/remove require expected_revision. Rules are bounded to 16 identities and 128 revisions each per job and trigger once per revision. Inspect returns compact paginated overview records or a bounded detailed snapshot with raw byte counts, a rolling 64-KiB tail per stream, application revisions and newest events. Stop accepts grace_seconds (0–300) and wait_seconds (0–30), returns existing job fields plus stop_outcome, and never revises an existing terminal result.
 

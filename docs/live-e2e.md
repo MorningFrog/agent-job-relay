@@ -1,5 +1,7 @@
 # Current live verification
 
+[Documentation index](README.md) · [Implementation status](IMPLEMENTATION_STATUS.md) · [Manual acceptance](manual-testing.md)
+
 Live-verified baseline: **AgentJobRelay v0.1.8**, verified on **2026-10-27 (Asia/Shanghai)**. Published 0.1.9 has separate automated checks. The 0.1.10 archive/backup/monitor/Web UI baseline has Linux/Windows native and candidate-package evidence; the new 0.1.11 npm short CLI has isolated Linux package/loader checks without new real-host continuation acceptance. Raw reports, logs and private identifiers stay in ignored repository-local storage; earlier results remain in Git history.
 
 ## Linux ChatGPT Desktop
