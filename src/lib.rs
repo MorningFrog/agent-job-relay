@@ -18,6 +18,7 @@ pub mod platform;
 pub mod plugin;
 pub mod plugin_bridge;
 pub mod recovery;
+pub mod remote;
 pub mod renewal;
 pub mod runner;
 mod scheduling;

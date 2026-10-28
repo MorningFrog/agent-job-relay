@@ -17,6 +17,7 @@ Run long commands independently of the Agent connection, keep their results, and
 |---|---|
 | Durable background jobs | Builds, tests, training and data processing that continue after a chat or viewer closes |
 | Batch submission (unreleased source) | Submit 1–16 independent commands through CLI/MCP, with per-item results and safe retries; [usage](docs/usage.md#submit-independent-commands-together-unreleased-source) |
+| Remote tasks (unreleased source) | Launch/attach on a pinned remote runtime and observe a fixed GitHub Actions attempt; [setup and boundaries](docs/remote-execution.md) |
 | Results and history | Bounded stdout/stderr, exit outcomes, events and retained task history |
 | Session-bound notifications | Deliver results to the initiating session; resume the chat when supported by its host |
 | Local task manager | Inspect tasks, configure persistent output/silence/elapsed rules and stop work through CLI or the bundled Web UI |

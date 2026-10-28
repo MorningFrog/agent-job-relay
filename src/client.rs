@@ -229,6 +229,13 @@ pub async fn recover(config: &Config, apply: bool, after: i64, limit: u32) -> Re
     )
     .await
 }
+fn verify_external_runtime(info: &Value) -> Result<()> {
+    ensure!(
+        info["remote_execution"] == true && info["github_actions_observation"] == true,
+        "selected daemon does not support external execution. No job was submitted. Finish active jobs, then explicitly stop/update this same profile and retry"
+    );
+    Ok(())
+}
 pub async fn start(config: &Config, mut spec: StartSpec, wake_me: bool) -> Result<Value> {
     ensure!(
         !wake_me || spec.session.is_none(),
@@ -242,6 +249,9 @@ pub async fn start(config: &Config, mut spec: StartSpec, wake_me: bool) -> Resul
         None
     };
     ensure_daemon(config).await?;
+    if spec.command.is_external() {
+        verify_external_runtime(&ipc::call(config, Request::Doctor).await?)?;
+    }
     if let Some((registration, fingerprint)) = context {
         let session = connect_registration(config, registration, fingerprint).await?;
         spec.session = Some(
@@ -275,6 +285,9 @@ pub async fn start_batch(
     };
     ensure_daemon(config).await?;
     let health = ipc::call(config, Request::Doctor).await?;
+    if specs.iter().any(|s| s.command.is_external()) {
+        verify_external_runtime(&health)?;
+    }
     ensure!(
         health["batch_submission"] == true,
         "selected daemon does not support batch submission. No batch was submitted. Let active jobs finish, then explicitly stop/update the daemon for the same profile and retry"

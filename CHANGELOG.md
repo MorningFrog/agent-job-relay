@@ -4,6 +4,8 @@
 
 ### Added
 
+- Add pinned remote launch/attach through a bounded stdio adapter contract and optional remote native runtime, preserving origin IDs, durable launch keys, raw-byte cursors and exact-run stopping across disconnect/observer recovery. Add read-only observation of an explicit GitHub Actions run attempt through local `gh`, shared CLI/MCP/inspect/Web evidence and `start-spec --file`. No service, automatic training restart, workflow dispatch or workflow cancellation is added.
+- Keep MCP discovery within existing installed-host/self-check limits by including only schema definitions reachable from each tool; preserve all referenced command variants.
 - Add CLI `start-batch --file` (including bounded stdin), MCP `job_start_batch` and shared IPC v1 admission for 1–16 independent commands. Require distinct stable per-item keys, preserve command/workspace/environment/session/rules and return indexed partial admission results under the existing eight-active-job quota. Identical retries retain original Job/Run IDs after response loss or restart; no scheduler or batch-wide cancellation is added.
 - Bind every batch item to the actual host caller and provide compact/full MCP results, old-daemon capability preflight and host workflow guidance. The sealed 0.1.11 release candidate is unchanged and excludes these additions.
 

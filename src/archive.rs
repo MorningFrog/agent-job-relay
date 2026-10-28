@@ -502,6 +502,20 @@ pub async fn logs(
     cursor: u64,
     limit: u32,
 ) -> Result<Value> {
+    let data = log_bytes(config, run, stream, cursor, limit).await?;
+    Ok(
+        json!({"text":String::from_utf8_lossy(&data),"bytes":data.len(),"next_cursor":cursor+data.len() as u64,"untrusted":true,"encoding":"utf8_lossy","cap_bytes":crate::runner::LOG_CAP}),
+    )
+}
+
+/// Preserve byte cursors across remote reconnects, including invalid UTF-8.
+pub(crate) async fn log_bytes(
+    config: crate::config::Config,
+    run: String,
+    stream: String,
+    cursor: u64,
+    limit: u32,
+) -> Result<Vec<u8>> {
     validate_id(&run)?;
     ensure!(
         ["stdout", "stderr"].contains(&stream.as_str()) && (1..=65536).contains(&limit),
@@ -512,31 +526,52 @@ pub async fn logs(
         "cursor is beyond log capacity"
     );
     tokio::task::spawn_blocking(move || {
-        let dir=config.run_dir(&run);
-        if dir.exists() { crate::platform::secure_dir(&dir)?; }
-        let raw=dir.join(format!("{stream}.log"));
-        let compressed=dir.join(format!("{stream}.log.gz"));
+        let dir = config.run_dir(&run);
+        if dir.exists() {
+            crate::platform::secure_dir(&dir)?;
+        }
+        let raw = dir.join(format!("{stream}.log"));
+        let compressed = dir.join(format!("{stream}.log.gz"));
         let raw_file = if regular(&raw)?.is_some() {
             match crate::platform::read_file(&raw) {
-                Ok(file)=>Some(file),
-                Err(e) if e.downcast_ref::<std::io::Error>().is_some_and(|e|e.kind()==std::io::ErrorKind::NotFound)=>None,
-                Err(e)=>return Err(e),
+                Ok(file) => Some(file),
+                Err(e)
+                    if e.downcast_ref::<std::io::Error>()
+                        .is_some_and(|e| e.kind() == std::io::ErrorKind::NotFound) =>
+                {
+                    None
+                }
+                Err(e) => return Err(e),
             }
-        } else {None};
-        let reader: Box<dyn Read> = if let Some(mut file)=raw_file {
-            ensure!(cursor<=file.metadata()?.len(),"cursor is beyond end of log");
+        } else {
+            None
+        };
+        let reader: Box<dyn Read> = if let Some(mut file) = raw_file {
+            ensure!(
+                cursor <= file.metadata()?.len(),
+                "cursor is beyond end of log"
+            );
             file.seek(std::io::SeekFrom::Start(cursor))?;
             Box::new(file)
         } else if regular(&compressed)?.is_some() {
-            let mut decoder=GzDecoder::new(crate::platform::read_file(&compressed)?).take(crate::runner::LOG_CAP+1);
-            let skipped=std::io::copy(&mut decoder.by_ref().take(cursor),&mut std::io::sink())?;
-            ensure!(skipped==cursor,"cursor is beyond end of log");
+            let mut decoder = GzDecoder::new(crate::platform::read_file(&compressed)?)
+                .take(crate::runner::LOG_CAP + 1);
+            let skipped = std::io::copy(&mut decoder.by_ref().take(cursor), &mut std::io::sink())?;
+            ensure!(skipped == cursor, "cursor is beyond end of log");
             Box::new(decoder)
-        } else {ensure!(cursor==0,"log not created yet; cursor must be zero");Box::new(std::io::empty())};
-        let mut data=Vec::new(); reader.take(limit as u64).read_to_end(&mut data)?;
-        ensure!(cursor+data.len() as u64<=crate::runner::LOG_CAP,"archive log exceeds capacity");
-        Ok(json!({"text":String::from_utf8_lossy(&data),"bytes":data.len(),"next_cursor":cursor+data.len() as u64,"untrusted":true,"encoding":"utf8_lossy","cap_bytes":crate::runner::LOG_CAP}))
-    }).await?
+        } else {
+            ensure!(cursor == 0, "log not created yet; cursor must be zero");
+            Box::new(std::io::empty())
+        };
+        let mut data = Vec::new();
+        reader.take(limit as u64).read_to_end(&mut data)?;
+        ensure!(
+            cursor + data.len() as u64 <= crate::runner::LOG_CAP,
+            "archive log exceeds capacity"
+        );
+        Ok(data)
+    })
+    .await?
 }
 
 pub(crate) fn monitor_rows(db: &Connection, job: &str, table: &str) -> Result<Option<Vec<Value>>> {

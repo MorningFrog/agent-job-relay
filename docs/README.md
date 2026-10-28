@@ -28,6 +28,7 @@ Choose the task you need below. Installation, everyday operation, maintenance an
 | Task / 任务 | Guide / 文档 |
 |---|---|
 | Submit a job, read results or recover same-chat notifications / 提交任务、查看结果、恢复通知 | [Usage walkthrough](usage.md) |
+| Launch/attach remote commands or observe a workflow attempt / 远程命令和工作流观察 | [Remote execution](remote-execution.md) (unreleased source) |
 | Look up CLI commands, profiles or MCP equivalents / 查询命令、数据目录和 MCP 工具 | [Command reference](commands.md) |
 | Inspect/watch, add rules, use Web UI or stop work / 检查任务、监控、面板和停止 | [Runtime monitoring and Web UI](runtime-monitoring.md) |
 

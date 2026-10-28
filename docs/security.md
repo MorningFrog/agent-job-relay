@@ -2,7 +2,7 @@
 
 [Documentation index](README.md) · [Limitations](limitations.md) · [Data maintenance](data-maintenance.md)
 
-Trusted single local user; this executes arbitrary commands with that user's permissions. It is not a sandbox, permission broker or multi-user service. No telemetry, TCP execution API, remote worker or automatic host discovery.
+Trusted single local user; this executes arbitrary commands with that user's permissions. It is not a sandbox, permission broker or multi-user service. No telemetry, public TCP execution API or automatic host discovery. Unreleased remote tasks use explicitly configured authenticated stdio transports and pinned remote identities.
 
 ## Local state and process permissions
 
@@ -69,3 +69,9 @@ The default-on Web UI binds only 127.0.0.1 on a random port and requires an unpr
 HTTP exposes a fixed inspection/rule/stop subset, bounded bodies/pages/concurrency/SSE queues, and embedded assets only. There is no filesystem-serving or arbitrary-command HTTP endpoint. AJR_WEB_UI=off disables the listener explicitly at startup; listener failures are visible in diagnostics and do not stop jobs. UI resources require no CDN or runtime frontend toolchain.
 
 Monitor actions are typed and explicitly configured; output is never interpreted as instructions or executable callbacks. Revision/terminal fences and per-revision trigger claims prevent stale rules from cancelling work. Raw-prefix caps do not disable detection, and retained match windows/tails are bounded. Rule changes, trigger evidence and stop reasons persist with history. Database/runner/containment failures retain the existing diagnostic and unknown-effect limitations; a saved rule or live browser connection is not proof of current runner supervision.
+
+## External execution and authentication
+
+Remote `target_id` identifies a provisioned profile; it is not authentication. SSH host keys/user credentials or an existing authenticated transport establish access. The native helper adds no listener, service, plugin installation or elevation. Transport argv is fixed configuration; workload arguments/cwd/env travel on bounded stdin and are never interpolated into the SSH shell command. Target/request/run/attempt echoes are checked before accepting evidence or issuing exact-run stop. Remote provisioning identity is excluded from backups, so a restored profile cannot silently impersonate its origin. Custom adapters are trusted executables and require independent lifecycle/authentication qualification.
+
+Keep tokens, passwords and keys in the existing SSH/`gh` authentication facilities. Explicit task env is persisted on its execution owner; it is unsuitable for secrets. Raw transport stderr is bounded and discarded; GitHub diagnostics retain fixed categories. Local chat endpoint/identity variables are removed from transport child environments. Workload logs, bounded remote observations and final details remain untrusted data with the same private-storage requirements as local output. The workflow adapter issues GET requests only; stopping an observer grants no workflow cancellation or dispatch authority.

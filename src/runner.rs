@@ -69,20 +69,29 @@ pub async fn run(config: Config, j: String, nonce: String) -> Result<()> {
         let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         let ok=tx.execute("UPDATE jobs SET status='running',updated=? WHERE id=? AND status='launching' AND run_id IN (SELECT id FROM runs WHERE nonce=?)",params![now(),key,nonce])?;
         ensure!(ok==1,"launch claim is stale; command was not executed");
-        tx.execute("UPDATE runs SET runner_pid=?,runner_identity=?,status='running',started=? WHERE job_id=?",params![pid,identity,now(),key])?;
+        tx.execute("UPDATE runs SET runner_pid=?,runner_identity=?,status='running',started=COALESCE(started,?) WHERE job_id=?",params![pid,identity,now(),key])?;
         let raw:String=tx.query_row("SELECT spec FROM jobs WHERE id=?",[key],|r|r.get(0))?;
         tx.commit()?;Ok(serde_json::from_str(&raw)?)
     }).await?;
     let outcome = execute(&config, &store, &job, &spec).await;
     if let Err(e) = outcome {
-        store
-            .finish(j, "failed", None, None, format!("supervision error: {e:#}"))
-            .await?;
+        let (state, detail) = if spec.command.is_external() {
+            (
+                "orphaned",
+                format!("external observer failed; external outcome unknown: {e:#}"),
+            )
+        } else {
+            ("failed", format!("supervision error: {e:#}"))
+        };
+        store.finish(j, state, None, None, detail).await?;
     }
     drop(lock);
     Ok(())
 }
 async fn execute(config: &Config, store: &Store, job: &Job, spec: &StartSpec) -> Result<()> {
+    if spec.command.is_external() {
+        return crate::remote::observe(config, store, job, spec).await;
+    }
     if store.status(job.job_id.clone()).await?.cancel_requested {
         return store
             .finish(
@@ -110,6 +119,7 @@ async fn execute(config: &Config, store: &Store, job: &Job, spec: &StartSpec) ->
                 c.args(["-c", script]);
                 c
             }
+            _ => unreachable!("external execution uses the observer"),
         };
         command
             .current_dir(&spec.cwd)
@@ -311,6 +321,7 @@ pub async fn windows_workload(config: Config, job: String, name: String) -> Resu
             interpreter,
             script,
         } => crate::platform::shell_command(&interpreter, &script),
+        _ => anyhow::bail!("external execution cannot enter a Windows workload"),
     };
     let status = command
         .current_dir(spec.cwd)

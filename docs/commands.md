@@ -34,12 +34,14 @@ agent-job-relay codex monitor add --help
 | `start -- <program> <args...>` | Submit explicit argv; `--cwd`, `--timeout <seconds>`, `--idempotency-key`, `--session` or current-terminal `--wake` |
 | `start --shell '<script>'` | Explicit shell execution; `--interpreter` selects the shell |
 | `start-batch --file <json-file>` (unreleased source) | Submit a JSON array of 1–16 specs with distinct stable keys; `--file -` reads stdin, `--wake` binds every item to the actual caller; [partial-admission/retry semantics](usage.md#submit-independent-commands-together-unreleased-source) |
+| `start-spec --file <json-file>` (unreleased source) | Submit one bounded JSON StartSpec, including remote launch/attach or GitHub Actions observation; `--file -` for stdin and `--wake` for the current caller |
+| `remote init` / `remote serve` (unreleased source) | Explicit remote-profile provisioning / one authenticated stdio request; [setup and protocol](remote-execution.md) |
 | `list` | Bounded history; `--after`, `--limit` |
 | `status <job-id>` | Durable job/run state and exit outcome |
 | `logs <job-id>` | Bounded stdout/stderr; `--stream`, byte `--cursor`, `--limit`, optional human-viewer `--follow` |
 | `events <job-id>` | Durable events; `--after`, `--limit` |
 | `wait <job-id>` | Bounded event wait; `--after`, `--seconds` (at most 30) |
-| `stop <job-id>` | Idempotent cancellation; `--grace` before force stop, `--wait` for bounded observation |
+| `stop <job-id>` | Idempotent cancellation; `--grace` before force stop, `--wait` for bounded observation. Read-only remote/workflow jobs stop observation only |
 
 ```bash
 agent-job-relay codex start --timeout 60 --idempotency-key build-001 -- cargo check

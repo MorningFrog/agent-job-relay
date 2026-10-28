@@ -66,6 +66,30 @@ pub(super) async fn run() -> Result<()> {
     }
     let config = Config::new(state)?;
     let req = match cli.command {
+        Commands::Remote { command } => {
+            match command {
+                RemoteCommand::Init => {
+                    println!("{}", agent_job_relay::remote::initialize(&config)?)
+                }
+                RemoteCommand::Serve => agent_job_relay::remote::serve(config).await?,
+            }
+            return Ok(());
+        }
+        Commands::StartSpec { file, wake } => {
+            use std::io::Read;
+            let reader: Box<dyn Read> = if file == std::path::Path::new("-") {
+                Box::new(std::io::stdin())
+            } else {
+                Box::new(std::fs::File::open(file)?)
+            };
+            let mut bytes = Vec::new();
+            reader.take(65537).read_to_end(&mut bytes)?;
+            anyhow::ensure!(bytes.len() <= 65536, "specification exceeds 64 KiB");
+            let spec = serde_json::from_slice(&bytes).context("input must be a JSON StartSpec")?;
+            let value = agent_job_relay::client::start(&config, spec, wake).await?;
+            println!("{}", serde_json::to_string(&value)?);
+            return Ok(());
+        }
         Commands::Ui {
             job_id, no_open, ..
         } => {

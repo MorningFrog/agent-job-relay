@@ -14,6 +14,12 @@ Unreleased source adds IPC v1 `start_batch {specs:[StartSpec,...]}` and Doctor `
 
 Lists return at most 100 rows and `next_cursor`; pass it as `after`. Job/session/ delivery cursors use SQLite rowid, event cursors use monotonic event sequence. Log cursors are byte offsets; reads cap at 64 KiB and return lossy UTF-8 text, `bytes`, `next_cursor`, `untrusted`, `cap_bytes`. Do not use text length as offset. Original bytes remain in capped files. `wait` returns any events after cursor, terminal state or deadline, so a `started` event may return before completion.
 
+## External command variants (unreleased source)
+
+`StartSpec.command` also accepts `remote {remote:{target_id,transport:{program,args},intent}}` and `github_actions {workflow:{repository,run_id,attempt,hostname?,gh_program?}}`, with `kind` as the discriminator. Remote intent is `launch {spec:StartSpec}` or `attach {run:{job_id,run_id,attempt},allow_stop:false}`; nested external commands are rejected. The outer cwd/session identify the observer/caller; the inner launch spec supplies remote cwd/env/timeout/native rules. CLI `start-spec --file` and existing MCP start/batch share validation and require Doctor `remote_execution`/`github_actions_observation` capabilities before submission. No new MCP tool or SQLite migration is needed; old binaries cannot deserialize external specs.
+
+`remote init` explicitly provisions a stable profile UUID. `remote serve` implements one bounded stdio JSON exchange with version/target/request echoes, native launch idempotency and run-fenced lookup/sample/stop. This protocol is separate from local length-prefixed IPC. Limits, schemas and adapter obligations are in [remote execution](remote-execution.md#adapter-contract-v1). Raw remote byte cursors use persisted local log lengths; original mappings, samples and event cursors live in existing archived/backed-up runtime observations. Restore still orphans execution intents and never replays them. The remote provisioning UUID is not part of a restored profile.
+
 ## MCP
 
 Official rmcp 3.7 stdio server, pure stdout protocol and stderr diagnostics, 128 KiB bounded input lines. Legacy initialize/initialized + tools/list/call verified using protocol 2025-06-18; SDK negotiates supported versions. Tools derive their argument schemas from the same Request types as IPC:

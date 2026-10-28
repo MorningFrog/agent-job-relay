@@ -16,6 +16,8 @@ Use the route matching your original installation. Installing a new package does
 
 Finish active jobs and retain the original profile. Record the installed version and inspect that profile with `doctor`, `list` or `inspect` using its [correct command prefix](commands.md#choose-the-entry-point-and-profile). Explicitly stop the same daemon when a runtime/schema change requires it; update commands never stop it automatically. `daemon stop` leaves runners independent, so it is not a substitute for finishing jobs.
 
+Unreleased external-task command variants keep schema v9 but are unreadable by older binaries. Before first use, finish active jobs and explicitly stop/update the same selected daemon when capability preflight requests it. Preserve the matching runtime on both hosts and the remote target profile; do not downgrade a profile containing external-task records. See [remote task requirements](remote-execution.md).
+
 Runtime 0.1.10 and newer use schema v9; 0.1.9 uses v6. Migration refuses an old daemon lock or launching/running jobs, and older executables refuse newer schemas. Preserve backups and never downgrade a used database. See [data maintenance](data-maintenance.md) for backup and restore.
 
 ## Update the terminal command

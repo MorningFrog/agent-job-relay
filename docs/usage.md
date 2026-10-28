@@ -144,3 +144,7 @@ For OpenCode V1, use the plugin's actual tool-context binding and MCP tools; Cha
 ## Automatic data maintenance
 
 The daemon automatically archives eligible terminal history and creates rolling local backups; no recurring manual command is required. Use `data status` through the selected command prefix for budgets/backup IDs/errors, `data policy` for configuration previews, `data backup` for an additional snapshot and `data check` for explicit integrity validation. Existing history/log queries include cold records. Upgrade/restore instructions and the default policy are in [data maintenance](data-maintenance.md); runtime 0.1.10 and newer use schema v9.
+
+## Remote commands and workflow attempts (unreleased source)
+
+Use [remote execution](remote-execution.md) for provisioning, JSON launch/attach specifications, SSH/custom transport, observation deadlines and exact-run stopping. The same specs work through `start-spec --file`, MCP `job_start` and batch submission. The host binding supplies the local workspace and initiating session; remote cwd/env/rules stay inside the remote launch spec. No Agent polling loop is needed. A copied remote native executable is sufficient; GitHub Actions observation needs only local `gh`.

@@ -35,10 +35,20 @@ async fn reconcile(store: &Store) -> Result<bool> {
                             store
                                 .finish(
                                     job.job_id,
-                                    "failed",
+                                    if job.command.is_external() {
+                                        "orphaned"
+                                    } else {
+                                        "failed"
+                                    },
                                     None,
                                     None,
-                                    format!("runner spawn failed: {e:#}"),
+                                    if job.command.is_external() {
+                                        format!(
+                                            "observer spawn failed; external outcome unknown: {e:#}"
+                                        )
+                                    } else {
+                                        format!("runner spawn failed: {e:#}")
+                                    },
                                 )
                                 .await?
                         }
@@ -52,6 +62,20 @@ async fn reconcile(store: &Store) -> Result<bool> {
                 let lock = store.config.run_lock(&job.run_id)?;
                 match lock.try_lock() {
                     Ok(()) => {
+                        if job.command.is_external() {
+                            // Resume observers only, reconnecting the original remote run.
+                            let id = job.job_id;
+                            store.call(move |db| {
+                                let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+                                let changed = tx.execute("UPDATE jobs SET status='queued',updated=? WHERE id=? AND status IN ('launching','running')", params![now(),id])?;
+                                if changed != 0 {
+                                    tx.execute("UPDATE runs SET status='queued' WHERE job_id=?", [&id])?;
+                                }
+                                tx.commit()?;
+                                Ok(())
+                            }).await?;
+                            continue;
+                        }
                         // Hold the lock through finalization: a delayed runner cannot claim.
                         store.finish(job.job_id,"orphaned",None,None,"runner lock lost; execution outcome unknown; command was not replayed".into()).await?;
                     }

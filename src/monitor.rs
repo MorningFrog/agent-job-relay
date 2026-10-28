@@ -137,6 +137,7 @@ pub(crate) fn rules(db: &Connection, job: &str) -> Result<Vec<Rule>> {
 }
 pub(crate) fn add_rule(db: &Connection, job: &str, spec: &RuleSpec) -> Result<String> {
     spec.validate()?;
+    read_job(db, job)?.command.validate_rule(spec)?;
     ensure!(
         db.query_row(
             "SELECT count(*) FROM monitor_rules WHERE job_id=?",
@@ -174,7 +175,11 @@ pub(crate) fn stop_tx(db: &Connection, job: &str, grace: u32, reason: &str) -> R
     }
     db.execute("INSERT INTO stop_requests(job_id,grace_seconds,reason,at) VALUES(?,?,?,?) ON CONFLICT(job_id) DO UPDATE SET grace_seconds=min(grace_seconds,excluded.grace_seconds)",params![job,grace,reason,now()])?;
     db.execute("UPDATE jobs SET cancel=1 WHERE id=?", [job])?;
-    if j.status == "queued" {
+    let control_attachment = matches!(&j.command, CommandSpec::Remote { remote }
+        if matches!(remote.intent, crate::remote::Intent::Attach { allow_stop: true, .. }));
+    if j.status == "queued"
+        && (!j.command.is_external() || (j.run.started_at.is_none() && !control_attachment))
+    {
         crate::storage::finish_tx(db, job, "cancelled", None, None, reason)?;
     }
     Ok(())
@@ -206,6 +211,7 @@ impl Store {
                             _=>unreachable!(),
                         };
                         spec.validate()?;
+                        j.command.validate_rule(&spec)?;
                         if spec.notify_agent {ensure!(j.session.is_some(),"notify_agent requires an explicitly bound job session");}
                         tx.execute("UPDATE monitor_rules SET revision=revision+1,spec=?,enabled=?,deleted=? WHERE id=?",params![serde_json::to_string(&spec)?,enabled,deleted,rule_id])?;
                         audit(&tx,&key,rule_id,expected+1,json!({"before":old,"after":{"spec":spec,"enabled":enabled,"deleted":deleted}}))?;
@@ -410,6 +416,15 @@ impl Live {
             }
         }
     }
+    pub(crate) fn restore_output(&mut self, stream: usize, total: u64, tail: &[u8]) {
+        self.tails[stream].bytes = total.saturating_sub(tail.len() as u64);
+        self.output(stream, tail);
+    }
+    pub(crate) fn resume_elapsed(&mut self, elapsed: Duration) {
+        self.start = Instant::now()
+            .checked_sub(elapsed)
+            .unwrap_or_else(Instant::now);
+    }
     pub fn pending(&mut self) -> Vec<(Rule, Value)> {
         let mut out = vec![];
         for active in &mut self.rules {
@@ -559,6 +574,19 @@ fn summary(job: Job) -> Value {
             .collect::<Vec<_>>()
             .join(" "),
         CommandSpec::Shell { script, .. } => script.clone(),
+        CommandSpec::Remote { remote } => format!(
+            "remote {} ({})",
+            remote.target_id,
+            if matches!(remote.intent, crate::remote::Intent::Launch { .. }) {
+                "launch"
+            } else {
+                "attach"
+            }
+        ),
+        CommandSpec::GithubActions { workflow } => format!(
+            "GitHub Actions {} run {} attempt {}",
+            workflow.repository, workflow.run_id, workflow.attempt
+        ),
     };
     json!({"job_id":job.job_id,"run_id":job.run_id,"sequence":job.sequence,"status":job.status,"created_at":job.created_at,"updated_at":job.updated_at,"cancel_requested":job.cancel_requested,"exit_code":job.exit_code,"command_preview":preview.chars().take(256).collect::<String>(),"cwd":job.cwd.to_string_lossy().chars().take(512).collect::<String>(),"run":{"started_at":job.run.started_at,"ended_at":job.run.ended_at}})
 }

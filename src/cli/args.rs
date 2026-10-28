@@ -22,6 +22,19 @@ pub(super) struct Cli {
 }
 #[derive(Subcommand)]
 pub(super) enum Commands {
+    /// Provision a remote identity or handle an authenticated stdio request
+    Remote {
+        #[command(subcommand)]
+        command: RemoteCommand,
+    },
+    /// Submit one JSON StartSpec, including remote launch/attach or workflow observation
+    StartSpec {
+        /// JSON file, or - for stdin (at most 64 KiB)
+        #[arg(long)]
+        file: PathBuf,
+        #[arg(long)]
+        wake: bool,
+    },
     /// Inspect automatic archiving, configure budgets, back up or restore data
     Data {
         #[command(subcommand)]
@@ -251,6 +264,13 @@ pub(super) enum Commands {
     },
     #[command(hide = true)]
     Runner { job_id: String, nonce: String },
+}
+#[derive(Subcommand)]
+pub(super) enum RemoteCommand {
+    /// Explicitly create/read a stable identity for this remote profile
+    Init,
+    /// Handle one bounded JSON request; intended for SSH/custom transports
+    Serve,
 }
 #[derive(Subcommand)]
 pub(super) enum DataCommand {

@@ -35,6 +35,34 @@ pub enum CommandSpec {
         interpreter: String,
         script: String,
     },
+    /// A pinned remote runtime owns execution; this process owns observation.
+    Remote {
+        remote: Box<crate::remote::RemoteSpec>,
+    },
+    /// Observe one immutable workflow attempt without dispatch/cancel authority.
+    GithubActions {
+        workflow: crate::remote::ActionsSpec,
+    },
+}
+impl CommandSpec {
+    pub(crate) fn validate_rule(&self, rule: &crate::monitor::RuleSpec) -> Result<()> {
+        use crate::monitor::Condition;
+        match self {
+            Self::Remote { .. } => ensure!(
+                !matches!(rule.condition, Condition::NoOutput { .. }),
+                "remote silence rules must run on the remote runner; put them in remote.intent.spec.monitor_rules"
+            ),
+            Self::GithubActions { .. } => ensure!(
+                matches!(rule.condition, Condition::Elapsed { .. }),
+                "workflow observation supports only elapsed rules; it has no workload output stream"
+            ),
+            _ => {}
+        }
+        Ok(())
+    }
+    pub fn is_external(&self) -> bool {
+        matches!(self, Self::Remote { .. } | Self::GithubActions { .. })
+    }
 }
 #[derive(Clone, Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -57,9 +85,14 @@ impl StartSpec {
         );
         self.cwd = crate::platform::normalized_path(self.cwd.canonicalize()?);
         ensure!(self.cwd.is_dir(), "cwd must be a directory");
+        self.validate_options()
+    }
+    /// Validate a remote intent without resolving its cwd on the observing host.
+    pub(crate) fn validate_options(&self) -> Result<()> {
         ensure!(self.monitor_rules.len() <= 16, "at most 16 monitor rules");
         for rule in &self.monitor_rules {
             rule.validate()?;
+            self.command.validate_rule(rule)?;
         }
         let strings = match &self.command {
             CommandSpec::Exec { program, args } => {
@@ -86,6 +119,22 @@ impl StartSpec {
                     "interpreter and script are required"
                 );
                 vec![interpreter.as_str(), script.as_str()]
+            }
+            CommandSpec::Remote { remote } => {
+                remote.validate()?;
+                ensure!(
+                    self.env.is_empty(),
+                    "put remote env in remote.intent.spec.env"
+                );
+                vec![]
+            }
+            CommandSpec::GithubActions { workflow } => {
+                workflow.validate()?;
+                ensure!(
+                    self.env.is_empty(),
+                    "workflow observation does not accept environment overrides"
+                );
+                vec![]
             }
         };
         ensure!(

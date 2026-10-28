@@ -11,6 +11,7 @@ One package and executable; CLI, stdio MCP, daemon and runner modes.
 | Process initialization | `src/main.rs` |
 | CLI syntax and dispatch | `src/cli/args.rs`, `src/cli/mod.rs` (binary-private) |
 | MCP tools and client convenience | `src/mcp.rs`, `src/client.rs`, `src/diagnostics.rs`, `src/output.rs`, `src/monitor.rs` |
+| External execution and observation | `src/remote/` (pinned contract/stdio helper, bounded transport, native observer and read-only Actions adapter) |
 | Bounded batch admission | `src/batch.rs`, shared CLI/MCP client and IPC dispatch; existing per-item storage transactions |
 | Job intent, execution and persistence | `src/core.rs`, `src/daemon.rs`, `src/runner.rs`, `src/storage.rs` |
 | Session binding and notifications | `src/session.rs`, `src/adapters.rs`, `src/plugin_bridge.rs`, `src/delivery.rs`, `src/recovery.rs`, `src/renewal.rs` |
@@ -40,6 +41,12 @@ Job: queued → launching → running → completed/failed/cancelled/timeout/orp
 Batch submission is bounded convenience over the same admission path, without a new persisted batch entity or schema migration. Validate the 1–16-item envelope, distinct required keys and 128-KiB request limit before admission, then attempt items in input order through separate existing IMMEDIATE transactions. Other batches and completion may interleave; the eight-active-job quota is checked per new item. Semantic failures return indexed errors without rolling back accepted work. A lost response or interrupted batch is retried with unchanged keys/specs: committed jobs return original IDs and uncommitted items are attempted again. Every accepted job keeps independent execution, rules, targets and cancellation.
 
 Launch intent commits before spawn. Runner takes a per-run OS lock and atomically claims the launching intent before starting any workload. Duplicate runners lose the CAS. A daemon crash before/after spawning cannot duplicate execution. A launch that remains unclaimed after grace becomes orphaned, never automatically retried. The same lock fences recovery against a delayed runner. PID is diagnostic only; Linux boot ID + procfs start ticks identify processes. Recovery checks lock ownership, not kill(pid,0). Each terminal transition atomically inserts one event and outbox.
+
+## External execution and observation
+
+Unreleased `CommandSpec` variants select pinned remote native execution or observation of one GitHub Actions attempt. The local independent runner becomes an observer; an owned remote runner remains the execution owner. Transport is explicit argv plus bounded stdio JSON, not a public server. A provisioned remote profile UUID, request echo and immutable remote Job/Run/attempt fence every exchange. Launch uses the origin Job/Run as a durable idempotency key; cancellation after a lost acknowledgement performs lookup without creating execution. Bare local SSH jobs retain local-process semantics. See [ADR 0016](adr/0016-remote-execution-and-observation.md).
+
+A missing external-observer lock can return only that observer to queued under the same IDs; native command intents retain orphan classification. Persisted observations preserve the remote mapping, last successful evidence and event cursor; raw local log lengths are byte cursors, so observer death cannot advance metadata ahead of output. Terminal state/outbox remains the existing transaction. Read-only attach/workflow stop ends observation only; control-enabled native stop awaits exact-run terminal evidence. Observer timeout means unknown external outcome, while the remote runner owns its own timeout/rules. Credential/transport failure marks stale evidence and bounded reconnect backoff, never an inferred remote exit. GitHub uses fixed-attempt GET requests through local `gh`, without dispatch or cancellation. Remote profile identity is provisioned independently and excluded from backup restore.
 
 ## Automatic data maintenance
 
