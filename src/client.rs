@@ -258,6 +258,51 @@ pub async fn start(config: &Config, mut spec: StartSpec, wake_me: bool) -> Resul
     }
     Ok(result)
 }
+pub async fn start_batch(
+    config: &Config,
+    mut specs: Vec<StartSpec>,
+    wake_me: bool,
+) -> Result<Value> {
+    crate::batch::validate(&specs)?;
+    ensure!(
+        !wake_me || specs.iter().all(|spec| spec.session.is_none()),
+        "choose automatic wake_me/--wake or explicit sessions, not both"
+    );
+    let context = if wake_me {
+        Some(desktop_registration()?)
+    } else {
+        None
+    };
+    ensure_daemon(config).await?;
+    let health = ipc::call(config, Request::Doctor).await?;
+    ensure!(
+        health["batch_submission"] == true,
+        "selected daemon does not support batch submission. No batch was submitted. Let active jobs finish, then explicitly stop/update the daemon for the same profile and retry"
+    );
+    if let Some((registration, fingerprint)) = context {
+        let session = connect_registration(config, registration, fingerprint).await?;
+        let key = session["session"]["key"]
+            .as_str()
+            .context("daemon returned no session key")?;
+        for spec in &mut specs {
+            spec.session = Some(key.into());
+        }
+    }
+    crate::batch::validate(&specs)?;
+    let mut value = ipc::call(config, Request::StartBatch { specs }).await?;
+    if wake_me {
+        for item in value["results"]
+            .as_array_mut()
+            .context("missing batch results")?
+        {
+            if item["accepted"] == true {
+                item["result"]["wake"]["automatic_binding"] = json!(true);
+                item["result"]["wake"]["probe"] = json!("passed");
+            }
+        }
+    }
+    Ok(value)
+}
 pub async fn stop_daemon(config: &Config) -> Result<Value> {
     match ipc::call(config, Request::Shutdown).await {
         Ok(mut v) => {
@@ -316,6 +361,7 @@ async fn wait_for_daemon_stop(config: &Config) -> Result<()> {
 pub async fn call(config: &Config, request: Request) -> Result<Value> {
     match request {
         Request::Start { spec } => start(config, spec, false).await,
+        Request::StartBatch { specs } => start_batch(config, specs, false).await,
         Request::Doctor => {
             let mut report = ipc::call(config, Request::Doctor).await?;
             report["desktop_context"] = context_summary();

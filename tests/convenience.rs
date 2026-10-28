@@ -238,6 +238,268 @@ fn success(out: std::process::Output) -> Value {
 }
 
 #[tokio::test]
+async fn old_batch_runtime_is_refused_without_submission_or_restart() {
+    let r = Rig::new();
+    r.config.prepare().unwrap();
+    let listener = tokio::net::UnixListener::bind(r.config.socket()).unwrap();
+    let old = tokio::spawn(async move {
+        for _ in 0..2 {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let request = ipc::read_frame(&mut stream, 65536).await.unwrap();
+            assert_eq!(request["request"]["op"], "doctor");
+            ipc::write_frame(&mut stream,&json!({"protocol_version":1,"ok":true,"result":{"runner_launch_from_loaded_image":true}})).await.unwrap();
+        }
+        assert!(
+            tokio::time::timeout(Duration::from_millis(200), listener.accept())
+                .await
+                .is_err()
+        );
+    });
+    let file = r.dir.path().join("batch.json");
+    std::fs::write(&file,json!([{"command":{"kind":"exec","program":"/bin/true"},"cwd":r.dir.path(),"idempotency_key":"old"}]).to_string()).unwrap();
+    let out = r
+        .cli(&["start-batch", "--file", file.to_str().unwrap()], None)
+        .await;
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("same profile"));
+    assert!(!r.config.root.join("relay.sqlite3").exists());
+    old.await.unwrap();
+}
+
+#[tokio::test]
+async fn batch_cli_and_shared_mcp_bind_every_item_to_the_actual_caller() {
+    let r = Rig::new();
+    let mut host = Host::new(&r, true);
+    let file = r.dir.path().join("batch.json");
+    let specs = json!([{"command":{"kind":"exec","program":"/bin/true"},"cwd":r.dir.path(),"idempotency_key":"cli-a"},{"command":{"kind":"shell","interpreter":"/bin/sh","script":"echo batch-cli"},"cwd":r.dir.path(),"idempotency_key":"cli-b"}]);
+    // Invalid envelopes and oversized files fail before a daemon/state is created.
+    std::fs::write(&file, "[]").unwrap();
+    assert!(
+        !r.cli(&["start-batch", "--file", file.to_str().unwrap()], None)
+            .await
+            .status
+            .success()
+    );
+    std::fs::write(&file, vec![b' '; 131073]).unwrap();
+    assert!(
+        !r.cli(&["start-batch", "--file", file.to_str().unwrap()], None)
+            .await
+            .status
+            .success()
+    );
+    assert!(!r.config.root.exists());
+    std::fs::write(&file, specs.to_string()).unwrap();
+    let cli = success(
+        r.cli(
+            &["start-batch", "--file", file.to_str().unwrap(), "--wake"],
+            Some(("batch-a", &host.endpoint)),
+        )
+        .await,
+    );
+    assert_eq!(cli["accepted"], 2);
+    let mut retry = r.command();
+    retry
+        .args(["start-batch", "--file", "-", "--wake"])
+        .env("CODEX_THREAD_ID", "batch-a")
+        .env("CODEX_APP_TOOLS_PIPE_PATH", &host.endpoint)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut retry = retry.spawn().unwrap();
+    retry
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(specs.to_string().as_bytes())
+        .await
+        .unwrap();
+    let repeated = success(retry.wait_with_output().await.unwrap());
+    for index in 0..2 {
+        assert_eq!(
+            repeated["results"][index]["result"]["job"]["job_id"],
+            cli["results"][index]["result"]["job"]["job_id"]
+        );
+    }
+    let binding = success(
+        r.cli(
+            &["connect", "--cwd", r.dir.path().to_str().unwrap()],
+            Some(("batch-b", &host.endpoint)),
+        )
+        .await,
+    );
+    let mut child = r
+        .command()
+        .args(["mcp", "--shared-host"])
+        .env("CODEX_THREAD_ID", "stale-shared-caller")
+        .env("CODEX_APP_TOOLS_PIPE_PATH", &host.endpoint)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let mut input = child.stdin.take().unwrap();
+    let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
+    async fn rpc(
+        input: &mut tokio::process::ChildStdin,
+        lines: &mut tokio::io::Lines<BufReader<tokio::process::ChildStdout>>,
+        id: u32,
+        method: &str,
+        params: Value,
+    ) -> Value {
+        input
+            .write_all(
+                format!(
+                    "{}\n",
+                    json!({"jsonrpc":"2.0","id":id,"method":method,"params":params})
+                )
+                .as_bytes(),
+            )
+            .await
+            .unwrap();
+        let line = tokio::time::timeout(Duration::from_secs(8), lines.next_line())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        serde_json::from_str(&line).unwrap()
+    }
+    rpc(&mut input,&mut lines,1,"initialize",json!({"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"batch-test","version":"1"}})).await;
+    input
+        .write_all(b"{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}\n")
+        .await
+        .unwrap();
+    let catalog = rpc(&mut input, &mut lines, 2, "tools/list", json!({})).await;
+    let tool = catalog["result"]["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|tool| tool["name"] == "job_start_batch")
+        .unwrap();
+    assert_eq!(tool["inputSchema"]["properties"]["wake_me"]["const"], false);
+    assert_eq!(tool["inputSchema"]["properties"]["specs"]["maxItems"], 16);
+    let mut args = json!({"binding":binding["binding"],"specs":[{"command":{"kind":"exec","program":"/bin/true"},"idempotency_key":"mcp-a"},{"command":{"kind":"shell","interpreter":"/bin/sh","script":"echo batch-mcp"},"cwd":r.dir.path(),"idempotency_key":"mcp-b"}]});
+    args["wake_me"] = json!(true);
+    let refused = rpc(
+        &mut input,
+        &mut lines,
+        3,
+        "tools/call",
+        json!({"name":"job_start_batch","arguments":args}),
+    )
+    .await;
+    assert_eq!(refused["result"]["isError"], true);
+    args["wake_me"] = json!(false);
+    args["specs"][1]["session"] = json!(id());
+    let refused = rpc(
+        &mut input,
+        &mut lines,
+        4,
+        "tools/call",
+        json!({"name":"job_start_batch","arguments":args}),
+    )
+    .await;
+    assert_eq!(refused["result"]["isError"], true);
+    assert_eq!(
+        ipc::call(
+            &r.config,
+            Request::List {
+                after: 0,
+                limit: 20
+            }
+        )
+        .await
+        .unwrap()["jobs"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    args["specs"][1].as_object_mut().unwrap().remove("session");
+    let mut mcp = Value::Null;
+    for full in [false, true] {
+        args["full"] = json!(full);
+        let response = rpc(
+            &mut input,
+            &mut lines,
+            5,
+            "tools/call",
+            json!({"name":"job_start_batch","arguments":args}),
+        )
+        .await;
+        assert_ne!(response["result"]["isError"], true, "{response}");
+        let result: Value =
+            serde_json::from_str(response["result"]["content"][0]["text"].as_str().unwrap())
+                .unwrap();
+        assert_eq!(result["accepted"], 2);
+        for index in 0..2 {
+            assert_eq!(
+                result["results"][index]["result"]["job"]
+                    .get("command")
+                    .is_some(),
+                full
+            );
+            if !full {
+                assert_eq!(
+                    result["results"][index]["result"]["wake"]["can_resume"],
+                    true
+                );
+            }
+            if full {
+                assert_eq!(
+                    result["results"][index]["result"]["job"]["job_id"],
+                    mcp["results"][index]["result"]["job"]["job_id"]
+                );
+            }
+        }
+        mcp = result;
+    }
+    drop(input);
+    assert!(
+        tokio::time::timeout(Duration::from_secs(5), child.wait())
+            .await
+            .unwrap()
+            .unwrap()
+            .success()
+    );
+    for value in [&cli, &mcp] {
+        for item in value["results"].as_array().unwrap() {
+            assert_eq!(
+                r.terminal(item["result"]["job"]["job_id"].as_str().unwrap())
+                    .await
+                    .status,
+                "completed"
+            );
+        }
+    }
+    let mut destinations = Vec::new();
+    for _ in 0..4 {
+        destinations.push(
+            host.delivery().await["params"]["arguments"]["threadId"]
+                .as_str()
+                .unwrap()
+                .to_owned(),
+        );
+    }
+    destinations.sort();
+    assert_eq!(destinations, ["batch-a", "batch-a", "batch-b", "batch-b"]);
+    assert_eq!(
+        ipc::call(
+            &r.config,
+            Request::List {
+                after: 0,
+                limit: 20
+            }
+        )
+        .await
+        .unwrap()["jobs"]
+            .as_array()
+            .unwrap()
+            .len(),
+        4
+    );
+}
+
+#[tokio::test]
 async fn daemon_launches_runner_after_its_executable_is_replaced_by_a_rebuild() {
     let r = Rig::new();
     let image = r.dir.path().join("native");
@@ -424,6 +686,20 @@ async fn installed_shared_mcp_uses_each_terminal_binding_and_never_its_inherited
         assert_eq!(recovery["session_key"], binding["session_key"]);
         assert_eq!(recovery["apply"], false);
         assert!(recovery.get("recent_recoveries").is_none());
+        if i == 0 {
+            let batch = rpc(&mut input, &mut lines, json!({"jsonrpc":"2.0","id":80,"method":"tools/call","params":{"name":"job_start_batch","arguments":{"binding":binding["binding"],"specs":[{"command":{"kind":"exec","program":"/bin/true"},"idempotency_key":"installed-batch"}]}}})).await;
+            assert_ne!(batch["result"]["isError"], true, "{batch}");
+            let batch: Value =
+                serde_json::from_str(batch["result"]["content"][0]["text"].as_str().unwrap())
+                    .unwrap();
+            assert_eq!(batch["accepted"], 1);
+            jobs.push(
+                batch["results"][0]["result"]["job"]["job_id"]
+                    .as_str()
+                    .unwrap()
+                    .to_owned(),
+            );
+        }
     }
     drop(input);
     assert!(
@@ -445,9 +721,13 @@ async fn installed_shared_mcp_uses_each_terminal_binding_and_never_its_inherited
             .as_str()
             .unwrap()
             .to_string(),
+        host.delivery().await["params"]["arguments"]["threadId"]
+            .as_str()
+            .unwrap()
+            .to_string(),
     ];
     destinations.sort();
-    assert_eq!(destinations, vec!["thread-a", "thread-b"]);
+    assert_eq!(destinations, vec!["thread-a", "thread-a", "thread-b"]);
     let sessions = ipc::call(
         &r.config,
         Request::Sessions {

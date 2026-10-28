@@ -157,6 +157,15 @@ pub(super) enum Commands {
         #[arg(last = true, required_unless_present = "shell")]
         command: Vec<String>,
     },
+    /// Submit 1..16 independent specs from a JSON array; each needs a distinct idempotency key
+    StartBatch {
+        /// JSON file, or - to read at most 128 KiB from stdin
+        #[arg(long)]
+        file: PathBuf,
+        /// Bind every item to the current Desktop caller (experimental)
+        #[arg(long)]
+        wake: bool,
+    },
     /// Show durable job/run state, exit outcome and process identity
     Status { job_id: String },
     /// List jobs with a bounded page and continuation cursor

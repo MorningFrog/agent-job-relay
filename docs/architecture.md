@@ -11,6 +11,7 @@ One package and executable; CLI, stdio MCP, daemon and runner modes.
 | Process initialization | `src/main.rs` |
 | CLI syntax and dispatch | `src/cli/args.rs`, `src/cli/mod.rs` (binary-private) |
 | MCP tools and client convenience | `src/mcp.rs`, `src/client.rs`, `src/diagnostics.rs`, `src/output.rs`, `src/monitor.rs` |
+| Bounded batch admission | `src/batch.rs`, shared CLI/MCP client and IPC dispatch; existing per-item storage transactions |
 | Job intent, execution and persistence | `src/core.rs`, `src/daemon.rs`, `src/runner.rs`, `src/storage.rs` |
 | Session binding and notifications | `src/session.rs`, `src/adapters.rs`, `src/plugin_bridge.rs`, `src/delivery.rs`, `src/recovery.rs`, `src/renewal.rs` |
 | Idle scheduling and local wake signals | `src/scheduling.rs`, `src/storage.rs` |
@@ -35,6 +36,8 @@ SQLite WAL, FULL synchronous, foreign keys, busy timeout, versioned schema. Stor
 In-process writes signal reconciliation and delivery immediately. Idle fallback checks back off from 100 ms to one second; reconciliation keeps its 100 ms cadence while jobs are active. Independent runners still persist directly to SQLite, and cross-process changes are discovered by the bounded fallback without requiring a live daemon. An empty delivery queue uses read-only checks instead of opening a write transaction.
 
 Job: queued → launching → running → completed/failed/cancelled/timeout/orphaned. Run records attempt=1, runner identity, workload identity, exit code/signal. Retrying a submission with the same key and identical spec returns the original; a changed spec conflicts. Execution is never replayed after launching uncertainty.
+
+Batch submission is bounded convenience over the same admission path, without a new persisted batch entity or schema migration. Validate the 1–16-item envelope, distinct required keys and 128-KiB request limit before admission, then attempt items in input order through separate existing IMMEDIATE transactions. Other batches and completion may interleave; the eight-active-job quota is checked per new item. Semantic failures return indexed errors without rolling back accepted work. A lost response or interrupted batch is retried with unchanged keys/specs: committed jobs return original IDs and uncommitted items are attempted again. Every accepted job keeps independent execution, rules, targets and cancellation.
 
 Launch intent commits before spawn. Runner takes a per-run OS lock and atomically claims the launching intent before starting any workload. Duplicate runners lose the CAS. A daemon crash before/after spawning cannot duplicate execution. A launch that remains unclaimed after grace becomes orphaned, never automatically retried. The same lock fences recovery against a delayed runner. PID is diagnostic only; Linux boot ID + procfs start ticks identify processes. Recovery checks lock ownership, not kill(pid,0). Each terminal transition atomically inserts one event and outbox.
 

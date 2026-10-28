@@ -33,6 +33,7 @@ agent-job-relay codex monitor add --help
 |---|---|
 | `start -- <program> <args...>` | Submit explicit argv; `--cwd`, `--timeout <seconds>`, `--idempotency-key`, `--session` or current-terminal `--wake` |
 | `start --shell '<script>'` | Explicit shell execution; `--interpreter` selects the shell |
+| `start-batch --file <json-file>` (unreleased source) | Submit a JSON array of 1–16 specs with distinct stable keys; `--file -` reads stdin, `--wake` binds every item to the actual caller; [partial-admission/retry semantics](usage.md#submit-independent-commands-together-unreleased-source) |
 | `list` | Bounded history; `--after`, `--limit` |
 | `status <job-id>` | Durable job/run state and exit outcome |
 | `logs <job-id>` | Bounded stdout/stderr; `--stream`, byte `--cursor`, `--limit`, optional human-viewer `--follow` |

@@ -9,6 +9,7 @@ AgentJobRelay is a single-user local runtime for long commands initiated by an A
 | Capability | Behavior |
 |---|---|
 | Explicit commands | Execute argv or an explicitly selected shell with a working directory, timeout and idempotency key |
+| Batch submission (unreleased source) | CLI/MCP accepts 1–16 independent specs with per-item results, stable-key retries and the existing eight-active-job quota; see [batch usage](usage.md#submit-independent-commands-together-unreleased-source) |
 | Independent lifetime | A detached runner owns the workload; closing the submitting chat, MCP client, terminal viewer or browser does not stop it |
 | Durable results | Separate job/run IDs, exit outcomes, events, stdout/stderr and byte cursors remain available after completion |
 | Controlled stopping | Request graceful then forced process-tree stopping with bounded observation; terminal outcomes are preserved |

@@ -29,6 +29,17 @@ fn job(value: &Value) -> Value {
 
 pub fn compact(op: &str, value: Value) -> Value {
     match op {
+        "start_batch" => {
+            let mut result = value;
+            if let Some(items) = result["results"].as_array_mut() {
+                for item in items {
+                    if item["accepted"] == true {
+                        item["result"] = compact("start", item["result"].take());
+                    }
+                }
+            }
+            result
+        }
         "start" => {
             let capabilities = &value["wake"]["capabilities"];
             let resume = capabilities["can_resume"].as_bool().unwrap_or(false);

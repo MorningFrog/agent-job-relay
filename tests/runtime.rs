@@ -16,6 +16,307 @@ struct Rig {
     config: Config,
     daemon: Option<Child>,
 }
+
+#[tokio::test]
+async fn batch_partial_admission_preserves_options_and_independent_lifecycles() {
+    let r = Rig::new().await;
+    let mut specs = Vec::new();
+    for (name, other, exit) in [("a", "b", 0), ("b", "a", 7)] {
+        let cwd = r.dir.path().join(name);
+        std::fs::create_dir(&cwd).unwrap();
+        let mut spec = r.spec(&format!("touch ready; while [ ! -f ../{other}/ready ]; do sleep 0.02; done; printf '%s' \"$BATCH_LABEL\"; exit {exit}"));
+        if name == "b" {
+            let CommandSpec::Shell { script, .. } = spec.command else {
+                unreachable!()
+            };
+            spec.command = CommandSpec::Exec {
+                program: "/bin/sh".into(),
+                args: vec!["-c".into(), script],
+            };
+        }
+        spec.cwd = cwd;
+        spec.timeout_seconds = Some(8);
+        spec.idempotency_key = Some(name.into());
+        spec.env
+            .insert("BATCH_LABEL".into(), format!("output-{name}"));
+        specs.push(spec);
+    }
+    let mut invalid = r.spec("true");
+    invalid.idempotency_key = Some("invalid".into());
+    invalid.timeout_seconds = Some(0);
+    specs.insert(1, invalid);
+    let mut missing_session = r.spec("true");
+    missing_session.idempotency_key = Some("missing-session".into());
+    missing_session.session = Some(id());
+    specs.push(missing_session);
+    let mut stop = r.spec("sleep 30");
+    stop.timeout_seconds = Some(20);
+    stop.idempotency_key = Some("stop".into());
+    stop.monitor_rules = vec![serde_json::from_value(serde_json::json!({"condition":{"kind":"elapsed","seconds":1},"action":"stop","grace_seconds":0})).unwrap()];
+    specs.push(stop);
+    let value = r.call(Request::StartBatch { specs }).await;
+    assert_eq!(value["accepted"], 3);
+    assert_eq!(value["rejected"], 2);
+    assert_eq!(value["results"][3]["accepted"], false);
+    assert!(
+        value["results"][1]["error"]
+            .as_str()
+            .unwrap()
+            .contains("timeout")
+    );
+    let mut ids = std::collections::HashSet::new();
+    let mut run_ids = std::collections::HashSet::new();
+    for (index, status, output) in [
+        (0, "completed", "output-a"),
+        (2, "failed", "output-b"),
+        (4, "cancelled", ""),
+    ] {
+        let item = &value["results"][index];
+        assert_eq!(item["index"], index);
+        let job = item["result"]["job"]["job_id"].as_str().unwrap();
+        assert!(ids.insert(job));
+        assert!(run_ids.insert(item["result"]["job"]["run_id"].as_str().unwrap()));
+        let final_state = r.state(job, &[status]).await;
+        if index == 2 {
+            assert_eq!(final_state["exit_code"], 7);
+        }
+        let logs = r
+            .call(Request::Logs {
+                job_id: job.into(),
+                stream: "stdout".into(),
+                cursor: 0,
+                limit: 8192,
+            })
+            .await;
+        assert_eq!(logs["text"], output);
+        if index == 4 {
+            let rules = r
+                .call(Request::Monitor {
+                    job_id: job.into(),
+                    mutation: None,
+                })
+                .await;
+            assert_eq!(rules["rules"][0]["triggered_revision"], 1);
+        }
+    }
+}
+
+#[tokio::test]
+async fn concurrent_batches_enforce_quota_and_retry_partial_admission() {
+    let r = Rig::new().await;
+    let batches: Vec<Vec<_>> = (0..2)
+        .map(|batch| {
+            (0..6)
+                .map(|index| {
+                    let mut spec = r.spec("sleep 30");
+                    spec.timeout_seconds = Some(25);
+                    spec.idempotency_key = Some(format!("batch-{batch}-{index}"));
+                    spec
+                })
+                .collect()
+        })
+        .collect();
+    let (a, b) = tokio::join!(
+        ipc::call(
+            &r.config,
+            Request::StartBatch {
+                specs: batches[0].clone()
+            }
+        ),
+        ipc::call(
+            &r.config,
+            Request::StartBatch {
+                specs: batches[1].clone()
+            }
+        )
+    );
+    let initial = [a.unwrap(), b.unwrap()];
+    assert_eq!(
+        initial
+            .iter()
+            .map(|v| v["accepted"].as_u64().unwrap())
+            .sum::<u64>(),
+        8
+    );
+    let mut rejected = Vec::new();
+    let mut accepted_ids = Vec::new();
+    for (batch, specs) in batches.into_iter().enumerate() {
+        let retry = r
+            .call(Request::StartBatch {
+                specs: specs.clone(),
+            })
+            .await;
+        for (index, spec) in specs.into_iter().enumerate() {
+            let old = &initial[batch]["results"][index];
+            assert_eq!(retry["results"][index]["accepted"], old["accepted"]);
+            if old["accepted"] == true {
+                assert_eq!(
+                    retry["results"][index]["result"]["job"]["job_id"],
+                    old["result"]["job"]["job_id"]
+                );
+                assert_eq!(
+                    retry["results"][index]["result"]["job"]["run_id"],
+                    old["result"]["job"]["run_id"]
+                );
+                accepted_ids.push(old["result"]["job"]["job_id"].as_str().unwrap().to_string());
+            } else {
+                assert!(old["error"].as_str().unwrap().contains("quota"));
+                rejected.push(spec);
+            }
+        }
+    }
+    r.call(Request::Stop {
+        job_id: accepted_ids[0].clone(),
+        grace_seconds: 0,
+        wait_seconds: 10,
+    })
+    .await;
+    let retry = r.call(Request::StartBatch { specs: rejected }).await;
+    assert_eq!(retry["accepted"], 1);
+    assert_eq!(retry["rejected"], 3);
+    assert_eq!(
+        r.call(Request::List {
+            after: 0,
+            limit: 20
+        })
+        .await["jobs"]
+            .as_array()
+            .unwrap()
+            .len(),
+        9
+    );
+    for job in r
+        .call(Request::List {
+            after: 0,
+            limit: 20,
+        })
+        .await["jobs"]
+        .as_array()
+        .unwrap()
+    {
+        r.call(Request::Stop {
+            job_id: job["job_id"].as_str().unwrap().into(),
+            grace_seconds: 0,
+            wait_seconds: 10,
+        })
+        .await;
+    }
+}
+
+#[tokio::test]
+async fn batch_envelope_refusal_and_lost_response_retry_survive_restart() {
+    let mut r = Rig::new().await;
+    let mut spec = r.spec("printf x >> executed; sleep 0.2");
+    spec.idempotency_key = Some("durable".into());
+    let mut no_key = spec.clone();
+    no_key.idempotency_key = None;
+    for specs in [
+        vec![],
+        vec![spec.clone(); 17],
+        vec![spec.clone(), spec.clone()],
+        vec![spec.clone(), no_key],
+    ] {
+        assert!(
+            ipc::call(&r.config, Request::StartBatch { specs })
+                .await
+                .is_err()
+        );
+    }
+    let mut large = spec.clone();
+    large.command = CommandSpec::Shell {
+        interpreter: "/bin/sh".into(),
+        script: "x".repeat(131072),
+    };
+    // Dispatch also bounds envelopes from non-wire callers before admission.
+    assert!(
+        ipc::dispatch(
+            &Store::new(r.config.clone()),
+            Request::StartBatch {
+                specs: vec![spec.clone(), large]
+            }
+        )
+        .await
+        .is_err()
+    );
+    assert!(
+        r.call(Request::List {
+            after: 0,
+            limit: 20
+        })
+        .await["jobs"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    let mut stream = tokio::net::UnixStream::connect(r.config.socket())
+        .await
+        .unwrap();
+    let mut specs: Vec<_> = (0..3)
+        .map(|index| {
+            let mut item = r.spec(&format!("printf x >> executed-{index}; sleep 0.2"));
+            item.idempotency_key = Some(format!("durable-{index}"));
+            item
+        })
+        .collect();
+    ipc::write_frame(
+        &mut stream,
+        &serde_json::json!({"protocol_version":1,"request":{"op":"start_batch","specs":specs}}),
+    )
+    .await
+    .unwrap();
+    drop(stream); // Deliberately lose the acknowledgement after sending the request.
+    let jobs = tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let jobs = r
+                .call(Request::List {
+                    after: 0,
+                    limit: 20,
+                })
+                .await;
+            if jobs["jobs"].as_array().unwrap().len() == 3 {
+                break jobs;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .unwrap();
+    for job in jobs["jobs"].as_array().unwrap() {
+        r.state(job["job_id"].as_str().unwrap(), &["completed"])
+            .await;
+    }
+    r.crash();
+    r.boot().await;
+    let retry = r
+        .call(Request::StartBatch {
+            specs: specs.clone(),
+        })
+        .await;
+    for index in 0..3 {
+        assert_eq!(
+            retry["results"][index]["result"]["job"]["job_id"],
+            jobs["jobs"][index]["job_id"]
+        );
+        assert_eq!(
+            retry["results"][index]["result"]["job"]["run_id"],
+            jobs["jobs"][index]["run_id"]
+        );
+        assert_eq!(
+            std::fs::read_to_string(r.dir.path().join(format!("executed-{index}"))).unwrap(),
+            "x"
+        );
+    }
+    specs[0].timeout_seconds = Some(10);
+    let conflict = r.call(Request::StartBatch { specs }).await;
+    assert_eq!(conflict["accepted"], 2);
+    assert_eq!(conflict["rejected"], 1);
+    assert!(
+        conflict["results"][0]["error"]
+            .as_str()
+            .unwrap()
+            .contains("different specification")
+    );
+}
 impl Rig {
     async fn new() -> Self {
         let dir = tempfile::Builder::new()

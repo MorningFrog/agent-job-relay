@@ -571,6 +571,27 @@ pub(super) async fn run() -> Result<()> {
             return Ok(());
         }
         Commands::Status { job_id } => Request::Status { job_id },
+        Commands::StartBatch { file, wake } => {
+            use std::io::Read;
+            let reader: Box<dyn Read> = if file == std::path::Path::new("-") {
+                Box::new(std::io::stdin())
+            } else {
+                Box::new(std::fs::File::open(file)?)
+            };
+            let mut bytes = Vec::new();
+            reader
+                .take(agent_job_relay::batch::MAX_BYTES as u64 + 1)
+                .read_to_end(&mut bytes)?;
+            anyhow::ensure!(
+                bytes.len() <= agent_job_relay::batch::MAX_BYTES,
+                "batch input exceeds 128 KiB"
+            );
+            let specs = serde_json::from_slice(&bytes)
+                .context("batch input must be a JSON array of start specifications")?;
+            let result = agent_job_relay::client::start_batch(&config, specs, wake).await?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+            return Ok(());
+        }
         Commands::List { after, limit } => Request::List { after, limit },
         Commands::Logs {
             follow: false,

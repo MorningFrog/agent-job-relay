@@ -43,6 +43,37 @@ The first submission starts the daemon. Eight active jobs are allowed. Identical
 
 Lists/events/deliveries return `next_cursor`; use `--after` for the next page. Log cursors are byte offsets. Text reads use lossy UTF-8, while raw bytes are retained up to 16 MiB per stream; further output is drained/discarded. Human viewers can use `logs "$JOB_ID" --follow`; Ctrl-C stops only the viewer. Wait is bounded and may return a `started` event before completion. Agents should not loop on waits/log follow for long jobs.
 
+## Submit independent commands together (unreleased source)
+
+The source adds `start-batch --file <json-file>` and MCP `job_start_batch`; published packages and the sealed 0.1.11 candidate do not contain them. Build/use the matching source runtime. An older loaded daemon fails the batch capability preflight; finish active work and explicitly update/stop only that same profile before retrying.
+
+Create a JSON array of 1–16 ordinary start specifications, replacing `<absolute-project>` with each command's actual directory:
+
+```json
+[
+  {"command":{"kind":"exec","program":"cargo","args":["check"]},"cwd":"<absolute-project>","idempotency_key":"checks-001"},
+  {"command":{"kind":"exec","program":"npm","args":["test"]},"cwd":"<absolute-project>","idempotency_key":"tests-001"}
+]
+```
+
+With the file saved as `batch.json`, use the source executable and an explicitly selected profile:
+
+```bash
+target/release/agent-job-relay --state-dir "$PWD/.tmp/batch-demo" start-batch --file batch.json
+```
+
+Use `--file -` for bounded stdin input. Inside the actual ChatGPT Desktop chat terminal, `--wake` binds every item to that caller; otherwise each specification can carry its own explicit `session`. Per-item argv/shell choice, absolute cwd, env, timeout and initial monitor_rules use the same validation and execution behavior as a single job. There is no batch-wide cancellation or dependency scheduling.
+
+MCP takes `{"specs":[...],"binding":<fresh-current-caller-binding>}`. The binding supplies every item's session and missing cwd; explicit conflicting sessions reject the request before admission. Shared MCP rejects `wake_me=true`. OpenCode's caller hook supplies each item's actual caller session. Compact/full views retain the input mapping.
+
+Every item requires a distinct nonempty `idempotency_key` (at most 128 bytes); keys share the profile's existing single-job namespace. The encoded IPC request must fit 128 KiB. Invalid JSON/types, empty/oversized batches, missing/duplicate keys or conflicting caller bindings reject the entire request before any item is admitted. Once the envelope is valid, command/rule/session validation errors, key conflicts and quota failures are returned individually; later items are still attempted.
+
+Admission proceeds in input order using one transaction per item. Other submissions and running jobs may interleave. The existing eight-active-job quota is checked for each new job; there is no reserved batch capacity, waiting admission queue or rollback of accepted items. Short jobs may free slots during submission. `accepted` counts newly admitted **or already existing identical** jobs, not completed commands. CLI exits successfully when the request is processed, including partial/all item rejection; inspect `rejected` and each result.
+
+The response is `{"accepted":1,"rejected":1,"results":[{"index":0,"idempotency_key":"checks-001","accepted":true,"result":{"job":{...},"wake":{...}}},{"index":1,"idempotency_key":"tests-001","accepted":false,"error":"..."}]}`. Each zero-based index maps to the original input; accepted items retain independent Job/Run IDs, logs, rules, notifications and stopping.
+
+Keep the original keys and specifications, including sessions, after a lost response or interrupted admission. Resubmitting returns original IDs for committed items and attempts any uncommitted/rejected items again; these may become admissible when capacity changes. Changing settings under an existing key conflicts. A fresh binding after host replacement may change the session and therefore conflict: recover the original jobs' notifications explicitly instead of assigning new keys to uncertain work. Retrying a failed command with a new key is a deliberate new execution, not transport recovery.
+
 ## Submit through MCP with same-chat notification
 
 Use one fresh terminal binding object for the caller and workspace.

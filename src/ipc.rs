@@ -28,6 +28,10 @@ pub enum Request {
     Start {
         spec: StartSpec,
     },
+    StartBatch {
+        #[schemars(length(min = 1, max = 16))]
+        specs: Vec<StartSpec>,
+    },
     Status {
         job_id: String,
     },
@@ -211,14 +215,9 @@ pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
         } => store.attempts(delivery_id, after, limit).await,
         Request::Start { spec } => {
             let j = store.start(spec).await?;
-            let wake = if let Some(key) = &j.session {
-                let s = store.session(key.clone()).await?;
-                json!({"session_key":key,"capabilities":crate::session::capabilities(&s.registration.adapter),"live_e2e_verified":false,"warning":"Inbox requires explicit inspection; Desktop wake is experimental. Host acceptance does not confirm Agent execution. Avoid polling loops."})
-            } else {
-                json!({"can_resume":false,"warning":"No wake target registered; use bounded job_wait for short jobs or inspect later. Do not poll in a loop."})
-            };
-            Ok(json!({"job":j,"wake":wake}))
+            Ok(start_result(store, j).await)
         }
+        Request::StartBatch { specs } => crate::batch::submit(store, specs).await,
         Request::Status { job_id } => Ok(serde_json::to_value(store.status(job_id).await?)?),
         Request::List { after, limit } => {
             let jobs = store.list(after, limit).await?;
@@ -306,6 +305,7 @@ pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
             let active:i64=db.query_row("SELECT count(*) FROM jobs WHERE status IN ('queued','launching','running')",[],|r|r.get(0))?;
             Ok(json!({"daemon":"reachable","runner_launch_from_loaded_image":cfg!(target_os="linux")&&crate::platform::self_image().is_ok(),"protocol_version":1,"version":env!("CARGO_PKG_VERSION"),"store":integrity,"capacity":crate::maintenance::capacity(db)?,"store_check":"connection and schema; use data check for full integrity","active_jobs":active,"orphaned_jobs":db.query_row("SELECT count(*) FROM jobs WHERE status='orphaned'",[],|r|r.get::<_,i64>(0))?,"delivery_recovery":true,"same_chat_recovery":true,"plugin_bridge":true,"delivery_time_renewal":true,"rebind_required":db.query_row("SELECT count(*) FROM deliveries WHERE status='retry_wait' AND failure_kind='rebind_required'",[],|r|r.get::<_,i64>(0))?,"retrying_deliveries":db.query_row("SELECT count(*) FROM deliveries WHERE status='retry_wait'",[],|r|r.get::<_,i64>(0))?,"sessions":db.query_row("SELECT count(*) FROM sessions WHERE connected=1 AND expires>?",[now()],|r|r.get::<_,i64>(0))?,"dead_letters":db.query_row("SELECT count(*) FROM deliveries WHERE status='dead_letter'",[],|r|r.get::<_,i64>(0))?,"runtime":std::env::consts::OS,"daemon_launch_method":std::env::var("AJR_DAEMON_LAUNCH_METHOD").unwrap_or_else(|_| "foreground".into()),"auto_resume":"not verified","next_step":"Use start --wake or job_start with wake_me=true from the current Desktop host context; no service is installed."})) }).await?;
             value["runtime_monitoring"] = json!(true);
+            value["batch_submission"] = json!(true);
             let mut ui = store
                 .web_info
                 .lock()
@@ -318,6 +318,22 @@ pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
             Ok(value)
         }
     }
+}
+/// Once admitted, a job must remain visible even if wake diagnostics fail.
+pub(crate) async fn start_result(store: &Store, job: Job) -> Value {
+    let wake = if let Some(key) = &job.session {
+        match store.session(key.clone()).await {
+            Ok(session) => {
+                json!({"session_key":key,"capabilities":crate::session::capabilities(&session.registration.adapter),"live_e2e_verified":false,"warning":"Inbox requires explicit inspection; Desktop wake is experimental. Host acceptance does not confirm Agent execution. Avoid polling loops."})
+            }
+            Err(error) => {
+                json!({"session_key":key,"can_resume":false,"warning":format!("job admitted; wake diagnostics unavailable: {error:#}")})
+            }
+        }
+    } else {
+        json!({"can_resume":false,"warning":"No wake target registered; use bounded job_wait for short jobs or inspect later. Do not poll in a loop."})
+    };
+    json!({"job":job,"wake":wake})
 }
 pub async fn call(config: &Config, request: Request) -> Result<Value> {
     crate::platform::require_runtime()?;

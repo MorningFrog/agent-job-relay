@@ -1,5 +1,6 @@
 pub mod adapters;
 pub mod archive;
+pub mod batch;
 pub mod client;
 pub mod config;
 pub mod core;
