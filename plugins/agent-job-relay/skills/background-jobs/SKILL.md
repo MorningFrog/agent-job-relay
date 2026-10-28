@@ -11,6 +11,8 @@ Use the installed MCP tools and the launcher at ../../relay (../../relay.cmd on 
 2. Call job_start with {"binding": <returned binding>, "spec": {"command": <explicit exec or shell command>}}. Omit wake_me. Supply spec.cwd only when intentionally selecting a different workload directory. The shared MCP process cannot infer the caller.
 3. Retain job_id and follow next_step. For long wake-bound jobs, end the turn.
 
+When the loaded tool catalog includes job_start_batch, submit 1–16 requested independent commands with {"binding": <returned binding>, "specs": [<start specs>]}. Give every item a distinct stable idempotency_key; retain each index/key and accepted result or error. Admission is partial under the eight-active-job quota; jobs notify and stop independently. After response loss, retry unchanged keys/specs so accepted work returns its original IDs and rejected items can be retried. Never assign new keys to uncertain work. CLI fallback: start-batch --file <JSON-array-file> --wake, with absolute cwd per item. Do not silently replace an old daemon to obtain batch support.
+
 If MCP is unavailable, the same launcher's start --wake --cwd <project> -- <program> <args...> is an explicit CLI fallback; report the actual route. Context/probe failures stop wake-dependent execution. For execution without continuation, use job_start with explicit command/cwd and no binding/session/wake. A short job may use one bounded job_wait.
 
 ## Recover

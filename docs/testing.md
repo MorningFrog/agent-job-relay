@@ -35,7 +35,7 @@ Plugin update/repair preservation checks checkpoint committed WAL pages before c
 |---|---|---|
 | Library | MCP schemas, legacy launch-readiness and interrupted replacement recovery/refusal/locks | Local checks plus deterministic filesystem fault states |
 | Monitoring and Web | Literal chunks after prefix cap, daemon-independent rule/tree stop, silence dedupe/rearm, revision/terminal fences, offline reads, sequence migration, HTTP auth/origin/operation restrictions and installed launcher UI | Linux/Windows native behavior plus portable storage checks; real browser interaction verified separately |
-| Runtime | Execution/output/cursors, idempotency, process trees, cancellation/timeout, daemon/runner independence, launch recovery, quotas, IPC/security | Real Linux children and injected failure windows |
+| Runtime | Execution/output/cursors, idempotency, process trees, cancellation/timeout, daemon/runner independence, launch recovery, quotas, IPC/security; batch overlap/options, partial failures, quota races and lost-response/restart retry | Real Linux children and injected failure windows |
 | Data maintenance | Automatic daemon archival/backup, age/count/log budgets, hot/cold history/cursors/idempotency, binary logs, protected recovery/claims, explicit retry, migration refusal, archive rollback/cleanup, WAL backup/restore without replay, sealed/unsealed recovery and ownership/rotation | Linux/Windows fixtures; no physical power-loss or ENOSPC qualification |
 | Delivery | Terminal/outbox transactions, migrations, exact routing, fenced attempts, retries/TTL/dead letters, read-only idle claims, pooled transaction/profile isolation and per-chat claim exclusion | Real SQLite and persistence simulations |
 | Public plugin bridge | Exact caller/session/delivery echoes, frame limits, endpoint replacement, scoped recovery and same-endpoint renewal | Real SQLite plus fake owned socket host |
@@ -49,6 +49,8 @@ Plugin update/repair preservation checks checkpoint committed WAL pages before c
 
 Focused commands are `cargo test --test <suite>`, using the lower-case suite filenames under `tests/`. Waits have deadlines; harnesses stop/reap only their own isolated processes. Output-open faults and injected expiry/boot/lock conditions are not physical ENOSPC, power-loss or multi-day tests.
 
+For unreleased batch changes, run `cargo test --test runtime batch` and `cargo test --test convenience batch`. Expected: three runtime and two CLI/MCP regressions pass, including independent monitor stopping, invalid-session rollback, stable IDs after a discarded response/restart and exact fake-Desktop caller destinations. With the isolated OpenCode toolchain described in [host plugins](host-plugins.md#account-free-actual-loader-check), run `python3 scripts/check_opencode_plugin.py --batch`. Expected: the actual loader exposes job_start_batch, two independent items complete and notify the actual caller while one invalid item is rejected, forged model-supplied caller fields are overridden, the control session stays empty and the simulated model runs after host acceptance. This adds no real-provider, Windows or real ChatGPT Desktop batch evidence.
+
 The daemon shutdown regression holds a real SQLite writer while an owned queued runner forces reconciliation to await it, then sends SIGINT before releasing the writer. It keeps the original short exit deadline, verifies the existing workload survives, and checks notification dispatch after restart. Control requests must remain responsive during that writer wait, and SIGINT still stops the daemon without stopping independent runners. Another regression occupies all four general database workers and requires status to use reserved read capacity. Development/test profiles retain line tables to keep installed fixtures below the existing 128-MiB image budget; CI uses no debug symbols. All behavior cases remain enabled.
 
 ## Actual Codex plugin-loader check
@@ -59,7 +61,7 @@ After the release build, with Codex CLI and Python available:
 python3 scripts/check_codex_plugin.py
 ```
 
-This exports and relocates an offline bundle, bootstraps in disposable repository-local HOME/CODEX_HOME, removes the delivery artifact, installs through the actual loader, checks its returned cache path/profile and no-op refresh, and checks MCP discovery including job_recover_session (22 tools in 0.1.11). It asserts that no daemon/workload state was created. Reports/logs remain in the printed ignored `.tmp/loader-...` directory. Python is a developer-check dependency only.
+This exports and relocates an offline bundle, bootstraps in disposable repository-local HOME/CODEX_HOME, removes the delivery artifact, installs through the actual loader, checks its returned cache path/profile and no-op refresh, and requires MCP discovery including job_recover_session and job_start_batch (23 tools in current source). It asserts that no daemon/workload state was created. Reports/logs remain in the printed ignored `.tmp/loader-...` directory. Python is a developer-check dependency only.
 
 The recorded loader is Codex CLI 0.164.0. Portable root and PLUGIN_ROOT command/args/cwd behavior differed from documentation; see [ADR 0004](adr/0004-loaded-image-and-codex-loader.md) and [ADR 0007](adr/0007-offline-plugin-runtime.md). The loader check starts no model turn and establishes neither ChatGPT Desktop browser discovery nor real MCP task/wake behavior.
 
@@ -84,7 +86,7 @@ The developer-only `scripts/check_desktop_restart.py` provides a bounded FIFO ha
 
 [Host plugins](host-plugins.md) provides dependency/setup commands for `scripts/check_opencode_plugin.py` and `scripts/check_claude_scaffold.py`. OpenCode 1.19.4 uses the actual loader/MCP/session API and agent loop with a local simulated model, checking a completed response and an untouched second session. Claude uses synthetic callers and the actual MCP launcher only; its caller-isolation check requests `full=true` to inspect the stored session and inbox-only capability. Its loader/skill substitution/account/model remain untested. Docker recipes/version matrices and account-backed Claude tests are welcome through [community contributions](../CONTRIBUTING.md).
 
-The Python MCP probes allow at most 1 MiB per JSON line so the full 22-tool catalog fits; asyncio's default 64-KiB reader limit is too small for the expanded schemas. The Claude scaffold check retains its request deadlines, required-tool checks, explicit caller-isolation assertions and inbox-only boundary.
+The Python MCP probes allow at most 1 MiB per JSON line so the full tool catalog fits (23 tools in current source, 22 in sealed 0.1.11); asyncio's default 64-KiB reader limit is too small for the expanded schemas. The Claude scaffold check retains its request deadlines, required-tool checks, explicit caller-isolation assertions and inbox-only boundary.
 
 ## Installed release-candidate checks
 

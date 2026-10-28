@@ -40,7 +40,7 @@ Published packages default to their bundled runtime and persistent opencode prof
 
 On Windows, use the bundled `.exe` and a persistent Windows path (JSON requires escaped backslashes). The native helper pins the Node/Bun pipe's server process and secures its owner/DACL before registration. For Windows candidate checks and Windows automatic-startup/fallback behavior, see [Windows operation](windows.md).
 
-The `tool.execute.before` hook obtains the real `sessionID`, verifies it through the public session API, registers/probes an owned bridge, then supplies `spec.session` to the actual MCP `job_start`. It overrides model-supplied caller keys. The plugin adds workflow guidance; everyday prompts need no internal path or session key. Other MCP tools stay available from the same core. Do not use ChatGPT Desktop `session connect`/`wake_me` in this host.
+The `tool.execute.before` hook obtains the real `sessionID`, verifies it through the public session API, registers/probes an owned bridge, then supplies `spec.session` to the actual MCP `job_start`. Unreleased source also binds every `job_start_batch` item and discards model-supplied binding objects; caller keys always come from the actual hook. The plugin adds workflow guidance; everyday prompts need no internal path or session key. Other MCP tools stay available from the same core. Do not use ChatGPT Desktop `session connect`/`wake_me` in this host.
 
 The plugin's private Unix socket / Windows named pipe accepts only sessions observed from actual tool contexts. The core pins its endpoint fingerprint; completion metadata contains stable IDs and status, never command output. The plugin uses the public `client.session.promptAsync` API. Acceptance means the host admitted a prompt, not that a model ran. In-process delivery-ID dedupe is bounded; persisted receiver dedupe across restart is not established. An abrupt host exit can leave its private instance directory for inspection; no cache/bridge-directory sweep or data purge runs.
 
@@ -62,6 +62,8 @@ python3 scripts/check_release.py --release .tmp/release-candidate --opencode .tm
 ```
 
 Expected: `result=passed`, OpenCode 1.19.4, a completed single-attempt command, one accepted delivery, a subsequent response in the correct session and no message in an unrelated session. The candidate checker installs the actual npm tarballs, then runs the real headless server and bundled native MCP with an isolated HOME/config/cache/state under `.tmp/`, uses a deterministic local model fixture, and stops only its own test processes. It needs no provider account, real API key or Docker installation. Reports stay ignored. The fixture proves interface routing and agent-loop invocation, not natural-language model judgment or a paid provider integration.
+
+For source batch verification after `cargo build`, run `python3 scripts/check_opencode_plugin.py --batch`. This uses an isolated source plugin/runtime dependency mapping without modifying the shared toolchain. Expected: two items admitted/completed, one semantic rejection, actual hook override of forged caller keys/binding, independent accepted deliveries to the initiating session, a simulated continuation and an untouched control session. This passes on Linux 1.19.4; Windows batch and real-provider qualification remain pending.
 
 ## Claude Code development framework
 

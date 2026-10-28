@@ -11,6 +11,8 @@ From this chat's terminal, run the launcher with connect --cwd <absolute-project
 
 Call job_start with {"binding": <returned binding>, "spec": {"command": <explicit command>}}. Omit wake_me. Supply spec.cwd only when intentionally selecting a different workload directory. Use shell mode only when the command requires it.
 
+When the loaded tool catalog includes job_start_batch, submit 1–16 requested independent commands with {"binding": <returned binding>, "specs": [<start specs>]}. Each item needs a distinct stable idempotency_key. Retain every index/key and accepted result or error; admission is partial under the eight-active-job quota. Retry unchanged keys/specs after a lost response; never assign new keys to uncertain work. Each job keeps independent notifications and stopping. This capability is unreleased and absent from the sealed 0.1.11 runtime; use only advertised tools, and never silently update/restart a daemon or change profiles to obtain it.
+
 If MCP is unavailable, use the same launcher with start --wake --cwd <project> -- <program> <args...> and report the CLI fallback. Context/probe failure stops wake-dependent submission. For execution without continuation, omit session/wake and provide command/cwd. A short job may use one bounded job_wait.
 
 ## Recover

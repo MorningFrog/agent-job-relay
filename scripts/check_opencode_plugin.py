@@ -28,6 +28,7 @@ def main():
     parser.add_argument("--plugin-dir", type=Path, help="Use an npm-installed plugin instead of source files")
     parser.add_argument("--plugin-spec", help="Install the exact npm name/version through the actual Bun loader")
     parser.add_argument("--registry", help="Loopback unpublished-package registry")
+    parser.add_argument("--batch", action="store_true", help="Exercise batch partial admission and caller override through the actual loader")
     args = parser.parse_args()
     for path in [args.opencode, args.binary, args.node_modules / "@opencode-ai/plugin"]:
         if not path.exists():
@@ -42,7 +43,10 @@ def main():
     plugin = args.plugin_dir.resolve() if args.plugin_dir else root / "plugin"
     if not args.plugin_dir and not args.plugin_spec:
         shutil.copytree(REPO / "plugins/opencode-v1", plugin)
-        (plugin / "node_modules").symlink_to(args.node_modules.resolve(), target_is_directory=True)
+        modules = plugin / "node_modules"
+        modules.mkdir()
+        (modules / "@opencode-ai").symlink_to((args.node_modules / "@opencode-ai").resolve(), target_is_directory=True)
+        (modules / "agent-job-relay-runtime").symlink_to(REPO / "packages/runtime", target_is_directory=True)
     env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": str(home),
            "XDG_DATA_HOME": str(root / "data"), "XDG_STATE_HOME": str(root / "state"),
            "XDG_CONFIG_HOME": str(root / "config"), "XDG_CACHE_HOME": str(root / "cache"),
@@ -55,8 +59,8 @@ def main():
     resumed = threading.Event()
     model_requests = []
     fixture_errors = []
-    gate = root / "probe"
-    tool_name = "agent_job_relay_job_start"
+    gates = [root / f"probe-{index}" for index in range(2)] if args.batch else [root / "probe"]
+    tool_name = "agent_job_relay_job_start_batch" if args.batch else "agent_job_relay_job_start"
 
     class Model(BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -77,8 +81,14 @@ def main():
                     finish = "stop"
                     resumed.set()
                 elif tool_name in available and not any(m["role"] == "tool" for m in body["messages"][body["messages"].index(users[-1]) + 1:]):
-                    spec = {"command": {"kind": "exec", "program": "/usr/bin/python3", "args": [str(REPO / "scripts/check_desktop_restart.py"), "wait", "--directory", str(gate), "--timeout", "60"]}, "cwd": str(project), "timeout_seconds": 70}
-                    delta = {"role": "assistant", "tool_calls": [{"index": 0, "id": "fixture_relay_start", "type": "function", "function": {"name": tool_name, "arguments": json.dumps({"spec": spec})}}]}
+                    specs = [{"command": {"kind": "exec", "program": "/usr/bin/python3", "args": [str(REPO / "scripts/check_desktop_restart.py"), "wait", "--directory", str(item), "--timeout", "60"]}, "cwd": str(project), "timeout_seconds": 70} for item in gates]
+                    arguments = {"spec": specs[0]}
+                    if args.batch:
+                        for index, spec in enumerate(specs):
+                            spec.update(idempotency_key=f"owned-batch-{index}", session="00000000-0000-0000-0000-000000000000")
+                        specs.append({**specs[0], "idempotency_key": "rejected-batch", "timeout_seconds": 0})
+                        arguments = {"specs": specs, "binding": {"session_key": "forged-model-caller", "cwd": str(project)}}
+                    delta = {"role": "assistant", "tool_calls": [{"index": 0, "id": "fixture_relay_start", "type": "function", "function": {"name": tool_name, "arguments": json.dumps(arguments)}}]}
                     finish = "tool_calls"
                 else:
                     delta = {"role": "assistant", "content": "Submission turn ended."}
@@ -122,7 +132,6 @@ def main():
             raise RuntimeError(completed.stderr)
         return json.loads(completed.stdout)
 
-    job_id = None
     child = None
     try:
         version = subprocess.run([str(args.opencode.resolve()), "--version"], env=env, capture_output=True, text=True, timeout=10, check=True).stdout.strip()
@@ -143,17 +152,17 @@ def main():
             if fixture_errors:
                 raise RuntimeError(str(fixture_errors))
             jobs = relay("list")["jobs"]
-            if len(jobs) != 1:
-                raise RuntimeError(f"expected one MCP-submitted job, got {len(jobs)}; inspect {root}")
-            job_id = jobs[0]["job_id"]
-            if jobs[0]["status"] not in ["queued", "launching", "running"]:
+            if len(jobs) != len(gates):
+                raise RuntimeError(f"expected {len(gates)} MCP-submitted jobs, got {len(jobs)}; inspect {root}")
+            if any(job["status"] not in ["queued", "launching", "running"] for job in jobs):
                 raise RuntimeError("fixture command failed before explicit release")
             ready_deadline = time.monotonic() + 5
-            while not (gate / "ready.json").exists():
+            while not all((item / "ready.json").exists() for item in gates):
                 if time.monotonic() > ready_deadline:
                     raise RuntimeError("fixture command did not signal readiness")
                 time.sleep(0.02)
-            subprocess.run(["python3", str(REPO / "scripts/check_desktop_restart.py"), "release", "--directory", str(gate)], env=env, capture_output=True, text=True, timeout=5, check=True)
+            for item in gates:
+                subprocess.run(["python3", str(REPO / "scripts/check_desktop_restart.py"), "release", "--directory", str(item)], env=env, capture_output=True, text=True, timeout=5, check=True)
             if not resumed.wait(15):
                 raise RuntimeError(f"completion did not invoke the fixture model; inspect {root}")
             # One bounded event wait lets the fixture model's response persist.
@@ -166,15 +175,38 @@ def main():
                 if time.monotonic() > deadline:
                     raise RuntimeError("resumed assistant message was not persisted")
                 time.sleep(0.1)
+            outcomes = []
+            for job in jobs:
+                status = relay("status", job["job_id"])
+                if status["status"] != "completed" or status["exit_code"] != 0 or status["run"]["attempt"] != 1:
+                    raise RuntimeError("workload outcome mismatch")
+                deadline = time.monotonic() + 10
+                while True:
+                    deliveries = relay("delivery", "list", "--job-id", job["job_id"])
+                    if len(deliveries["deliveries"]) == 1 and deliveries["deliveries"][0]["status"] == "accepted_by_host":
+                        break
+                    if time.monotonic() > deadline:
+                        raise RuntimeError("host acceptance was not persisted")
+                    time.sleep(0.1)
+                outcomes.append({"job": status, "deliveries": deliveries})
+            if args.batch:
+                tool_results = []
+                for request in model_requests:
+                    for message in request["messages"]:
+                        if message["role"] == "tool" and isinstance(message.get("content"), str):
+                            try:
+                                tool_results.append(json.loads(message["content"]))
+                            except json.JSONDecodeError:
+                                continue
+                batch = next((value for value in tool_results if isinstance(value, dict) and value.get("accepted") == 2 and value.get("rejected") == 1), None)
+                if batch is None or len(batch.get("results", [])) != 3:
+                    raise RuntimeError("MCP batch partial-admission result was not returned to the model")
+                if {item["result"]["job"]["job_id"] for item in batch["results"] if item["accepted"]} != {job["job_id"] for job in jobs}:
+                    raise RuntimeError("batch results did not map to the persisted jobs")
             other = api(f"/session/{second['id']}/message")
             if other:
-                raise RuntimeError("unrelated session received a message")
-            status, deliveries = relay("status", job_id), relay("delivery", "list", "--job-id", job_id)
-            if status["status"] != "completed" or status["exit_code"] != 0 or status["run"]["attempt"] != 1:
-                raise RuntimeError("workload outcome mismatch")
-            if len(deliveries["deliveries"]) != 1 or deliveries["deliveries"][0]["status"] != "accepted_by_host":
-                raise RuntimeError("host acceptance was not persisted")
-            report = {"result": "passed", "opencode": version, "loader": "actual", "package": "Bun name/version install from loopback registry and bundled native" if args.plugin_spec else "npm-installed tarball and bundled native" if args.plugin_dir else "source", "submission": "actual MCP with caller hook", "continuation": "actual session API and agent loop", "model": "local simulated fixture; no real provider/account", "other_session_untouched": True, "resumed_turn_completed": True, "job": status, "deliveries": deliveries}
+                raise RuntimeError("unrelated session received a batch completion")
+            report = {"result": "passed", "opencode": version, "loader": "actual", "package": "Bun name/version install from loopback registry and bundled native" if args.plugin_spec else "npm-installed tarball and bundled native" if args.plugin_dir else "source", "submission": "actual MCP batch with caller hook and partial admission" if args.batch else "actual MCP with caller hook", "continuation": "actual session API and agent loop", "model": "local simulated fixture; no real provider/account", "other_session_untouched": True, "resumed_turn_completed": True, "job": outcomes[0]["job"], "deliveries": outcomes[0]["deliveries"], "outcomes": outcomes}
             (root / "report.json").write_text(json.dumps(report, indent=2) + "\n")
             print(json.dumps({"result": "passed", "opencode": version, "model": "simulated", "report": str(root / "report.json")}))
     finally:
