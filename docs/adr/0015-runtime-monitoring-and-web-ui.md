@@ -13,3 +13,7 @@ Use a random local port and per-daemon bearer token conveyed only by explicit pr
 ## Regression rationale
 
 Test raw-cap/split-output detection, independent process-tree cancellation, silence dedupe/rearm, stale revision/terminal fences, preserved archive/backup/audit data, monotonic migration, local HTTP access restrictions and real installed launchers. Browser checks establish UI behavior only. Windows native behavior and actual mid-run Agent continuation need separate evidence; existing terminal-notification acceptance does not establish them.
+
+## Windows CLI stack
+
+MSVC executables reserve 8 MiB of main-thread stack address space on demand. The full unoptimized Clap command tree exceeds Windows' default 1-MiB reserve, including help and data commands; the native CLI smoke tests must pass without external stack environment overrides. This is an executable link setting, not a global OS/user change, and does not weaken process, token or Job Object checks.

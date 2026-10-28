@@ -7,14 +7,20 @@ fn main() {
         "echo" => { for arg in &args[2..] { println!("{arg}"); } eprintln!("stderr-marker"); }
         "env" => { for key in &args[2..] { println!("{key}={}", std::env::var(key).unwrap_or_default()); } }
         "exit" => std::process::exit(args[2].parse().unwrap()),
-        "gate" | "tree" => {
+        "gate" | "tree" | "monitor-tree" => {
             let dir = PathBuf::from(&args[2]);
-            if args[1] == "tree" {
+            if matches!(args[1].as_str(), "tree" | "monitor-tree") {
                 Command::new(std::env::current_exe().unwrap()).arg("branch").arg(&dir).stdin(Stdio::null()).spawn().unwrap();
             }
             std::fs::write(dir.join("ready"), std::process::id().to_string()).unwrap();
             for _ in 0..6000 {
-                if dir.join("release").exists() { println!("released"); return; }
+                if dir.join("release").exists() {
+                    if args[1] == "monitor-tree" {
+                        print!("WIN_");io::stdout().flush().unwrap();thread::sleep(Duration::from_millis(150));
+                        print!("ALERT");io::stdout().flush().unwrap();thread::sleep(Duration::from_secs(120));
+                    }
+                    println!("released");return;
+                }
                 thread::sleep(Duration::from_millis(20));
             }
             std::process::exit(3);
@@ -28,6 +34,10 @@ fn main() {
         "leaf" => {
             std::fs::write(PathBuf::from(&args[2]).join("leaf.pid"), std::process::id().to_string()).unwrap();
             thread::sleep(Duration::from_secs(120));
+        }
+        "monitor-bytes" => {
+            io::stdout().write_all(&vec![b'x';16*1024*1024+8192]).unwrap();
+            print!("AFTER_CAP");io::stdout().flush().unwrap();thread::sleep(Duration::from_secs(120));
         }
         "bytes" => { io::stdout().write_all(&vec![b'x'; 16 * 1024 * 1024 + 8192]).unwrap(); io::stderr().write_all(&[0xff, b'\n']).unwrap(); }
         "cwd" => println!("{}", std::env::current_dir().unwrap().display()),

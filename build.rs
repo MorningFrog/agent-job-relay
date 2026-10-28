@@ -3,6 +3,13 @@ use std::{
     path::{Path, PathBuf},
 };
 fn main() {
+    // Clap's complete debug command tree exceeds Windows' 1-MiB main stack.
+    // Reserve stack address space on demand, without changing OS/user settings.
+    if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows")
+        && env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc")
+    {
+        println!("cargo:rustc-link-arg-bin=agent-job-relay=/STACK:8388608");
+    }
     println!("cargo:rerun-if-changed=web/dist");
     let root = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("web/dist");
     assert!(

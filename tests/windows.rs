@@ -1473,3 +1473,302 @@ async fn bootstrap_refuses_changed_parent_or_another_executable_before_transfer(
         assert!(!state.join("relay.sqlite3").exists());
     }
 }
+
+fn monitor_rule(
+    condition: agent_job_relay::monitor::Condition,
+    action: agent_job_relay::monitor::Action,
+) -> agent_job_relay::monitor::RuleSpec {
+    agent_job_relay::monitor::RuleSpec {
+        condition,
+        action,
+        notify_agent: false,
+        grace_seconds: 0,
+    }
+}
+async fn monitor_snapshot(r: &Rig, job: &Value, predicate: impl Fn(&Value) -> bool) -> Value {
+    let store = Store::new(r.config.clone());
+    tokio::time::timeout(Duration::from_secs(12), async {
+        loop {
+            let value = store
+                .inspect(Some(job["job_id"].as_str().unwrap().into()), None, 20)
+                .await
+                .unwrap();
+            if predicate(&value) {
+                return value;
+            }
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+    })
+    .await
+    .expect("bounded monitor observation")
+}
+#[tokio::test]
+async fn monitor_stops_job_tree_after_daemon_loss_and_matches_split_output() {
+    use agent_job_relay::monitor::{Action, Condition, Stream};
+    let mut r = Rig::new().await;
+    let mut spec = r.spec(&["monitor-tree", r.dir.path().to_str().unwrap()]);
+    spec.monitor_rules = vec![monitor_rule(
+        Condition::Contains {
+            text: "WIN_ALERT".into(),
+            stream: Stream::Stdout,
+        },
+        Action::Stop,
+    )];
+    let job = r.start(spec).await;
+    r.ready("ready").await;
+    r.ready("branch.pid").await;
+    r.ready("leaf.pid").await;
+    let processes = ["ready", "branch.pid", "leaf.pid"].map(|name| {
+        let pid = std::fs::read_to_string(r.dir.path().join(name))
+            .unwrap()
+            .parse::<u32>()
+            .unwrap();
+        (pid, platform::identity(pid).unwrap())
+    });
+    monitor_snapshot(&r, &job, |v| v["rules"][0]["applied_revision"] == 1).await;
+    let daemon = r.daemon.take().unwrap();
+    daemon.kill().unwrap();
+    daemon.wait().unwrap();
+    r.release();
+    let value = monitor_snapshot(&r, &job, |v| v["job"]["status"] == "cancelled").await;
+    assert_eq!(value["observation"]["stdout"]["text"], "WIN_ALERT");
+    assert_eq!(
+        value["events"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|e| e["kind"] == "monitor_alert")
+            .count(),
+        1
+    );
+    assert!(
+        value["stop"]["reason"]
+            .as_str()
+            .unwrap()
+            .contains("monitor rule")
+    );
+    assert!(
+        processes
+            .iter()
+            .all(|(pid, identity)| platform::identity(*pid).as_ref() != Some(identity))
+    );
+    let offline = agent_job_relay::monitor::inspect_client(
+        &r.config,
+        Some(job["job_id"].as_str().unwrap().into()),
+        None,
+        20,
+    )
+    .await
+    .unwrap();
+    assert_eq!(offline["runtime"], "offline_snapshot");
+    assert_eq!(offline["job"]["status"], "cancelled");
+}
+#[tokio::test]
+async fn monitor_keeps_detection_and_recent_output_after_raw_prefix_cap() {
+    use agent_job_relay::monitor::{Action, Condition, Stream};
+    let r = Rig::new().await;
+    let mut spec = r.spec(&["monitor-bytes"]);
+    spec.monitor_rules = vec![monitor_rule(
+        Condition::Contains {
+            text: "AFTER_CAP".into(),
+            stream: Stream::Stdout,
+        },
+        Action::Stop,
+    )];
+    let job = r.start(spec).await;
+    assert_eq!(r.terminal(&job).await["status"], "cancelled");
+    let value = monitor_snapshot(&r, &job, |v| v["job"]["status"] == "cancelled").await;
+    assert!(
+        value["observation"]["stdout"]["total_bytes"]
+            .as_u64()
+            .unwrap()
+            > agent_job_relay::runner::LOG_CAP
+    );
+    assert!(
+        value["observation"]["stdout"]["text"]
+            .as_str()
+            .unwrap()
+            .ends_with("AFTER_CAP")
+    );
+    assert_eq!(
+        std::fs::metadata(
+            r.config
+                .run_dir(job["run_id"].as_str().unwrap())
+                .join("stdout.log")
+        )
+        .unwrap()
+        .len(),
+        agent_job_relay::runner::LOG_CAP
+    );
+}
+#[tokio::test]
+async fn monitor_silence_rearms_with_revision_fence_and_bounded_stop() {
+    use agent_job_relay::monitor::{Action, Condition, Mutation};
+    let r = Rig::new().await;
+    let mut spec = r.spec(&["gate", r.dir.path().to_str().unwrap()]);
+    spec.monitor_rules = vec![monitor_rule(
+        Condition::NoOutput { seconds: 1 },
+        Action::Alert,
+    )];
+    let job = r.start(spec).await;
+    let value = monitor_snapshot(&r, &job, |v| v["rules"][0]["triggered_revision"] == 1).await;
+    let id = value["rules"][0]["id"].as_str().unwrap().to_owned();
+    let store = Store::new(r.config.clone());
+    let job_id = job["job_id"].as_str().unwrap().to_owned();
+    tokio::time::sleep(Duration::from_millis(1100)).await;
+    let value = store.inspect(Some(job_id.clone()), None, 20).await.unwrap();
+    assert_eq!(
+        value["events"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|e| e["kind"] == "monitor_alert")
+            .count(),
+        1
+    );
+    let rearmed = std::time::Instant::now();
+    store
+        .monitor(
+            job_id.clone(),
+            Some(Mutation::Enable {
+                rule_id: id.clone(),
+                expected_revision: 1,
+                enabled: true,
+            }),
+        )
+        .await
+        .unwrap();
+    assert!(
+        store
+            .monitor(
+                job_id.clone(),
+                Some(Mutation::Enable {
+                    rule_id: id,
+                    expected_revision: 1,
+                    enabled: false
+                })
+            )
+            .await
+            .is_err()
+    );
+    monitor_snapshot(&r, &job, |v| v["rules"][0]["triggered_revision"] == 2).await;
+    assert!(rearmed.elapsed() >= Duration::from_millis(900));
+    let stopped = client::call(
+        &r.config,
+        Request::Stop {
+            job_id,
+            grace_seconds: 0,
+            wait_seconds: 5,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(stopped["stop_outcome"], "terminal_observed");
+    assert_eq!(stopped["status"], "cancelled");
+}
+async fn web_request(
+    base: &str,
+    path: &str,
+    token: Option<&str>,
+    origin: Option<&str>,
+    body: Option<Value>,
+) -> String {
+    use tokio::io::AsyncReadExt;
+    let host = base.strip_prefix("http://").unwrap().trim_end_matches('/');
+    let mut socket = tokio::net::TcpStream::connect(host).await.unwrap();
+    let body = body.map(|v| v.to_string());
+    let mut request = format!(
+        "{} {path} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n",
+        if body.is_some() { "POST" } else { "GET" }
+    );
+    if let Some(token) = token {
+        request.push_str(&format!("Authorization: Bearer {token}\r\n"));
+    }
+    if let Some(origin) = origin {
+        request.push_str(&format!("Origin: {origin}\r\n"));
+    }
+    if let Some(body) = &body {
+        request.push_str(&format!(
+            "Content-Type: application/json\r\nContent-Length: {}\r\n",
+            body.len()
+        ));
+    }
+    request.push_str("\r\n");
+    request.push_str(body.as_deref().unwrap_or(""));
+    socket.write_all(request.as_bytes()).await.unwrap();
+    let mut bytes = vec![];
+    tokio::time::timeout(Duration::from_secs(8), socket.read_to_end(&mut bytes))
+        .await
+        .unwrap()
+        .unwrap();
+    String::from_utf8_lossy(&bytes).into()
+}
+#[tokio::test]
+async fn default_web_ui_authenticates_and_controls_the_same_windows_profile() {
+    let r = Rig::new().await;
+    let info = ipc::call(&r.config, Request::UiInfo).await.unwrap();
+    let base = info["url"].as_str().unwrap();
+    let token = info["access_url"]
+        .as_str()
+        .unwrap()
+        .split("#token=")
+        .nth(1)
+        .unwrap();
+    let doctor = ipc::call(&r.config, Request::Doctor).await.unwrap();
+    assert_eq!(doctor["web_ui"]["enabled"], true);
+    assert!(doctor["web_ui"].get("access_url").is_none());
+    let page = web_request(base, "/", None, None, None).await;
+    assert!(page.starts_with("HTTP/1.1 200"));
+    assert!(page.contains("/assets/index-"));
+    assert!(page.contains("frame-ancestors 'none'"));
+    assert!(
+        web_request(
+            base,
+            "/api/request",
+            None,
+            None,
+            Some(json!({"op":"inspect"}))
+        )
+        .await
+        .starts_with("HTTP/1.1 401")
+    );
+    assert!(
+        web_request(
+            base,
+            "/api/request",
+            Some(token),
+            Some("https://unrelated.invalid"),
+            Some(json!({"op":"inspect"}))
+        )
+        .await
+        .starts_with("HTTP/1.1 403")
+    );
+    assert!(
+        web_request(
+            base,
+            "/api/request",
+            Some(token),
+            None,
+            Some(json!({"op":"shutdown"}))
+        )
+        .await
+        .starts_with("HTTP/1.1 403")
+    );
+    let job = r
+        .start(r.spec(&["gate", r.dir.path().to_str().unwrap()]))
+        .await;
+    r.ready("ready").await;
+    let response=web_request(base,"/api/request",Some(token),None,Some(json!({"op":"monitor","job_id":job["job_id"],"mutation":{"kind":"add","rule":{"condition":{"kind":"elapsed","seconds":1},"action":"stop","grace_seconds":0}}}))).await;
+    assert!(response.starts_with("HTTP/1.1 200"), "{response}");
+    assert_eq!(r.terminal(&job).await["status"], "cancelled");
+    let response = web_request(
+        base,
+        "/api/request",
+        Some(token),
+        None,
+        Some(json!({"op":"inspect","job_id":job["job_id"]})),
+    )
+    .await;
+    assert!(response.contains("monitor_alert"));
+    assert!(response.contains("cancelled"));
+}
