@@ -364,6 +364,7 @@ mod native {
                 .count(),
             1
         );
+        let rearmed_at = agent_job_relay::core::now();
         ipc::call(
             &r.config,
             Request::Monitor {
@@ -377,21 +378,25 @@ mod native {
         )
         .await
         .unwrap();
-        r.until(&id, |v| v["rules"][0]["applied_revision"] == 2)
+        let v = r
+            .until(&id, |v| {
+                v["rules"][0]["triggered_revision"] == 2 && v["rules"][0]["applied_revision"] == 2
+            })
             .await;
-        let v = ipc::call(
-            &r.config,
-            Request::Inspect {
-                job_id: Some(id.clone()),
-                before: None,
-                limit: 20,
-            },
-        )
-        .await
-        .unwrap();
-        assert_ne!(v["rules"][0]["triggered_revision"], 2);
-        r.until(&id, |v| v["rules"][0]["triggered_revision"] == 2)
-            .await;
+        // A delayed inspect can already include the trigger. Verify the fresh
+        // silence window without requiring the reader to win that race.
+        let alert = v["events"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|e| e["kind"] == "monitor_alert" && e["payload"]["revision"] == 2)
+            .unwrap();
+        assert!(
+            alert["payload"]["evidence"]["observed_at"]
+                .as_i64()
+                .unwrap()
+                >= rearmed_at + 1000
+        );
         let v = ipc::call(
             &r.config,
             Request::Stop {
