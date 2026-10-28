@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "agent-job-relay",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "Run durable local background jobs and continue the initiating Agent chat when they finish.",
   "license": "MIT",
   "extensions": {

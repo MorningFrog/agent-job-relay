@@ -129,9 +129,9 @@ try {
     await codex.rpc("initialize", { clientInfo: { name: "windows-packaged-check", version: "1" }, capabilities: { experimentalApi: true } });codex.child.stdin.write('{"method":"initialized"}\n');
     const account = await codex.rpc("account/read", { refreshToken: false });assert.equal(account.account, null);
     const details = await codex.rpc("plugin/read", { pluginName: "agent-job-relay", marketplacePath: join(market, ".agents/plugins/marketplace.json") });assert(details.plugin.mcpServers.includes("agent-job-relay"));
-    const inventory = await codex.rpc("mcpServerStatus/list", { detail: "toolsAndAuthOnly" });const server = inventory.data.find(s => s.name === "agent-job-relay");assert.equal(Object.keys(server?.tools ?? {}).length, 20);
+    const inventory = await codex.rpc("mcpServerStatus/list", { detail: "toolsAndAuthOnly" });const server = inventory.data.find(s => s.name === "agent-job-relay");assert.equal(Object.keys(server?.tools ?? {}).length, 22);
     assert(!existsSync(join(env.CODEX_HOME, "auth.json")));
-    report.codex = { actual_catalog: true, tools: 20, account: null, distribution: "original dual-platform marketplace with loopback registry", cache: added.installedPath };
+    report.codex = { actual_catalog: true, tools: 22, account: null, distribution: "original dual-platform marketplace with loopback registry", cache: added.installedPath };
     codex.child.stdin.end();
   }
 

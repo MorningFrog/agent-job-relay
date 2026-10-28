@@ -105,6 +105,7 @@ impl Fixture {
                 timeout_seconds: None,
                 session: Some(session.key.clone()),
                 idempotency_key: None,
+                monitor_rules: vec![],
             })
             .await
             .unwrap();

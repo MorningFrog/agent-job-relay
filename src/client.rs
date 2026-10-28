@@ -322,6 +322,38 @@ pub async fn call(config: &Config, request: Request) -> Result<Value> {
             Ok(report)
         }
         Request::Shutdown => stop_daemon(config).await,
+        Request::Inspect {
+            job_id,
+            before,
+            limit,
+        } => crate::monitor::inspect_client(config, job_id, before, limit).await,
+        Request::Monitor {
+            job_id,
+            mutation: None,
+        } => match ipc::call(
+            config,
+            Request::Monitor {
+                job_id: job_id.clone(),
+                mutation: None,
+            },
+        )
+        .await
+        {
+            Ok(value) => Ok(value),
+            Err(e) if unavailable(&e) => {
+                crate::storage::Store::readonly(config.clone())
+                    .monitor(job_id, None)
+                    .await
+            }
+            Err(e) => Err(e),
+        },
+        request @ (Request::Monitor {
+            mutation: Some(_), ..
+        }
+        | Request::Stop { .. }) => {
+            ensure_daemon(config).await?;
+            ipc::call(config, request).await
+        }
         request @ Request::RegisterSession { .. } => {
             ensure_daemon(config).await?;
             ipc::call(config, request).await

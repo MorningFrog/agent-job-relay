@@ -46,6 +46,8 @@ pub struct StartSpec {
     pub timeout_seconds: Option<u64>,
     pub session: Option<String>,
     pub idempotency_key: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub monitor_rules: Vec<crate::monitor::RuleSpec>,
 }
 impl StartSpec {
     pub fn validate(&mut self) -> Result<()> {
@@ -55,6 +57,10 @@ impl StartSpec {
         );
         self.cwd = crate::platform::normalized_path(self.cwd.canonicalize()?);
         ensure!(self.cwd.is_dir(), "cwd must be a directory");
+        ensure!(self.monitor_rules.len() <= 16, "at most 16 monitor rules");
+        for rule in &self.monitor_rules {
+            rule.validate()?;
+        }
         let strings = match &self.command {
             CommandSpec::Exec { program, args } => {
                 ensure!(!program.is_empty(), "program is required");

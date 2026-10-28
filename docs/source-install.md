@@ -4,18 +4,20 @@ English | [简体中文](source-install.zh-CN.md)
 
 This walkthrough installs the native Linux x86_64/glibc build into a stable user directory and registers the personal **AgentJobRelay Local** marketplace. With a newly created marketplace, select **`agent-job-relay@agent-job-relay-local`** in ChatGPT Desktop. Building alone does not install or enable the plugin.
 
-The repository's `.agents/plugins/marketplace.json` exposes the separate `agent-job-relay@agent-job-relay` online candidate. Its MCP launcher downloads the published, pinned npm runtime and uses a separate profile. Adding the repository as a marketplace is not a step in this local installation. Neither Node.js nor npm is needed for the local plugin.
+The repository's `.agents/plugins/marketplace.json` exposes the separate `agent-job-relay@agent-job-relay` online candidate. Its MCP launcher pins the source-matching npm runtime, which may be unpublished, and uses a separate profile; online consumers should use the published Release catalog. Adding the repository as a marketplace is not a step in this local installation. Source builds require Node.js 24/npm for React + Vite assets; recipients of a built native bundle need neither.
 
 For Windows, use the build and bootstrap commands in the [Windows guide](windows.md). macOS and ARM runtime execution are unsupported.
 
 ## 1. Check prerequisites
 
-Use Bash on Linux x86_64 with glibc, Git, Rust stable/Cargo, a C toolchain for bundled SQLite, and ChatGPT Desktop with a local executor. Check your build tools:
+Use Bash on Linux x86_64 with glibc, Git, Node.js 24/npm, Rust stable/Cargo, a C toolchain for bundled SQLite, and ChatGPT Desktop with a local executor. Check your build tools:
 
 ```bash
 git --version
 rustc --version
 cargo --version
+node --version
+npm --version
 cc --version
 ```
 
@@ -35,6 +37,8 @@ If you already have the checkout, open a terminal in its root instead; do not cl
 ## 3. Build and export a local bundle
 
 ```bash
+npm ci --prefix web --ignore-scripts --no-audit --no-fund
+npm run build --prefix web
 cargo build --release --locked
 ./target/release/agent-job-relay --version
 AJR_BUNDLE="$PWD/.tmp/agent-job-relay-offline-$(date +%Y%m%d-%H%M%S)"
@@ -84,7 +88,7 @@ Expected: the preview retains the original state directory; apply retains histor
 "$AJR_INSTALL_ROOT/relay" doctor --client plugin --check-mcp
 ```
 
-Expected: the installed version matches the build, the owned marketplace entry matches, and `stdio_self_check.status` is `passed` with 20 tools. A stopped daemon before the first submission is normal. This check submits no job and establishes local stdio discovery, not ChatGPT Desktop tool connectivity or chat continuation.
+Expected: the installed version matches the build, the owned marketplace entry matches, and `stdio_self_check.status` is `passed` with 22 tools. A stopped daemon before the first submission is normal. This check submits no job and establishes local stdio discovery, not ChatGPT Desktop tool connectivity or chat continuation.
 
 Keep AJR_INSTALL_ROOT present: cached MCP and terminal launchers use its native executable. Rebuilding `target/release` alone does not update this installation. Task state/history stays separate; [maintenance](installation.md) covers profiles, updates and removal.
 

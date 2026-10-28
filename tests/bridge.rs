@@ -50,6 +50,7 @@ async fn claim(store: &Store, key: String, cwd: PathBuf) -> agent_job_relay::del
             timeout_seconds: None,
             session: Some(key),
             idempotency_key: None,
+            monitor_rules: vec![],
         })
         .await
         .unwrap();

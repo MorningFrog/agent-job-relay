@@ -14,7 +14,7 @@ use std::{
 };
 
 const SNAPSHOT_LIMIT: u64 = 32 * 1024 * 1024;
-const TABLES: [&str; 7] = [
+const TABLES: [&str; 11] = [
     "jobs",
     "runs",
     "events",
@@ -22,6 +22,10 @@ const TABLES: [&str; 7] = [
     "deliveries",
     "delivery_attempts",
     "target_recoveries",
+    "monitor_rules",
+    "monitor_changes",
+    "runtime_observations",
+    "stop_requests",
 ];
 type Record = BTreeMap<String, Value>;
 #[derive(Serialize, Deserialize)]
@@ -58,7 +62,15 @@ pub(crate) fn load(db: &Connection, job: &str) -> Result<Option<Snapshot>> {
             bytes.len() as u64 <= SNAPSHOT_LIMIT,
             "archive metadata exceeds 32 MiB"
         );
-        let snapshot: Snapshot = serde_json::from_slice(&bytes)?;
+        let mut snapshot: Snapshot = serde_json::from_slice(&bytes)?;
+        for table in [
+            "monitor_rules",
+            "monitor_changes",
+            "runtime_observations",
+            "stop_requests",
+        ] {
+            snapshot.tables.entry(table.into()).or_default();
+        }
         ensure!(
             snapshot.version == 1 && snapshot.job.job_id == job && terminal(&snapshot.job.status),
             "invalid archive identity/version/state"
@@ -141,6 +153,10 @@ pub(crate) fn snapshot(db: &Connection, job: &str) -> Result<Snapshot> {
     for (table, filter) in [
         ("jobs", "id=?"),
         ("runs", "job_id=?"),
+        ("monitor_rules", "job_id=?"),
+        ("monitor_changes", "job_id=?"),
+        ("runtime_observations", "job_id=?"),
+        ("stop_requests", "job_id=?"),
         ("events", "job_id=?"),
         ("targets", "job_id=?"),
         (
@@ -336,6 +352,10 @@ fn commit(db: &mut Connection, snapshot: &Snapshot, bytes: &[u8], compressed: &[
             "target_id IN (SELECT id FROM targets WHERE job_id=?)",
         ),
         ("targets", "job_id=?"),
+        ("monitor_rules", "job_id=?"),
+        ("monitor_changes", "job_id=?"),
+        ("runtime_observations", "job_id=?"),
+        ("stop_requests", "job_id=?"),
         ("events", "job_id=?"),
         ("runs", "job_id=?"),
         ("jobs", "id=?"),
@@ -517,4 +537,34 @@ pub async fn logs(
         ensure!(cursor+data.len() as u64<=crate::runner::LOG_CAP,"archive log exceeds capacity");
         Ok(json!({"text":String::from_utf8_lossy(&data),"bytes":data.len(),"next_cursor":cursor+data.len() as u64,"untrusted":true,"encoding":"utf8_lossy","cap_bytes":crate::runner::LOG_CAP}))
     }).await?
+}
+
+pub(crate) fn monitor_rows(db: &Connection, job: &str, table: &str) -> Result<Option<Vec<Value>>> {
+    Ok(load(db, job)?.map(|s| {
+        s.tables[table]
+            .iter()
+            .map(|r| serde_json::to_value(r).expect("record"))
+            .collect()
+    }))
+}
+
+pub(crate) fn latest_events(db: &Connection, job: &str) -> Result<Option<Vec<Event>>> {
+    load(db, job)?
+        .map(|snapshot| {
+            snapshot.tables["events"]
+                .iter()
+                .map(|row| {
+                    Ok(Event {
+                        seq: row["seq"].as_i64().context("event sequence")?,
+                        event_id: text(row, "id")?,
+                        job_id: text(row, "job_id")?,
+                        run_id: text(row, "run_id")?,
+                        kind: text(row, "kind")?,
+                        at: row["at"].as_i64().context("event timestamp")?,
+                        payload: serde_json::from_str(&text(row, "payload")?)?,
+                    })
+                })
+                .collect()
+        })
+        .transpose()
 }

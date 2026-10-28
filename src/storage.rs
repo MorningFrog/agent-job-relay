@@ -13,6 +13,8 @@ struct CachedConnection {
 pub struct Store {
     pub config: Config,
     connections: Arc<Mutex<Vec<CachedConnection>>>,
+    readonly: bool,
+    pub(crate) web_info: Arc<Mutex<serde_json::Value>>,
     pub(crate) job_changes: Arc<Notify>,
     pub(crate) delivery_changes: Arc<Notify>,
     pub(crate) maintenance_stop: Arc<std::sync::atomic::AtomicBool>,
@@ -21,11 +23,18 @@ impl Store {
     pub fn new(config: Config) -> Self {
         Self {
             config,
+            readonly: false,
+            web_info: Arc::new(Mutex::new(serde_json::json!({"enabled":false}))),
             connections: Arc::new(Mutex::new(Vec::new())),
             job_changes: Arc::new(Notify::new()),
             delivery_changes: Arc::new(Notify::new()),
             maintenance_stop: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }
+    }
+    pub fn readonly(config: Config) -> Self {
+        let mut store = Self::new(config);
+        store.readonly = true;
+        store
     }
     pub async fn call<T, F>(&self, f: F) -> Result<T>
     where
@@ -55,6 +64,8 @@ impl Store {
             .clone()
             .acquire_owned()
             .await?;
+        ensure!(!self.readonly || read, "offline inspection is read-only");
+        let readonly = self.readonly;
         let path = self.config.root.join("relay.sqlite3");
         let connections = self.connections.clone();
         let job_changes = self.job_changes.clone();
@@ -76,7 +87,21 @@ impl Store {
             let mut db = match cached {
                 Some(cached) => cached.db,
                 None => {
-                    let db = Connection::open(&path)?;
+                    let db = if readonly {
+                        Connection::open_with_flags(
+                            &path,
+                            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+                        )?
+                    } else {
+                        Connection::open(&path)?
+                    };
+                    if readonly {
+                        ensure!(
+                            db.pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0))?
+                                == 9,
+                            "offline schema is unsupported; use the matching runtime"
+                        );
+                    }
                     db.busy_timeout(std::time::Duration::from_secs(5))?;
                     db.execute_batch("PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL;")?;
                     db
@@ -116,7 +141,7 @@ impl Store {
             .await?;
         // Older daemons allocate rowids independently of the archive high-water
         // marks. Never migrate underneath one or an older in-flight runner.
-        let _migration_lock = if version < 8 {
+        let _migration_lock = if version < 9 {
             Some(
                 self.config
                     .daemon_lock()
@@ -128,10 +153,10 @@ impl Store {
         self.call(|db| {
             let v: i64 = db.pragma_query_value(None, "user_version", |r| r.get(0))?;
             ensure!(
-                v <= 8,
+                v <= 9,
                 "database schema is newer than this executable; downgrade refused"
             );
-            if v > 0 && v < 8 {
+            if v > 0 && v < 9 {
                 let running:bool=db.query_row("SELECT EXISTS(SELECT 1 FROM jobs WHERE status IN ('launching','running'))",[],|r|r.get(0))?;
                 ensure!(!running,"finish active runs with the previous runtime before upgrading the data schema");
             }
@@ -177,6 +202,12 @@ impl Store {
                     PRAGMA user_version=7; COMMIT;")?;
             }
             if v < 8 { db.execute_batch(include_str!("maintenance.sql"))?; }
+            if v < 9 {
+                db.pragma_update(None, "foreign_keys", false)?;
+                db.execute_batch(include_str!("monitor.sql"))?;
+                db.pragma_update(None, "foreign_keys", true)?;
+                ensure!(!db.prepare("PRAGMA foreign_key_check")?.exists([])?, "migration foreign-key check failed");
+            }
             Ok(())
         })
         .await
@@ -203,6 +234,7 @@ impl Store {
             tx.execute("INSERT INTO jobs(rowid,id,run_id,spec,idem,status,created,updated) VALUES(?,?,?,?,?,'queued',?,?)",params![sequence,j,r,raw,spec.idempotency_key,t,t])?;
             tx.execute("INSERT INTO runs(id,job_id,attempt,nonce) VALUES(?,?,1,?)",params![r,j,nonce])?;
             if let Some(key)=&spec.session {crate::session::add_target(&tx,&j,key)?;}
+            for rule in &spec.monitor_rules { crate::monitor::add_rule(&tx, &j, rule)?; }
             let result=read_job(&tx,&j)?; tx.commit()?; Ok(result)
         }).await
     }
@@ -240,16 +272,14 @@ impl Store {
         .await
     }
     pub async fn stop(&self, j: String) -> Result<Job> {
+        self.stop_with(j, 5, "manual".into()).await
+    }
+    pub async fn stop_with(&self, j: String, grace: u32, reason: String) -> Result<Job> {
         validate_id(&j)?;
+        ensure!(grace <= 300, "grace_seconds must be 0..300");
         self.call(move |db| {
             let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-            let job = read_job(&tx, &j)?;
-            if !terminal(&job.status) {
-                tx.execute("UPDATE jobs SET cancel=1 WHERE id=?", [&j])?;
-                if job.status == "queued" {
-                    finish_tx(&tx, &j, "cancelled", None, None, "cancelled before launch")?;
-                }
-            }
+            crate::monitor::stop_tx(&tx, &j, grace, &reason)?;
             let job = read_job(&tx, &j)?;
             tx.commit()?;
             Ok(job)
@@ -363,6 +393,9 @@ pub fn finish_tx(
     }
     ensure!(terminal(state), "invalid terminal state");
     let t = now();
+    // Obsolete alert deliveries retain IDs, TTL and attempts; already accepted
+    // or in-flight requests cannot be recalled from a host.
+    tx.execute("UPDATE deliveries SET status='cancelled',last_error='monitor alert superseded by terminal result' WHERE status IN ('pending','retry_wait') AND event_id IN (SELECT id FROM events WHERE job_id=? AND kind='monitor_alert')",[j])?;
     tx.execute(
         "UPDATE jobs SET status=?,updated=? WHERE id=?",
         params![state, t, j],

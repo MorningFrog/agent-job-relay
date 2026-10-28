@@ -51,6 +51,7 @@ impl Fixture {
                 timeout_seconds: None,
                 session: Some(key.into()),
                 idempotency_key: None,
+                monitor_rules: vec![],
             })
             .await
             .unwrap()
@@ -404,6 +405,7 @@ impl Fixture {
                 timeout_seconds: None,
                 session: Some(id()),
                 idempotency_key: None,
+                monitor_rules: vec![],
             })
             .await
     }
@@ -459,6 +461,7 @@ async fn version_one_database_upgrades_without_losing_job_or_run() {
         timeout_seconds: None,
         session: None,
         idempotency_key: None,
+        monitor_rules: vec![],
     };
     {
         let db = rusqlite::Connection::open(config.root.join("relay.sqlite3")).unwrap();
@@ -488,7 +491,7 @@ async fn version_one_database_upgrades_without_losing_job_or_run() {
             .call(|db| Ok(db.pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0))?))
             .await
             .unwrap(),
-        8
+        9
     );
 }
 
@@ -510,7 +513,7 @@ async fn version_four_upgrade_preserves_pending_delivery_and_attempt_history() {
     f.store
         .call(|db| {
             db.execute_batch(
-                "DROP TABLE target_recoveries; ALTER TABLE deliveries DROP COLUMN failure_kind; PRAGMA user_version=4;",
+                "DROP TABLE monitor_rules; DROP TABLE monitor_changes; DROP TABLE runtime_observations; DROP TABLE stop_requests; DROP TABLE target_recoveries; ALTER TABLE deliveries DROP COLUMN failure_kind; PRAGMA user_version=4;",
             )?;
             Ok(())
         })
@@ -545,6 +548,7 @@ async fn status_has_reserved_capacity_when_all_writer_workers_are_busy() {
             timeout_seconds: None,
             session: None,
             idempotency_key: None,
+            monitor_rules: vec![],
         })
         .await
         .unwrap();

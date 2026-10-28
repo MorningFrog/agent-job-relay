@@ -7,6 +7,8 @@ For reader-facing installation and ChatGPT Desktop acceptance steps, use [manual
 Run from the repository root:
 
 ```bash
+npm ci --prefix web --ignore-scripts --no-audit --no-fund
+npm run build --prefix web
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
 cargo test --all-targets
@@ -28,6 +30,7 @@ The four configuration-integration fixtures run serially within their test binar
 | Suite | Coverage | Boundary |
 |---|---|---|
 | Library | MCP schemas, legacy launch-readiness and interrupted replacement recovery/refusal/locks | Local checks plus deterministic filesystem fault states |
+| Monitoring and Web | Literal chunks after prefix cap, daemon-independent rule/tree stop, silence dedupe/rearm, revision/terminal fences, offline reads, sequence migration, HTTP auth/origin/operation restrictions and installed launcher UI | Linux native behavior plus portable storage checks; real browser interaction verified separately |
 | Runtime | Execution/output/cursors, idempotency, process trees, cancellation/timeout, daemon/runner independence, launch recovery, quotas, IPC/security | Real Linux children and injected failure windows |
 | Data maintenance | Automatic daemon archival/backup, age/count/log budgets, hot/cold history/cursors/idempotency, binary logs, protected recovery/claims, explicit retry, migration refusal, archive rollback/cleanup, WAL backup/restore without replay, sealed/unsealed recovery and ownership/rotation | Linux/portable fixtures; no new Windows native, physical power-loss or ENOSPC qualification |
 | Delivery | Terminal/outbox transactions, migrations, exact routing, fenced attempts, retries/TTL/dead letters, read-only idle claims, pooled transaction/profile isolation and per-chat claim exclusion | Real SQLite and persistence simulations |
@@ -95,4 +98,8 @@ Windows installed-package reproduction uses `scripts/check_windows_packages.mjs`
 
 ## Unreleased data-maintenance verification
 
-Run `cargo test --test data` for the 11 data-maintenance scenarios and `cargo test --test delivery --test runtime` for reserved-read and control-response regressions. Tests reconstruct archive rollback/post-commit cleanup and backup sealed/unsealed states, verify exact IDs/expiry/attempts and checksum/foreign-file refusal, and restore active intents as orphaned without execution. The daemon case proves maintenance runs without a manual call. These are controlled state/fault tests; Windows native/package, physical disk/power faults and prolonged load need separate qualification. See [data maintenance](data-maintenance.md).
+Run `cargo test --test data` for data-maintenance scenarios and `cargo test --test delivery --test runtime` for reserved-read and control-response regressions. Tests reconstruct archive rollback/post-commit cleanup and backup sealed/unsealed states, verify exact IDs/expiry/attempts and checksum/foreign-file refusal, and restore active intents as orphaned without execution. The daemon case proves maintenance runs without a manual call. These are controlled state/fault tests; Windows native/package, physical disk/power faults and prolonged load need separate qualification. See [data maintenance](data-maintenance.md).
+
+## Local browser acceptance
+
+Use only an isolated profile under .tmp/, run ui --no-open, then open its returned access URL. Expected: real task rows update, selecting a task shows bounded stdout/stderr, editing a rule first shows pending then applied/triggered, and the event view retains evidence. Stopping updates the task to its observed terminal outcome. Verify the same history through inspect --json, then stop only this test profile's daemon. This is browser/runtime acceptance, not ChatGPT Desktop or another host's same-chat continuation. React/Vite build output and browser screenshots stay ignored.

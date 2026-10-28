@@ -45,6 +45,7 @@ async fn claim(s: &Store, key: String, cwd: PathBuf) -> agent_job_relay::deliver
             timeout_seconds: None,
             session: Some(key),
             idempotency_key: None,
+            monitor_rules: vec![],
         })
         .await
         .unwrap();
@@ -82,6 +83,7 @@ async fn dispatcher_runs_four_chats_concurrently_without_overlapping_one_chat() 
                 timeout_seconds: None,
                 session: Some(session.key),
                 idempotency_key: None,
+                monitor_rules: vec![],
             })
             .await
             .unwrap();

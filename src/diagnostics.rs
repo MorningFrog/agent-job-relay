@@ -30,6 +30,7 @@ pub async fn report(config: &Config, inspect_context: bool) -> Result<Value> {
     report["wake_verification"] =
         json!("context availability only; no host probe or message was sent");
     report["state_dir"] = json!(config.root);
+    report["management"] = json!({"program":std::env::current_exe()?,"args":["--state-dir",config.root,"ui"],"inspect_args":["--state-dir",config.root,"inspect"]});
     if let Err(error) = crate::client::verify_runner_launch(&report) {
         report["runner_readiness"] =
             json!({"status":"restart_required","reason":error.to_string()});

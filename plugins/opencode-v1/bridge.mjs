@@ -59,7 +59,7 @@ export async function createBridge({ client, executable, stateDir, directory }) 
     const signal = AbortSignal.timeout(2400);
     await exists(p.session_id, signal);
     if (message.method === "relay/probe") return result;
-    if (message.method !== "relay/deliver" || ![p.delivery_id, p.event_id, p.job_id].every((s) => typeof s === "string" && /^[0-9a-f-]{36}$/.test(s)) || !["completed", "failed", "cancelled", "timeout", "orphaned"].includes(p.kind)) throw new Error("Invalid delivery metadata");
+    if (message.method !== "relay/deliver" || ![p.delivery_id, p.event_id, p.job_id].every((s) => typeof s === "string" && /^[0-9a-f-]{36}$/.test(s)) || !["completed", "failed", "cancelled", "timeout", "orphaned", "monitor_alert"].includes(p.kind)) throw new Error("Invalid delivery metadata");
     const signature = JSON.stringify([p.session_id, p.event_id, p.job_id, p.kind]);
     const previous = delivered.get(p.delivery_id);
     if (previous && previous.signature !== signature) throw new Error("Conflicting duplicate delivery");

@@ -292,3 +292,23 @@ pub async fn launch_daemon(
         spawn_background(command)
     }
 }
+
+/// Open a trusted loopback access URL without a command shell.
+pub fn open_browser(url: &str) -> Result<()> {
+    #[cfg(target_os = "linux")]
+    let mut command = std::process::Command::new("xdg-open");
+    #[cfg(windows)]
+    let mut command = std::process::Command::new("explorer.exe");
+    #[cfg(not(any(target_os = "linux", windows)))]
+    anyhow::bail!("browser opening is unsupported on this platform");
+    #[cfg(any(target_os = "linux", windows))]
+    {
+        command
+            .arg(url)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()?;
+        Ok(())
+    }
+}

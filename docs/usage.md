@@ -9,6 +9,10 @@ AJR_RELAY="$AJR_INSTALL_ROOT/relay"
 
 Windows PowerShell commands and automatic-startup/fallback guidance are in the [Windows guide](windows.md). `daemon start` explicitly starts/reuses the selected runtime without a job/session; `daemon stop` leaves independent runners and history intact.
 
+## Inspect and monitor without an Agent (unreleased 0.1.10)
+
+Use `inspect [job-id] [--watch] [--json]`, `monitor add/list/update/enable/disable/remove`, `stop <job-id> --grace 30s --wait 10s` and `ui [job-id] [--no-open]` through the same installed launcher. Web UI is embedded and enabled by default with the daemon. Runner rules continue after browser/chat/daemon loss; viewers never own execution. Read the [runtime monitoring guide](runtime-monitoring.md) for exact commands, rule application/rearming, access credentials, offline snapshots and expected results.
+
 ## Run a task from chat
 
 In a local ChatGPT Desktop chat with the plugin selected, describe the real background task. The workflow resolves the launcher relative to its skill, obtains a fresh current-chat binding, submits through MCP when available and ends the turn. Users need no executable/state/session paths in ordinary prompts. A CLI fallback must be reported explicitly.

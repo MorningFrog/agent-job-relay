@@ -13,7 +13,8 @@ import sys
 import tarfile
 import tempfile
 import threading
-from urllib.parse import unquote
+from urllib.parse import unquote, parse_qs, urlsplit
+from urllib.request import Request, urlopen
 
 sys.dont_write_bytecode = True
 from check_codex_plugin import run as check_codex
@@ -107,6 +108,23 @@ def main():
         status = json.loads(command(["node", moved / "cli.mjs", "opencode", "status", job_id], "relocated-status"))
         if status["status"] != "completed" or status["exit_code"] != 0:
             raise RuntimeError("relocation did not retain original job history")
+        bundled_ui = False
+        if tuple(map(int, meta["version"].split("."))) >= (0, 1, 10):
+            ui = json.loads(command(["node", moved / "cli.mjs", "opencode", "ui", "--no-open"], "relocated-ui"))
+            access = urlsplit(ui["url"])
+            if access.hostname != "127.0.0.1" or access.scheme != "http":
+                raise RuntimeError("UI did not select a loopback endpoint")
+            base = f"http://{access.netloc}"
+            with urlopen(base + "/", timeout=5) as response:
+                if b"/assets/index-" not in response.read(65536):
+                    raise RuntimeError("packaged UI assets are missing")
+            token = parse_qs(access.fragment)["token"][0]
+            request = Request(base + "/api/request", data=json.dumps({"op": "inspect", "job_id": job_id}).encode(), headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"})
+            with urlopen(request, timeout=5) as response:
+                inspected = json.load(response)
+            if inspected["job"]["job_id"] != job_id or inspected["job"]["status"] != "completed":
+                raise RuntimeError("packaged UI selected different runtime history")
+            bundled_ui = True
         command(["node", moved / "cli.mjs", "opencode", "daemon", "stop"], "stop")
         corrupt = moved / "native/linux-x64/agent-job-relay"
         with corrupt.open("ab") as stream:
@@ -118,7 +136,7 @@ def main():
             command(["python3", REPO / "scripts/check_opencode_plugin.py", "--binary", args.binary.resolve(), "--opencode", args.opencode.resolve(), "--plugin-spec", f"{meta['opencode']['name']}@{meta['version']}", "--registry", url], "opencode")
         if args.codex:
             asyncio.run(check_codex(args.binary.resolve(), args.codex, release / meta["marketplace"], url))
-        report = {"result": "passed", "version": meta["version"], "npm_tarball_install": True, "native_integrity_refusal": True, "relocation_preserves_history": True,
+        report = {"result": "passed", "version": meta["version"], "npm_tarball_install": True, "bundled_ui": bundled_ui, "native_integrity_refusal": True, "relocation_preserves_history": True,
                   "opencode": "actual loader and simulated model" if args.opencode else "not requested", "codex": "actual marketplace loader with loopback registry" if args.codex else "not requested", "publication": "none"}
         (root / "report.json").write_text(json.dumps(report, indent=2) + "\n")
         print(json.dumps({**report, "report": str(root / "report.json")}))

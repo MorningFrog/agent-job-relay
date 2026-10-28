@@ -54,8 +54,41 @@ pub(super) async fn run() -> Result<()> {
             .unwrap_or_else(agent_job_relay::deployment::default_root)?;
         state = agent_job_relay::deployment::installation_state(&root)?;
     }
+    if let Commands::Ui {
+        install_root: Some(root),
+        ..
+    } = &cli.command
+    {
+        state = Some(
+            agent_job_relay::deployment::installation_state(root)?
+                .context("no owned installation at --install-root")?,
+        );
+    }
     let config = Config::new(state)?;
     let req = match cli.command {
+        Commands::Ui {
+            job_id, no_open, ..
+        } => {
+            if let Some(id) = &job_id {
+                agent_job_relay::core::validate_id(id)?;
+            }
+            agent_job_relay::client::start_daemon(&config).await?;
+            let info = ipc::call(&config, Request::UiInfo).await?;
+            let mut url = info["access_url"]
+                .as_str()
+                .context(
+                    "Web UI unavailable; inspect doctor for its startup error or AJR_WEB_UI=off",
+                )?
+                .to_owned();
+            if let Some(id) = job_id {
+                url.push_str(&format!("&job={id}"));
+            }
+            println!("{}", serde_json::json!({"url":url,"profile":config.root}));
+            if !no_open && let Err(error) = agent_job_relay::platform::open_browser(&url) {
+                eprintln!("Open the URL above in your browser: {error}");
+            }
+            return Ok(());
+        }
         Commands::Data { command } => {
             use agent_job_relay::{maintenance, storage::Store};
             let value = if let DataCommand::Restore { from, to } = command {
@@ -481,6 +514,7 @@ pub(super) async fn run() -> Result<()> {
             session,
             wake,
             idempotency_key,
+            monitor,
             command,
         } => {
             let command = if let Some(script) = shell {
@@ -507,6 +541,21 @@ pub(super) async fn run() -> Result<()> {
                 timeout_seconds: timeout,
                 session,
                 idempotency_key,
+                monitor_rules: if monitor.no_output.is_some()
+                    || monitor.elapsed.is_some()
+                    || monitor.contains.is_some()
+                {
+                    vec![rule_spec(monitor)?]
+                } else {
+                    anyhow::ensure!(
+                        monitor.action == "alert"
+                            && !monitor.notify_agent
+                            && monitor.grace == 5
+                            && monitor.stream == "both",
+                        "monitor options require --no-output, --elapsed or --contains"
+                    );
+                    vec![]
+                },
             };
             println!(
                 "{}",
@@ -548,11 +597,141 @@ pub(super) async fn run() -> Result<()> {
             after,
             seconds,
         },
-        Commands::Stop { job_id } => Request::Stop { job_id },
+        Commands::Stop {
+            job_id,
+            grace,
+            wait,
+        } => Request::Stop {
+            job_id,
+            grace_seconds: grace,
+            wait_seconds: wait,
+        },
+        Commands::Monitor { command } => {
+            use agent_job_relay::monitor::Mutation;
+            let (job_id, mutation) = match command {
+                MonitorCommand::List { job_id } => (job_id, None),
+                MonitorCommand::Add { job_id, rule } => (
+                    job_id,
+                    Some(Mutation::Add {
+                        rule: rule_spec(rule)?,
+                    }),
+                ),
+                MonitorCommand::Update {
+                    job_id,
+                    rule_id,
+                    revision,
+                    rule,
+                } => (
+                    job_id,
+                    Some(Mutation::Update {
+                        rule_id,
+                        expected_revision: revision,
+                        rule: rule_spec(rule)?,
+                    }),
+                ),
+                MonitorCommand::Enable {
+                    job_id,
+                    rule_id,
+                    revision,
+                } => (
+                    job_id,
+                    Some(Mutation::Enable {
+                        rule_id,
+                        expected_revision: revision,
+                        enabled: true,
+                    }),
+                ),
+                MonitorCommand::Disable {
+                    job_id,
+                    rule_id,
+                    revision,
+                } => (
+                    job_id,
+                    Some(Mutation::Enable {
+                        rule_id,
+                        expected_revision: revision,
+                        enabled: false,
+                    }),
+                ),
+                MonitorCommand::Remove {
+                    job_id,
+                    rule_id,
+                    revision,
+                } => (
+                    job_id,
+                    Some(Mutation::Remove {
+                        rule_id,
+                        expected_revision: revision,
+                    }),
+                ),
+            };
+            Request::Monitor { job_id, mutation }
+        }
+        Commands::Inspect {
+            job_id,
+            watch,
+            json,
+            before,
+            limit,
+        } => {
+            loop {
+                let value = agent_job_relay::monitor::inspect_client(
+                    &config,
+                    job_id.clone(),
+                    before,
+                    limit,
+                )
+                .await?;
+                if json {
+                    println!("{}", serde_json::to_string(&value)?);
+                } else {
+                    use std::io::IsTerminal;
+                    if watch && std::io::stdout().is_terminal() {
+                        print!("\x1b[2J\x1b[H");
+                    }
+                    println!("{}", agent_job_relay::monitor::human(&value));
+                }
+                if !watch {
+                    break;
+                }
+                tokio::select! {_=tokio::signal::ctrl_c()=>break,_=tokio::time::sleep(std::time::Duration::from_secs(1))=>{}}
+            }
+            return Ok(());
+        }
     };
     println!(
         "{}",
         serde_json::to_string_pretty(&agent_job_relay::client::call(&config, req).await?)?
     );
     Ok(())
+}
+
+fn rule_spec(args: RuleArgs) -> Result<agent_job_relay::monitor::RuleSpec> {
+    use agent_job_relay::monitor::*;
+    let condition = match (args.no_output, args.elapsed, args.contains) {
+        (Some(seconds), None, None) => Condition::NoOutput { seconds },
+        (None, Some(seconds), None) => Condition::Elapsed { seconds },
+        (None, None, Some(text)) => Condition::Contains {
+            text,
+            stream: match args.stream.as_str() {
+                "stdout" => Stream::Stdout,
+                "stderr" => Stream::Stderr,
+                "both" => Stream::Both,
+                _ => anyhow::bail!("stream must be stdout, stderr or both"),
+            },
+        },
+        _ => anyhow::bail!("provide exactly one of --no-output, --elapsed or --contains"),
+    };
+    let rule = RuleSpec {
+        condition,
+        action: match args.action.as_str() {
+            "alert" => Action::Alert,
+            "stop" => Action::Stop,
+            _ => anyhow::bail!("action must be alert or stop"),
+        },
+        notify_agent: args.notify_agent,
+        grace_seconds: args.grace,
+    };
+    rule.validate()?;
+    Ok(rule)
 }

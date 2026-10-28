@@ -87,7 +87,11 @@ Agent 会绑定当前聊天、提交任务、结束回合，并在收到通知�
 
 请按[本地源码安装逐步教程](docs/source-install.zh-CN.md)操作（[English](docs/source-install.md)）。教程涵盖环境准备、获取源码、编译、导出离线包、首次安装或保留历史更新、ChatGPT Desktop 插件选择及真实 MCP 检查，每一步均有预期结果。
 
-安装结果是 **AgentJobRelay Local** 中的原生本地插件，通常引用为 `agent-job-relay@agent-job-relay-local`，无需 npm 发布或 Node.js。仅编译成功还未完成安装，必须继续完成离线包安装或更新及 ChatGPT Desktop 步骤。Windows 源码命令见 [Windows 指南](docs/windows.md#build-when-no-bundle-is-available)，开发门禁见[测试指南](docs/testing.md)。
+安装结果是 **AgentJobRelay Local** 中的原生本地插件，通常引用为 `agent-job-relay@agent-job-relay-local`，源码构建还需要 Node.js 24/npm 生成随包界面；接收已构建原生包的用户无需前端工具或 npm 发布。仅编译成功还未完成安装，必须继续完成离线包安装或更新及 ChatGPT Desktop 步骤。Windows 源码命令见 [Windows 指南](docs/windows.md#build-when-no-bundle-is-available)，开发门禁见[测试指南](docs/testing.md)。
+
+## 独立检查与监控（未发布源码）
+
+0.1.10 源码新增 `inspect [job-id] [--watch]`、持久化 `monitor` 规则、可配置的 `stop --grace/--wait` 和 `ui`。React + Vite 任务面板随原生包附带，daemon 启动后默认启用；`ui` 打开选定状态配置。规则执行不依赖 Agent 或查看器在线。见[命令、预期结果与访问说明](docs/runtime-monitoring.md)。已发布的 0.1.9 尚不包含这些能力。
 
 ## 实现与验证情况
 
@@ -101,11 +105,11 @@ Agent 会绑定当前聊天、提交任务、结束回合，并在收到通知�
 | npm 运行时与自建市场 | 已发布 | Linux/Windows 安装包与加载器检查及公开 registry 全新安装通过；官方目录批准属于独立流程。 |
 | CI 与发布 | 手动准备、发布、检查及 Release All | 原生/安装包 CI、两个 npm 包的 OIDC 发布和 GitHub Release 完成均通过；公开包本地安装验证通过，修复后的独立 Actions 检查待维护者运行。 |
 | macOS 运行时 | 未实现 | 仅有可移植部分编译检查，尚不支持原生执行。 |
-| 输出监控/中断 | 已暂缓 | 等待明确的实现请求；当前可读取日志和手动停止任务。 |
+| 检查、监控与 Web UI | 已在未发布的 0.1.10 源码实现 | Linux 行为、安装入口及本地浏览器操作已验证；Windows 和运行中告警的宿主验证仍待完成。 |
 
 当前版本新增统一的 `plugin install` 和 `connect [--recover [--apply]]` 入口、聊天与工作目录绑定对象，以及默认精简的 MCP 返回（`full=true` 查看完整记录），见[日常使用](docs/usage.md)和[统一维护](docs/installation.md#unified-install-and-update)。同时减少空闲时的数据库访问，并允许最多四个聊天并发接收通知。当前结果与版本限制统一维护在[实施状态](docs/IMPLEMENTATION_STATUS.md)及[真实验证记录](docs/live-e2e.md)。官方目录投稿需要单独批准，独立系统安装包及软件仓库计划已取消。**欢迎社区测试和 PR，尤其是 Claude Code 及容器化版本验证。**
 
-未发布的当前源码新增自动数据维护：按 30 天、1,000 个热任务及 256 MiB 热日志预算归档，每天轮换备份，并继续支持归档历史查询。同时为控制请求保留数据库读取通道，将后台对账移出 IPC 接收循环。这些改动使用 schema v8；升级前需完成旧任务并显式停止旧 daemon，已发布的安装包尚未包含这些改动。见[自动维护与恢复](docs/data-maintenance.md)。
+未发布的当前源码新增自动数据维护：按 30 天、1,000 个热任务及 256 MiB 热日志预算归档，每天轮换备份，并继续支持归档历史查询。同时为控制请求保留数据库读取通道，将后台对账移出 IPC 接收循环。这些改动使用 schema v9；升级前需完成旧任务并显式停止旧 daemon，已发布的安装包尚未包含这些改动。见[自动维护与恢复](docs/data-maintenance.md)。
 
 ## 文档与支持范围
 

@@ -73,6 +73,7 @@ impl Rig {
             timeout_seconds: None,
             session: None,
             idempotency_key: None,
+            monitor_rules: vec![],
         }
     }
     async fn start(&self, script: &str) -> String {
@@ -294,11 +295,21 @@ async fn cancellation_and_timeout_kill_descendants_only() {
     })
     .await
     .unwrap();
-    r.call(Request::Stop { job_id: j.clone() }).await;
+    r.call(Request::Stop {
+        job_id: j.clone(),
+        grace_seconds: 5,
+        wait_seconds: 0,
+    })
+    .await;
     r.state(&j, &["cancelled"]).await;
     assert!(agent_job_relay::platform::identity(pid).is_none());
     assert_eq!(
-        r.call(Request::Stop { job_id: j }).await["status"],
+        r.call(Request::Stop {
+            job_id: j,
+            grace_seconds: 5,
+            wait_seconds: 0
+        })
+        .await["status"],
         "cancelled"
     );
     let mut s = r.spec("sleep 20");

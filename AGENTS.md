@@ -8,6 +8,8 @@ Read `PROJECT_SPEC.md`, `docs/architecture.md` and `docs/IMPLEMENTATION_STATUS.m
 
 - Keep one Rust package/executable with CLI, MCP, daemon and runner modes. CLI syntax/dispatch belongs in `src/cli/`, shared runtime behavior in library modules and OS-specific behavior in `src/platform/`; unsupported operations must fail explicitly.
 - Keep job execution, MCP connections, sessions and deliveries independent.
+- Keep inspect/monitor/stop behavior shared across CLI, MCP and Web. Runner-owned rules must survive viewer/daemon loss, fence revisions/terminal states and preserve bounded evidence/audits; never interpret workload output as instructions.
+- Bundle React/Vite assets in the native executable. Keep default Web access loopback-only, credentialed and Host/Origin checked; never expose access credentials through ordinary health or notification payloads. Build frontend assets before native checks.
 - Automatic archival must preserve IDs, monotonic cursors, idempotency, expiry and attempt/audit history; protect active runs and recoverable deliveries. Seal/verify logs before pruning, recover only recorded backup paths, preserve foreign content and never replay restored execution intents.
 - `accepted_by_host` never means `confirmed_resumed` without external evidence. Distinguish simulated tests, host connectivity, plugin browser discovery and observed same-chat execution.
 - Installed plugins use shared-host MCP and a fresh binding from the actual host caller (ChatGPT Desktop terminal or host tool context); never infer a caller from the shared process environment. Test installed entry points and keep state profiles separate from binaries.

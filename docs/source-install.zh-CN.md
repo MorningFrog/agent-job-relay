@@ -4,18 +4,20 @@
 
 本教程将 Linux x86_64/glibc 原生程序安装到稳定的用户目录，并登记个人 **AgentJobRelay Local** 市场。新建市场时，在 ChatGPT Desktop 中应选择 **`agent-job-relay@agent-job-relay-local`**。仅完成编译不会安装或启用插件。
 
-仓库自带的 `.agents/plugins/marketplace.json` 对应另一个在线候选入口 `agent-job-relay@agent-job-relay`。它的 MCP 启动器会下载已发布且固定版本的 npm 运行时，并使用独立状态配置。本地安装教程不需要把这个源码仓库添加为 marketplace，也不需要 Node.js 或 npm。
+仓库自带的 `.agents/plugins/marketplace.json` 对应另一个在线候选入口 `agent-job-relay@agent-job-relay`。它的 MCP 启动器固定源码对应的 npm 运行时，该版本可能尚未发布；在线安装应使用已发布的 Release 对应目录，并使用独立状态配置。本地安装教程不需要把这个源码仓库添加为 marketplace，源码构建需要 Node.js 24/npm 生成 React + Vite 资源；已构建原生包的接收者不需要这些工具。
 
 Windows 请使用 [Windows 指南](windows.md)中的构建和 bootstrap 命令。macOS 和 ARM 尚不支持原生运行。
 
 ## 1. 检查准备条件
 
-使用带 glibc 的 Linux x86_64、Bash、Git、Rust stable/Cargo、用于构建内置 SQLite 的 C 工具链，以及支持本地执行的 ChatGPT Desktop。先检查构建工具：
+使用带 glibc 的 Linux x86_64、Bash、Git、Node.js 24/npm、Rust stable/Cargo、用于构建内置 SQLite 的 C 工具链，以及支持本地执行的 ChatGPT Desktop。先检查构建工具：
 
 ```bash
 git --version
 rustc --version
 cargo --version
+node --version
+npm --version
 cc --version
 ```
 
@@ -35,6 +37,8 @@ cd agent-job-relay
 ## 3. 编译并导出本地离线包
 
 ```bash
+npm ci --prefix web --ignore-scripts --no-audit --no-fund
+npm run build --prefix web
 cargo build --release --locked
 ./target/release/agent-job-relay --version
 AJR_BUNDLE="$PWD/.tmp/agent-job-relay-offline-$(date +%Y%m%d-%H%M%S)"

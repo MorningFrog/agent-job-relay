@@ -631,3 +631,68 @@ fn cli_repairs_a_missing_installation_after_interrupted_update_without_losing_hi
         "passed"
     );
 }
+
+#[test]
+fn installed_launcher_exposes_bundled_ui_and_agent_free_monitoring() {
+    use std::io::{Read, Write};
+    let r = Rig::new();
+    r.pack();
+    let installed = r.bootstrap(true);
+    assert_eq!(
+        installed["management"]["program"],
+        r.install.join("relay").to_string_lossy().as_ref()
+    );
+    let info = ok(r.installed(&["ui", "--no-open"]));
+    assert_eq!(info["profile"], r.state.to_string_lossy().as_ref());
+    let host = info["url"]
+        .as_str()
+        .unwrap()
+        .strip_prefix("http://")
+        .unwrap()
+        .split('/')
+        .next()
+        .unwrap();
+    let mut socket = std::net::TcpStream::connect(host).unwrap();
+    socket
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    write!(
+        socket,
+        "GET / HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n"
+    )
+    .unwrap();
+    let mut page = String::new();
+    socket.read_to_string(&mut page).unwrap();
+    assert!(page.starts_with("HTTP/1.1 200"));
+    assert!(page.contains("/assets/index-"));
+    let job = ok(r.installed(&[
+        "start",
+        "--elapsed",
+        "1s",
+        "--action",
+        "stop",
+        "--grace",
+        "0s",
+        "--shell",
+        "sleep 10",
+    ]));
+    let id = job["job"]["job_id"].as_str().unwrap();
+    let until = Instant::now() + Duration::from_secs(8);
+    loop {
+        let state = ok(r.installed(&["inspect", id, "--json"]));
+        if state["job"]["status"] == "cancelled" {
+            assert!(
+                state["stop"]["reason"]
+                    .as_str()
+                    .unwrap()
+                    .contains("monitor rule")
+            );
+            break;
+        }
+        assert!(Instant::now() < until);
+        std::thread::sleep(Duration::from_millis(40));
+    }
+    r.stop();
+    let snapshot = ok(r.installed(&["inspect", id, "--json"]));
+    assert_eq!(snapshot["runtime"], "offline_snapshot");
+}

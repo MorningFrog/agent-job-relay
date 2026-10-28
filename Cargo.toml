@@ -1,15 +1,18 @@
 [package]
 name = "agent-job-relay"
-version = "0.1.9"
+version = "0.1.10"
 edition = "2024"
 rust-version = "1.89"
 description = "Session-aware durable background jobs for local AI agents"
 license = "MIT"
 
 [dependencies]
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio", "query"] }
+tokio-stream = "0.1"
 anyhow = "1"
 clap = { version = "4.6", features = ["derive", "env"] }
 flate2 = "1"
+memchr = "2"
 rmcp = { version = "3.7", features = ["transport-io"] }
 rusqlite = { version = "0.41", default-features = false, features = ["bundled", "libsqlite3-sys", "backup"] }
 serde = { version = "1", features = ["derive"] }

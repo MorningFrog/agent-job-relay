@@ -152,6 +152,8 @@ pub(super) enum Commands {
         wake: bool,
         #[arg(long)]
         idempotency_key: Option<String>,
+        #[command(flatten)]
+        monitor: RuleArgs,
         #[arg(last = true, required_unless_present = "shell")]
         command: Vec<String>,
     },
@@ -196,7 +198,38 @@ pub(super) enum Commands {
         seconds: u32,
     },
     /// Request idempotent process-group cancellation
-    Stop { job_id: String },
+    Stop {
+        job_id: String,
+        #[arg(long, default_value_t = 5, value_parser=parse_grace)]
+        grace: u32,
+        #[arg(long, default_value_t = 0, value_parser=parse_grace)]
+        wait: u32,
+    },
+    /// Inspect jobs, output tails and monitor evidence; watching never owns a job
+    Inspect {
+        job_id: Option<String>,
+        #[arg(long)]
+        watch: bool,
+        #[arg(long)]
+        json: bool,
+        #[arg(long)]
+        before: Option<i64>,
+        #[arg(long, default_value_t = 20)]
+        limit: u32,
+    },
+    /// Open the bundled local Web UI for this exact profile
+    Ui {
+        job_id: Option<String>,
+        #[arg(long)]
+        no_open: bool,
+        #[arg(long)]
+        install_root: Option<PathBuf>,
+    },
+    /// Configure durable runner-owned monitoring
+    Monitor {
+        #[command(subcommand)]
+        command: MonitorCommand,
+    },
     /// Diagnose connectivity and persistent store health
     Doctor {
         #[arg(long)]
@@ -456,4 +489,78 @@ pub(super) enum TargetCommand {
         target_id: String,
         session_key: String,
     },
+}
+
+#[derive(Subcommand)]
+pub(super) enum MonitorCommand {
+    List {
+        job_id: String,
+    },
+    Add {
+        job_id: String,
+        #[command(flatten)]
+        rule: RuleArgs,
+    },
+    Update {
+        job_id: String,
+        rule_id: String,
+        #[arg(long)]
+        revision: i64,
+        #[command(flatten)]
+        rule: RuleArgs,
+    },
+    Enable {
+        job_id: String,
+        rule_id: String,
+        #[arg(long)]
+        revision: i64,
+    },
+    Disable {
+        job_id: String,
+        rule_id: String,
+        #[arg(long)]
+        revision: i64,
+    },
+    Remove {
+        job_id: String,
+        rule_id: String,
+        #[arg(long)]
+        revision: i64,
+    },
+}
+#[derive(clap::Args)]
+#[group(id = "rule_options", multiple = true)]
+pub(super) struct RuleArgs {
+    #[arg(long, group = "condition", value_parser=parse_seconds)]
+    pub no_output: Option<u64>,
+    #[arg(long, group = "condition", value_parser=parse_seconds)]
+    pub elapsed: Option<u64>,
+    #[arg(long, group = "condition")]
+    pub contains: Option<String>,
+    #[arg(long, default_value = "both")]
+    pub stream: String,
+    #[arg(long, default_value = "alert")]
+    pub action: String,
+    #[arg(long)]
+    pub notify_agent: bool,
+    #[arg(long, default_value_t = 5, value_parser=parse_grace)]
+    pub grace: u32,
+}
+
+fn parse_seconds(value: &str) -> Result<u64, String> {
+    let (number, multiplier) = match value.as_bytes().last() {
+        Some(b's') => (&value[..value.len() - 1], 1),
+        Some(b'm') => (&value[..value.len() - 1], 60),
+        Some(b'h') => (&value[..value.len() - 1], 3600),
+        Some(b'd') => (&value[..value.len() - 1], 86400),
+        _ => (value, 1),
+    };
+    number
+        .parse::<u64>()
+        .ok()
+        .and_then(|v| v.checked_mul(multiplier))
+        .ok_or_else(|| "use seconds or a duration such as 30s, 10m or 2h".into())
+}
+fn parse_grace(value: &str) -> Result<u32, String> {
+    u32::try_from(parse_seconds(value)?).map_err(|_| "duration is too large".into())
 }

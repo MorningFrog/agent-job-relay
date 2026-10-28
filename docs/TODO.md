@@ -26,9 +26,12 @@ Published 0.1.9 includes connection reuse, local-write wake signals with idle ba
 - [ ] **P1:** independently verify the declared Rust 1.89 minimum or update it from build evidence.
 - [ ] **P2:** negotiated standard MCP Tasks, richer progress and optional public Codex writer integration for explicitly owned sessions. Tasks alone do not wake chats.
 
-## Deferred by user request
+## Runtime inspection and monitoring
 
-**Task output monitoring and interruption (2026-10-26)** remains deferred until explicitly requested for implementation. Existing log reads/`logs --follow` and manual `job_stop` do not implement it. A future design must define monitored conditions, Agent/runtime responsibility, interruption decisions, bounded output handling, duplicate-trigger/false-positive protection and acceptance scenarios.
+- [x] Implement Agent-independent inspect/watch, revision-fenced persistent output/silence/elapsed rules, bounded recent tails, automatic tree cancellation, optional same-chat alerts and preserved archive/backup/audit history.
+- [x] Bundle a React + Vite task manager in the native executable, default-on authenticated loopback access, exact-profile management commands and CLI/MCP/plugin entry points. See [runtime monitoring](runtime-monitoring.md).
+- [ ] **P1:** natively qualify the new monitor/Web UI/schema v9 behavior on Windows and test real running-alert continuation in ChatGPT Desktop/OpenCode. Existing completion acceptance does not qualify this path.
+- [ ] **P2:** evaluate structured progress, additional bounded matching conditions and native desktop notification channels from concrete usage. Rules currently fire once per revision; runtime alert records remain usable without any host or viewer.
 
 ## Cancelled work
 

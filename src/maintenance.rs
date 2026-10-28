@@ -743,8 +743,9 @@ pub async fn restore(from: PathBuf, to: PathBuf) -> Result<Value> {
             ensure!(actual.sha256==record.sha256&&actual.bytes==record.bytes,"backup changed while restoring");
         }
         let mut db=Connection::open(stage.join("relay.sqlite3"))?;
-        let schema:i64=db.pragma_query_value(None,"user_version",|r|r.get(0))?;ensure!(schema==8,"backup schema is not supported by this executable");
+        let schema:i64=db.pragma_query_value(None,"user_version",|r|r.get(0))?;ensure!(matches!(schema,8|9),"backup schema is not supported by this executable");
         let integrity:String=db.query_row("PRAGMA quick_check",[],|r|r.get(0))?;ensure!(integrity=="ok","backup database integrity failed");
+        if schema==8 {db.pragma_update(None,"foreign_keys",false)?;db.execute_batch(include_str!("monitor.sql"))?;}
         db.execute_batch("PRAGMA foreign_keys=ON;")?;
         let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         let mut q=tx.prepare("SELECT id FROM jobs WHERE status IN ('queued','launching','running')")?;

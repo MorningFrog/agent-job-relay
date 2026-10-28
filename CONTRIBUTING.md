@@ -19,6 +19,8 @@ Read [AGENTS.md](AGENTS.md), [PROJECT_SPEC.md](PROJECT_SPEC.md), [architecture](
 Before submitting a code change, run:
 
 ```bash
+npm ci --prefix web --ignore-scripts --no-audit --no-fund
+npm run build --prefix web
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
 cargo test --all-targets

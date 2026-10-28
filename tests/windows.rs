@@ -179,6 +179,7 @@ impl Rig {
             timeout_seconds: None,
             session: None,
             idempotency_key: None,
+            monitor_rules: vec![],
         }
     }
     async fn start(&self, spec: StartSpec) -> Value {
@@ -343,6 +344,8 @@ async fn cancellation_and_timeout_terminate_descendants_only() {
         &r.config,
         Request::Stop {
             job_id: job["job_id"].as_str().unwrap().into(),
+            grace_seconds: 5,
+            wait_seconds: 0,
         },
     )
     .await
@@ -786,6 +789,7 @@ async fn named_pipe_desktop_routing_recovery_and_renewal_are_fenced() {
         timeout_seconds: None,
         session: Some(old.key.clone()),
         idempotency_key: None,
+        monitor_rules: vec![],
     };
     let job = store.start(spec).await.unwrap();
     store
@@ -908,6 +912,7 @@ async fn offline_install_update_cache_and_removal_keep_state() {
             timeout_seconds: None,
             session: None,
             idempotency_key: None,
+            monitor_rules: vec![],
         })
         .await
         .unwrap();

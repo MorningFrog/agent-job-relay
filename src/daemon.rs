@@ -80,6 +80,18 @@ pub async fn serve(config: Config) -> Result<()> {
         let mut interrupt = crate::platform::interrupt_signal()?;
         let delivery_task = tokio::spawn(crate::delivery::worker(store.clone()));
         let (stop, stopped) = tokio::sync::watch::channel(false);
+        let web_task = match crate::web::start(store.clone(), stopped.clone()).await {
+            Ok(task) => task,
+            Err(error) => {
+                *store
+                    .web_info
+                    .lock()
+                    .map_err(|_| anyhow::anyhow!("UI state poisoned"))? =
+                    serde_json::json!({"enabled":true,"error":format!("{error:#}")});
+                tracing::error!(error=%error,"default Web UI unavailable");
+                None
+            }
+        };
         let reconcile_task = tokio::spawn(reconciliation_worker(store.clone(), stopped.clone()));
         let maintenance_task = tokio::spawn(crate::maintenance::worker(store.clone(), stopped));
         let slots = std::sync::Arc::new(tokio::sync::Semaphore::new(32));
@@ -103,6 +115,14 @@ pub async fn serve(config: Config) -> Result<()> {
         let _ = delivery_task.await;
         reconcile_task.await?;
         maintenance_task.await?;
+        if let Some(mut task) = web_task
+            && tokio::time::timeout(std::time::Duration::from_secs(6), &mut task)
+                .await
+                .is_err()
+        {
+            task.abort();
+            let _ = task.await;
+        }
         crate::platform::cleanup_endpoint(&path)?;
     }
     Ok(())

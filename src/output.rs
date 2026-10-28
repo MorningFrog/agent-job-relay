@@ -22,6 +22,7 @@ fn job(value: &Value) -> Value {
             "signal",
             "cancel_requested",
             "detail",
+            "stop_outcome",
         ],
     )
 }
@@ -94,6 +95,9 @@ pub fn compact(op: &str, value: Value) -> Value {
                 &value,
                 &[
                     "daemon",
+                    "web_ui",
+                    "runtime_monitoring",
+                    "management",
                     "store",
                     "store_check",
                     "capacity",
@@ -147,6 +151,10 @@ pub fn compact(op: &str, value: Value) -> Value {
 
 pub fn installation(value: Value) -> Value {
     let mut result = fields(&value, &["mode", "version", "data", "next_step"]);
+    result["management"] = value
+        .get("management")
+        .cloned()
+        .unwrap_or(serde_json::Value::Null);
     result["install"] = fields(
         &value["install"],
         &["changed", "root", "state_dir", "backup"],

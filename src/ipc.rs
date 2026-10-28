@@ -39,6 +39,23 @@ pub enum Request {
     },
     Stop {
         job_id: String,
+        #[serde(default = "crate::monitor::default_grace")]
+        grace_seconds: u32,
+        #[serde(default)]
+        wait_seconds: u32,
+    },
+    Inspect {
+        #[serde(default)]
+        job_id: Option<String>,
+        #[serde(default)]
+        before: Option<i64>,
+        #[serde(default = "default_limit")]
+        limit: u32,
+    },
+    Monitor {
+        job_id: String,
+        #[serde(default)]
+        mutation: Option<crate::monitor::Mutation>,
     },
     Logs {
         job_id: String,
@@ -64,6 +81,7 @@ pub enum Request {
         seconds: u32,
     },
     Doctor,
+    UiInfo,
     Shutdown,
     Inbox {
         session_key: String,
@@ -138,43 +156,167 @@ fn default_wait() -> u32 {
 }
 pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
     match req {
-        Request::Shutdown=>Ok(json!({"daemon":"stopping","runners":"continue independently","data":"preserved"})),
-        Request::Inbox{session_key,after,limit}=>store.inbox(session_key,after,limit).await,
-        Request::RegisterSession{registration}=>{let s=store.register(registration).await?;Ok(json!({"capabilities":crate::session::capabilities(&s.registration.adapter),"session":s}))},
-        Request::Sessions{after,limit}=>store.sessions(after,limit).await,
-        Request::InvalidateSession{session_key}=>store.invalidate(session_key).await,
-        Request::ProbeSession{session_key}=>{let s=store.session(session_key).await?;let probe=crate::adapters::probe(&s).await?;Ok(json!({"probe":probe,"lease_valid":s.connected&&s.expires_at>now(),"capabilities":crate::session::capabilities(&s.registration.adapter),"session":s}))},
-        Request::RecoverSession{session_key,apply,after,limit}=>{let s=store.session(session_key).await?;crate::adapters::probe(&s).await?;store.recover_session(s,apply,after,limit).await},
-        Request::AddWakeTarget{job_id,session_key,replay}=>store.target(job_id,session_key,replay).await,
-        Request::RebindTarget{target_id,session_key}=>store.rebind(target_id,session_key).await,
-        Request::Deliveries{job_id,after,limit}=>store.deliveries(job_id,after,limit).await,
-        Request::RetryDelivery{delivery_id}=>store.retry_delivery(delivery_id).await,
-        Request::DeliveryAttempts{delivery_id,after,limit}=>store.attempts(delivery_id,after,limit).await,
-        Request::Start{spec}=>{
-            let j=store.start(spec).await?;
-            let wake=if let Some(key)=&j.session {let s=store.session(key.clone()).await?;json!({"session_key":key,"capabilities":crate::session::capabilities(&s.registration.adapter),"live_e2e_verified":false,"warning":"Inbox requires explicit inspection; Desktop wake is experimental. Host acceptance does not confirm Agent execution. Avoid polling loops."})}
-                else {json!({"can_resume":false,"warning":"No wake target registered; use bounded job_wait for short jobs or inspect later. Do not poll in a loop."})};
+        Request::Shutdown => {
+            Ok(json!({"daemon":"stopping","runners":"continue independently","data":"preserved"}))
+        }
+        Request::Inbox {
+            session_key,
+            after,
+            limit,
+        } => store.inbox(session_key, after, limit).await,
+        Request::RegisterSession { registration } => {
+            let s = store.register(registration).await?;
+            Ok(
+                json!({"capabilities":crate::session::capabilities(&s.registration.adapter),"session":s}),
+            )
+        }
+        Request::Sessions { after, limit } => store.sessions(after, limit).await,
+        Request::InvalidateSession { session_key } => store.invalidate(session_key).await,
+        Request::ProbeSession { session_key } => {
+            let s = store.session(session_key).await?;
+            let probe = crate::adapters::probe(&s).await?;
+            Ok(
+                json!({"probe":probe,"lease_valid":s.connected&&s.expires_at>now(),"capabilities":crate::session::capabilities(&s.registration.adapter),"session":s}),
+            )
+        }
+        Request::RecoverSession {
+            session_key,
+            apply,
+            after,
+            limit,
+        } => {
+            let s = store.session(session_key).await?;
+            crate::adapters::probe(&s).await?;
+            store.recover_session(s, apply, after, limit).await
+        }
+        Request::AddWakeTarget {
+            job_id,
+            session_key,
+            replay,
+        } => store.target(job_id, session_key, replay).await,
+        Request::RebindTarget {
+            target_id,
+            session_key,
+        } => store.rebind(target_id, session_key).await,
+        Request::Deliveries {
+            job_id,
+            after,
+            limit,
+        } => store.deliveries(job_id, after, limit).await,
+        Request::RetryDelivery { delivery_id } => store.retry_delivery(delivery_id).await,
+        Request::DeliveryAttempts {
+            delivery_id,
+            after,
+            limit,
+        } => store.attempts(delivery_id, after, limit).await,
+        Request::Start { spec } => {
+            let j = store.start(spec).await?;
+            let wake = if let Some(key) = &j.session {
+                let s = store.session(key.clone()).await?;
+                json!({"session_key":key,"capabilities":crate::session::capabilities(&s.registration.adapter),"live_e2e_verified":false,"warning":"Inbox requires explicit inspection; Desktop wake is experimental. Host acceptance does not confirm Agent execution. Avoid polling loops."})
+            } else {
+                json!({"can_resume":false,"warning":"No wake target registered; use bounded job_wait for short jobs or inspect later. Do not poll in a loop."})
+            };
             Ok(json!({"job":j,"wake":wake}))
-        },
-        Request::Status{job_id}=>Ok(serde_json::to_value(store.status(job_id).await?)?),
-        Request::List{after,limit}=>{ let jobs=store.list(after,limit).await?; Ok(json!({"next_cursor":jobs.last().map_or(after,|j|j.sequence),"jobs":jobs})) },
-        Request::Stop{job_id}=>Ok(serde_json::to_value(store.stop(job_id).await?)?),
-        Request::Events{job_id,after,limit}=>{let e=store.events(job_id,after,limit).await?;Ok(json!({"next_cursor":e.last().map_or(after,|e|e.seq),"events":e,"untrusted":true}))},
-        Request::Wait{job_id,after,seconds}=>{ensure!((1..=30).contains(&seconds),"wait must be 1..30 seconds");let deadline=tokio::time::Instant::now()+Duration::from_secs(seconds as u64);
-            loop {let e=store.events(job_id.clone(),after,100).await?;let j=store.status(job_id.clone()).await?;
-                if !e.is_empty()||terminal(&j.status)||tokio::time::Instant::now()>=deadline{return Ok(json!({"job":j,"events":e,"next_cursor":e.last().map_or(after,|e|e.seq)}));}
+        }
+        Request::Status { job_id } => Ok(serde_json::to_value(store.status(job_id).await?)?),
+        Request::List { after, limit } => {
+            let jobs = store.list(after, limit).await?;
+            Ok(json!({"next_cursor":jobs.last().map_or(after,|j|j.sequence),"jobs":jobs}))
+        }
+        Request::Inspect {
+            job_id,
+            before,
+            limit,
+        } => store.inspect(job_id, before, limit).await,
+        Request::Monitor { job_id, mutation } => store.monitor(job_id, mutation).await,
+        Request::Stop {
+            job_id,
+            grace_seconds,
+            wait_seconds,
+        } => {
+            ensure!(wait_seconds <= 30, "wait_seconds must be 0..30");
+            let mut job = store
+                .stop_with(job_id.clone(), grace_seconds, "manual".into())
+                .await?;
+            let until = tokio::time::Instant::now() + Duration::from_secs(wait_seconds as u64);
+            while !terminal(&job.status) && tokio::time::Instant::now() < until {
+                tokio::time::sleep(Duration::from_millis(100)).await;
+                job = store.status(job_id.clone()).await?;
+            }
+            let mut value = serde_json::to_value(&job)?;
+            value["stop_outcome"] = json!(if terminal(&job.status) {
+                "terminal_observed"
+            } else {
+                "requested"
+            });
+            Ok(value)
+        }
+        Request::Events {
+            job_id,
+            after,
+            limit,
+        } => {
+            let e = store.events(job_id, after, limit).await?;
+            Ok(json!({"next_cursor":e.last().map_or(after,|e|e.seq),"events":e,"untrusted":true}))
+        }
+        Request::Wait {
+            job_id,
+            after,
+            seconds,
+        } => {
+            ensure!((1..=30).contains(&seconds), "wait must be 1..30 seconds");
+            let deadline = tokio::time::Instant::now() + Duration::from_secs(seconds as u64);
+            loop {
+                let e = store.events(job_id.clone(), after, 100).await?;
+                let j = store.status(job_id.clone()).await?;
+                if !e.is_empty() || terminal(&j.status) || tokio::time::Instant::now() >= deadline {
+                    return Ok(
+                        json!({"job":j,"events":e,"next_cursor":e.last().map_or(after,|e|e.seq)}),
+                    );
+                }
                 tokio::time::sleep(Duration::from_millis(100)).await;
             }
-        },
-        Request::Logs{job_id,stream,cursor,limit}=>{
-            ensure!((1..=65536).contains(&limit),"log limit must be 1..65536 bytes");ensure!(stream=="stdout"||stream=="stderr","stream must be stdout or stderr");
-            let j=store.status(job_id).await?;
-            crate::archive::logs(store.config.clone(),j.run_id,stream,cursor,limit).await
-        },
-        Request::Doctor=>store.read(|db|{let _:i64=db.query_row("PRAGMA schema_version",[],|r|r.get(0))?;
+        }
+        Request::Logs {
+            job_id,
+            stream,
+            cursor,
+            limit,
+        } => {
+            ensure!(
+                (1..=65536).contains(&limit),
+                "log limit must be 1..65536 bytes"
+            );
+            ensure!(
+                stream == "stdout" || stream == "stderr",
+                "stream must be stdout or stderr"
+            );
+            let j = store.status(job_id).await?;
+            crate::archive::logs(store.config.clone(), j.run_id, stream, cursor, limit).await
+        }
+        Request::UiInfo => Ok(store
+            .web_info
+            .lock()
+            .map_err(|_| anyhow::anyhow!("UI state poisoned"))?
+            .clone()),
+        Request::Doctor => {
+            let mut value=store.read(|db|{let _:i64=db.query_row("PRAGMA schema_version",[],|r|r.get(0))?;
             let integrity="ok";
             let active:i64=db.query_row("SELECT count(*) FROM jobs WHERE status IN ('queued','launching','running')",[],|r|r.get(0))?;
-            Ok(json!({"daemon":"reachable","runner_launch_from_loaded_image":cfg!(target_os="linux")&&crate::platform::self_image().is_ok(),"protocol_version":1,"version":env!("CARGO_PKG_VERSION"),"store":integrity,"capacity":crate::maintenance::capacity(db)?,"store_check":"connection and schema; use data check for full integrity","active_jobs":active,"orphaned_jobs":db.query_row("SELECT count(*) FROM jobs WHERE status='orphaned'",[],|r|r.get::<_,i64>(0))?,"delivery_recovery":true,"same_chat_recovery":true,"plugin_bridge":true,"delivery_time_renewal":true,"rebind_required":db.query_row("SELECT count(*) FROM deliveries WHERE status='retry_wait' AND failure_kind='rebind_required'",[],|r|r.get::<_,i64>(0))?,"retrying_deliveries":db.query_row("SELECT count(*) FROM deliveries WHERE status='retry_wait'",[],|r|r.get::<_,i64>(0))?,"sessions":db.query_row("SELECT count(*) FROM sessions WHERE connected=1 AND expires>?",[now()],|r|r.get::<_,i64>(0))?,"dead_letters":db.query_row("SELECT count(*) FROM deliveries WHERE status='dead_letter'",[],|r|r.get::<_,i64>(0))?,"runtime":std::env::consts::OS,"daemon_launch_method":std::env::var("AJR_DAEMON_LAUNCH_METHOD").unwrap_or_else(|_| "foreground".into()),"auto_resume":"not verified","next_step":"Use start --wake or job_start with wake_me=true from the current Desktop host context; no service is installed."})) }).await
+            Ok(json!({"daemon":"reachable","runner_launch_from_loaded_image":cfg!(target_os="linux")&&crate::platform::self_image().is_ok(),"protocol_version":1,"version":env!("CARGO_PKG_VERSION"),"store":integrity,"capacity":crate::maintenance::capacity(db)?,"store_check":"connection and schema; use data check for full integrity","active_jobs":active,"orphaned_jobs":db.query_row("SELECT count(*) FROM jobs WHERE status='orphaned'",[],|r|r.get::<_,i64>(0))?,"delivery_recovery":true,"same_chat_recovery":true,"plugin_bridge":true,"delivery_time_renewal":true,"rebind_required":db.query_row("SELECT count(*) FROM deliveries WHERE status='retry_wait' AND failure_kind='rebind_required'",[],|r|r.get::<_,i64>(0))?,"retrying_deliveries":db.query_row("SELECT count(*) FROM deliveries WHERE status='retry_wait'",[],|r|r.get::<_,i64>(0))?,"sessions":db.query_row("SELECT count(*) FROM sessions WHERE connected=1 AND expires>?",[now()],|r|r.get::<_,i64>(0))?,"dead_letters":db.query_row("SELECT count(*) FROM deliveries WHERE status='dead_letter'",[],|r|r.get::<_,i64>(0))?,"runtime":std::env::consts::OS,"daemon_launch_method":std::env::var("AJR_DAEMON_LAUNCH_METHOD").unwrap_or_else(|_| "foreground".into()),"auto_resume":"not verified","next_step":"Use start --wake or job_start with wake_me=true from the current Desktop host context; no service is installed."})) }).await?;
+            value["runtime_monitoring"] = json!(true);
+            let mut ui = store
+                .web_info
+                .lock()
+                .map_err(|_| anyhow::anyhow!("UI state poisoned"))?
+                .clone();
+            if let Some(object) = ui.as_object_mut() {
+                object.remove("access_url");
+            }
+            value["web_ui"] = ui;
+            Ok(value)
+        }
     }
 }
 pub async fn call(config: &Config, request: Request) -> Result<Value> {

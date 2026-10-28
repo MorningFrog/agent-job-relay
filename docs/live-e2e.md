@@ -27,3 +27,7 @@ The live task correctly reported a test failure caused by inherited `AJR_STATE_D
 ## Distribution
 
 Both npm 0.1.9 packages and the formal GitHub Release are public, with OIDC publication/provenance and local public-byte/install checks recorded separately. The repaired final Actions checker awaits a maintainer run; current unreleased data-maintenance source has not been published. No official-directory submission occurred. See [implementation status](IMPLEMENTATION_STATUS.md) and [release preparation](release.md).
+
+## Unreleased runtime monitoring boundary
+
+The 0.1.10 React/Vite panel has isolated local browser verification for live task inspection, rule editing/application, alert evidence and manual stopping. This is local UI/runtime evidence only. No real ChatGPT Desktop/OpenCode running-alert continuation was performed for these changes; the previously verified task-completion baseline remains unchanged. Windows monitor/Web UI/schema v9 native/package qualification is still pending.

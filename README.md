@@ -87,7 +87,11 @@ Only maintainers publish. **Prepare Release** builds/tests a Cargo-versioned can
 
 Follow the [step-by-step local source installation](docs/source-install.md) ([简体中文](docs/source-install.zh-CN.md)). It covers prerequisites, checkout, compilation, bundle export, first installation or history-preserving update, ChatGPT Desktop selection and an actual MCP check, with expected results at each step.
 
-The result is the native local plugin in **AgentJobRelay Local**, normally referenced as `agent-job-relay@agent-job-relay-local`. No npm publication or Node.js installation is required. Building alone does not install it; complete the bundle installation/update and ChatGPT Desktop steps. Windows source commands are in the [Windows guide](docs/windows.md#build-when-no-bundle-is-available); developer gates are in [testing](docs/testing.md).
+The result is the native local plugin in **AgentJobRelay Local**, normally referenced as `agent-job-relay@agent-job-relay-local`. Source builds additionally use Node.js 24/npm for the bundled UI; native bundle recipients need no frontend tools or npm publication. Building alone does not install it; complete the bundle installation/update and ChatGPT Desktop steps. Windows source commands are in the [Windows guide](docs/windows.md#build-when-no-bundle-is-available); developer gates are in [testing](docs/testing.md).
+
+## Inspect and monitor locally (unreleased source)
+
+The 0.1.10 source adds `inspect [job-id] [--watch]`, persistent `monitor` rules, configurable `stop --grace/--wait` and `ui`. The bundled React + Vite task manager is enabled by default with each daemon; `ui` opens the selected profile. Rules execute independently of Agents and viewers. See [commands, expected results and access](docs/runtime-monitoring.md). Published 0.1.9 does not include these features.
 
 ## Implementation and verification
 
@@ -101,11 +105,11 @@ The result is the native local plugin in **AgentJobRelay Local**, normally refer
 | npm runtime and self-hosted marketplace | Published | Linux/Windows package/loader checks and clean public-registry installation pass; official directory approval is separate. |
 | CI and release | Manual prepare/publish/check plus Release All | Native/package CI, both npm OIDC publications and GitHub Release completion pass; public installation passes locally, and the repaired independent Actions check awaits a maintainer run. |
 | macOS runtime | Unimplemented | Portable compilation checks only; native execution remains unsupported. |
-| Output monitoring/interruption | Deferred | Awaits an explicit implementation request; log reads and manual stop are available. |
+| Inspection, monitoring and Web UI | Implemented in unreleased 0.1.10 source | Linux behavior, installed entry points and local browser workflow; Windows and running-alert host qualification remain open. |
 
 The current release adds unified `plugin install` and `connect [--recover [--apply]]` entries, caller/workspace binding objects and compact MCP results (`full=true` for complete records); see [daily usage](docs/usage.md) and [unified maintenance](docs/installation.md#unified-install-and-update). It also reduces idle database work and permits notifications to up to four chats concurrently. Current results and version-specific limits are maintained in [implementation status](docs/IMPLEMENTATION_STATUS.md) and [live evidence](docs/live-e2e.md). Official directory submission requires separate approval; independent OS installers/package repositories are cancelled. **Community testing and PRs are welcome, especially for Claude Code and container-based version checks.**
 
-Unreleased source adds automatic data maintenance: 30-day/1,000-job/256-MiB hot-data budgets, daily rolling backups and transparent archived-history reads. It also reserves database reads for control requests and keeps reconciliation off the IPC acceptance loop. These changes use schema v8 and require finishing old workloads and explicitly stopping the old daemon before upgrade; the published package remains unchanged. See [automatic maintenance and restore](docs/data-maintenance.md).
+Unreleased source adds automatic data maintenance: 30-day/1,000-job/256-MiB hot-data budgets, daily rolling backups and transparent archived-history reads. It also reserves database reads for control requests and keeps reconciliation off the IPC acceptance loop. These changes use schema v9 and require finishing old workloads and explicitly stopping the old daemon before upgrade; the published package remains unchanged. See [automatic maintenance and restore](docs/data-maintenance.md).
 
 ## Documentation and support
 

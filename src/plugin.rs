@@ -530,7 +530,7 @@ fn deploy_bundle(
         refreshed.push(refresh_cache(root.clone(), cache, apply)
             .context("runtime update may have completed; cache refresh failed; inspect plugin status and retry cache refresh (no automatic rollback)")?);
     }
-    let mut value = json!({"mode":mode(apply),"version":bundle.version,"install":installation,"caches":refreshed,
+    let mut value = json!({"mode":mode(apply),"version":bundle.version,"management":{"program":root.join(if cfg!(windows){"relay.cmd"}else{"relay"}),"args":["ui"]},"install":installation,"caches":refreshed,
         "data":"preserved","configuration":"unchanged","next_step":"Refresh/enable AgentJobRelay in the host, then reconnect MCP. No daemon was stopped automatically."});
     if let Some(registration) = registration {
         value["marketplace"] = registration;

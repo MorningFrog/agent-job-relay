@@ -36,9 +36,11 @@ If access is denied, the Agent may request the host's single-command authorizati
 
 ## Build when no bundle is available
 
-Install stable Rust MSVC and the Visual Studio C++ tools, then run from source:
+Install Node.js 24/npm, stable Rust MSVC and the Visual Studio C++ tools, then run from source:
 
 ```powershell
+npm ci --prefix web --ignore-scripts --no-audit --no-fund
+npm run build --prefix web
 cargo build --release --locked
 .\target\release\agent-job-relay.exe plugin pack --output "$PWD\.tmp\windows-bundle" --apply
 ```

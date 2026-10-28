@@ -36,6 +36,7 @@ impl Fixture {
             timeout_seconds: None,
             session,
             idempotency_key: Some(key.into()),
+            monitor_rules: vec![],
         }
     }
     async fn job(&self, key: &str, session: Option<String>, finish: bool) -> Job {
@@ -362,7 +363,7 @@ async fn schema_upgrade_refuses_an_old_daemon_or_in_flight_runner_before_changes
     let job = f.job("upgrade", None, false).await;
     f.store
         .call(|db| {
-            db.pragma_update(None, "user_version", 6)?;
+            db.execute_batch("DROP TABLE monitor_rules; DROP TABLE monitor_changes; DROP TABLE runtime_observations; DROP TABLE stop_requests; PRAGMA user_version=6;")?;
             Ok(())
         })
         .await
@@ -685,6 +686,80 @@ async fn daemon_automatically_archives_and_backs_up_without_manual_maintenance()
     assert_eq!(f.count("jobs").await, 0);
     assert_eq!(
         f.store.status(job.job_id).await.unwrap().status,
+        "completed"
+    );
+}
+
+#[tokio::test]
+async fn archives_and_backups_preserve_monitor_policy_audits_and_stop_evidence() {
+    use agent_job_relay::monitor::{Action, Condition, Mutation, RuleSpec};
+    let f = Fixture::new().await;
+    let job = f.job("monitored", None, false).await;
+    let rule = RuleSpec {
+        condition: Condition::NoOutput { seconds: 30 },
+        action: Action::Alert,
+        notify_agent: false,
+        grace_seconds: 5,
+    };
+    f.store
+        .monitor(job.job_id.clone(), Some(Mutation::Add { rule }))
+        .await
+        .unwrap();
+    f.store
+        .stop_with(job.job_id.clone(), 30, "manual test".into())
+        .await
+        .unwrap();
+    let before = f
+        .store
+        .inspect(Some(job.job_id.clone()), None, 20)
+        .await
+        .unwrap();
+    f.log(&job, b"monitor history");
+    f.immediate().await;
+    f.store.maintain(true).await.unwrap();
+    assert_eq!(f.count("monitor_rules").await, 0);
+    let after = f
+        .store
+        .inspect(Some(job.job_id.clone()), None, 20)
+        .await
+        .unwrap();
+    assert_eq!(before["rules"], after["rules"]);
+    assert_eq!(after["stop"]["reason"], "manual test");
+    let backup = f.store.backup().await.unwrap();
+    let to = f.dir.path().join("restored-monitor");
+    maintenance::restore(PathBuf::from(backup["path"].as_str().unwrap()), to.clone())
+        .await
+        .unwrap();
+    let restored = Store::new(Config::new(Some(to)).unwrap());
+    restored.init().await.unwrap();
+    let history = restored.inspect(Some(job.job_id), None, 20).await.unwrap();
+    assert_eq!(history["rules"], after["rules"]);
+    assert_eq!(history["stop"]["reason"], "manual test");
+}
+
+#[tokio::test]
+async fn schema_eight_backups_restore_forward_without_changing_the_original() {
+    let f = Fixture::new().await;
+    let job = f.job("old-backup", None, true).await;
+    f.log(&job, b"old backup history");
+    f.store.call(|db|{db.execute_batch("DROP TABLE monitor_rules;DROP TABLE monitor_changes;DROP TABLE runtime_observations;DROP TABLE stop_requests;PRAGMA user_version=8;")?;Ok(())}).await.unwrap();
+    let backup = f.store.backup().await.unwrap();
+    let from = PathBuf::from(backup["path"].as_str().unwrap());
+    let to = f.dir.path().join("forward-restored");
+    maintenance::restore(from.clone(), to.clone())
+        .await
+        .unwrap();
+    assert_eq!(
+        rusqlite::Connection::open(from.join("relay.sqlite3"))
+            .unwrap()
+            .pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0))
+            .unwrap(),
+        8
+    );
+    let restored = Store::new(Config::new(Some(to)).unwrap());
+    restored.init().await.unwrap();
+    assert_eq!(
+        restored.status(job.job_id).await.unwrap().status,
         "completed"
     );
 }
