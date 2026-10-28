@@ -83,7 +83,8 @@ def main():
                 native.parent.mkdir(parents=True)
                 native.write_bytes(image)
                 native.chmod(0o755)
-                (destination / "cli.mjs").chmod(0o755)
+                for entry in package["bin"].values():
+                    (destination / entry).chmod(0o755)
                 targets = {"linux-x64": {"minimumGlibc": ".".join(map(str, glibc)), "sha256": hashlib.sha256(image).hexdigest()}}
                 if windows_image:
                     windows_native = destination / "native/win32-x64/agent-job-relay.exe"

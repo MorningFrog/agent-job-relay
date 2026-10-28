@@ -72,7 +72,12 @@ pub(super) async fn run() -> Result<()> {
             if let Some(id) = &job_id {
                 agent_job_relay::core::validate_id(id)?;
             }
-            agent_job_relay::client::start_daemon(&config).await?;
+            let health = agent_job_relay::client::start_daemon(&config).await?;
+            anyhow::ensure!(
+                health["runtime_monitoring"] == true,
+                "selected daemon {} does not support the Web UI; finish its active jobs, explicitly run daemon stop for this same profile, then retry ui. No daemon was restarted",
+                health["version"].as_str().unwrap_or("unknown")
+            );
             let info = ipc::call(&config, Request::UiInfo).await?;
             let mut url = info["access_url"]
                 .as_str()

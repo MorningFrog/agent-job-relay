@@ -1,6 +1,12 @@
 # Using AgentJobRelay
 
-Start with [installation](installation.md). Commands below use an installed launcher; set AJR_INSTALL_ROOT to your actual installation root, or use the default:
+Start with [installation](installation.md#terminal-and-web-ui). The 0.1.11 npm CLI provides `ajr`, defaulting to the online ChatGPT/Codex plugin profile; use `ajr opencode` for OpenCode. Published 0.1.10 uses `agent-job-relay codex`. Commands below use AJR_RELAY for the selected entry:
+
+```bash
+AJR_RELAY=ajr
+```
+
+For an existing offline installation, retain its recorded profile and set AJR_INSTALL_ROOT to its actual root, or use the default:
 
 ```bash
 AJR_INSTALL_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/agent-job-relay"
@@ -9,7 +15,7 @@ AJR_RELAY="$AJR_INSTALL_ROOT/relay"
 
 Windows PowerShell commands and automatic-startup/fallback guidance are in the [Windows guide](windows.md). `daemon start` explicitly starts/reuses the selected runtime without a job/session; `daemon stop` leaves independent runners and history intact.
 
-## Inspect and monitor without an Agent (unreleased 0.1.10)
+## Inspect and monitor without an Agent
 
 Use `inspect [job-id] [--watch] [--json]`, `monitor add/list/update/enable/disable/remove`, `stop <job-id> --grace 30s --wait 10s` and `ui [job-id] [--no-open]` through the same installed launcher. Web UI is embedded and enabled by default with the daemon. Runner rules continue after browser/chat/daemon loss; viewers never own execution. Read the [runtime monitoring guide](runtime-monitoring.md) for exact commands, rule application/rearming, access credentials, offline snapshots and expected results.
 

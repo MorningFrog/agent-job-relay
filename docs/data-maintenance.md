@@ -1,6 +1,6 @@
 # Automatic data maintenance
 
-This describes the unreleased source changes. Published 0.1.9 keeps schema v6; the new runtime uses schema v9. Finish existing workloads and explicitly stop the selected old daemon before upgrading. Migration refuses an old daemon lock or launching/running jobs; older executables refuse the new schema. Keep the same state profile and never downgrade a used database.
+Version 0.1.10 and newer use schema v9; 0.1.9 uses schema v6. Finish existing workloads and explicitly stop the selected old daemon before upgrading. Migration refuses an old daemon lock or launching/running jobs; older executables refuse the new schema. Keep the same state profile and never downgrade a used database.
 
 ## Default operation
 

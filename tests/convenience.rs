@@ -46,6 +46,38 @@ async fn old_notification_runtime_is_refused_before_registration_or_workload() {
     old.await.unwrap();
 }
 
+#[tokio::test]
+async fn old_web_runtime_is_refused_without_ui_request_or_restart() {
+    let r = Rig::new();
+    r.config.prepare().unwrap();
+    let listener = tokio::net::UnixListener::bind(r.config.socket()).unwrap();
+    let old = tokio::spawn(async move {
+        for _ in 0..2 {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let request = ipc::read_frame(&mut stream, 65536).await.unwrap();
+            assert_eq!(request["request"]["op"], "doctor");
+            ipc::write_frame(
+                &mut stream,
+                &json!({"protocol_version":1,"ok":true,"result":{"runner_launch_from_loaded_image":true,"version":"0.1.9","active_jobs":1}}),
+            )
+            .await
+            .unwrap();
+        }
+        assert!(
+            tokio::time::timeout(Duration::from_millis(200), listener.accept())
+                .await
+                .is_err()
+        );
+    });
+    let out = r.cli(&["ui", "--no-open"], None).await;
+    assert!(!out.status.success());
+    let error = String::from_utf8_lossy(&out.stderr);
+    assert!(error.contains("selected daemon 0.1.9 does not support the Web UI"));
+    assert!(error.contains("same profile"));
+    assert!(!r.config.root.join("relay.sqlite3").exists());
+    old.await.unwrap();
+}
+
 struct Rig {
     dir: tempfile::TempDir,
     config: Config,

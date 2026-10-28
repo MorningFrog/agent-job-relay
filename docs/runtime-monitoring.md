@@ -1,12 +1,12 @@
 # Inspect and monitor tasks
 
-This guide describes unreleased 0.1.10 source. Published 0.1.9 does not contain these interfaces. Use an installed matching launcher, represented below by `agent-job-relay`; the offline plugin provides `relay` / `relay.cmd`, and `plugin install --apply` returns its management command. `doctor` reports explicit argv for the selected profile. Keep the same profile when moving between plugin, terminal and browser.
+These interfaces require runtime 0.1.10 or newer, including the running daemon. The 0.1.11 npm package adds `ajr`, defaulting to the online ChatGPT/Codex profile; until it is published, use `agent-job-relay codex`. Commands below use `ajr`; `ajr opencode` selects OpenCode. Offline installations use their own `relay` / `relay.cmd` and recorded profile. `doctor` reports explicit argv for the selected profile. Keep the same profile when moving between plugin, terminal and browser; see [CLI installation](installation.md#terminal-and-web-ui).
 
 ## Open the bundled Web UI
 
 ```bash
-agent-job-relay ui
-agent-job-relay ui <job-id> --no-open
+ajr ui
+ajr ui <job-id> --no-open
 ```
 
 Expected: the first command opens the task manager and prints its access URL; `--no-open` prints it for manual opening. UI resources are built with React + Vite and embedded in the native executable, including offline/npm distributions. Recipients need no frontend installation. Each daemon enables its loopback HTTP listener by default on an available port. Opening `ui` starts/reuses the selected daemon without submitting a job or binding a chat. `ui --install-root <installation>` selects an offline installation's recorded profile. Browser access does not establish an Agent identity.
@@ -18,10 +18,10 @@ The access credential is generated per daemon, delivered through private IPC and
 ## Inspect from a terminal
 
 ```bash
-agent-job-relay inspect
-agent-job-relay inspect <job-id>
-agent-job-relay inspect <job-id> --watch
-agent-job-relay inspect <job-id> --json
+ajr inspect
+ajr inspect <job-id>
+ajr inspect <job-id> --watch
+ajr inspect <job-id> --json
 ```
 
 Expected: summaries identify the selected profile and runtime connection; a task view includes observation timestamps, output tails, rules, stop requests and recent events. Overview pages use descending `before`/`next_cursor`; active jobs are returned separately. JSON watch produces bounded newline-delimited snapshots; a human terminal redraws once per second. Ctrl-C ends the viewer only. Agent clients use `job_inspect` once when needed rather than running a watch loop.
@@ -33,14 +33,14 @@ Each stream retains a rolling 64 KiB tail and total-byte offset independently fr
 ## Install persistent rules
 
 ```bash
-agent-job-relay start --no-output 10m --action alert -- <program> <arguments...>
-agent-job-relay monitor add <job-id> --contains 'CUDA out of memory' --stream stderr --action stop --grace 30s
-agent-job-relay monitor add <job-id> --elapsed 2h --action alert
-agent-job-relay monitor list <job-id>
-agent-job-relay monitor update <job-id> <rule-id> --revision 1 --no-output 20m --action alert
-agent-job-relay monitor disable <job-id> <rule-id> --revision 2
-agent-job-relay monitor enable <job-id> <rule-id> --revision 3
-agent-job-relay monitor remove <job-id> <rule-id> --revision 4
+ajr start --no-output 10m --action alert -- <program> <arguments...>
+ajr monitor add <job-id> --contains 'CUDA out of memory' --stream stderr --action stop --grace 30s
+ajr monitor add <job-id> --elapsed 2h --action alert
+ajr monitor list <job-id>
+ajr monitor update <job-id> <rule-id> --revision 1 --no-output 20m --action alert
+ajr monitor disable <job-id> <rule-id> --revision 2
+ajr monitor enable <job-id> <rule-id> --revision 3
+ajr monitor remove <job-id> <rule-id> --revision 4
 ```
 
 Expected: rules persist and their applied revision advances after the runner loads them. Commands accept seconds or `s`, `m`, `h`, `d` suffixes. Start accepts one initial CLI rule; MCP `spec.monitor_rules` accepts up to 16. All three interfaces share the same validation and revision fences. Rules cannot be changed on terminal jobs. A revision conflict requires inspecting again; it must not overwrite a concurrent edit.
@@ -54,8 +54,8 @@ Each rule revision triggers once; enable it again to rearm. At most 16 rule iden
 ## Stop and observe the result
 
 ```bash
-agent-job-relay stop <job-id> --grace 30s --wait 10s
-agent-job-relay stop <job-id> --grace 0 --wait 5s
+ajr stop <job-id> --grace 30s --wait 10s
+ajr stop <job-id> --grace 0 --wait 5s
 ```
 
 Expected: `stop_outcome=requested` means the request was persisted; `terminal_observed` means a terminal state was read before the bounded wait ended. Inspect the actual status: a previously completed job stays completed. Defaults are five seconds of grace and no client wait; grace accepts 0–300 seconds and wait accepts 0–30. Repeated requests cannot extend an existing grace period. Reasons and graceful/forced outcomes are retained in task evidence. Windows Ctrl-Break is best effort; escalation remains Job Object scoped. Linux cancellation covers trusted non-daemonizing process groups, with existing containment limits.

@@ -6,6 +6,29 @@ For existing native local installations, retain the recorded profile and follow 
 
 ## Quick install the latest release
 
+### Terminal and Web UI
+
+Use npm's standard global command registration:
+
+```bash
+npm install --global --ignore-scripts --registry=https://registry.npmjs.org agent-job-relay-runtime@latest
+agent-job-relay codex ui
+```
+
+Expected: npm registers `agent-job-relay`; `ui` opens the embedded task manager for the online ChatGPT/Codex profile. No shell function, source checkout or separate frontend installation is needed. Node.js 20+/npm and npm's global command directory must be on PATH; use a user-writable npm installation. In PowerShell, use `npm.cmd` and `agent-job-relay.cmd` if script policy blocks npm's `.ps1` wrappers.
+
+The 0.1.11 source also registers `ajr`, awaiting publication. With that version installed:
+
+```bash
+ajr list
+ajr start --shell 'echo hello'
+ajr ui
+```
+
+`ajr` defaults to the same `codex` profile as the online plugin; `ajr opencode <command>` selects OpenCode. `AJR_STATE_DIR` overrides the host default, and explicit `--state-dir` takes priority. The full command retains its existing default: use `agent-job-relay codex <command>` to select the plugin profile. A previous offline installation keeps its own recorded profile; use its installed launcher rather than assuming `ajr` selects it. Installing a host plugin alone does not register global terminal commands. For browser access without installing the CLI, ask the selected plugin to open AgentJobRelay's task manager.
+
+Update the CLI by repeating its npm installation with the version matching the selected plugin. This does not update the host's installed plugin or replace an already running daemon. If `ui` reports an older daemon, finish its jobs, explicitly run `agent-job-relay codex daemon stop` (or `ajr daemon stop` with 0.1.11), then retry `ui` for that same profile. Removal uses `npm uninstall --global --ignore-scripts agent-job-relay-runtime`; task history and running processes remain intact.
+
 ### ChatGPT Desktop / Codex
 
 Have Codex CLI and Git available on PATH and use a ChatGPT Desktop local executor. Query npm's latest runtime and register its matching GitHub release tag, so installation follows published versions rather than development main. Without Git, use the [Release ZIP](#install-from-a-github-release-zip).
@@ -250,7 +273,7 @@ Installation and cache replacements durably stage files and record a private sib
 
 Use an explicitly selected cache directory for a cache operation. Preview reports `prepared`, `destination_missing` or `installed`; apply finishes the recorded replacement and retains the original backup. Repeating a completed repair reports `changed=false`. Repair verifies the complete staged/original/backup snapshots, profiles and hashes; modified, unknown, missing or symlinked contents are refused. Installation repair requires idle old/new profiles and never stops a daemon. Cache repair leaves the managed runtime running.
 
-Retry the original bootstrap/update afterward to finish marketplace registration or other selected caches. Repair neither changes the database nor rolls back an installed runtime. Cross-directory/configuration operations and uninstall remain separate and are not crash-atomic. Before journal publication, interruption leaves the original untouched and may leave unreferenced staging files; these and old pre-0.1.5 interruptions require inspection, not automatic scanning/deletion. Physical power-loss/ENOSPC testing remains pending. Published 0.1.9 uses schema v6; unreleased data-maintenance source uses schema v9 and refuses migration until the old daemon stops and old launching/running jobs finish. Older executables refuse newer schemas. See [data maintenance](data-maintenance.md). See [implementation status](IMPLEMENTATION_STATUS.md), [live evidence](live-e2e.md) and [ADR 0008](adr/0008-interrupted-plugin-replacement.md).
+Retry the original bootstrap/update afterward to finish marketplace registration or other selected caches. Repair neither changes the database nor rolls back an installed runtime. Cross-directory/configuration operations and uninstall remain separate and are not crash-atomic. Before journal publication, interruption leaves the original untouched and may leave unreferenced staging files; these and old pre-0.1.5 interruptions require inspection, not automatic scanning/deletion. Physical power-loss/ENOSPC testing remains pending. Version 0.1.9 uses schema v6; 0.1.10 and newer use schema v9 and refuse migration until the old daemon stops and old launching/running jobs finish. Older executables refuse newer schemas. See [data maintenance](data-maintenance.md). See [implementation status](IMPLEMENTATION_STATUS.md), [live evidence](live-e2e.md) and [ADR 0008](adr/0008-interrupted-plugin-replacement.md).
 
 ## Other host development packages
 

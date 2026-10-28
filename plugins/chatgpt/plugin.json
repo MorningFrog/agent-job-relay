@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "agent-job-relay",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "Experimental durable local background jobs for Linux/Windows ChatGPT Desktop/Codex chats.",
   "author": {
     "name": "MorningFrog",
@@ -24,7 +24,8 @@
         "composerIcon": "./assets/icon.svg",
         "logo": "./assets/icon.svg",
         "defaultPrompt": [
-          "Run this project's tests in the background and tell me when they finish."
+          "Run this project's tests in the background and tell me when they finish.",
+          "Open AgentJobRelay's local task manager."
         ]
       }
     }

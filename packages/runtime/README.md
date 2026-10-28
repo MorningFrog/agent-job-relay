@@ -4,6 +4,21 @@ Shared native Rust/MCP executable for the AgentJobRelay OpenCode V1 and ChatGPT 
 
 To check the latest published runtime, run `npx --yes --ignore-scripts --registry=https://registry.npmjs.org --package=agent-job-relay-runtime@latest agent-job-relay --version`. This is an experimental package. See the [repository](https://github.com/MorningFrog/agent-job-relay) for release availability, supported hosts and known limits. An npm version being downloadable is separate from official plugin-directory approval.
 
+## Terminal and Web UI
+
+Install once with npm's standard command registration:
+
+```bash
+npm install --global --ignore-scripts --registry=https://registry.npmjs.org agent-job-relay-runtime@latest
+ajr list
+ajr start --shell 'echo hello'
+ajr ui
+```
+
+Version 0.1.11 adds `ajr`, defaulting to the same persistent `codex` profile as the online ChatGPT/Codex plugin. `ajr opencode <arguments>` selects OpenCode. npm's global command directory must be on PATH; use a user-writable npm installation. Windows also provides `ajr.cmd` for PowerShell script-policy restrictions. Host plugin installation alone does not register global commands. Remove the CLI with `npm uninstall --global --ignore-scripts agent-job-relay-runtime`; history and existing processes remain.
+
+The full `agent-job-relay` entry retains its original default profile; `agent-job-relay codex ui` is equivalent to `ajr ui`. Explicit `--state-dir` takes priority over `AJR_STATE_DIR` and host defaults. Offline native installations retain their separate recorded profile and installed launcher.
+
 `agent-job-relay codex <arguments>` and `agent-job-relay opencode <arguments>` select persistent host profiles under `$XDG_STATE_HOME/agent-job-relay/<host>`, or `$HOME/.local/state/agent-job-relay/<host>`. Windows uses `%LOCALAPPDATA%\AgentJobRelay\profiles\<host>`. An explicit absolute `AJR_STATE_DIR` overrides that choice. Ordinary arguments pass to the same native CLI. These profiles are outside npm/host caches and stable across version updates; they contain no guessed caller identity. New profiles do not migrate a prior offline installation. Review its recorded state path before deliberately selecting it.
 
 Installation runs no code. Invoking the CLI or plugin validates the packaged executable, then runs it with your OS permissions. First submission/explicit session binding starts the per-profile daemon. Removal preserves jobs/logs/history and does not stop daemons. Finish jobs and explicitly stop the original profile before an incompatible upgrade; no automatic daemon stop, database rollback or workload replay is performed.
@@ -12,4 +27,4 @@ Development: this source directory intentionally has no native payload. Build an
 
 Windows starts its daemon on demand, including host cleanup jobs, through verified same-user local CIM when native startup is denied. No login task/service is installed. Built-in Windows PowerShell/CIM must be permitted; diagnostics provide a copyable same-profile outside-terminal fallback when policy blocks it. `AJR_WINDOWS_STARTUP=direct` disables CIM.
 
-The unreleased 0.1.10 candidate embeds its React + Vite task manager in the native executable. Use `agent-job-relay codex ui` (or `opencode ui`) through this same package invocation to open the matching profile; `--no-open` prints its local access URL. Daemons enable the authenticated loopback listener by default, without a separate frontend installation. `inspect`, persistent `monitor` and configurable `stop` work without a live Agent. Access URLs contain local credentials; ordinary diagnostics omit them. Source builds generate assets with Node.js 24 before Cargo, while recipients use the packaged bytes.
+The runtime embeds its React + Vite task manager in the native executable. Use `ajr ui` to open the matching profile; `--no-open` prints its local access URL. Daemons enable the authenticated loopback listener by default, without a separate frontend installation. `inspect`, persistent `monitor` and configurable `stop` work without a live Agent. Access URLs contain local credentials; ordinary diagnostics omit them. An older running daemon produces an upgrade instruction; finish its jobs and explicitly stop that same profile before retrying. Source builds generate assets with Node.js 24 before Cargo, while recipients use the packaged bytes.

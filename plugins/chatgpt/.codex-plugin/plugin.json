@@ -1,6 +1,6 @@
 {
   "name": "agent-job-relay",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "Experimental durable local background jobs for Linux/Windows Desktop/Codex chats.",
   "author": {
     "name": "MorningFrog",
@@ -21,7 +21,8 @@
     "composerIcon": "./assets/icon.svg",
     "logo": "./assets/icon.svg",
     "defaultPrompt": [
-      "Run this project's tests in the background and tell me when they finish."
+      "Run this project's tests in the background and tell me when they finish.",
+      "Open AgentJobRelay's local task manager."
     ]
   },
   "skills": "./skills/",

@@ -17,6 +17,17 @@ For OpenCode/Claude development setup and evidence boundaries, see [host plugins
 
 Use the latest published npm packages and matching GitHub Release. No Rust compiler or source build is needed. Online installation requires Node.js 20+/npm and network access; ChatGPT Desktop/Codex also needs a local executor, Codex CLI on PATH and Git for catalog fetching (or use the Release ZIP).
 
+### Terminal and Web UI
+
+Install the CLI through npm; npm registers the command without shell aliases:
+
+```bash
+npm install --global --ignore-scripts --registry=https://registry.npmjs.org agent-job-relay-runtime@latest
+agent-job-relay codex ui
+```
+
+The 0.1.11 source adds `ajr`: `ajr list`, `ajr start --shell 'your command'` and `ajr ui` use the online ChatGPT/Codex plugin's profile by default. This shortcut awaits publication; published 0.1.10 uses `agent-job-relay codex <command>`. Plugin installation alone does not register a system CLI. See [CLI installation, profiles and updates](docs/installation.md#terminal-and-web-ui).
+
 ### ChatGPT Desktop / Codex
 
 In Bash, select the latest npm runtime and its matching released marketplace:
@@ -71,6 +82,8 @@ Disable/remove the plugin through its host, then remove its marketplace/config e
 | Symptom | Next step |
 |---|---|
 | Plugin or MCP tools missing | Refresh the plugin in the host and reconnect. A loaded skill alone does not prove MCP loaded. |
+| Terminal command missing | Install the npm CLI above and ensure npm's global command directory is on PATH. |
+| Web UI reports an older daemon | Finish its jobs, explicitly stop the same profile, then retry `ui`; installing a package does not replace a running process. |
 | `npm E404` for `agent-job-relay-runtime` | Check the pinned version, registry and network for the online entry; the separate native route is [local source installation](docs/source-install.md). |
 | Local self-check passes, but chat tools fail | Invoke `job_doctor` from the host; a local stdio check does not establish host connectivity. |
 | Update reports an active runtime | Finish jobs, then explicitly stop the daemon for the original installation. |
@@ -89,9 +102,9 @@ Follow the [step-by-step local source installation](docs/source-install.md) ([�
 
 The result is the native local plugin in **AgentJobRelay Local**, normally referenced as `agent-job-relay@agent-job-relay-local`. Source builds additionally use Node.js 24/npm for the bundled UI; native bundle recipients need no frontend tools or npm publication. Building alone does not install it; complete the bundle installation/update and ChatGPT Desktop steps. Windows source commands are in the [Windows guide](docs/windows.md#build-when-no-bundle-is-available); developer gates are in [testing](docs/testing.md).
 
-## Inspect and monitor locally (unreleased source)
+## Inspect and monitor locally
 
-The 0.1.10 source adds `inspect [job-id] [--watch]`, persistent `monitor` rules, configurable `stop --grace/--wait` and `ui`. The bundled React + Vite task manager is enabled by default with each daemon; `ui` opens the selected profile. Rules execute independently of Agents and viewers. See [commands, expected results and access](docs/runtime-monitoring.md). Published 0.1.9 does not include these features.
+Version 0.1.10 adds `inspect [job-id] [--watch]`, persistent `monitor` rules, configurable `stop --grace/--wait` and `ui`. The bundled React + Vite task manager is enabled by default with each daemon; `ui` opens the selected profile. Rules execute independently of Agents and viewers. See [commands, expected results and access](docs/runtime-monitoring.md). Older daemons must be explicitly stopped before using these interfaces.
 
 ## Implementation and verification
 
@@ -103,13 +116,13 @@ The 0.1.10 source adds `inspect [job-id] [--watch]`, persistent `monitor` rules,
 | OpenCode V1 | Experimental plugin candidate | Actual loader, MCP and session API pass with a simulated model; real-provider sessions, restart recovery and V2 remain open. |
 | Claude Code | Inbox-only scaffold | Synthetic caller and MCP launcher checks pass; actual Claude loader/account/model verification needs community help. |
 | npm runtime and self-hosted marketplace | Published | Linux/Windows package/loader checks and clean public-registry installation pass; official directory approval is separate. |
-| CI and release | Manual prepare/publish/check plus Release All | Published 0.1.9 has native/package CI, npm provenance and public-install checks. Local 0.1.10 Linux/Windows checks pass; it awaits a new manual release candidate. See [release handoff](docs/release.md#current-release-handoff). |
+| CI and release | Manual prepare/publish/check plus Release All | Online npm installation resolves 0.1.10. Source 0.1.11 awaits a new manual release candidate; see [release handoff](docs/release.md#current-release-handoff). |
 | macOS runtime | Unimplemented | Portable compilation checks only; native execution remains unsupported. |
-| Inspection, monitoring and Web UI | Implemented in unreleased 0.1.10 source | Linux/Windows native and installed-package checks pass; the local browser workflow is verified on Linux. Real running-alert host qualification remains open. |
+| Inspection, monitoring and Web UI | Implemented since 0.1.10 | Linux/Windows native and installed-package checks pass for the baseline; the local browser workflow is verified on Linux. Real running-alert host qualification remains open. |
 
 The current release adds unified `plugin install` and `connect [--recover [--apply]]` entries, caller/workspace binding objects and compact MCP results (`full=true` for complete records); see [daily usage](docs/usage.md) and [unified maintenance](docs/installation.md#unified-install-and-update). It also reduces idle database work and permits notifications to up to four chats concurrently. Current results and version-specific limits are maintained in [implementation status](docs/IMPLEMENTATION_STATUS.md) and [live evidence](docs/live-e2e.md). Official directory submission requires separate approval; independent OS installers/package repositories are cancelled. **Community testing and PRs are welcome, especially for Claude Code and container-based version checks.**
 
-Unreleased source adds automatic data maintenance: 30-day/1,000-job/256-MiB hot-data budgets, daily rolling backups and transparent archived-history reads. It also reserves database reads for control requests and keeps reconciliation off the IPC acceptance loop. These changes use schema v9 and require finishing old workloads and explicitly stopping the old daemon before upgrade; the published package remains unchanged. See [automatic maintenance and restore](docs/data-maintenance.md).
+Version 0.1.10 adds automatic data maintenance: 30-day/1,000-job/256-MiB hot-data budgets, daily rolling backups and transparent archived-history reads. It also reserves database reads for control requests and keeps reconciliation off the IPC acceptance loop. These changes use schema v9 and require finishing old workloads and explicitly stopping the old daemon before upgrade. See [automatic maintenance and restore](docs/data-maintenance.md).
 
 ## Documentation and support
 
@@ -117,7 +130,7 @@ Unreleased source adds automatic data maintenance: 30-day/1,000-job/256-MiB hot-
 |---|---|
 | Step-by-step local installation from source | [Source installation](docs/source-install.md), [简体中文](docs/source-install.zh-CN.md) |
 | Installation, profiles, updates, caches and removal | [Installation](docs/installation.md) |
-| Automatic data budgets, backups and restore (unreleased source) | [Data maintenance](docs/data-maintenance.md) |
+| Automatic data budgets, backups and restore | [Data maintenance](docs/data-maintenance.md) |
 | CLI, MCP, notifications and recovery | [Usage](docs/usage.md) |
 | Human acceptance and expected results | [Manual testing](docs/manual-testing.md) |
 | Automated tests and verification scope | [Testing](docs/testing.md) |

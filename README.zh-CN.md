@@ -17,6 +17,17 @@ OpenCode/Claude 的开发安装及验证边界见[宿主插件指南](docs/host-
 
 直接使用最新发布的 npm 包和对应的 GitHub Release，无需 Rust 编译器或源码构建。在线安装需要 Node.js 20+/npm 和网络；ChatGPT Desktop/Codex 还需本地执行环境、PATH 中可用的 Codex CLI，以及获取目录所需的 Git（也可使用 Release ZIP）。
 
+### 终端与 Web UI
+
+通过 npm 安装 CLI，由 npm 注册命令，无需编写 shell 别名：
+
+```bash
+npm install --global --ignore-scripts --registry=https://registry.npmjs.org agent-job-relay-runtime@latest
+agent-job-relay codex ui
+```
+
+0.1.11 源码新增 `ajr`：`ajr list`、`ajr start --shell '你的命令'` 和 `ajr ui` 默认使用在线 ChatGPT/Codex 插件的数据目录。该短命令尚待发布；已发布的 0.1.10 使用 `agent-job-relay codex <命令>`。仅安装插件不会注册系统 CLI。见 [CLI 安装、数据目录与更新](docs/installation.md#terminal-and-web-ui)。
+
 ### ChatGPT Desktop / Codex
 
 在 Bash 中自动查询最新 npm 运行时，并选择对应的已发布 marketplace：
@@ -71,6 +82,8 @@ Agent 会绑定当前聊天、提交任务、结束回合，并在收到通知�
 | 现象 | 下一步 |
 |---|---|
 | 看不到插件或 MCP 工具 | 在宿主中刷新插件并重新连接；技能加载不代表 MCP 已加载。 |
+| 终端找不到命令 | 按上面的方式安装 npm CLI，并确认 npm 的全局命令目录在 PATH 中。 |
+| Web UI 提示后台版本较旧 | 完成其任务，显式停止同一数据目录的后台，再重试 `ui`；安装包不会替换已运行的进程。 |
 | `agent-job-relay-runtime` 报 `npm E404` | 检查在线入口固定的版本、registry 及网络；独立的原生安装方式见[本地源码安装教程](docs/source-install.zh-CN.md)。 |
 | 本地自检通过，但聊天工具不可用 | 从宿主调用 `job_doctor`；本地 stdio 自检不能证明宿主连通。 |
 | 更新提示运行时仍在使用 | 等待任务结束，再显式停止原安装对应的 Daemon。 |
@@ -89,9 +102,9 @@ Agent 会绑定当前聊天、提交任务、结束回合，并在收到通知�
 
 安装结果是 **AgentJobRelay Local** 中的原生本地插件，通常引用为 `agent-job-relay@agent-job-relay-local`，源码构建还需要 Node.js 24/npm 生成随包界面；接收已构建原生包的用户无需前端工具或 npm 发布。仅编译成功还未完成安装，必须继续完成离线包安装或更新及 ChatGPT Desktop 步骤。Windows 源码命令见 [Windows 指南](docs/windows.md#build-when-no-bundle-is-available)，开发门禁见[测试指南](docs/testing.md)。
 
-## 独立检查与监控（未发布源码）
+## 独立检查与监控
 
-0.1.10 源码新增 `inspect [job-id] [--watch]`、持久化 `monitor` 规则、可配置的 `stop --grace/--wait` 和 `ui`。React + Vite 任务面板随原生包附带，daemon 启动后默认启用；`ui` 打开选定状态配置。规则执行不依赖 Agent 或查看器在线。见[命令、预期结果与访问说明](docs/runtime-monitoring.md)。已发布的 0.1.9 尚不包含这些能力。
+0.1.10 新增 `inspect [job-id] [--watch]`、持久化 `monitor` 规则、可配置的 `stop --grace/--wait` 和 `ui`。React + Vite 任务面板随原生包附带，daemon 启动后默认启用；`ui` 打开选定状态配置。规则执行不依赖 Agent 或查看器在线。见[命令、预期结果与访问说明](docs/runtime-monitoring.md)。使用这些接口前需显式停止旧版后台。
 
 ## 实现与验证情况
 
@@ -103,13 +116,13 @@ Agent 会绑定当前聊天、提交任务、结束回合，并在收到通知�
 | OpenCode V1 | 实验性插件候选版 | 实际加载器、MCP 和会话 API 配合模拟模型验证通过；真实服务商会话、重启恢复及 V2 仍待完成。 |
 | Claude Code | 仅收件箱通知的框架 | 合成调用者和 MCP 启动器检查通过；实际 Claude 加载器、账号及模型验证需要社区协助。 |
 | npm 运行时与自建市场 | 已发布 | Linux/Windows 安装包与加载器检查及公开 registry 全新安装通过；官方目录批准属于独立流程。 |
-| CI 与发布 | 手动准备、发布、检查及 Release All | 已发布的 0.1.9 具有原生/安装包 CI、npm 来源证明及公开安装检查。0.1.10 的 Linux/Windows 本地检查通过，等待重新手动准备发布候选。见[发布交接](docs/release.md#current-release-handoff)。 |
+| CI 与发布 | 手动准备、发布、检查及 Release All | 在线 npm 安装解析到 0.1.10。0.1.11 源码等待重新手动准备发布候选，见[发布交接](docs/release.md#current-release-handoff)。 |
 | macOS 运行时 | 未实现 | 仅有可移植部分编译检查，尚不支持原生执行。 |
-| 检查、监控与 Web UI | 已在未发布的 0.1.10 源码实现 | Linux/Windows 原生与安装包检查通过，Linux 本地浏览器操作已验证；运行中告警的真实宿主验证仍待完成。 |
+| 检查、监控与 Web UI | 已在 0.1.10 实现 | 基线的 Linux/Windows 原生与安装包检查通过，Linux 本地浏览器操作已验证；运行中告警的真实宿主验证仍待完成。 |
 
 当前版本新增统一的 `plugin install` 和 `connect [--recover [--apply]]` 入口、聊天与工作目录绑定对象，以及默认精简的 MCP 返回（`full=true` 查看完整记录），见[日常使用](docs/usage.md)和[统一维护](docs/installation.md#unified-install-and-update)。同时减少空闲时的数据库访问，并允许最多四个聊天并发接收通知。当前结果与版本限制统一维护在[实施状态](docs/IMPLEMENTATION_STATUS.md)及[真实验证记录](docs/live-e2e.md)。官方目录投稿需要单独批准，独立系统安装包及软件仓库计划已取消。**欢迎社区测试和 PR，尤其是 Claude Code 及容器化版本验证。**
 
-未发布的当前源码新增自动数据维护：按 30 天、1,000 个热任务及 256 MiB 热日志预算归档，每天轮换备份，并继续支持归档历史查询。同时为控制请求保留数据库读取通道，将后台对账移出 IPC 接收循环。这些改动使用 schema v9；升级前需完成旧任务并显式停止旧 daemon，已发布的安装包尚未包含这些改动。见[自动维护与恢复](docs/data-maintenance.md)。
+0.1.10 新增自动数据维护：按 30 天、1,000 个热任务及 256 MiB 热日志预算归档，每天轮换备份，并继续支持归档历史查询。同时为控制请求保留数据库读取通道，将后台对账移出 IPC 接收循环。这些改动使用 schema v9；升级前需完成旧任务并显式停止旧 daemon。见[自动维护与恢复](docs/data-maintenance.md)。
 
 ## 文档与支持范围
 
@@ -117,7 +130,7 @@ Agent 会绑定当前聊天、提交任务、结束回合，并在收到通知�
 |---|---|
 | 从源码逐步安装本地插件 | [中文教程](docs/source-install.zh-CN.md)、[English](docs/source-install.md) |
 | 安装、状态配置、更新、缓存及移除 | [安装指南](docs/installation.md) |
-| 自动容量预算、备份与恢复（未发布源码） | [数据维护](docs/data-maintenance.md) |
+| 自动容量预算、备份与恢复 | [数据维护](docs/data-maintenance.md) |
 | CLI、MCP、通知和恢复 | [使用指南](docs/usage.md) |
 | 人工验收步骤和预期结果 | [人工测试](docs/manual-testing.md) |
 | 自动化测试和验证边界 | [测试指南](docs/testing.md) |

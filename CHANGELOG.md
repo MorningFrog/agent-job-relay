@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.1.11] - Unreleased
+
+### Added
+
+- Register `ajr` through the existing npm runtime package. Default to the online ChatGPT/Codex profile, support an explicit OpenCode selector and document standard global CLI installation and direct task-manager access from the plugin.
+
+### Fixed
+
+- Preserve explicit `--state-dir` priority for npm host selectors without injecting duplicate CLI arguments or changing the full command's original default profile.
+- Detect an older running daemon before requesting the Web UI and explain the required same-profile upgrade instead of exposing an unknown IPC variant. Never restart a daemon implicitly.
+
+### Verification boundary
+
+- All four Linux delivery gates pass (111 tests), along with 61 release-tool checks and actual Codex discovery of 22 tools. Installed-package checks cover npm global command registration, profile selection, shared task history and authenticated Web access. The new Windows checks require a native run; no new real-host continuation acceptance is claimed.
+
 ## [0.1.10] - 2026-10-28
 
 ### Added

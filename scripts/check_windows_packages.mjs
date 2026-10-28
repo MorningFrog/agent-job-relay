@@ -94,11 +94,34 @@ async function rpcChild(entry) {
   } };
 }
 try {
+  const [major, minor, patch] = meta.version.split(".").map(Number);
   const installed = join(root, "installed");
   await run([process.execPath, npm, "install", "--prefix", installed, "--ignore-scripts", "--no-audit", "--no-fund", "--registry=https://registry.npmjs.org", join(release, meta.runtime.tarball), join(release, meta.opencode.tarball)], "npm-install");
   runtimeCli = join(installed, "node_modules/agent-job-relay-runtime/cli.mjs");
   core = join(installed, "node_modules/agent-job-relay-runtime/native/win32-x64/agent-job-relay.exe");
   assert.equal((await run([process.execPath, runtimeCli, "--version"], "version")).trim(), `agent-job-relay ${meta.version}`);
+  if (major > 0 || minor > 1 || (minor === 1 && patch >= 11)) {
+    const prefix = join(root, "global");
+    await run([process.execPath, npm, "install", "--global", "--prefix", prefix, "--ignore-scripts", "--no-audit", "--no-fund", join(release, meta.runtime.tarball)], "npm-global-install");
+    const pathKey = Object.keys(env).find(k => k.toLowerCase() === "path") ?? "PATH";
+    env[pathKey] = prefix + ";" + env[pathKey];
+    const comspec = process.env.ComSpec || join(process.env.SystemRoot, "System32/cmd.exe");
+    assert.equal((await run([comspec, "/d", "/s", "/c", "ajr --version"], "short-shim-version")).trim(), `agent-job-relay ${meta.version}`);
+    const short = [process.execPath, join(prefix, "node_modules/agent-job-relay-runtime/ajr.mjs")];
+    const codexState = join(env.LOCALAPPDATA, "AgentJobRelay/profiles/codex");states.add(codexState);
+    const doctor = JSON.parse(await run([comspec, "/d", "/s", "/c", "ajr doctor"], "short-shim-profile"));assert.equal(doctor.state_dir, codexState);
+    const alternate = join(root, "explicit");
+    assert.equal(JSON.parse(await run([...short, "doctor"], "short-env-profile", 0, { AJR_STATE_DIR: alternate })).state_dir, alternate);
+    assert.equal(JSON.parse(await run([...short, "--state-dir", alternate, "doctor"], "short-state-profile", 0, { AJR_STATE_DIR: join(root, "override") })).state_dir, alternate);
+    assert.equal(JSON.parse(await run([...short, "opencode", "doctor"], "short-opencode-profile")).state_dir, join(env.LOCALAPPDATA, "AgentJobRelay/profiles/opencode"));
+    const started = JSON.parse(await run([...short, "start", "--cwd", env.HOME, "--", process.execPath, "-e", "process.stdout.write(process.argv[1])", "--", "--state-dir"], "short-start"));
+    const job = await waitUntil(async () => { const j = await requestCore(codexState, { op: "status", job_id: started.job.job_id }, "short-status");return ["completed", "failed", "orphaned"].includes(j.status) && j; }, 10000, "short command job timeout");assert.equal(job.status, "completed");
+    const ui = JSON.parse(await run([...short, "ui", "--no-open"], "short-ui"));assert.equal(ui.profile, codexState);
+    const access = new URL(ui.url);const token = new URLSearchParams(access.hash.slice(1)).get("token");assert.equal(access.hostname, "127.0.0.1");assert(token);
+    const response = await fetch(access.origin + "/api/request", { method: "POST", body: JSON.stringify({ op: "inspect", job_id: job.job_id }), headers: { "Content-Type": "application/json", Authorization: "Bearer " + token }, signal: AbortSignal.timeout(5000) });assert.equal(response.status, 200);assert.equal((await response.json()).job.job_id, job.job_id);
+    await run([core, "--state-dir", codexState, "daemon", "stop"], "short-stop");states.delete(codexState);
+    report.npm_global_short_cli = true;
+  }
   const state = join(root, "runtime-state");states.add(state);
   const spec = { command: { kind: "exec", program: process.execPath, args: ["-e", "process.stdout.write('packaged-runtime')"] }, cwd: env.HOME };
   const started = await requestCore(state, { op: "start", spec }, "native-start");
@@ -108,7 +131,6 @@ try {
   const moved = join(root, "moved-runtime");cpSync(dirname(runtimeCli), moved, { recursive: true });
   const movedStatus = JSON.parse(await run([process.execPath, join(moved, "cli.mjs"), "--state-dir", state, "status", job.job_id], "moved-status"));assert.equal(movedStatus.job_id, job.job_id);
   let bundledUi = false;
-  const [major, minor, patch] = meta.version.split(".").map(Number);
   if (major > 0 || minor > 1 || (minor === 1 && patch >= 10)) {
     const ui = JSON.parse(await run([process.execPath, join(moved, "cli.mjs"), "--state-dir", state, "ui", "--no-open"], "moved-ui"));
     const access = new URL(ui.url);assert.equal(access.hostname, "127.0.0.1");assert.equal(access.protocol, "http:");

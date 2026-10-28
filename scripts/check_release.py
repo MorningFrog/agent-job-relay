@@ -96,10 +96,60 @@ def main():
     url = f"http://127.0.0.1:{registry.server_port}"
     cli = installed / "node_modules/agent-job-relay-runtime/cli.mjs"
     job_id = None
+    short_job_id = None
+    codex_state = root / "agent-job-relay/codex"
+
+    def check_ui(argv, selected_job, name):
+        ui = json.loads(command([*argv, "ui", "--no-open"], name))
+        access = urlsplit(ui["url"])
+        if access.hostname != "127.0.0.1" or access.scheme != "http":
+            raise RuntimeError("UI did not select a loopback endpoint")
+        base = f"http://{access.netloc}"
+        with urlopen(base + "/", timeout=5) as response:
+            if b"/assets/index-" not in response.read(65536):
+                raise RuntimeError("packaged UI assets are missing")
+        token = parse_qs(access.fragment)["token"][0]
+        request = Request(base + "/api/request", data=json.dumps({"op": "inspect", "job_id": selected_job}).encode(), headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"})
+        with urlopen(request, timeout=5) as response:
+            inspected = json.load(response)
+        if inspected["job"]["job_id"] != selected_job or inspected["job"]["status"] != "completed":
+            raise RuntimeError("packaged UI selected different runtime history")
+        return ui
+
     try:
         command(["npm", "install", "--prefix", installed, "--ignore-scripts", "--no-audit", "--no-fund", "--registry=https://registry.npmjs.org", release / meta["runtime"]["tarball"], release / meta["opencode"]["tarball"]], "npm-install")
         if command(["node", cli, "--version"], "version").strip() != f"agent-job-relay {meta['version']}":
             raise RuntimeError("installed native version mismatch")
+        short_cli = tuple(map(int, meta["version"].split("."))) >= (0, 1, 11)
+        if short_cli:
+            prefix = root / "global"
+            command(["npm", "install", "--global", "--prefix", prefix, "--ignore-scripts", "--no-audit", "--no-fund", release / meta["runtime"]["tarball"]], "npm-global-install")
+            env["PATH"] = str(prefix / "bin") + os.pathsep + env["PATH"]
+            if command(["ajr", "--version"], "short-version").strip() != f"agent-job-relay {meta['version']}":
+                raise RuntimeError("npm did not register the short command")
+            for argv, expected, name in [
+                (["ajr", "doctor"], codex_state, "short-profile"),
+                (["ajr", "codex", "doctor"], codex_state, "short-explicit-codex"),
+                (["ajr", "opencode", "doctor"], root / "agent-job-relay/opencode", "short-opencode"),
+                (["agent-job-relay", "doctor"], root / "agent-job-relay", "long-default-profile"),
+            ]:
+                if json.loads(command(argv, name))["state_dir"] != str(expected):
+                    raise RuntimeError(f"{name}: selected a different profile")
+            env["AJR_STATE_DIR"] = str(root / "override")
+            for options, expected, name in [
+                ([], root / "override", "short-env-profile"),
+                (["--state-dir", str(root / "explicit")], root / "explicit", "short-state-profile"),
+                (["--state-dir=" + str(root / "explicit")], root / "explicit", "short-equals-profile"),
+            ]:
+                if json.loads(command(["ajr", *options, "doctor"], name))["state_dir"] != str(expected):
+                    raise RuntimeError(f"{name}: explicit profile override was ignored")
+            del env["AJR_STATE_DIR"]
+            short_job_id = json.loads(command(["ajr", "start", "--cwd", home, "--", "/usr/bin/printf", "%s", "--state-dir"], "short-start"))["job"]["job_id"]
+            command(["ajr", "wait", short_job_id, "--seconds", "5"], "short-wait")
+            shared = json.loads(command(["agent-job-relay", "codex", "status", short_job_id], "short-shared-status"))
+            if shared["status"] != "completed" or shared["exit_code"] != 0:
+                raise RuntimeError("short command did not share the plugin profile")
+            check_ui(["ajr"], short_job_id, "short-ui")
         # Exercise profile persistence after moving the installed npm payload.
         job_id = json.loads(command(["node", cli, "opencode", "start", "--cwd", home, "--", "/usr/bin/printf", "packaged-runtime"], "start"))["job"]["job_id"]
         command(["node", cli, "opencode", "wait", job_id, "--seconds", "5"], "wait")
@@ -110,20 +160,7 @@ def main():
             raise RuntimeError("relocation did not retain original job history")
         bundled_ui = False
         if tuple(map(int, meta["version"].split("."))) >= (0, 1, 10):
-            ui = json.loads(command(["node", moved / "cli.mjs", "opencode", "ui", "--no-open"], "relocated-ui"))
-            access = urlsplit(ui["url"])
-            if access.hostname != "127.0.0.1" or access.scheme != "http":
-                raise RuntimeError("UI did not select a loopback endpoint")
-            base = f"http://{access.netloc}"
-            with urlopen(base + "/", timeout=5) as response:
-                if b"/assets/index-" not in response.read(65536):
-                    raise RuntimeError("packaged UI assets are missing")
-            token = parse_qs(access.fragment)["token"][0]
-            request = Request(base + "/api/request", data=json.dumps({"op": "inspect", "job_id": job_id}).encode(), headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"})
-            with urlopen(request, timeout=5) as response:
-                inspected = json.load(response)
-            if inspected["job"]["job_id"] != job_id or inspected["job"]["status"] != "completed":
-                raise RuntimeError("packaged UI selected different runtime history")
+            check_ui(["node", moved / "cli.mjs", "opencode"], job_id, "relocated-ui")
             bundled_ui = True
         command(["node", moved / "cli.mjs", "opencode", "daemon", "stop"], "stop")
         corrupt = moved / "native/linux-x64/agent-job-relay"
@@ -136,11 +173,13 @@ def main():
             command(["python3", REPO / "scripts/check_opencode_plugin.py", "--binary", args.binary.resolve(), "--opencode", args.opencode.resolve(), "--plugin-spec", f"{meta['opencode']['name']}@{meta['version']}", "--registry", url], "opencode")
         if args.codex:
             asyncio.run(check_codex(args.binary.resolve(), args.codex, release / meta["marketplace"], url))
-        report = {"result": "passed", "version": meta["version"], "npm_tarball_install": True, "bundled_ui": bundled_ui, "native_integrity_refusal": True, "relocation_preserves_history": True,
+        report = {"result": "passed", "version": meta["version"], "npm_tarball_install": True, "npm_global_short_cli": short_cli, "bundled_ui": bundled_ui, "native_integrity_refusal": True, "relocation_preserves_history": True,
                   "opencode": "actual loader and simulated model" if args.opencode else "not requested", "codex": "actual marketplace loader with loopback registry" if args.codex else "not requested", "publication": "none"}
         (root / "report.json").write_text(json.dumps(report, indent=2) + "\n")
         print(json.dumps({**report, "report": str(root / "report.json")}))
     finally:
+        if short_job_id:
+            command(["node", cli, "--state-dir", codex_state, "daemon", "stop"], "short-cleanup-stop")
         if cli.exists() and job_id:
             command(["node", cli, "opencode", "daemon", "stop"], "cleanup-stop")
         registry.shutdown()

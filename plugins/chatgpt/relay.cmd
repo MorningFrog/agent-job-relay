@@ -1,3 +1,3 @@
 @echo off
 setlocal DisableDelayedExpansion
-npx --yes --ignore-scripts --registry=https://registry.npmjs.org --package=agent-job-relay-runtime@0.1.10 agent-job-relay codex %*
+npx --yes --ignore-scripts --registry=https://registry.npmjs.org --package=agent-job-relay-runtime@0.1.11 agent-job-relay codex %*
