@@ -7,7 +7,6 @@
 - Add Agent-independent inspect/watch, durable runner-owned output/silence/elapsed rules, optional same-chat alerts, bounded rolling output tails and revision-fenced rule editing.
 - Bundle a React + Vite task manager in the native executable. Enable its authenticated loopback Web UI by default with each daemon; open the exact profile from CLI without a separate frontend deployment.
 - Add configurable graceful/forced cancellation and bounded stop-result observation, preserving trigger reasons, rule audits and monitor history across archive/backup/restore.
-
 - Automatically archive terminal history by age, hot-job count and log budget; preserve transparent history/log reads, stable cursors, idempotency keys and delivery/audit records in compressed cold storage. Protect active runs and recoverable notifications.
 - Add profile-scoped data capacity/policy/integrity/backup/restore commands, daily rolling SQLite/log backups, recorded sealed/unsealed recovery and checksum/foreign-content refusal. Restore into a new profile without replaying commands or accepting stale claims.
 
@@ -23,7 +22,7 @@
 
 ### Verification boundary
 
-- These changes are unreleased. All four Linux gates pass (110 tests); Windows 11 MSVC gates pass under SYSTEM and a non-elevated ordinary user (59 tests each). React/Vite production builds and dual-platform npm/native Web checks plus actual Codex/OpenCode loader checks pass; OpenCode uses a simulated model. Native verification covers independent monitoring/stopping, revision fences, authenticated Web control, schema v9 maintenance/recovery and existing runtime isolation. Real running-alert host continuation, Windows browser interaction, physical disk/power faults and prolonged load remain unqualified.
+- Local verification: all four Linux gates pass (110 tests); Windows 11 MSVC gates pass under SYSTEM and a non-elevated ordinary user (59 tests each). React/Vite production builds and dual-platform npm/native Web checks plus actual Codex/OpenCode loader checks pass; OpenCode uses a simulated model. Native verification covers independent monitoring/stopping, revision fences, authenticated Web control, schema v9 maintenance/recovery and existing runtime isolation. Real running-alert host continuation, Windows browser interaction, physical disk/power faults and prolonged load remain unqualified.
 
 ## [0.1.9] - 2026-10-28
 

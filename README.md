@@ -103,7 +103,7 @@ The 0.1.10 source adds `inspect [job-id] [--watch]`, persistent `monitor` rules,
 | OpenCode V1 | Experimental plugin candidate | Actual loader, MCP and session API pass with a simulated model; real-provider sessions, restart recovery and V2 remain open. |
 | Claude Code | Inbox-only scaffold | Synthetic caller and MCP launcher checks pass; actual Claude loader/account/model verification needs community help. |
 | npm runtime and self-hosted marketplace | Published | Linux/Windows package/loader checks and clean public-registry installation pass; official directory approval is separate. |
-| CI and release | Manual prepare/publish/check plus Release All | Native/package CI, both npm OIDC publications and GitHub Release completion pass; public installation passes locally, and the repaired independent Actions check awaits a maintainer run. |
+| CI and release | Manual prepare/publish/check plus Release All | Published 0.1.9 has native/package CI, npm provenance and public-install checks. Local 0.1.10 Linux/Windows checks pass; it awaits a new manual release candidate. See [release handoff](docs/release.md#current-release-handoff). |
 | macOS runtime | Unimplemented | Portable compilation checks only; native execution remains unsupported. |
 | Inspection, monitoring and Web UI | Implemented in unreleased 0.1.10 source | Linux/Windows native and installed-package checks pass; the local browser workflow is verified on Linux. Real running-alert host qualification remains open. |
 

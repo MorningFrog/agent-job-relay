@@ -103,7 +103,7 @@ Agent 会绑定当前聊天、提交任务、结束回合，并在收到通知�
 | OpenCode V1 | 实验性插件候选版 | 实际加载器、MCP 和会话 API 配合模拟模型验证通过；真实服务商会话、重启恢复及 V2 仍待完成。 |
 | Claude Code | 仅收件箱通知的框架 | 合成调用者和 MCP 启动器检查通过；实际 Claude 加载器、账号及模型验证需要社区协助。 |
 | npm 运行时与自建市场 | 已发布 | Linux/Windows 安装包与加载器检查及公开 registry 全新安装通过；官方目录批准属于独立流程。 |
-| CI 与发布 | 手动准备、发布、检查及 Release All | 原生/安装包 CI、两个 npm 包的 OIDC 发布和 GitHub Release 完成均通过；公开包本地安装验证通过，修复后的独立 Actions 检查待维护者运行。 |
+| CI 与发布 | 手动准备、发布、检查及 Release All | 已发布的 0.1.9 具有原生/安装包 CI、npm 来源证明及公开安装检查。0.1.10 的 Linux/Windows 本地检查通过，等待重新手动准备发布候选。见[发布交接](docs/release.md#current-release-handoff)。 |
 | macOS 运行时 | 未实现 | 仅有可移植部分编译检查，尚不支持原生执行。 |
 | 检查、监控与 Web UI | 已在未发布的 0.1.10 源码实现 | Linux/Windows 原生与安装包检查通过，Linux 本地浏览器操作已验证；运行中告警的真实宿主验证仍待完成。 |
 

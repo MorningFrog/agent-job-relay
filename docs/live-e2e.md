@@ -26,7 +26,7 @@ The live task correctly reported a test failure caused by inherited `AJR_STATE_D
 
 ## Distribution
 
-Both npm 0.1.9 packages and the formal GitHub Release are public, with OIDC publication/provenance and local public-byte/install checks recorded separately. The repaired final Actions checker awaits a maintainer run; current unreleased data-maintenance source has not been published. No official-directory submission occurred. See [implementation status](IMPLEMENTATION_STATUS.md) and [release preparation](release.md).
+Both npm 0.1.9 packages and the formal GitHub Release are public, with OIDC publication/provenance and local public-byte/install checks recorded separately. Current 0.1.10 data-maintenance/monitor/Web UI source awaits a new manual release candidate and has not been published. No official-directory submission occurred. See [implementation status](IMPLEMENTATION_STATUS.md) and [release preparation](release.md).
 
 ## Unreleased runtime monitoring boundary
 
