@@ -106,3 +106,7 @@ For exact MCP tool schemas, byte limits, storage/delivery states and legacy comp
 ## OpenCode and Claude source frameworks
 
 For OpenCode V1, use the plugin's actual tool-context binding and MCP tools; ChatGPT Desktop `session connect`/`wake_me` is not its workflow. For Claude Code, the experimental skill uses the real substituted session ID and an inbox-only binding, with explicit result inspection and no automatic wake promise. See [host setup and capability limits](host-plugins.md). These development packages do not install a second execution runtime.
+
+## Automatic capacity maintenance (unreleased source)
+
+The daemon automatically archives eligible terminal history and creates rolling local backups; no recurring manual command is required. Use `agent-job-relay data status` for budgets/backup IDs/errors, `data policy` for configuration previews, `data backup` for an additional snapshot and `data check` for explicit integrity validation. Existing history/log queries include cold records. Upgrade/restore instructions and the default policy are in [data maintenance](data-maintenance.md); published 0.1.9 remains schema v6.

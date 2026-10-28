@@ -20,7 +20,8 @@ Published 0.1.9 includes connection reuse, local-write wake signals with idle ba
 - [ ] **P1:** implement and natively verify macOS process identity, lifecycle and IPC. Plugin packaging and portable compilation do not establish runtime support.
 - [ ] **P1:** strengthen Linux containment for escaped descendants/runner death and add longer soak plus controlled disk/power-loss tests. Current process-group cancellation assumes trusted non-daemonizing workloads.
 - [ ] **P1:** strengthen per-call identity authentication for shared hosts. Current caller identity is trusted input; never infer it from a latest-session record.
-- [ ] **P1:** add backup/export, migration maintenance, retention previews and configurable budgets. Purge needs its own explicit design and is separate from uninstall.
+- [x] Implement automatic age/count/log-budget archiving, transparent cold reads, consistent rolling backups/restore, recorded interruption recovery, migration fencing and live-session quota accounting. See [data maintenance](data-maintenance.md).
+- [ ] **P1:** natively qualify the new data-maintenance changes on Windows and under longer disk-pressure/soak tests. Independent-storage backup automation and destructive history purge need separate designs; uninstall remains data-preserving.
 - [ ] **P1:** extend interrupted-operation handling to setup/marketplace cross-file writes, uninstall and pre-journal/legacy remnants. Existing per-directory install/cache repair finishes recorded replacements forward and preserves backups/history.
 - [ ] **P1:** independently verify the declared Rust 1.89 minimum or update it from build evidence.
 - [ ] **P2:** negotiated standard MCP Tasks, richer progress and optional public Codex writer integration for explicitly owned sessions. Tasks alone do not wake chats.

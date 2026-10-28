@@ -12,6 +12,7 @@ One package and executable; CLI, stdio MCP, daemon and runner modes.
 | Job intent, execution and persistence | `src/core.rs`, `src/daemon.rs`, `src/runner.rs`, `src/storage.rs` |
 | Session binding and notifications | `src/session.rs`, `src/adapters.rs`, `src/plugin_bridge.rs`, `src/delivery.rs`, `src/recovery.rs`, `src/renewal.rs` |
 | Idle scheduling and local wake signals | `src/scheduling.rs`, `src/storage.rs` |
+| Automatic archive, budgets, backup and restore | `src/archive.rs`, `src/maintenance.rs`, `src/maintenance.sql` |
 | Local transport and OS primitives | `src/ipc.rs`, `src/platform/` |
 | Configuration and plugin lifecycle | `src/config.rs`, `src/integration.rs`, `src/deployment.rs`, `src/plugin.rs`, `src/lifecycle.rs` |
 
@@ -33,6 +34,12 @@ In-process writes signal reconciliation and delivery immediately. Idle fallback 
 Job: queued → launching → running → completed/failed/cancelled/timeout/orphaned. Run records attempt=1, runner identity, workload identity, exit code/signal. Retrying a submission with the same key and identical spec returns the original; a changed spec conflicts. Execution is never replayed after launching uncertainty.
 
 Launch intent commits before spawn. Runner takes a per-run OS lock and atomically claims the launching intent before starting any workload. Duplicate runners lose the CAS. A daemon crash before/after spawning cannot duplicate execution. A launch that remains unclaimed after grace becomes orphaned, never automatically retried. The same lock fences recovery against a delayed runner. PID is diagnostic only; Linux boot ID + procfs start ticks identify processes. Recovery checks lock ownership, not kill(pid,0). Each terminal transition atomically inserts one event and outbox.
+
+## Automatic data maintenance
+
+Unreleased schema v8 separates hot relational history from compressed cold snapshots in the same database; log gzip publication precedes atomic snapshot/pruning and verified raw cleanup. Indexed cold catalogs keep existing bounded queries transparent. Persistent sequence high-water marks and cross-tier specification hashes preserve pagination/idempotency. Only terminal jobs without unresolved or unexpired recoverable deliveries qualify; explicit retry/target mutation rehydrates terminal records without launching commands. Expired historical session registrations no longer consume live-session quota. Default age/count/log budgets and daily rolling backups run in the daemon's supervised maintenance task, independent of host polling. Complete archives are retained indefinitely, not purged.
+
+SQLite online backups pin a read snapshot; exact-path staging journals, manifest-last publication and checksum/inventory validation support bounded forward recovery and safe rolling rotation. Restore publishes only a new profile after orphaning old active intents, invalidating registrations and fencing outstanding claims. Migration to v8 requires daemon exclusivity and no old launching/running jobs. See [data maintenance](data-maintenance.md) and [ADR 0014](adr/0014-automatic-data-maintenance.md).
 
 ## Sessions and delivery
 

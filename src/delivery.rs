@@ -66,22 +66,27 @@ impl Store {
         if let Some(j) = &job {
             validate_id(j)?;
         }
-        self.call(move|db|{let mut q=db.prepare("SELECT d.rowid,d.id,d.event_id,d.target_id,d.status,d.attempts,d.expires,d.last_error,d.failure_kind,d.next_at FROM deliveries d JOIN targets t ON d.target_id=t.id WHERE (? IS NULL OR t.job_id=?) AND d.rowid>? ORDER BY d.rowid LIMIT ?")?;
-            let rows=q.query_map(params![job,job,after,limit],read_delivery)?.collect::<rusqlite::Result<Vec<_>>>()?;
+        self.read(move|db|{let tx=db.transaction()?;let db=&tx;let mut q=db.prepare("SELECT sequence,id,archived FROM (SELECT d.rowid AS sequence,d.id,0 AS archived,t.job_id FROM deliveries d JOIN targets t ON d.target_id=t.id UNION ALL SELECT sequence,id,1 AS archived,job_id FROM archive_deliveries) WHERE (?1 IS NULL OR job_id=?1) AND sequence>?2 ORDER BY sequence LIMIT ?3")?;
+            let ids=q.query_map(params![job,after,limit],|r|Ok((r.get::<_,String>(1)?,r.get::<_,bool>(2)?)))?.collect::<rusqlite::Result<Vec<_>>>()?;
+            let rows=ids.iter().map(|(id,archived)|if *archived {crate::archive::archived_delivery(db,id)?.context("archived delivery missing")}else{Ok(db.query_row("SELECT rowid,id,event_id,target_id,status,attempts,expires,last_error,failure_kind,next_at FROM deliveries WHERE id=?",[id],read_delivery)?)}).collect::<Result<Vec<_>>>()?;
             Ok(json!({"next_cursor":rows.last().map_or(after,|d|d.sequence),"deliveries":rows}))
         }).await
     }
     pub async fn retry_delivery(&self, d: String) -> Result<Value> {
         validate_id(&d)?;
         self.call(move|db|{
-        let changed=db.execute("UPDATE deliveries SET status='pending',next_at=?,expires=?,last_error=NULL,failure_kind=NULL,token=NULL,lease_until=NULL WHERE id=? AND status IN ('retry_wait','dead_letter')",params![now(),now()+86400000,d])?;
-        ensure!(changed==1,"only retry_wait/dead_letter deliveries can be explicitly retried");Ok(json!({"delivery_id":d,"status":"pending","ttl_renewed":true}))
+        let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        crate::archive::restore_delivery(&tx,&d)?;
+        let changed=tx.execute("UPDATE deliveries SET status='pending',next_at=?,expires=?,last_error=NULL,failure_kind=NULL,token=NULL,lease_until=NULL WHERE id=? AND status IN ('retry_wait','dead_letter')",params![now(),now()+86400000,d])?;
+        ensure!(changed==1,"only retry_wait/dead_letter deliveries can be explicitly retried");tx.commit()?;Ok(json!({"delivery_id":d,"status":"pending","ttl_renewed":true}))
     }).await
     }
     pub async fn attempts(&self, d: String, after: u32, limit: u32) -> Result<Value> {
         validate_id(&d)?;
         ensure!((1..=100).contains(&limit), "invalid attempt limit");
-        self.call(move|db|{
+        self.read(move|db|{
+        let tx=db.transaction()?;let db=&tx;
+        if let Some(result)=crate::archive::attempts(db,&d,after,limit)? {return Ok(result);}
         let mut q=db.prepare("SELECT attempt,started,ended,outcome,error FROM delivery_attempts WHERE delivery_id=? AND attempt>? ORDER BY attempt LIMIT ?")?;
         let rows=q.query_map(params![d,after,limit],|r|Ok(json!({"attempt":r.get::<_,u32>(0)?,"started":r.get::<_,i64>(1)?,"ended":r.get::<_,Option<i64>>(2)?,"outcome":r.get::<_,Option<String>>(3)?,"error":r.get::<_,Option<String>>(4)?})))?.collect::<rusqlite::Result<Vec<_>>>()?;
         Ok(json!({"attempts":rows,"next_cursor":rows.last().and_then(|v|v["attempt"].as_u64()).unwrap_or(after as u64)}))

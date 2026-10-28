@@ -137,7 +137,8 @@ impl Store {
         self.call(move|db|{
             let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
             let old:Option<String>=tx.query_row("SELECT key FROM sessions WHERE agent=? AND logical=? AND instance=? AND host=?",params![r.agent_kind,r.session_id,r.instance_id,r.host_id],|row|row.get(0)).optional()?;
-            if old.is_none(){let count:i64=tx.query_row("SELECT count(*) FROM sessions",[],|r|r.get(0))?;ensure!(count<1000,"session quota (1000) reached");}
+            let already_active=if let Some(key)=&old {tx.query_row("SELECT connected=1 AND expires>? FROM sessions WHERE key=?",params![now(),key],|r|r.get::<_,bool>(0))?}else{false};
+            if !already_active {let count:i64=tx.query_row("SELECT count(*) FROM sessions WHERE connected=1 AND expires>?",[now()],|r|r.get(0))?;ensure!(count<1000,"active session quota (1000) reached");}
             let key=old.unwrap_or_else(id);let expires=now()+r.lease_seconds as i64*1000;
             tx.execute("INSERT INTO sessions(key,agent,logical,instance,host,registration,expires,connected,endpoint_identity) VALUES(?,?,?,?,?,?,?,1,?) ON CONFLICT(key) DO UPDATE SET registration=excluded.registration,expires=excluded.expires,connected=1,endpoint_identity=excluded.endpoint_identity",params![key,r.agent_kind,r.session_id,r.instance_id,r.host_id,serde_json::to_string(&r)?,expires,endpoint_identity])?;
             tx.commit()?;Ok(AgentSession{key,registration:r,expires_at:expires,connected:true,endpoint_identity})
@@ -151,7 +152,7 @@ impl Store {
         );
         self.call(move|db|{
         read_session(db,&key)?;
-        let mut q=db.prepare("SELECT d.rowid,d.id,e.id,e.job_id,e.kind,d.status FROM deliveries d JOIN targets t ON d.target_id=t.id JOIN events e ON e.id=d.event_id WHERE t.session_key=? AND d.rowid>? ORDER BY d.rowid LIMIT ?")?;
+        let mut q=db.prepare("SELECT sequence,id,event_id,job_id,kind,status FROM (SELECT d.rowid AS sequence,d.id,e.id AS event_id,e.job_id,e.kind,d.status FROM deliveries d JOIN targets t ON d.target_id=t.id JOIN events e ON e.id=d.event_id WHERE t.session_key=?1 UNION ALL SELECT sequence,id,event_id,job_id,kind,status FROM archive_deliveries WHERE session_key=?1) WHERE sequence>?2 ORDER BY sequence LIMIT ?3")?;
         let rows=q.query_map(params![key,after,limit],|r|Ok(json!({"sequence":r.get::<_,i64>(0)?,"delivery_id":r.get::<_,String>(1)?,"event_id":r.get::<_,String>(2)?,"job_id":r.get::<_,String>(3)?,"kind":r.get::<_,String>(4)?,"status":r.get::<_,String>(5)?})))?.collect::<rusqlite::Result<Vec<_>>>()?;
         Ok(json!({"messages":rows,"next_cursor":rows.last().and_then(|v|v["sequence"].as_i64()).unwrap_or(after),"auto_resume":false}))
     }).await
@@ -195,6 +196,7 @@ impl Store {
         validate_id(&session)?;
         self.call(move |db| {
             let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+            crate::archive::restore(&tx, &j)?;
             crate::storage::read_job(&tx, &j)?;
             let target = add_target(&tx, &j, &session)?;
             if replay {
@@ -218,6 +220,8 @@ impl Store {
         validate_id(&session)?;
         self.call(move|db|{
         let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let archived:Option<String>=tx.query_row("SELECT job_id FROM archive_targets WHERE id=?",[&target],|r|r.get(0)).optional()?;
+        if let Some(job)=archived {crate::archive::restore(&tx,&job)?;}
         let j:String=tx.query_row("SELECT job_id FROM targets WHERE id=?",[&target],|r|r.get(0)).context("target not found")?;
         let new=add_target(&tx,&j,&session)?;ensure!(new!=target,"new session must differ from current target");
         tx.execute("UPDATE targets SET active=0 WHERE id=?",[&target])?;
@@ -270,7 +274,8 @@ pub fn add_target(db: &Connection, j: &str, key: &str) -> Result<String> {
         r.get(0)
     })?;
     ensure!(count < 16, "wake target quota (16 per job) reached");
-    db.execute("INSERT INTO targets(id,job_id,session_key,active) VALUES(?,?,?,1) ON CONFLICT(job_id,session_key) DO UPDATE SET active=1",params![id(),j,key])?;
+    let sequence = crate::storage::next_sequence(db, "targets")?;
+    db.execute("INSERT INTO targets(rowid,id,job_id,session_key,active) VALUES(?,?,?,?,1) ON CONFLICT(job_id,session_key) DO UPDATE SET active=1",params![sequence,id(),j,key])?;
     Ok(db.query_row(
         "SELECT id FROM targets WHERE job_id=? AND session_key=?",
         params![j, key],
@@ -278,6 +283,7 @@ pub fn add_target(db: &Connection, j: &str, key: &str) -> Result<String> {
     )?)
 }
 pub fn enqueue(db: &Connection, event: &str, target: &str, at: i64) -> Result<()> {
-    db.execute("INSERT OR IGNORE INTO deliveries(id,event_id,target_id,status,attempts,next_at,expires) VALUES(?,?,?,'pending',0,?,?)",params![id(),event,target,now(),at+86400000])?;
+    let sequence = crate::storage::next_sequence(db, "deliveries")?;
+    db.execute("INSERT OR IGNORE INTO deliveries(rowid,id,event_id,target_id,status,attempts,next_at,expires) VALUES(?,?,?,?,'pending',0,?,?)",params![sequence,id(),event,target,now(),at+86400000])?;
     Ok(())
 }

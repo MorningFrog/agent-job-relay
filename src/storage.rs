@@ -1,5 +1,5 @@
 use crate::{config::Config, core::*};
-use anyhow::{Result, bail, ensure};
+use anyhow::{Context, Result, ensure};
 use rusqlite::{Connection, OptionalExtension, params};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -15,6 +15,7 @@ pub struct Store {
     connections: Arc<Mutex<Vec<CachedConnection>>>,
     pub(crate) job_changes: Arc<Notify>,
     pub(crate) delivery_changes: Arc<Notify>,
+    pub(crate) maintenance_stop: Arc<std::sync::atomic::AtomicBool>,
 }
 impl Store {
     pub fn new(config: Config) -> Self {
@@ -23,6 +24,7 @@ impl Store {
             connections: Arc::new(Mutex::new(Vec::new())),
             job_changes: Arc::new(Notify::new()),
             delivery_changes: Arc::new(Notify::new()),
+            maintenance_stop: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }
     }
     pub async fn call<T, F>(&self, f: F) -> Result<T>
@@ -109,12 +111,30 @@ impl Store {
         .await?
     }
     pub async fn init(&self) -> Result<()> {
+        let version = self
+            .read(|db| Ok(db.pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0))?))
+            .await?;
+        // Older daemons allocate rowids independently of the archive high-water
+        // marks. Never migrate underneath one or an older in-flight runner.
+        let _migration_lock = if version < 8 {
+            Some(
+                self.config
+                    .daemon_lock()
+                    .context("stop the selected daemon before upgrading the data schema")?,
+            )
+        } else {
+            None
+        };
         self.call(|db| {
             let v: i64 = db.pragma_query_value(None, "user_version", |r| r.get(0))?;
             ensure!(
-                v <= 7,
+                v <= 8,
                 "database schema is newer than this executable; downgrade refused"
             );
+            if v > 0 && v < 8 {
+                let running:bool=db.query_row("SELECT EXISTS(SELECT 1 FROM jobs WHERE status IN ('launching','running'))",[],|r|r.get(0))?;
+                ensure!(!running,"finish active runs with the previous runtime before upgrading the data schema");
+            }
             db.pragma_update(None, "journal_mode", "WAL")?;
             if v == 0 {
                 db.execute_batch(include_str!("schema.sql"))?;
@@ -156,6 +176,7 @@ impl Store {
                     CREATE INDEX IF NOT EXISTS deliveries_lease ON deliveries(status,lease_until);
                     PRAGMA user_version=7; COMMIT;")?;
             }
+            if v < 8 { db.execute_batch(include_str!("maintenance.sql"))?; }
             Ok(())
         })
         .await
@@ -169,12 +190,17 @@ impl Store {
                 && let Some((id,old))=tx.query_row("SELECT id,spec FROM jobs WHERE idem=?",[key],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?))).optional()? {
                     ensure!(old==raw,"idempotency key already used with a different specification"); return read_job(&tx,&id);
                 }
+            if let Some(key)=&spec.idempotency_key
+                && let Some((id,hash))=tx.query_row("SELECT id,spec_hash FROM archive_jobs WHERE idem=?",[key],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?))).optional()? {
+                ensure!(hash==crate::archive::hash(raw.as_bytes()),"idempotency key already used with a different specification");return read_job(&tx,&id);
+            }
             let active:i64=tx.query_row("SELECT count(*) FROM jobs WHERE status IN ('queued','launching','running')",[],|r|r.get(0))?;
             ensure!(active<8,"active job quota (8) reached; wait or stop a job");
             let total:i64=tx.query_row("SELECT count(*) FROM jobs",[],|r|r.get(0))?;
             ensure!(total<10000,"job history quota (10000) reached; archive state before starting more jobs");
             let j=id(); let r=id(); let nonce=id(); let t=now();
-            tx.execute("INSERT INTO jobs(id,run_id,spec,idem,status,created,updated) VALUES(?,?,?,?,'queued',?,?)",params![j,r,raw,spec.idempotency_key,t,t])?;
+            let sequence=next_sequence(&tx,"jobs")?;
+            tx.execute("INSERT INTO jobs(rowid,id,run_id,spec,idem,status,created,updated) VALUES(?,?,?,?,?,'queued',?,?)",params![sequence,j,r,raw,spec.idempotency_key,t,t])?;
             tx.execute("INSERT INTO runs(id,job_id,attempt,nonce) VALUES(?,?,1,?)",params![r,j,nonce])?;
             if let Some(key)=&spec.session {crate::session::add_target(&tx,&j,key)?;}
             let result=read_job(&tx,&j)?; tx.commit()?; Ok(result)
@@ -190,7 +216,9 @@ impl Store {
             "limit must be 1..100 and cursor nonnegative"
         );
         self.read(move |db| {
-            let mut s = db.prepare("SELECT id FROM jobs WHERE rowid>? ORDER BY rowid LIMIT ?")?;
+            let tx=db.transaction()?;
+            let db=&tx;
+            let mut s = db.prepare("SELECT id FROM (SELECT rowid AS sequence,id FROM jobs UNION ALL SELECT sequence,id FROM archive_jobs) WHERE sequence>? ORDER BY sequence LIMIT ?")?;
             let ids = s
                 .query_map(params![after, limit], |r| r.get::<_, String>(0))?
                 .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -234,7 +262,7 @@ impl Store {
             (1..=100).contains(&limit) && after >= 0,
             "invalid event limit/cursor"
         );
-        self.read(move|db|{ read_job(db,&j)?; let mut q=db.prepare("SELECT seq,id,job_id,run_id,kind,at,payload FROM events WHERE job_id=? AND seq>? ORDER BY seq LIMIT ?")?;
+        self.read(move|db|{ let tx=db.transaction()?;let db=&tx; if let Some(snapshot)=crate::archive::load(db,&j)? { return crate::archive::events(&snapshot,after,limit); } read_job(db,&j)?; let mut q=db.prepare("SELECT seq,id,job_id,run_id,kind,at,payload FROM events WHERE job_id=? AND seq>? ORDER BY seq LIMIT ?")?;
             let rows=q.query_map(params![j,after,limit],|r|Ok(Event{seq:r.get(0)?,event_id:r.get(1)?,job_id:r.get(2)?,run_id:r.get(3)?,kind:r.get(4)?,at:r.get(5)?,payload:serde_json::from_str(&r.get::<_,String>(6)?).unwrap_or_default()}))?;
             Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?) }).await
     }
@@ -281,7 +309,9 @@ pub fn read_job(db: &Connection, j: &str) -> Result<Job> {
         ended_at,
     )) = row
     else {
-        bail!("job not found");
+        return crate::archive::load(db, j)?
+            .map(|s| s.job)
+            .ok_or_else(|| anyhow::anyhow!("job not found"));
     };
     let spec: StartSpec = serde_json::from_str(&spec)?;
     let run = Run {
@@ -379,4 +409,14 @@ pub fn insert_event(
         }
     }
     Ok(())
+}
+
+/// Preserve cursors when the largest hot row is moved into cold storage.
+pub(crate) fn next_sequence(db: &Connection, table: &str) -> Result<i64> {
+    ensure!(
+        ["jobs", "targets", "deliveries"].contains(&table),
+        "unknown cursor sequence"
+    );
+    // max(rowid) also admits older fixtures/imports that used SQLite allocation.
+    Ok(db.query_row(&format!("UPDATE sequence_highwater SET value=max(value,(SELECT coalesce(max(rowid),0) FROM {table}))+1 WHERE name=? RETURNING value"),[table],|r|r.get(0))?)
 }

@@ -1,4 +1,5 @@
 pub mod adapters;
+pub mod archive;
 pub mod client;
 pub mod config;
 pub mod core;
@@ -9,6 +10,7 @@ pub mod diagnostics;
 pub mod integration;
 pub mod ipc;
 pub mod lifecycle;
+pub mod maintenance;
 pub mod mcp;
 pub mod output;
 pub mod platform;

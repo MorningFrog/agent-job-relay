@@ -95,6 +95,8 @@ pub fn compact(op: &str, value: Value) -> Value {
                 &[
                     "daemon",
                     "store",
+                    "store_check",
+                    "capacity",
                     "version",
                     "active_jobs",
                     "orphaned_jobs",
@@ -109,6 +111,21 @@ pub fn compact(op: &str, value: Value) -> Value {
                     "desktop_context",
                 ],
             );
+            if value.get("capacity").is_some() {
+                result["capacity"] = fields(
+                    &value["capacity"],
+                    &[
+                        "hot_jobs",
+                        "hot_job_limit",
+                        "archived_jobs",
+                        "active_sessions",
+                        "active_session_limit",
+                        "last_backup_at",
+                        "last_error",
+                        "warning",
+                    ],
+                );
+            }
             result["next_step"] = json!(
                 if value["runner_readiness"]["status"] == "restart_required" {
                     "Let active jobs finish, then explicitly stop/update the same installed profile."

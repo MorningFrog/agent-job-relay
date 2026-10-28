@@ -22,6 +22,11 @@ pub(super) struct Cli {
 }
 #[derive(Subcommand)]
 pub(super) enum Commands {
+    /// Inspect automatic archiving, configure budgets, back up or restore data
+    Data {
+        #[command(subcommand)]
+        command: DataCommand,
+    },
     /// Bind this chat/workspace; optionally preview or apply its notification recovery
     Connect {
         #[arg(long)]
@@ -204,6 +209,42 @@ pub(super) enum Commands {
     },
     #[command(hide = true)]
     Runner { job_id: String, nonce: String },
+}
+#[derive(Subcommand)]
+pub(super) enum DataCommand {
+    /// Show capacity, policy, latest automatic scan and backup health
+    Status,
+    /// Check SQLite integrity and foreign keys without contacting a host
+    Check,
+    /// Show or preview policy changes; defaults archive and back up automatically
+    Policy {
+        #[arg(long)]
+        hot_jobs: Option<u32>,
+        #[arg(long)]
+        archive_after_days: Option<u32>,
+        #[arg(long)]
+        hot_log_mib: Option<u32>,
+        #[arg(long)]
+        backup_hours: Option<u32>,
+        #[arg(long)]
+        backup_keep: Option<u32>,
+        #[arg(long)]
+        apply: bool,
+    },
+    /// Preview one automatic-maintenance batch; --apply also runs due backups
+    Maintain {
+        #[arg(long)]
+        apply: bool,
+    },
+    /// Create an additional consistent database/log snapshot in this profile
+    Backup,
+    /// Restore a verified snapshot to a new profile; never replay commands
+    Restore {
+        #[arg(long)]
+        from: PathBuf,
+        #[arg(long)]
+        to: PathBuf,
+    },
 }
 #[derive(Subcommand)]
 pub(super) enum PluginCommand {

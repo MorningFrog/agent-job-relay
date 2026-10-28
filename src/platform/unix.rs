@@ -8,6 +8,17 @@ use std::{
     path::Path,
     process::Command,
 };
+pub fn available_space(path: &Path) -> Result<u64> {
+    use std::os::unix::ffi::OsStrExt;
+    let path = std::ffi::CString::new(path.as_os_str().as_bytes())?;
+    let mut stat = unsafe { std::mem::zeroed::<libc::statvfs>() };
+    if unsafe { libc::statvfs(path.as_ptr(), &mut stat) } != 0 {
+        return Err(std::io::Error::last_os_error().into());
+    }
+    Ok((u128::from(stat.f_bavail) * u128::from(stat.f_frsize))
+        .try_into()
+        .unwrap_or(u64::MAX))
+}
 pub fn initialize() {
     unsafe {
         libc::umask(0o077);

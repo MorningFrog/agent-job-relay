@@ -28,6 +28,18 @@ use windows_sys::Win32::{
 fn wide(value: impl AsRef<OsStr>) -> Vec<u16> {
     value.as_ref().encode_wide().chain(Some(0)).collect()
 }
+pub fn available_space(path: &Path) -> Result<u64> {
+    let mut available = 0;
+    unsafe {
+        check(GetDiskFreeSpaceExW(
+            wide(path).as_ptr(),
+            &mut available,
+            null_mut(),
+            null_mut(),
+        ))?;
+    }
+    Ok(available)
+}
 fn check(ok: i32) -> Result<()> {
     if ok == 0 {
         return Err(std::io::Error::last_os_error().into());

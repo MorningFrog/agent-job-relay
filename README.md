@@ -105,12 +105,15 @@ The result is the native local plugin in **AgentJobRelay Local**, normally refer
 
 The current release adds unified `plugin install` and `connect [--recover [--apply]]` entries, caller/workspace binding objects and compact MCP results (`full=true` for complete records); see [daily usage](docs/usage.md) and [unified maintenance](docs/installation.md#unified-install-and-update). It also reduces idle database work and permits notifications to up to four chats concurrently. Current results and version-specific limits are maintained in [implementation status](docs/IMPLEMENTATION_STATUS.md) and [live evidence](docs/live-e2e.md). Official directory submission requires separate approval; independent OS installers/package repositories are cancelled. **Community testing and PRs are welcome, especially for Claude Code and container-based version checks.**
 
+Unreleased source adds automatic data maintenance: 30-day/1,000-job/256-MiB hot-data budgets, daily rolling backups and transparent archived-history reads. It also reserves database reads for control requests and keeps reconciliation off the IPC acceptance loop. These changes use schema v8 and require finishing old workloads and explicitly stopping the old daemon before upgrade; the published package remains unchanged. See [automatic maintenance and restore](docs/data-maintenance.md).
+
 ## Documentation and support
 
 | Topic | Guide |
 |---|---|
 | Step-by-step local installation from source | [Source installation](docs/source-install.md), [简体中文](docs/source-install.zh-CN.md) |
 | Installation, profiles, updates, caches and removal | [Installation](docs/installation.md) |
+| Automatic data budgets, backups and restore (unreleased source) | [Data maintenance](docs/data-maintenance.md) |
 | CLI, MCP, notifications and recovery | [Usage](docs/usage.md) |
 | Human acceptance and expected results | [Manual testing](docs/manual-testing.md) |
 | Automated tests and verification scope | [Testing](docs/testing.md) |

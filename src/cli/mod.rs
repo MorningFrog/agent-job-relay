@@ -56,6 +56,54 @@ pub(super) async fn run() -> Result<()> {
     }
     let config = Config::new(state)?;
     let req = match cli.command {
+        Commands::Data { command } => {
+            use agent_job_relay::{maintenance, storage::Store};
+            let value = if let DataCommand::Restore { from, to } = command {
+                maintenance::restore(from, to).await?
+            } else {
+                // Explicit data maintenance never starts a daemon or a workload.
+                config.prepare()?;
+                let store = Store::new(config);
+                store.init().await?;
+                match command {
+                    DataCommand::Status => store.data_status().await?,
+                    DataCommand::Check => store.data_check().await?,
+                    DataCommand::Maintain { apply } => store.maintain(apply).await?,
+                    DataCommand::Backup => store.backup().await?,
+                    DataCommand::Policy {
+                        hot_jobs,
+                        archive_after_days,
+                        hot_log_mib,
+                        backup_hours,
+                        backup_keep,
+                        apply,
+                    } => {
+                        let mut policy: maintenance::Policy = serde_json::from_value(
+                            store.data_policy(None, false).await?["policy"].clone(),
+                        )?;
+                        if let Some(value) = hot_jobs {
+                            policy.hot_jobs = value;
+                        }
+                        if let Some(value) = archive_after_days {
+                            policy.archive_after_days = value;
+                        }
+                        if let Some(value) = hot_log_mib {
+                            policy.hot_log_mib = value;
+                        }
+                        if let Some(value) = backup_hours {
+                            policy.backup_hours = value;
+                        }
+                        if let Some(value) = backup_keep {
+                            policy.backup_keep = value;
+                        }
+                        store.data_policy(Some(policy), apply).await?
+                    }
+                    DataCommand::Restore { .. } => unreachable!(),
+                }
+            };
+            println!("{}", serde_json::to_string_pretty(&value)?);
+            return Ok(());
+        }
         Commands::Connect {
             cwd,
             recover,

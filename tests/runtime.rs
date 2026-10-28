@@ -282,18 +282,18 @@ async fn cancellation_and_timeout_kill_descendants_only() {
     let r = Rig::new().await;
     let j = r.start("sleep 20 & echo $! > grandchild; wait").await;
     r.state(&j, &["running"]).await;
-    tokio::time::timeout(Duration::from_secs(3), async {
-        while !r.dir.path().join("grandchild").exists() {
+    let pid: u32 = tokio::time::timeout(Duration::from_secs(3), async {
+        loop {
+            if let Ok(text) = std::fs::read_to_string(r.dir.path().join("grandchild"))
+                && let Ok(pid) = text.trim().parse::<u32>()
+            {
+                break pid;
+            }
             tokio::time::sleep(Duration::from_millis(20)).await;
         }
     })
     .await
     .unwrap();
-    let pid: u32 = std::fs::read_to_string(r.dir.path().join("grandchild"))
-        .unwrap()
-        .trim()
-        .parse()
-        .unwrap();
     r.call(Request::Stop { job_id: j.clone() }).await;
     r.state(&j, &["cancelled"]).await;
     assert!(agent_job_relay::platform::identity(pid).is_none());
@@ -674,6 +674,12 @@ async fn control_requests_remain_responsive_during_reconciliation_write_contenti
     let job = store.start(r.spec("exit 0")).await.unwrap();
     let db = rusqlite::Connection::open(r.config.root.join("relay.sqlite3")).unwrap();
     db.execute_batch("BEGIN IMMEDIATE").unwrap();
+    let mut writers = tokio::task::JoinSet::new();
+    for _ in 0..16 {
+        let config = r.config.clone();
+        let spec = r.spec("exit 0");
+        writers.spawn(async move { ipc::call(&config, Request::Start { spec }).await });
+    }
     // Multiple requests span the reconciliation interval while its launch CAS
     // cannot acquire the writer. Neither read diagnostics nor shutdown need it.
     for _ in 0..4 {
@@ -691,10 +697,9 @@ async fn control_requests_remain_responsive_during_reconciliation_write_contenti
         ipc::call(&r.config, Request::Shutdown),
     )
     .await;
-    db.execute_batch("ROLLBACK").unwrap();
     assert_eq!(result.unwrap().unwrap()["daemon"], "stopping");
     let mut daemon = r.daemon.take().unwrap();
-    tokio::time::timeout(Duration::from_secs(8), async {
+    let exit = tokio::time::timeout(Duration::from_secs(15), async {
         loop {
             if daemon.try_wait().unwrap().is_some() {
                 break;
@@ -702,8 +707,16 @@ async fn control_requests_remain_responsive_during_reconciliation_write_contenti
             tokio::time::sleep(Duration::from_millis(20)).await;
         }
     })
-    .await
-    .unwrap();
+    .await;
+    db.execute_batch("ROLLBACK").unwrap();
+    writers.shutdown().await;
+    if exit.is_err() {
+        daemon.kill().unwrap();
+        daemon.wait().unwrap();
+    }
+    exit.expect(
+        "shutdown must discard queued writer requests while the external writer remains held",
+    );
     // A launch already claimed during orderly shutdown still has its independent runner.
     r.boot().await;
     r.state(&job.job_id, &["completed", "orphaned"]).await;

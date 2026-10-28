@@ -105,12 +105,15 @@ Agent 会绑定当前聊天、提交任务、结束回合，并在收到通知�
 
 当前版本新增统一的 `plugin install` 和 `connect [--recover [--apply]]` 入口、聊天与工作目录绑定对象，以及默认精简的 MCP 返回（`full=true` 查看完整记录），见[日常使用](docs/usage.md)和[统一维护](docs/installation.md#unified-install-and-update)。同时减少空闲时的数据库访问，并允许最多四个聊天并发接收通知。当前结果与版本限制统一维护在[实施状态](docs/IMPLEMENTATION_STATUS.md)及[真实验证记录](docs/live-e2e.md)。官方目录投稿需要单独批准，独立系统安装包及软件仓库计划已取消。**欢迎社区测试和 PR，尤其是 Claude Code 及容器化版本验证。**
 
+未发布的当前源码新增自动数据维护：按 30 天、1,000 个热任务及 256 MiB 热日志预算归档，每天轮换备份，并继续支持归档历史查询。同时为控制请求保留数据库读取通道，将后台对账移出 IPC 接收循环。这些改动使用 schema v8；升级前需完成旧任务并显式停止旧 daemon，已发布的安装包尚未包含这些改动。见[自动维护与恢复](docs/data-maintenance.md)。
+
 ## 文档与支持范围
 
 | 主题 | 文档 |
 |---|---|
 | 从源码逐步安装本地插件 | [中文教程](docs/source-install.zh-CN.md)、[English](docs/source-install.md) |
 | 安装、状态配置、更新、缓存及移除 | [安装指南](docs/installation.md) |
+| 自动容量预算、备份与恢复（未发布源码） | [数据维护](docs/data-maintenance.md) |
 | CLI、MCP、通知和恢复 | [使用指南](docs/usage.md) |
 | 人工验收步骤和预期结果 | [人工测试](docs/manual-testing.md) |
 | 自动化测试和验证边界 | [测试指南](docs/testing.md) |

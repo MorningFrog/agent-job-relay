@@ -1,6 +1,6 @@
 # Current live verification
 
-Live-verified baseline: **AgentJobRelay v0.1.8**, verified on **2026-10-27 (Asia/Shanghai)**. The prepared 0.1.9 candidate has separate automated checks; no new real-host continuation acceptance is claimed. Raw reports, logs and private identifiers stay in ignored repository-local storage; earlier results remain in Git history.
+Live-verified baseline: **AgentJobRelay v0.1.8**, verified on **2026-10-27 (Asia/Shanghai)**. Published 0.1.9 has separate automated checks. Current unreleased archive/backup/control changes add Linux behavioral evidence only; no new real-host continuation acceptance is claimed. Raw reports, logs and private identifiers stay in ignored repository-local storage; earlier results remain in Git history.
 
 ## Linux ChatGPT Desktop
 
@@ -26,4 +26,4 @@ The live task correctly reported a test failure caused by inherited `AJR_STATE_D
 
 ## Distribution
 
-Both npm packages and the formal GitHub Release are public, with npm latest selecting the published baseline. The next candidate awaits maintainer-operated Prepare Release and OIDC Publish Release; Trusted Publisher configuration is user-confirmed, while actual OIDC/provenance still needs qualification. No official-directory submission occurred. See [implementation status](IMPLEMENTATION_STATUS.md) and [release preparation](release.md).
+Both npm 0.1.9 packages and the formal GitHub Release are public, with OIDC publication/provenance and local public-byte/install checks recorded separately. The repaired final Actions checker awaits a maintainer run; current unreleased data-maintenance source has not been published. No official-directory submission occurred. See [implementation status](IMPLEMENTATION_STATUS.md) and [release preparation](release.md).

@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+### Added
+
+- Automatically archive terminal history by age, hot-job count and log budget; preserve transparent history/log reads, stable cursors, idempotency keys and delivery/audit records in compressed cold storage. Protect active runs and recoverable notifications.
+- Add profile-scoped data capacity/policy/integrity/backup/restore commands, daily rolling SQLite/log backups, recorded sealed/unsealed recovery and checksum/foreign-content refusal. Restore into a new profile without replaying commands or accepting stale claims.
+
+### Changed
+
+- Reserve database reader capacity, index runtime lookups, use one joined job read and minimal runner cancellation queries, and supervise reconciliation independently of IPC acceptance. Keep Doctor lightweight and make integrity checking explicit.
+- Migrate development profiles to schema v8 only after the old daemon stops and old active runs finish. Count live session registrations rather than all historical sessions against the registration quota.
+- Retain line-table debug information while keeping installed debug fixtures within the existing native payload size limit; CI retains its smaller symbol-free setting.
+
+### Verification boundary
+
+- These changes are unreleased. Linux behavioral verification covers automatic operation, budgets, archive/backup recovery, hot/cold queries, migration fences and control responsiveness; Windows native/package and real-host acceptance need separate qualification.
+
 ## [0.1.9] - 2026-10-28
 
 ### Changed

@@ -20,6 +20,10 @@ pub fn secure_dir(path: &Path) -> Result<()> {
 #[cfg(not(any(unix, windows)))]
 pub fn initialize() {}
 #[cfg(not(any(unix, windows)))]
+pub fn available_space(_: &Path) -> Result<u64> {
+    bail!("filesystem capacity is not available on this platform")
+}
+#[cfg(not(any(unix, windows)))]
 pub fn detach(_: &mut std::process::Command) -> Result<()> {
     bail!("native background runtime is not implemented on this platform")
 }
@@ -60,6 +64,31 @@ pub fn create_new_file(path: &Path) -> Result<File> {
         secure_options(&mut o);
         Ok(o.open(path)?)
     }
+}
+/// Open existing data without following links or creating an empty substitute.
+pub fn read_file(path: &Path) -> Result<File> {
+    #[cfg(windows)]
+    check_path(path)?;
+    let mut options = std::fs::OpenOptions::new();
+    options.read(true);
+    secure_options(&mut options);
+    let file = options.open(path)?;
+    anyhow::ensure!(file.metadata()?.is_file(), "data must be a regular file");
+    #[cfg(windows)]
+    verify_private_file(&file)?;
+    Ok(file)
+}
+pub fn sync_file(path: &Path) -> Result<()> {
+    #[cfg(windows)]
+    check_path(path)?;
+    let mut options = std::fs::OpenOptions::new();
+    options.read(true).write(true);
+    secure_options(&mut options);
+    let file = options.open(path)?;
+    anyhow::ensure!(file.metadata()?.is_file(), "data must be a regular file");
+    #[cfg(windows)]
+    verify_private_file(&file)?;
+    Ok(file.sync_all()?)
 }
 pub fn normalized_path(path: std::path::PathBuf) -> std::path::PathBuf {
     #[cfg(windows)]
@@ -201,6 +230,38 @@ pub fn rename_directory(source: &Path, destination: &Path) -> Result<()> {
     {
         std::fs::rename(source, destination)?;
         Ok(())
+    }
+}
+/// Publish a new restore point/profile without replacing a concurrently created
+/// destination, including an empty directory belonging to somebody else.
+pub fn publish_new_directory(source: &Path, destination: &Path) -> Result<()> {
+    #[cfg(target_os = "linux")]
+    {
+        use std::os::unix::ffi::OsStrExt;
+        let source = std::ffi::CString::new(source.as_os_str().as_bytes())?;
+        let destination = std::ffi::CString::new(destination.as_os_str().as_bytes())?;
+        let result = unsafe {
+            libc::renameat2(
+                libc::AT_FDCWD,
+                source.as_ptr(),
+                libc::AT_FDCWD,
+                destination.as_ptr(),
+                libc::RENAME_NOREPLACE,
+            )
+        };
+        if result != 0 {
+            return Err(std::io::Error::last_os_error().into());
+        }
+        Ok(())
+    }
+    #[cfg(windows)]
+    {
+        rename_directory(source, destination)
+    }
+    #[cfg(not(any(target_os = "linux", windows)))]
+    {
+        let _ = (source, destination);
+        bail!("atomic new data-directory publication is supported only on Linux and Windows")
     }
 }
 pub const NATIVE_FILE: &str = if cfg!(windows) {

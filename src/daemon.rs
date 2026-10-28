@@ -67,9 +67,9 @@ async fn reconcile(store: &Store) -> Result<bool> {
 pub async fn serve(config: Config) -> Result<()> {
     crate::platform::require_runtime()?;
     config.prepare()?;
-    let _lock = config.daemon_lock()?;
     let store = Store::new(config.clone());
     store.init().await?;
+    let _lock = config.daemon_lock()?;
     #[cfg(any(unix, windows))]
     {
         let path = config.socket();
@@ -80,7 +80,8 @@ pub async fn serve(config: Config) -> Result<()> {
         let mut interrupt = crate::platform::interrupt_signal()?;
         let delivery_task = tokio::spawn(crate::delivery::worker(store.clone()));
         let (stop, stopped) = tokio::sync::watch::channel(false);
-        let reconcile_task = tokio::spawn(reconciliation_worker(store.clone(), stopped));
+        let reconcile_task = tokio::spawn(reconciliation_worker(store.clone(), stopped.clone()));
+        let maintenance_task = tokio::spawn(crate::maintenance::worker(store.clone(), stopped));
         let slots = std::sync::Arc::new(tokio::sync::Semaphore::new(32));
         let mut tasks = tokio::task::JoinSet::new();
         loop {
@@ -91,11 +92,17 @@ pub async fn serve(config: Config) -> Result<()> {
                 Some(r)=tasks.join_next()=>{match r {Ok(true)=>break,Ok(false)=>{},Err(e)=>tracing::error!(error=%e,"IPC worker panicked")}}
             }
         }
+        store
+            .maintenance_stop
+            .store(true, std::sync::atomic::Ordering::Release);
         let _ = stop.send(true);
-        reconcile_task.await?;
+        // Cancel queued IPC database work before joining internal workers; a
+        // writer backlog must not keep reconciliation waiting during shutdown.
+        tasks.shutdown().await;
         delivery_task.abort();
         let _ = delivery_task.await;
-        tasks.shutdown().await;
+        reconcile_task.await?;
+        maintenance_task.await?;
         crate::platform::cleanup_endpoint(&path)?;
     }
     Ok(())
