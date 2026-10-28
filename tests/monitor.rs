@@ -406,70 +406,144 @@ mod native {
     }
     #[tokio::test]
     async fn pending_agent_alerts_are_superseded_without_losing_history() {
-        use agent_job_relay::session::{Adapter, Registration};
-        let mut r = Runtime::new().await;
-        let store = Store::new(r.config.clone());
-        let session = store
-            .register(Registration {
-                agent_kind: "codex_cli".into(),
-                session_id: "monitor-test".into(),
-                instance_id: "one".into(),
-                host_id: "test".into(),
-                adapter: Adapter::Inbox,
-                endpoint: None,
-                caller_thread_id: None,
-                lease_seconds: 3600,
-                experimental: false,
-                renew_on_delivery: false,
-            })
-            .await
-            .unwrap();
-        let mut policy = rule(
-            Condition::Contains {
-                text: "READY".into(),
-                stream: Stream::Stdout,
-            },
-            Action::Alert,
-        );
-        policy.notify_agent = true;
-        let spec = StartSpec {
-            command: CommandSpec::Shell {
-                interpreter: "/bin/sh".into(),
-                script: "while [ ! -f release ]; do sleep .02; done; printf READY; sleep 20".into(),
-            },
-            cwd: r.dir.path().into(),
-            env: Default::default(),
-            timeout_seconds: Some(20),
-            session: Some(session.key),
-            idempotency_key: None,
-            monitor_rules: vec![policy],
-        };
-        let job = store.start(spec).await.unwrap();
-        r.until(&job.job_id, |v| v["rules"][0]["applied_revision"] == 1)
-            .await;
-        r.crash();
-        std::fs::write(r.dir.path().join("release"), b"go").unwrap();
-        let triggered = r
-            .until(&job.job_id, |v| v["rules"][0]["triggered_revision"] == 1)
-            .await;
-        let delivery = triggered["deliveries"]["deliveries"][0]["id"].clone();
-        assert_eq!(
-            triggered["deliveries"]["deliveries"][0]["status"],
-            "pending"
-        );
-        store
-            .stop_with(job.job_id.clone(), 0, "manual".into())
-            .await
-            .unwrap();
-        let finished = r
-            .until(&job.job_id, |v| v["job"]["status"] == "cancelled")
-            .await;
-        let rows = finished["deliveries"]["deliveries"].as_array().unwrap();
-        assert_eq!(rows.len(), 2);
-        assert_eq!(rows[0]["id"], delivery);
-        assert_eq!(rows[0]["status"], "cancelled");
-        assert_eq!(rows[0]["attempts"], 0);
-        assert_eq!(rows[1]["status"], "pending");
+        for mode in ["retry", "accepted", "expired"] {
+            use agent_job_relay::session::{Adapter, Registration};
+            let mut r = Runtime::new().await;
+            let store = Store::new(r.config.clone());
+            let session = store
+                .register(Registration {
+                    agent_kind: "codex_cli".into(),
+                    session_id: "monitor-test".into(),
+                    instance_id: "one".into(),
+                    host_id: "test".into(),
+                    adapter: Adapter::Inbox,
+                    endpoint: None,
+                    caller_thread_id: None,
+                    lease_seconds: 3600,
+                    experimental: false,
+                    renew_on_delivery: false,
+                })
+                .await
+                .unwrap();
+            let mut policy = rule(
+                Condition::Contains {
+                    text: "READY".into(),
+                    stream: Stream::Stdout,
+                },
+                Action::Alert,
+            );
+            policy.notify_agent = true;
+            let spec = StartSpec {
+                command: CommandSpec::Shell {
+                    interpreter: "/bin/sh".into(),
+                    script: "while [ ! -f release ]; do sleep .02; done; printf READY; sleep 20"
+                        .into(),
+                },
+                cwd: r.dir.path().into(),
+                env: Default::default(),
+                timeout_seconds: Some(20),
+                session: Some(session.key),
+                idempotency_key: None,
+                monitor_rules: vec![policy],
+            };
+            let job = store.start(spec).await.unwrap();
+            r.until(&job.job_id, |v| v["rules"][0]["applied_revision"] == 1)
+                .await;
+            r.crash();
+            std::fs::write(r.dir.path().join("release"), b"go").unwrap();
+            let triggered = r
+                .until(&job.job_id, |v| v["rules"][0]["triggered_revision"] == 1)
+                .await;
+            let delivery = triggered["deliveries"]["deliveries"][0]["id"].clone();
+            assert_eq!(
+                triggered["deliveries"]["deliveries"][0]["status"],
+                "pending"
+            );
+            let claim = store.claim().await.unwrap().unwrap();
+            store
+                .stop_with(job.job_id.clone(), 0, "manual".into())
+                .await
+                .unwrap();
+            let finished = r
+                .until(&job.job_id, |v| v["job"]["status"] == "cancelled")
+                .await;
+            let rows = finished["deliveries"]["deliveries"].as_array().unwrap();
+            assert_eq!(rows.len(), 2);
+            assert_eq!(rows[0]["id"], delivery);
+            assert_eq!(rows[0]["status"], "leased");
+            assert!(
+                store.claim().await.unwrap().is_none(),
+                "a live alert still excludes another attempt for this chat"
+            );
+            let expected = match mode {
+                "accepted" => {
+                    assert!(
+                        store
+                            .complete_claim(claim, Ok("notification_recorded"))
+                            .await
+                            .unwrap()
+                    );
+                    "notification_recorded"
+                }
+                "retry" => {
+                    assert!(
+                        store
+                            .complete_claim(
+                                claim,
+                                Err(anyhow::anyhow!("temporary transport failure"))
+                            )
+                            .await
+                            .unwrap()
+                    );
+                    "cancelled"
+                }
+                _ => {
+                    let alert = delivery.as_str().unwrap().to_owned();
+                    store
+                        .call(move |db| {
+                            db.execute(
+                                "UPDATE deliveries SET lease_until=? WHERE id=?",
+                                rusqlite::params![now() - 1, alert],
+                            )?;
+                            Ok(())
+                        })
+                        .await
+                        .unwrap();
+                    let terminal = store.claim().await.unwrap().unwrap();
+                    assert_eq!(terminal.event["kind"], "cancelled");
+                    assert!(
+                        !store
+                            .complete_claim(claim, Ok("notification_recorded"))
+                            .await
+                            .unwrap()
+                    );
+                    "cancelled"
+                }
+            };
+            let updated = store
+                .deliveries(Some(job.job_id.clone()), 0, 20)
+                .await
+                .unwrap();
+            assert_eq!(updated["deliveries"][0]["status"], expected);
+            assert_eq!(updated["deliveries"][0]["id"], delivery);
+            assert_eq!(
+                updated["deliveries"][0]["expires_at"],
+                triggered["deliveries"]["deliveries"][0]["expires_at"]
+            );
+            assert_eq!(updated["deliveries"][0]["attempts"], 1);
+            let attempts = store
+                .attempts(delivery.as_str().unwrap().into(), 0, 20)
+                .await
+                .unwrap();
+            assert_eq!(
+                attempts["attempts"][0]["outcome"],
+                if mode == "accepted" {
+                    "notification_recorded"
+                } else {
+                    "superseded"
+                }
+            );
+        }
     }
 
     async fn http(

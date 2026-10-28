@@ -229,7 +229,7 @@ impl Store {
             if terminal(&j.status) {return Ok(false);}
             let changed=tx.execute("UPDATE monitor_rules SET triggered_revision=?,triggered_at=? WHERE id=? AND job_id=? AND revision=? AND enabled=1 AND deleted=0 AND triggered_revision<>revision",params![rule.revision,now(),rule.id,job,rule.revision])?;
             if changed==0 {return Ok(false);}
-            crate::storage::insert_event(&tx,&job,&j.run_id,"monitor_alert",json!({"rule_id":rule.id,"revision":rule.revision,"rule":rule.spec,"evidence":evidence,"workload_running_at_detection":can_stop}))?;
+            crate::storage::insert_event(&tx,&job,&j.run_id,"monitor_alert",json!({"rule_id":rule.id,"revision":rule.revision,"rule":rule.spec,"evidence":evidence,"terminal_exit_observed":!can_stop}))?;
             let event:String=tx.query_row("SELECT id FROM events WHERE seq=last_insert_rowid()",[],|r|r.get(0))?;
             if rule.spec.action==Action::Stop && can_stop {stop_tx(&tx,&job,rule.spec.grace_seconds,&format!("monitor rule {} revision {}",rule.id,rule.revision))?;}
             if rule.spec.notify_agent {

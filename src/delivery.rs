@@ -97,10 +97,12 @@ impl Store {
         // An empty queue needs only reads, not a write transaction every poll.
         let t=now();
         let expired:bool=db.query_row("SELECT EXISTS(SELECT 1 FROM deliveries WHERE expires<=? AND status IN ('pending','retry_wait','leased'))",[t],|r|r.get(0))?;
-        if !expired && candidate(db,t)?.is_none() {return Ok(None);}
+        let obsolete:bool=db.query_row(&format!("SELECT EXISTS({OBSOLETE_ALERTS})"),params![Option::<String>::None,t],|r|r.get(0))?;
+        if !expired && !obsolete && candidate(db,t)?.is_none() {return Ok(None);}
         let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;let t=now();
         tx.execute("UPDATE deliveries SET status='dead_letter',last_error='delivery TTL expired',failure_kind='expired',token=NULL,lease_until=NULL WHERE expires<=? AND status IN ('pending','retry_wait','leased')",[t])?;
         tx.execute("UPDATE delivery_attempts SET ended=?,outcome='ttl_expired',error='delivery TTL expired' WHERE ended IS NULL AND delivery_id IN (SELECT id FROM deliveries WHERE status='dead_letter')",[t])?;
+        supersede_alerts(&tx,None,t)?;
         let Some((d,key))=candidate(&tx,t)? else {tx.commit()?;return Ok(None);};
         tx.execute("UPDATE delivery_attempts SET ended=?,outcome='lease_expired',error='daemon disconnected before recording outcome' WHERE delivery_id=? AND ended IS NULL",params![t,d])?;
         let token=id();tx.execute("UPDATE deliveries SET status='leased',token=?,lease_until=?,attempts=attempts+1 WHERE id=?",params![token,t+10000,d])?;
@@ -114,18 +116,19 @@ impl Store {
     pub async fn complete_claim(&self, c: Claim, outcome: Result<&'static str>) -> Result<bool> {
         self.call(move|db|{
         let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;let t=now();
+        let obsolete=c.event["kind"]=="monitor_alert" && tx.query_row("SELECT EXISTS(SELECT 1 FROM jobs WHERE id=? AND status IN ('completed','failed','cancelled','timeout','orphaned'))",[c.event["job_id"].as_str().unwrap_or("")],|r|r.get::<_,bool>(0))?;
         let (state,error,kind,next_at)=match outcome {
             Ok(s)=>{ensure!(matches!(s,"accepted_by_host"|"notification_recorded"),"invalid adapter acknowledgement");(s,None,None,t)},
             Err(e)=>{
                 let kind=e.downcast_ref::<DeliveryError>().map_or(FailureKind::Temporary,|e|e.0);
                 let expired=t>=c.delivery.expires_at;
-                let state=if expired||kind==FailureKind::Permanent {"dead_letter"}else{"retry_wait"};
+                let state=if obsolete {"cancelled"} else if expired||kind==FailureKind::Permanent {"dead_letter"}else{"retry_wait"};
                 let next=if kind==FailureKind::RebindRequired {c.delivery.expires_at}else{(t+retry_delay(c.delivery.attempts)).min(c.delivery.expires_at)};
-                (state,Some(format!("{e:#}").chars().take(1024).collect::<String>()),Some(if expired {"expired"}else{kind.as_str()}),next)
+                (state,Some(format!("{}{e:#}",if obsolete {"monitor alert superseded by terminal result; transport: "}else{""}).chars().take(1024).collect::<String>()),Some(if obsolete {"superseded"}else if expired {"expired"}else{kind.as_str()}),next)
             }
         };
         let n=tx.execute("UPDATE deliveries SET status=?,last_error=?,failure_kind=?,next_at=?,token=NULL,lease_until=NULL WHERE id=? AND status='leased' AND token=? AND lease_until>?",params![state,error,kind,next_at,c.delivery.id,c.token,t])?;
-        if n==1 {tx.execute("UPDATE delivery_attempts SET ended=?,outcome=?,error=? WHERE delivery_id=? AND token=?",params![t,state,error,c.delivery.id,c.token])?;}
+        if n==1 {tx.execute("UPDATE delivery_attempts SET ended=?,outcome=?,error=? WHERE delivery_id=? AND token=?",params![t,if obsolete&&state=="cancelled"{"superseded"}else{state},error,c.delivery.id,c.token])?;}
         tx.commit()?;Ok(n==1)
     }).await
     }
@@ -207,5 +210,18 @@ async fn deliver_claim(store: Store, mut claim: Claim) -> Result<()> {
     .context("host delivery deadline exceeded (3s)")
     .and_then(|r| r);
     store.complete_claim(claim, outcome).await?;
+    Ok(())
+}
+
+// Keep live claims until transport completion so logical-chat exclusion remains
+// intact. On recovery, fence expired claims before selecting another delivery.
+const OBSOLETE_ALERTS: &str = "SELECT d.id FROM deliveries d JOIN events e ON e.id=d.event_id JOIN jobs j ON j.id=e.job_id WHERE e.kind='monitor_alert' AND j.status IN ('completed','failed','cancelled','timeout','orphaned') AND (?1 IS NULL OR j.id=?1) AND (d.status IN ('pending','retry_wait') OR (d.status='leased' AND d.lease_until<=?2))";
+pub(crate) fn supersede_alerts(
+    db: &rusqlite::Connection,
+    job: Option<&str>,
+    at: i64,
+) -> Result<()> {
+    db.execute(&format!("UPDATE delivery_attempts SET ended=?2,outcome='superseded',error='monitor alert superseded; expired in-flight effects are unconfirmed' WHERE ended IS NULL AND delivery_id IN ({OBSOLETE_ALERTS})"),params![job,at])?;
+    db.execute(&format!("UPDATE deliveries SET status='cancelled',token=NULL,lease_until=NULL,last_error='monitor alert superseded by terminal result' WHERE id IN ({OBSOLETE_ALERTS})"),params![job,at])?;
     Ok(())
 }

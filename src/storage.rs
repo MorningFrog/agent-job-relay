@@ -393,9 +393,6 @@ pub fn finish_tx(
     }
     ensure!(terminal(state), "invalid terminal state");
     let t = now();
-    // Obsolete alert deliveries retain IDs, TTL and attempts; already accepted
-    // or in-flight requests cannot be recalled from a host.
-    tx.execute("UPDATE deliveries SET status='cancelled',last_error='monitor alert superseded by terminal result' WHERE status IN ('pending','retry_wait') AND event_id IN (SELECT id FROM events WHERE job_id=? AND kind='monitor_alert')",[j])?;
     tx.execute(
         "UPDATE jobs SET status=?,updated=? WHERE id=?",
         params![state, t, j],
@@ -404,6 +401,7 @@ pub fn finish_tx(
         "UPDATE runs SET exit_code=?,signal=?,detail=?,ended=?,status=? WHERE id=?",
         params![code, signal, detail, t, state, job.run_id],
     )?;
+    crate::delivery::supersede_alerts(tx, Some(j), t)?;
     insert_event(
         tx,
         j,

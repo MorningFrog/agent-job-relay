@@ -300,7 +300,10 @@ pub fn open_browser(url: &str) -> Result<()> {
     #[cfg(windows)]
     let mut command = std::process::Command::new("explorer.exe");
     #[cfg(not(any(target_os = "linux", windows)))]
-    anyhow::bail!("browser opening is unsupported on this platform");
+    {
+        let _ = url;
+        anyhow::bail!("browser opening is unsupported on this platform");
+    }
     #[cfg(any(target_os = "linux", windows))]
     {
         command
