@@ -107,11 +107,43 @@ try {
   assert.equal(job.status, "completed", JSON.stringify(job));assert.equal(job.exit_code, 0, JSON.stringify(job));
   const moved = join(root, "moved-runtime");cpSync(dirname(runtimeCli), moved, { recursive: true });
   const movedStatus = JSON.parse(await run([process.execPath, join(moved, "cli.mjs"), "--state-dir", state, "status", job.job_id], "moved-status"));assert.equal(movedStatus.job_id, job.job_id);
-  await run([core, "--state-dir", state, "daemon", "stop"], "native-stop");states.delete(state);
+  let bundledUi = false;
+  const [major, minor, patch] = meta.version.split(".").map(Number);
+  if (major > 0 || minor > 1 || (minor === 1 && patch >= 10)) {
+    const ui = JSON.parse(await run([process.execPath, join(moved, "cli.mjs"), "--state-dir", state, "ui", "--no-open"], "moved-ui"));
+    const access = new URL(ui.url);assert.equal(access.hostname, "127.0.0.1");assert.equal(access.protocol, "http:");
+    const page = await fetch(access.origin + "/", { signal: AbortSignal.timeout(5000) });assert.equal(page.status, 200);
+    const html = await page.text();const assets = [...html.matchAll(/(?:src|href)="(\/assets\/[^"<>]+)"/g)].map(m => m[1]);assert(assets.length >= 2, "embedded JS/CSS references missing");
+    for (const path of assets) {
+      const asset = await fetch(access.origin + path, { signal: AbortSignal.timeout(5000) });assert.equal(asset.status, 200);assert((await asset.arrayBuffer()).byteLength > 0);
+    }
+    const token = new URLSearchParams(access.hash.slice(1)).get("token");assert(token);
+    const body = JSON.stringify({ op: "inspect", job_id: job.job_id });
+    const unauthenticated = await fetch(access.origin + "/api/request", { method: "POST", body, headers: { "Content-Type": "application/json" }, signal: AbortSignal.timeout(5000) });assert.equal(unauthenticated.status, 401);await unauthenticated.text();
+    const inspected = await fetch(access.origin + "/api/request", { method: "POST", body, headers: { "Content-Type": "application/json", Authorization: "Bearer " + token }, signal: AbortSignal.timeout(5000) });assert.equal(inspected.status, 200);
+    const snapshot = await inspected.json();assert.equal(snapshot.job.job_id, job.job_id);assert.equal(snapshot.job.status, "completed");
+    const launcher = [process.execPath, join(moved, "cli.mjs"), "--state-dir", state];
+    const monitored = JSON.parse(await run([...launcher, "start", "--cwd", env.HOME, "--timeout", "30", "--no-output", "1s", "--action", "alert", "--", process.execPath, "-e", "setInterval(()=>{},1000)"], "monitored-start"));
+    failureContext = { state, job_id: monitored.job.job_id };
+    const rules = JSON.parse(await run([...launcher, "monitor", "add", monitored.job.job_id, "--elapsed", "20s", "--action", "stop", "--grace", "0s"], "monitor-add"));assert.equal(rules.rules.length, 2);
+    const observed = await waitUntil(async () => {
+      const v = JSON.parse(await run([...launcher, "inspect", monitored.job.job_id, "--json"], "monitor-inspect"));
+      return v.events.some(e => e.kind === "monitor_alert") && v;
+    }, 10000, "packaged silence rule did not trigger");
+    assert.equal(observed.job.status, "running");assert.equal(observed.rules[0].triggered_revision, 1);
+    const stopped = JSON.parse(await run([...launcher, "stop", monitored.job.job_id, "--grace", "0s", "--wait", "5s"], "monitor-stop"));assert.equal(stopped.stop_outcome, "terminal_observed");assert.equal(stopped.status, "cancelled");
+    bundledUi = true;
+  }
+  await run([core, "--state-dir", state, "daemon", "stop"], "native-stop");
+  if (bundledUi) {
+    const offline = JSON.parse(await run([process.execPath, join(moved, "cli.mjs"), "--state-dir", state, "inspect", job.job_id, "--json"], "offline-inspect"));
+    assert.equal(offline.runtime, "offline_snapshot");assert.equal(offline.job.job_id, job.job_id);
+  }
+  states.delete(state);
   failureContext = undefined;
   writeFileSync(join(moved, "native/win32-x64/agent-job-relay.exe"), "invalid", { flag: "a" });
   await run([process.execPath, join(moved, "cli.mjs"), "--version"], "corrupt-refused", 1);
-  report.installed_runtime = { version: meta.version, history_preserved: true, corruption_refused: true, job_id: job.job_id };
+  report.installed_runtime = { version: meta.version, history_preserved: true, corruption_refused: true, bundled_ui: bundledUi, cli_monitoring: bundledUi, offline_inspection: bundledUi, job_id: job.job_id };
 
   const codexEntry = args.get("--codex-entry");
   if (codexEntry) {
