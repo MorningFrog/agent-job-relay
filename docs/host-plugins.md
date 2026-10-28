@@ -46,6 +46,12 @@ The plugin's private Unix socket / Windows named pipe accepts only sessions obse
 
 After a plugin/server replacement, ask the Agent to use `relay_recover` with `apply=false` first. If restoration is requested, use `apply=true` and follow the cursor until an empty page. That tool binds the actual current caller; the core reuses the existing scoped recovery/audit/TTL rules and never reruns commands. This OpenCode restart workflow still needs real-host community verification; the shared core behavior has fake-host regression coverage.
 
+### Local build and updates
+
+Build the native runtime with the [Linux source-build steps](source-install.md#3-build-and-export-a-local-bundle) or [Windows build steps](windows.md#build-when-no-bundle-is-available), then stage the matching OpenCode/runtime packages and configure their explicit paths as above. The Codex native offline bundle does not install this OpenCode entry.
+
+To update a development copy, finish active jobs and stop only its original daemon using the configured executable with `--state-dir <persistent-state-directory> daemon stop`. Close OpenCode and its MCP processes before replacing Windows executable files. Rebuild the runtime/packages, stage the new package pair in a new directory, and update the configured plugin file URL/executable path while retaining the original `stateDir`. Restart OpenCode and ask for an actual `job_doctor` call before submitting work. Rebuilding source alone does not update an already staged package or loaded daemon; do not downgrade a used schema. If notifications need rebinding, use the caller-owned `relay_recover` workflow above.
+
 ### Account-free actual-loader check
 
 Prepare the candidate tarballs as in [release preparation](release.md), then run from this repository with Node, npm and Python available:

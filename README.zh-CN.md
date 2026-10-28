@@ -23,49 +23,107 @@ Tasks run in the background. Agents pick up when needed.
 
 **运行时支持 Linux x86_64/glibc 和 Windows x86_64。** ChatGPT Desktop 同聊天续接已在两者上通过实验性私有接口验证，Windows 验证使用 Full access 权限。Codex CLI 和 Claude Code 开发框架提供收件箱，不会自动继续聊天。OpenCode V1 属于实验性支持，实际加载器已配合模拟模型验证。macOS/ARM 运行时暂不支持。能力说明见[功能与支持范围](docs/features.md)，已验证版本见[真实验证记录](docs/live-e2e.md)。
 
-## 开始使用
+## 安装与更新
 
-在线安装需要 Node.js 20+/npm 和网络。ChatGPT Desktop/Codex 还需要本地执行环境、PATH 中可用的 Codex CLI，以及获取目录所需的 Git，无需 Rust 编译器。
+在线安装需要 Node.js 20+/npm 和网络。ChatGPT Desktop/Codex 还需要 PATH 中可用的 Codex CLI 和获取目录所需的 Git，Desktop 需要本地执行环境，无需 Rust 编译器。以下命令使用 Bash；另有 [PowerShell 和 Release ZIP 安装方式](docs/installation.md#chatgpt-desktop--codex)。
 
-### ChatGPT Desktop / Codex
+更新前先完成活动任务，并保留原数据目录。若运行中的 daemon 与新版本不兼容，需要显式停止同一数据目录的 daemon；安装包或更新插件不会自动替换它，见[更新前的准备](docs/updating.md#before-updating)。
 
-在 Bash 中注册与最新已发布运行时匹配的 marketplace：
+### ChatGPT Desktop
+
+**在线安装：** 注册与最新已发布运行时匹配的 marketplace：
 
 ```bash
 AJR_VERSION="$(npm view agent-job-relay-runtime@latest version --registry=https://registry.npmjs.org)" &&
 codex plugin marketplace add MorningFrog/agent-job-relay --ref "v$AJR_VERSION"
 ```
 
-重启 ChatGPT Desktop，打开 **Plugins → AgentJobRelay**，安装并启用插件，在新的本地聊天中选择 `agent-job-relay@agent-job-relay`。先让它调用 `job_doctor`，再交给它任务：
+重启 ChatGPT Desktop，打开 **Plugins → AgentJobRelay**，安装并启用插件，在新的本地聊天中选择 `agent-job-relay@agent-job-relay`。
+
+**在线更新：** 将 marketplace 注册替换为最新发布的版本标签：
+
+```bash
+AJR_VERSION="$(npm view agent-job-relay-runtime@latest version --registry=https://registry.npmjs.org)" &&
+codex plugin marketplace remove agent-job-relay &&
+codex plugin marketplace add MorningFrog/agent-job-relay --ref "v$AJR_VERSION"
+```
+
+随后在 Desktop 中刷新或重新安装 AgentJobRelay，并重连 MCP，见[完整在线更新步骤](docs/updating.md#update-the-online-marketplace)。
+
+**本地编译：** [编译并安装本地插件](docs/source-install.zh-CN.md)（[English](docs/source-install.md)）；已有安装按[保留历史的更新步骤](docs/updating.md#unified-install-and-update)操作。
+
+### Codex
+
+**在线安装：** 注册已发布的 marketplace，再安装插件条目：
+
+```bash
+AJR_VERSION="$(npm view agent-job-relay-runtime@latest version --registry=https://registry.npmjs.org)" &&
+codex plugin marketplace add MorningFrog/agent-job-relay --ref "v$AJR_VERSION" &&
+codex plugin add agent-job-relay@agent-job-relay
+```
+
+若已注册匹配的 marketplace，仅运行最后一条命令即可。安装后重启或重连 Codex。
+
+**在线更新：** 查询最新发布版本、替换目录注册，再重新安装插件条目：
+
+```bash
+AJR_VERSION="$(npm view agent-job-relay-runtime@latest version --registry=https://registry.npmjs.org)" &&
+codex plugin marketplace remove agent-job-relay &&
+codex plugin marketplace add MorningFrog/agent-job-relay --ref "v$AJR_VERSION" &&
+codex plugin add agent-job-relay@agent-job-relay
+```
+
+随后重启或重连 Codex。CLI 集成提供工具和收件箱，不会自动继续模型回合，见[完整在线更新步骤](docs/updating.md#update-the-online-marketplace)。
+
+**本地编译：** 按[源码教程](docs/source-install.zh-CN.md)编译安装，并使用其中的[本地 Codex 插件入口](docs/source-install.zh-CN.md#6-在-chatgpt-desktop-中安装并选择正确的插件)；[保留历史的更新](docs/updating.md#unified-install-and-update)继续使用原安装及其记录的数据目录。
+
+### OpenCode
+
+**在线安装（V1）：** 在 `opencode.json` 中添加已发布的插件，保留其他已有条目，然后重启 OpenCode：
+
+```json
+{
+  "plugin": ["agent-job-relay-opencode-v1@latest"]
+}
+```
+
+匹配的原生运行时会自动安装。不要重复启用另一个 `agent_job_relay` MCP 条目。
+
+**在线更新：** 保留 `@latest` 条目，完成活动任务后，按 OpenCode 支持的方式刷新包缓存并重启，见 [OpenCode 更新步骤](docs/updating.md#update-opencode-v1)。V1 属于实验性支持，V2 暂不支持。
+
+**本地编译：** 参照 [OpenCode 开发接入](docs/host-plugins.md#opencode-v1-development-setup)及[本地构建和更新说明](docs/host-plugins.md#local-build-and-updates)。该宿主使用独立的插件包和共用原生运行时。
+
+## 日常使用
+
+### 在 Agent 中使用
+
+在宿主中选择已安装的 AgentJobRelay 插件。首次使用时，先让它调用 `job_doctor` 确认 MCP 连通，再直接描述任务：
 
 > 后台执行这个项目的测试，完成后告诉我结果。
 
-Codex CLI 用户通过 `codex plugin add agent-job-relay@agent-job-relay` 安装条目，CLI 集成提供工具和收件箱。PowerShell、Release ZIP、OpenCode 及原生离线包的步骤见[安装指南](docs/installation.md)。本地开发使用[源码安装教程](docs/source-install.zh-CN.md)（[English](docs/source-install.md)）。
+日常提示词无需程序路径或会话 ID。插件会绑定真实发起会话、提交任务并保存结果。ChatGPT Desktop 在已验证版本中可自动续接同一聊天；OpenCode V1 的续接仍属实验性支持。Codex CLI 使用收件箱，需要时再让 Agent 检查结果。
 
-### 终端与 Web UI
+也可以提出：
 
-需要全局终端命令时，单独安装 CLI：
+> 打开 AgentJobRelay 的任务面板，让我查看正在运行的任务。
+
+插件可以打开随包 Web UI，无需全局安装 CLI。MCP 提交和同聊天通知恢复见[使用指南](docs/usage.md)，持久规则与停止任务见[监控和 Web UI](docs/runtime-monitoring.md)。
+
+### 命令行与 Web UI
+
+需要终端操作时，单独安装 CLI，再使用在线 ChatGPT/Codex 插件的数据目录打开面板或提交任务：
 
 ```bash
 npm install --global --ignore-scripts --registry=https://registry.npmjs.org agent-job-relay-runtime@latest
 agent-job-relay codex ui
-```
-
-该命令使用在线 ChatGPT/Codex 插件的数据目录，打开随包任务面板；也可以让已选中的插件打开面板。源码新增的 `ajr` 短命令尚待发布，使用已发布包时请运行这里的完整命令。入口及数据目录选择见[命令参考](docs/commands.md)。
-
-## 日常使用
-
-首次提交任务会自动启动 daemon。终端示例：
-
-```bash
 agent-job-relay codex start --timeout 60 -- cargo check
 agent-job-relay codex list
 agent-job-relay codex inspect <job-id>
 ```
 
-最后一条命令使用提交后返回的任务 ID。日志、MCP 提交和同聊天通知恢复见[使用指南](docs/usage.md)，持久规则与停止任务见[监控和 Web UI](docs/runtime-monitoring.md)。
+最后一条命令使用提交后返回的任务 ID；首次提交会自动启动 daemon。OpenCode 使用 `agent-job-relay opencode`，原生离线安装使用其记录的启动器及数据目录。源码新增的 `ajr` 短命令尚待发布，具体见[命令参考](docs/commands.md)和 [CLI 更新步骤](docs/updating.md#update-the-terminal-command)。
 
-命令以当前用户的系统权限执行。任务完成、宿主接收（`accepted_by_host`）和实际观察到 Agent 继续执行是三项独立结果。更新时应保留原数据目录，卸载默认保留任务历史和日志，具体见[更新指南](docs/updating.md)、[卸载指南](docs/uninstalling.md)及[故障排查](docs/troubleshooting.md)。
+命令以当前用户的系统权限执行。任务完成、宿主接收（`accepted_by_host`）和实际观察到 Agent 继续执行是三项独立结果。卸载默认保留任务历史和日志，具体见[卸载指南](docs/uninstalling.md)及[故障排查](docs/troubleshooting.md)。
 
 ## 按需要查找文档
 
