@@ -34,14 +34,24 @@ pub fn validate(specs: &[StartSpec]) -> Result<()> {
 }
 
 pub async fn submit(store: &Store, specs: Vec<StartSpec>) -> Result<Value> {
+    submit_for_goal(store, specs, None).await
+}
+pub async fn submit_for_goal(
+    store: &Store,
+    specs: Vec<StartSpec>,
+    goal_wait: Option<String>,
+) -> Result<Value> {
     validate(&specs)?;
+    if let Some(id) = &goal_wait {
+        crate::core::validate_id(id)?;
+    }
     let mut results = Vec::with_capacity(specs.len());
     let mut accepted = 0;
     for (index, spec) in specs.into_iter().enumerate() {
         let key = spec.idempotency_key.clone();
         // Each start has its own IMMEDIATE transaction and existing quota fence.
         // A disconnected viewer cannot roll back or couple accepted jobs.
-        match store.start(spec).await {
+        match store.start_for_goal(spec, goal_wait.clone()).await {
             Ok(job) => {
                 accepted += 1;
                 let result = crate::ipc::start_result(store, job).await;
@@ -50,5 +60,16 @@ pub async fn submit(store: &Store, specs: Vec<StartSpec>) -> Result<Value> {
             Err(error) => results.push(json!({"index":index,"idempotency_key":key,"accepted":false,"error":format!("{error:#}")})),
         }
     }
-    Ok(json!({"accepted":accepted,"rejected":results.len()-accepted,"results":results}))
+    let mut value =
+        json!({"accepted":accepted,"rejected":results.len()-accepted,"results":results});
+    if let Some(id) = goal_wait {
+        value["goal_wait"] = match crate::goal_wait::seal(store, &id).await {
+            Ok(result) => result,
+            Err(error) => {
+                json!({"goal_wait_id":id,"status":"attention","detail":format!("accepted jobs were retained; goal control failed: {error:#}")})
+            }
+        };
+        value["next_step"] = value["goal_wait"]["next_step"].clone();
+    }
+    Ok(value)
 }

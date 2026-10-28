@@ -34,6 +34,8 @@ pub(super) enum Commands {
         file: PathBuf,
         #[arg(long)]
         wake: bool,
+        #[arg(long, requires = "wake")]
+        wait_goal: bool,
     },
     /// Inspect automatic archiving, configure budgets, back up or restore data
     Data {
@@ -55,6 +57,17 @@ pub(super) enum Commands {
         /// Include complete host registration and recovery audit records
         #[arg(long)]
         full: bool,
+        /// Explicitly opt into experimental suspension of this chat's active goal
+        #[arg(long, conflicts_with = "recover")]
+        wait_goal: bool,
+    },
+    /// Inspect or cancel future automatic goal waiting; workloads keep running
+    GoalWait {
+        goal_wait_id: String,
+        #[arg(long, requires = "expected_revision")]
+        cancel: bool,
+        #[arg(long, requires = "cancel")]
+        expected_revision: Option<i64>,
     },
     /// Export, bootstrap or update a plugin runtime and explicitly refresh caches
     Plugin {
@@ -165,6 +178,8 @@ pub(super) enum Commands {
         wake: bool,
         #[arg(long)]
         idempotency_key: Option<String>,
+        #[arg(long, requires = "wake")]
+        wait_goal: bool,
         #[command(flatten)]
         monitor: RuleArgs,
         #[arg(last = true, required_unless_present = "shell")]
@@ -178,6 +193,8 @@ pub(super) enum Commands {
         /// Bind every item to the current Desktop caller (experimental)
         #[arg(long)]
         wake: bool,
+        #[arg(long, requires = "wake")]
+        wait_goal: bool,
     },
     /// Show durable job/run state, exit outcome and process identity
     Status { job_id: String },

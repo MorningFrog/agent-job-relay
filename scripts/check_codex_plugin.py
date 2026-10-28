@@ -122,7 +122,9 @@ async def run(binary, codex, marketplace=None, registry=None):
                 raise RuntimeError("plugin skill loaded but MCP declaration was not discovered")
             inventory = await rpc(3, "mcpServerStatus/list", {"detail": "toolsAndAuthOnly"})
             server = next((s for s in inventory["data"] if s["name"] == "agent-job-relay"), None)
-            required = {"job_start", "job_start_batch", "job_status", "job_logs", "job_doctor", "job_stop", "job_recover_session"}
+            required = {"job_start", "job_status", "job_logs", "job_doctor", "job_stop", "job_recover_session"}
+            if not marketplace:
+                required |= {"job_start_batch", "job_goal_wait"}
             if not server or not required <= set(server["tools"]):
                 raise RuntimeError(f"installed plugin MCP tools unavailable: {server and server.get('toolsError')}")
             if state.exists():

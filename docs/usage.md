@@ -100,6 +100,10 @@ Shared-host MCP rejects `wake_me=true` and `job_connect_session`; its environmen
 
 For a CLI submission from the current ChatGPT Desktop chat's terminal, use `start --wake --cwd <absolute-project> -- <program> <args...>`. This is a distinct route; a successful CLI run does not qualify an MCP acceptance test.
 
+## Wait with an active goal (experimental source)
+
+When the user authorizes goal suspension, use the actual Desktop terminal’s `connect --wait-goal` binding with ordinary `job_start` / `job_start_batch`. After `goal_wait.status=waiting`, end the turn; Relay waits without Agent polling, restores the original goal on all-member completion and sends one combined result. Goal deletion suppresses continuation and never recreates the goal. Read [goal waiting](goal-waiting.md) for batch membership, interruption, crash recovery, source-only setup and the remaining host replacement/CAS limitations.
+
 ## Recover notifications
 
 From the same chat's terminal:
@@ -143,7 +147,7 @@ For OpenCode V1, use the plugin's actual tool-context binding and MCP tools; Cha
 
 ## Automatic data maintenance
 
-The daemon automatically archives eligible terminal history and creates rolling local backups; no recurring manual command is required. Use `data status` through the selected command prefix for budgets/backup IDs/errors, `data policy` for configuration previews, `data backup` for an additional snapshot and `data check` for explicit integrity validation. Existing history/log queries include cold records. Upgrade/restore instructions and the default policy are in [data maintenance](data-maintenance.md); runtime 0.1.10 and newer use schema v9.
+The daemon automatically archives eligible terminal history and creates rolling local backups; no recurring manual command is required. Use `data status` through the selected command prefix for budgets/backup IDs/errors, `data policy` for configuration previews, `data backup` for an additional snapshot and `data check` for explicit integrity validation. Existing history/log queries include cold records. Upgrade/restore instructions and the default policy are in [data maintenance](data-maintenance.md); published 0.1.10/sealed 0.1.11 use schema v9 and experimental goal-waiting source uses v10.
 
 ## Remote commands and workflow attempts (unreleased source)
 

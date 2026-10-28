@@ -38,6 +38,7 @@ Plugin update/repair preservation checks checkpoint committed WAL pages before c
 | Runtime | Execution/output/cursors, idempotency, process trees, cancellation/timeout, daemon/runner independence, launch recovery, quotas, IPC/security; batch overlap/options, partial failures, quota races and lost-response/restart retry | Real Linux children and injected failure windows |
 | Data maintenance | Automatic daemon archival/backup, age/count/log budgets, hot/cold history/cursors/idempotency, binary logs, protected recovery/claims, explicit retry, migration refusal, archive rollback/cleanup, WAL backup/restore without replay, sealed/unsealed recovery and ownership/rotation | Linux/Windows fixtures; no physical power-loss or ENOSPC qualification |
 | Delivery | Terminal/outbox transactions, migrations, exact routing, fenced attempts, retries/TTL/dead letters, read-only idle claims, pooled transaction/profile isolation and per-chat claim exclusion | Real SQLite and persistence simulations |
+| Goal waiting | Partial/frozen admission, exact-run completion and merged notification, deletion/replacement/late deletion, cancellation/revisions, uncertain mutation/admission recovery, daemon/runner independence, actual CLI/shared-MCP binding, pinned recovery and cold/backup preservation | Linux native Relay plus fake goal/Desktop hosts; actual Codex check below uses a simulated host/model |
 | Public plugin bridge | Exact caller/session/delivery echoes, frame limits, endpoint replacement, scoped recovery and same-endpoint renewal | Real SQLite plus fake owned socket host |
 | ChatGPT Desktop | Framing, catalog/identity checks, endpoint replacement, fenced lease renewal and four-chat dispatch with same-chat exclusion | Fake hosts; no real restart/multi-day proof |
 | Convenience | CLI/MCP binding, multi-caller routing, installed shared MCP, loaded-image spawn, recovery and long-job renewal | Real CLI/MCP processes plus fake hosts; includes terminal workspace bindings, minimal start arguments, conflicting-key refusal, compact/full output and unified connect recovery |
@@ -61,7 +62,7 @@ After the release build, with Codex CLI and Python available:
 python3 scripts/check_codex_plugin.py
 ```
 
-This exports and relocates an offline bundle, bootstraps in disposable repository-local HOME/CODEX_HOME, removes the delivery artifact, installs through the actual loader, checks its returned cache path/profile and no-op refresh, and requires MCP discovery including job_recover_session and job_start_batch (23 tools in current source). It asserts that no daemon/workload state was created. Reports/logs remain in the printed ignored `.tmp/loader-...` directory. Python is a developer-check dependency only.
+This exports and relocates an offline bundle, bootstraps in disposable repository-local HOME/CODEX_HOME, removes the delivery artifact, installs through the actual loader, checks its returned cache path/profile and no-op refresh, and requires MCP discovery including job_recover_session, job_start_batch and job_goal_wait (24 tools in current source). It asserts that no daemon/workload state was created. Reports/logs remain in the printed ignored `.tmp/loader-...` directory. Python is a developer-check dependency only.
 
 The recorded loader is Codex CLI 0.164.0. Portable root and PLUGIN_ROOT command/args/cwd behavior differed from documentation; see [ADR 0004](adr/0004-loaded-image-and-codex-loader.md) and [ADR 0007](adr/0007-offline-plugin-runtime.md). The loader check starts no model turn and establishes neither ChatGPT Desktop browser discovery nor real MCP task/wake behavior.
 
@@ -86,7 +87,7 @@ The developer-only `scripts/check_desktop_restart.py` provides a bounded FIFO ha
 
 [Host plugins](host-plugins.md) provides dependency/setup commands for `scripts/check_opencode_plugin.py` and `scripts/check_claude_scaffold.py`. OpenCode 1.19.4 uses the actual loader/MCP/session API and agent loop with a local simulated model, checking a completed response and an untouched second session. Claude uses synthetic callers and the actual MCP launcher only; its caller-isolation check requests `full=true` to inspect the stored session and inbox-only capability. Its loader/skill substitution/account/model remain untested. Docker recipes/version matrices and account-backed Claude tests are welcome through [community contributions](../CONTRIBUTING.md).
 
-The Python MCP probes allow at most 1 MiB per JSON line so the full tool catalog fits (23 tools in current source, 22 in sealed 0.1.11); asyncio's default 64-KiB reader limit is too small for the expanded schemas. The Claude scaffold check retains its request deadlines, required-tool checks, explicit caller-isolation assertions and inbox-only boundary.
+The Python MCP probes allow at most 1 MiB per JSON line so the full tool catalog fits (24 tools in current source, 22 in sealed 0.1.11); asyncio's default 64-KiB reader limit is too small for the expanded schemas. The Claude scaffold check retains its request deadlines, required-tool checks, explicit caller-isolation assertions and inbox-only boundary.
 
 ## Installed release-candidate checks
 
@@ -117,3 +118,15 @@ Use only an isolated profile under .tmp/, run ui --no-open, then open its return
 Run `cargo test --test remote` for native reference-helper and observer behavior. Linux covers lost acknowledgement/idempotency, lookup-only cancellation, target/run/attempt fences, raw byte cursors, transport/observer/remote-runner loss, read-only versus controlled stopping, source shared-MCP/CLI retry plus origin inbox alerts/results, observer storage failure and terminal/recovery races. Windows runs the four applicable native cases using the existing verified daemon bootstrap outside Cargo’s cleanup Job Object. Workflow status/auth/attempt changes use a bounded fake `gh`; tests assert GET-only calls and no workflow mutation.
 
 For a real remote host, follow [remote task setup](remote-execution.md), choose isolated profiles, emit a unique milestone and record a launch counter. Expected: disconnecting the transport or losing the local observer preserves remote work; reconnect keeps the original run IDs and byte cursors, the counter remains one, read-only stop leaves work alive and a control stop observes the exact remote terminal result. Use only the created profile’s daemon/owned workload for cleanup. SSH authentication/shell deployments, real host continuation and prolonged/machine-loss tests need separate qualification. For Actions, select a real existing repository/run/attempt and compare retained conclusion/URL with a read-only API result; never dispatch or cancel a workflow for this check.
+
+## Goal-waiting verification (experimental source)
+
+Run `cargo test --test goal_wait` for the Linux behavioral fixtures and `cargo test --lib goal_control` for controller image-replacement detection. The 11 integration cases include source CLI/shared MCP, frozen partial admission, exact-run/merged completion, deletion/replacement/late deletion, uncertain mutations, cancellation/stale revisions (including cancellation during the final controller read), committed-admission and daemon-loss recovery, pinned recovery, archival and backup restore. All state is isolated; no actual Desktop goal is changed.
+
+After a release build, on Linux with Python and a Node version providing built-in WebSocket:
+
+```bash
+python3 scripts/check_codex_goal.py --codex "<absolute-goal-capable-codex-executable>"
+```
+
+Omit `--codex` to use the actual terminal's Desktop-selected runtime, falling back to Codex on PATH. Expected: resume/deleted/replaced all pass, with a live Relay job and zero simulated-model requests in each paused window, one matching resumed result turn and no wake/modification for deleted/replaced goals. The source implementation performs control through public goal RPCs, and the simulated Desktop adapter forwards only the resulting notification to the actual owner through an explicit loopback `codex queue`. Reports/wire traces stay in the printed `.tmp/goal-codex-...` directory. The script does not use real chats/accounts or alter installations/configuration. Actual Desktop goal UI, Windows controller behavior and long-duration savings remain separate qualifications; host generation/CAS races cannot be proven absent by these tests.

@@ -148,6 +148,14 @@ pub(crate) fn add_rule(db: &Connection, job: &str, spec: &RuleSpec) -> Result<St
     );
     if spec.notify_agent {
         ensure!(
+            !db.query_row(
+                "SELECT EXISTS(SELECT 1 FROM goal_wait_jobs WHERE job_id=?)",
+                [job],
+                |r| r.get::<_, bool>(0)
+            )?,
+            "goal-wait members support local rules only; Agent notification is merged at completion"
+        );
+        ensure!(
             read_job(db, job)?.session.is_some(),
             "notify_agent requires an explicitly bound job session"
         );
@@ -175,6 +183,9 @@ pub(crate) fn stop_tx(db: &Connection, job: &str, grace: u32, reason: &str) -> R
     }
     db.execute("INSERT INTO stop_requests(job_id,grace_seconds,reason,at) VALUES(?,?,?,?) ON CONFLICT(job_id) DO UPDATE SET grace_seconds=min(grace_seconds,excluded.grace_seconds)",params![job,grace,reason,now()])?;
     db.execute("UPDATE jobs SET cancel=1 WHERE id=?", [job])?;
+    if reason == "manual" {
+        crate::goal_wait::cancel_job_tx(db, job)?;
+    }
     let control_attachment = matches!(&j.command, CommandSpec::Remote { remote }
         if matches!(remote.intent, crate::remote::Intent::Attach { allow_stop: true, .. }));
     if j.status == "queued"
@@ -212,7 +223,7 @@ impl Store {
                         };
                         spec.validate()?;
                         j.command.validate_rule(&spec)?;
-                        if spec.notify_agent {ensure!(j.session.is_some(),"notify_agent requires an explicitly bound job session");}
+                        if spec.notify_agent {ensure!(j.session.is_some(),"notify_agent requires an explicitly bound job session");ensure!(!tx.query_row("SELECT EXISTS(SELECT 1 FROM goal_wait_jobs WHERE job_id=?)",[&key],|r|r.get::<_,bool>(0))?,"goal-wait members support local rules only");}
                         tx.execute("UPDATE monitor_rules SET revision=revision+1,spec=?,enabled=?,deleted=? WHERE id=?",params![serde_json::to_string(&spec)?,enabled,deleted,rule_id])?;
                         audit(&tx,&key,rule_id,expected+1,json!({"before":old,"after":{"spec":spec,"enabled":enabled,"deleted":deleted}}))?;
                     }
@@ -293,7 +304,7 @@ impl Store {
                 let raw=if let Some(rows)=records {rows.first().and_then(|r|r["data"].as_str()).map(str::to_owned)} else {tx.query_row("SELECT data FROM runtime_observations WHERE job_id=?",[&id],|r|r.get::<_,String>(0)).optional()?};
                 let observation=raw.map(|r|serde_json::from_str::<Value>(&r)).transpose()?.unwrap_or(Value::Null);
                 let stop=if let Some(rows)=crate::archive::monitor_rows(&tx,&id,"stop_requests")? {rows.first().cloned().unwrap_or(Value::Null)}else{tx.query_row("SELECT grace_seconds,reason,at FROM stop_requests WHERE job_id=?",[&id],|r|Ok(json!({"grace_seconds":r.get::<_,u32>(0)?,"reason":r.get::<_,String>(1)?,"at":r.get::<_,i64>(2)?}))).optional()?.unwrap_or(Value::Null)};
-                Ok(json!({"job":j,"observation":observation,"rules":rules(&tx,&id)?,"stop":stop,"sampled_at":now()}))
+                Ok(json!({"job":j,"goal_wait":crate::goal_wait::summary_for_job(&tx,&id)?,"observation":observation,"rules":rules(&tx,&id)?,"stop":stop,"sampled_at":now()}))
             }).await?;
             value["profile"] = json!(self.config.root);
             // Latest events are bounded independently from full event pagination.

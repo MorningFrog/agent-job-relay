@@ -254,6 +254,10 @@ pub fn read_session(db: &Connection, key: &str) -> Result<AgentSession> {
     })
 }
 pub fn add_target(db: &Connection, j: &str, key: &str) -> Result<String> {
+    ensure!(
+        crate::goal_wait::target_allowed(db, j, key)?,
+        "goal-wait members retain the original host binding; inspect results and use host goal controls explicitly instead of moving the wait"
+    );
     let session = read_session(db, key)?;
     ensure!(
         session.connected && session.expires_at > now(),
@@ -285,5 +289,6 @@ pub fn add_target(db: &Connection, j: &str, key: &str) -> Result<String> {
 pub fn enqueue(db: &Connection, event: &str, target: &str, at: i64) -> Result<()> {
     let sequence = crate::storage::next_sequence(db, "deliveries")?;
     db.execute("INSERT OR IGNORE INTO deliveries(rowid,id,event_id,target_id,status,attempts,next_at,expires) VALUES(?,?,?,?,'pending',0,?,?)",params![sequence,id(),event,target,now(),at+86400000])?;
+    db.execute("UPDATE deliveries SET status='cancelled',failure_kind='goal_wait',last_error='goal wait closed; completion retained locally' WHERE event_id=? AND target_id=? AND status='pending' AND EXISTS(SELECT 1 FROM targets t JOIN goal_wait_jobs m ON m.job_id=t.job_id JOIN goal_waits w ON w.id=m.wait_id WHERE t.id=? AND w.status IN ('cancelled','suppressed','attention'))",params![event,target,target])?;
     Ok(())
 }

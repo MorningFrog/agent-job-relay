@@ -43,6 +43,12 @@ pub fn signal_group(_: u32, _: i32) -> Result<()> {
 pub fn exit_signal(_: &std::process::ExitStatus) -> Option<i32> {
     None
 }
+#[cfg(not(any(unix, windows)))]
+pub fn file_identity(_: &File) -> Result<String> {
+    bail!("native file identity unavailable")
+}
+#[cfg(not(any(unix, windows)))]
+pub fn supervised_helper(_: &mut std::process::Command) {}
 pub fn private_file(path: &Path) -> Result<File> {
     #[cfg(windows)]
     return open_private_file(path, false, false);

@@ -98,7 +98,7 @@ impl Store {
                     if readonly {
                         ensure!(
                             db.pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0))?
-                                == 9,
+                                == 10,
                             "offline schema is unsupported; use the matching runtime"
                         );
                     }
@@ -141,7 +141,7 @@ impl Store {
             .await?;
         // Older daemons allocate rowids independently of the archive high-water
         // marks. Never migrate underneath one or an older in-flight runner.
-        let _migration_lock = if version < 9 {
+        let _migration_lock = if version < 10 {
             Some(
                 self.config
                     .daemon_lock()
@@ -153,10 +153,10 @@ impl Store {
         self.call(|db| {
             let v: i64 = db.pragma_query_value(None, "user_version", |r| r.get(0))?;
             ensure!(
-                v <= 9,
+                v <= 10,
                 "database schema is newer than this executable; downgrade refused"
             );
-            if v > 0 && v < 9 {
+            if v > 0 && v < 10 {
                 let running:bool=db.query_row("SELECT EXISTS(SELECT 1 FROM jobs WHERE status IN ('launching','running'))",[],|r|r.get(0))?;
                 ensure!(!running,"finish active runs with the previous runtime before upgrading the data schema");
             }
@@ -208,22 +208,30 @@ impl Store {
                 db.pragma_update(None, "foreign_keys", true)?;
                 ensure!(!db.prepare("PRAGMA foreign_key_check")?.exists([])?, "migration foreign-key check failed");
             }
+            if v < 10 { db.execute_batch(include_str!("goal_wait.sql"))?; }
             Ok(())
         })
         .await
     }
-    pub async fn start(&self, mut spec: StartSpec) -> Result<Job> {
+    pub async fn start(&self, spec: StartSpec) -> Result<Job> {
+        self.start_for_goal(spec, None).await
+    }
+    pub(crate) async fn start_for_goal(
+        &self,
+        mut spec: StartSpec,
+        goal_wait: Option<String>,
+    ) -> Result<Job> {
         spec.validate()?;
         let raw = serde_json::to_string(&spec)?;
         self.call(move |db|{
             let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
             if let Some(key)=&spec.idempotency_key
                 && let Some((id,old))=tx.query_row("SELECT id,spec FROM jobs WHERE idem=?",[key],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?))).optional()? {
-                    ensure!(old==raw,"idempotency key already used with a different specification"); return read_job(&tx,&id);
+                    ensure!(old==raw,"idempotency key already used with a different specification"); crate::goal_wait::check_retry(&tx, &id, goal_wait.as_deref())?; return read_job(&tx,&id);
                 }
             if let Some(key)=&spec.idempotency_key
                 && let Some((id,hash))=tx.query_row("SELECT id,spec_hash FROM archive_jobs WHERE idem=?",[key],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?))).optional()? {
-                ensure!(hash==crate::archive::hash(raw.as_bytes()),"idempotency key already used with a different specification");return read_job(&tx,&id);
+                ensure!(hash==crate::archive::hash(raw.as_bytes()),"idempotency key already used with a different specification");crate::goal_wait::check_retry(&tx, &id, goal_wait.as_deref())?;return read_job(&tx,&id);
             }
             let active:i64=tx.query_row("SELECT count(*) FROM jobs WHERE status IN ('queued','launching','running')",[],|r|r.get(0))?;
             ensure!(active<8,"active job quota (8) reached; wait or stop a job");
@@ -233,6 +241,7 @@ impl Store {
             let sequence=next_sequence(&tx,"jobs")?;
             tx.execute("INSERT INTO jobs(rowid,id,run_id,spec,idem,status,created,updated) VALUES(?,?,?,?,?,'queued',?,?)",params![sequence,j,r,raw,spec.idempotency_key,t,t])?;
             tx.execute("INSERT INTO runs(id,job_id,attempt,nonce) VALUES(?,?,1,?)",params![r,j,nonce])?;
+            if let Some(wait) = &goal_wait { crate::goal_wait::attach(&tx, wait, &j, &r, &spec)?; }
             if let Some(key)=&spec.session {crate::session::add_target(&tx,&j,key)?;}
             for rule in &spec.monitor_rules { crate::monitor::add_rule(&tx, &j, rule)?; }
             let result=read_job(&tx,&j)?; tx.commit()?; Ok(result)

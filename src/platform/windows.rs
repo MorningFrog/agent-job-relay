@@ -28,6 +28,36 @@ use windows_sys::Win32::{
 fn wide(value: impl AsRef<OsStr>) -> Vec<u16> {
     value.as_ref().encode_wide().chain(Some(0)).collect()
 }
+/// Pin volume/file identity and change time, not a pathname or timestamp alone.
+pub fn file_identity(file: &File) -> Result<String> {
+    unsafe {
+        let mut info: BY_HANDLE_FILE_INFORMATION = zeroed();
+        check(GetFileInformationByHandle(
+            file.as_raw_handle().cast(),
+            &mut info,
+        ))?;
+        let mut basic: FILE_BASIC_INFO = zeroed();
+        check(GetFileInformationByHandleEx(
+            file.as_raw_handle().cast(),
+            FileBasicInfo,
+            (&mut basic as *mut FILE_BASIC_INFO).cast(),
+            size_of::<FILE_BASIC_INFO>() as u32,
+        ))?;
+        Ok(format!(
+            "{}:{}:{}:{}:{}:{}:{}",
+            info.dwVolumeSerialNumber,
+            info.nFileIndexHigh,
+            info.nFileIndexLow,
+            file.metadata()?.len(),
+            basic.CreationTime,
+            basic.LastWriteTime,
+            basic.ChangeTime
+        ))
+    }
+}
+pub fn supervised_helper(command: &mut std::process::Command) {
+    command.creation_flags(CREATE_NO_WINDOW);
+}
 pub fn available_space(path: &Path) -> Result<u64> {
     let mut available = 0;
     unsafe {

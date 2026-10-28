@@ -146,7 +146,7 @@ async fn migration_preserves_event_highwater_and_delivery_references() {
         )
         .await
         .unwrap();
-    store.call(|db| {db.execute_batch("DROP TABLE monitor_rules;DROP TABLE monitor_changes;DROP TABLE runtime_observations;DROP TABLE stop_requests;UPDATE sqlite_sequence SET seq=9000 WHERE name='events';PRAGMA user_version=8;")?;Ok(())}).await.unwrap();
+    store.call(|db| {db.execute_batch("DROP TABLE goal_wait_audits; DROP TABLE goal_wait_jobs; DROP TABLE goal_waits; DROP TABLE monitor_rules;DROP TABLE monitor_changes;DROP TABLE runtime_observations;DROP TABLE stop_requests;UPDATE sqlite_sequence SET seq=9000 WHERE name='events';PRAGMA user_version=8;")?;Ok(())}).await.unwrap();
     store.init().await.unwrap();
     store
         .call(move |db| {

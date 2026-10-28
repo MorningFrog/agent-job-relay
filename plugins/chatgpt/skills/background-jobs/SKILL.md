@@ -15,6 +15,16 @@ When the loaded tool catalog includes job_start_batch, submit 1–16 requested i
 
 If MCP is unavailable, use the same launcher with start --wake --cwd <project> -- <program> <args...> and report the CLI fallback. Context/probe failure stops wake-dependent submission. For execution without continuation, omit session/wake and provide command/cwd. A short job may use one bounded job_wait.
 
+## Goal waiting (experimental source only)
+
+Use this only when the user authorizes pausing/restoring the current goal, the loaded catalog advertises job_goal_wait, and the same selected launcher/daemon supports goal_waiting. Published/sealed runtimes lack it; never switch profiles or silently update/restart a daemon. Existing authorization can cover subsequent waits without asking again. Explain the material host limitation once: no goal generation/CAS is available, so identical same-second replacement and verification/write/send races cannot be fully fenced; actual Desktop goal UI/Windows acceptance remains unqualified.
+
+From this chat's actual Desktop terminal, use connect --cwd <absolute-project> --wait-goal. Pass its binding unchanged to ordinary job_start or job_start_batch. Preparation does not pause the goal and expires after five minutes. Only goal_wait.status=waiting acknowledges pause: retain all Job/Run/wait IDs, finish any existing Agent work and end the turn. Do not poll goal/job state, start a checking Agent or mark the goal complete/blocked to wait. Pausing does not stop an already active turn or child Agent.
+
+A goal batch freezes the accepted subset and merges one completion after every original member finishes; each item still needs a distinct stable key. Retry the original binding/keys/specs after response loss. Accepted keys return original IDs; rejected/uncommitted items cannot join a sealed group and need a fresh group after resolution/cancellation. This replaces ordinary batch notification/retry membership semantics only for goal-bound submissions. Local monitor/automatic-stop rules remain available; notify_agent rules are rejected during goal waiting.
+
+On completion, deduplicate the delivery, match every listed original Job/Run and inspect bounded results. Deleted/observably changed goals suppress continuation; Relay never recreates them. attention/suppressed/cancelled means report the reason and use explicit host goal controls for manual continuation, without resubmitting admitted commands or looping. To cancel future automatic control/notification, inspect job_goal_wait once and cancel with its observed expected_revision; workloads keep running. Stopping an active member manually cancels group continuation only. Transmitted host effects cannot be recalled. Host replacement/recovery cannot move a pinned group; inspect original results and handle the goal explicitly. CLI fallback adds --wait-goal to --wake; retain IDs and inspect uncertain CLI submissions before retrying.
+
 ## Recover
 
 When asked to restore notifications, run connect --recover for preview, then connect --recover --apply when restoration is authorized. Both refresh the actual caller binding. For paged MCP recovery, obtain a fresh binding and pass it to job_recover_session with apply/after as needed. Use --full for complete CLI audit records. Recovery is a separate requested operation, not an automatic part of every submission.

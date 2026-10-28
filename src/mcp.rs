@@ -9,6 +9,8 @@ use serde_json::{Value, json};
 struct Binding {
     session_key: String,
     cwd: std::path::PathBuf,
+    #[serde(default)]
+    goal_wait_id: Option<String>,
 }
 
 fn apply_binding(args: &mut Value, op: &str) -> Result<()> {
@@ -16,6 +18,19 @@ fn apply_binding(args: &mut Value, op: &str) -> Result<()> {
         return Ok(());
     };
     let binding: Binding = serde_json::from_value(binding)?;
+    if let Some(id) = &binding.goal_wait_id {
+        crate::core::validate_id(id)?;
+        anyhow::ensure!(
+            matches!(op, "start" | "start_batch"),
+            "goal-wait bindings are only for submission; use a fresh normal binding for recovery"
+        );
+        args["op"] = json!(if op == "start" {
+            "start_goal"
+        } else {
+            "start_goal_batch"
+        });
+        args["goal_wait_id"] = json!(id);
+    }
     crate::core::validate_id(&binding.session_key)?;
     anyhow::ensure!(
         binding.cwd.is_absolute(),
@@ -122,7 +137,7 @@ fn prune_definitions(schema: &mut Value) {
 pub fn tools() -> Vec<Tool> {
     let full = serde_json::to_value(rmcp::schemars::schema_for!(Request))
         .expect("serializable request schema");
-    let mut tools=full["oneOf"].as_array().expect("tagged request schema").iter().filter(|v| !matches!(v["properties"]["op"]["const"].as_str(),Some("shutdown"|"ui_info"))).map(|v|{
+    let mut tools=full["oneOf"].as_array().expect("tagged request schema").iter().filter(|v| !matches!(v["properties"]["op"]["const"].as_str(),Some("shutdown"|"ui_info"|"prepare_goal_wait"|"start_goal"|"start_goal_batch"))).map(|v|{
         let mut schema=v.clone();let op=schema["properties"]["op"]["const"].as_str().expect("op tag").to_string();
         schema["properties"].as_object_mut().unwrap().remove("op");
         if let Some(a)=schema["required"].as_array_mut(){a.retain(|s|s!="op");}
@@ -146,8 +161,9 @@ pub fn tools() -> Vec<Tool> {
         }
         if matches!(op.as_str(), "start"|"start_batch") {schema["properties"]["wake_me"]=json!({"type":"boolean","default":false,"description":"Opt into experimental same-session Desktop wake. Automatically register, refresh and probe inherited host context. Do not provide explicit sessions at the same time."});}
         let description=match op.as_str(){
+            "goal_wait"=>"Inspect an explicitly opted-in goal wait and its immutable member runs. cancel=true requires the observed expected_revision, cancels future automatic goal control/notification only, and keeps workloads running. It issues no compensating host mutation; transmitted effects cannot be recalled. Deleted goals are never recreated. Goal waiting uses the actual terminal's connect --wait-goal binding; do not repeatedly poll it.",
             "start"=>"Start durable execution. spec.command supports exec/shell, remote (pinned target_id, transport, launch/attach intent) and github_actions (explicit repository/run_id/attempt, observe-only). Remote launches require an owned remote runtime or contract adapter; a bare SSH process is not durable ownership. Pass the current caller's binding; binding supplies local workspace/session. Remote launch cwd/env/rules belong in remote.intent.spec. End the turn for long wake-bound jobs. full=true returns complete records.",
-            "start_batch"=>"Submit 1..16 independent specs in input order, with a distinct stable idempotency_key per item. Pass the actual caller binding to supply sessions/missing cwd. Partial admission: eight active jobs per profile; each result has index/key and accepted result or error. Retry unchanged keys/specs after a lost response; accepted work returns original IDs. Rejected items may be admitted on retry. Never change keys to retry uncertain work. Jobs execute, notify and stop independently. full=true returns complete records.",
+            "start_batch"=>"Submit 1..16 independent specs in input order, with a distinct stable idempotency_key per item. Pass the actual caller binding to supply sessions/missing cwd. Partial admission: eight active jobs per profile; each result has index/key and accepted result or error. Retry unchanged keys/specs after a lost response; accepted work returns original IDs. Rejected items may be admitted on retry. Never change keys to retry uncertain work. Jobs execute and stop independently. With a connect --wait-goal binding, accepted membership freezes, rejected items cannot join on retry, and one notification waits for all members; otherwise jobs notify independently. full=true returns complete records.",
             "wait"=>"Wait up to 30 seconds for events after a cursor. Long jobs should use a capable host target; do not repeatedly poll in a loop.",
             "register_session"=>"Register or refresh an explicit agent, logical session, host and instance identity. Never invent identities. Desktop private API requires experimental opt-in and explicit caller identity. Host acceptance is not proof of agent execution.",
             "recover_session"=>"Preview or explicitly apply notification recovery for a fresh current-terminal session_key. Only the same logical chat/caller/host is eligible. Rebind active jobs and retry unexpired unresolved events, preserving delivery IDs/history. Never reruns commands or replays accepted/expired events. In-flight attempts are skipped. Default apply=false; terminal equivalent: session recover [--apply].",

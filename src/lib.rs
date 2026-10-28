@@ -8,6 +8,8 @@ pub mod daemon;
 pub mod delivery;
 pub mod deployment;
 pub mod diagnostics;
+pub mod goal_control;
+pub mod goal_wait;
 pub mod integration;
 pub mod ipc;
 pub mod lifecycle;

@@ -23,6 +23,7 @@ fn job(value: &Value) -> Value {
             "cancel_requested",
             "detail",
             "stop_outcome",
+            "goal_wait",
         ],
     )
 }
@@ -49,11 +50,16 @@ pub fn compact(op: &str, value: Value) -> Value {
             );
             wake["can_resume"] = json!(resume);
             wake["can_confirm_resume"] = json!(false);
-            json!({"job":job(&value["job"]),"wake":wake,"next_step":if resume {
+            let mut result = json!({"job":job(&value["job"]),"wake":wake,"next_step":if resume {
                 "End this turn; inspect job_status when the completion notification arrives."
             } else {
                 "Use job_wait once for a short job, or inspect job_status later; no automatic continuation is bound."
-            }})
+            }});
+            if let Some(wait) = value.get("goal_wait") {
+                result["goal_wait"] = wait.clone();
+                result["next_step"] = wait["next_step"].clone();
+            }
+            result
         }
         "status" | "stop" => {
             let mut result = job(&value);
@@ -110,6 +116,8 @@ pub fn compact(op: &str, value: Value) -> Value {
                     "runtime_monitoring",
                     "remote_execution",
                     "github_actions_observation",
+                    "goal_waiting",
+                    "goal_waits",
                     "management",
                     "store",
                     "store_check",

@@ -25,6 +25,26 @@ impl std::error::Error for RemoteError {}
 #[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Request {
+    /// Internal binding-aware admission; exposed through the ordinary start tools.
+    StartGoal {
+        spec: StartSpec,
+        goal_wait_id: String,
+    },
+    StartGoalBatch {
+        specs: Vec<StartSpec>,
+        goal_wait_id: String,
+    },
+    PrepareGoalWait {
+        session_key: String,
+        controller: crate::goal_control::Controller,
+        expected: serde_json::Value,
+    },
+    GoalWait {
+        goal_wait_id: String,
+        #[serde(default)]
+        cancel: bool,
+        expected_revision: Option<i64>,
+    },
     Start {
         spec: StartSpec,
     },
@@ -217,8 +237,59 @@ pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
             let j = store.start(spec).await?;
             Ok(start_result(store, j).await)
         }
+        Request::PrepareGoalWait {
+            session_key,
+            controller,
+            expected,
+        } => {
+            store
+                .prepare_goal_wait(session_key, controller, serde_json::from_value(expected)?)
+                .await
+        }
+        Request::GoalWait {
+            goal_wait_id,
+            cancel,
+            expected_revision,
+        } => {
+            store
+                .goal_wait(goal_wait_id, cancel, expected_revision)
+                .await
+        }
+        Request::StartGoal {
+            mut spec,
+            goal_wait_id,
+        } => {
+            validate_id(&goal_wait_id)?;
+            if spec.idempotency_key.is_none() {
+                spec.idempotency_key = Some(format!("goal-wait/{goal_wait_id}/0"));
+            }
+            let job = store
+                .start_for_goal(spec, Some(goal_wait_id.clone()))
+                .await?;
+            let mut value = start_result(store, job).await;
+            value["goal_wait"] = match crate::goal_wait::seal(store, &goal_wait_id).await {
+                Ok(value) => value,
+                Err(error) => {
+                    json!({"goal_wait_id":goal_wait_id,"status":"attention","detail":format!("work was admitted; goal control failed: {error:#}")})
+                }
+            };
+            Ok(value)
+        }
+        Request::StartGoalBatch {
+            specs,
+            goal_wait_id,
+        } => crate::batch::submit_for_goal(store, specs, Some(goal_wait_id)).await,
         Request::StartBatch { specs } => crate::batch::submit(store, specs).await,
-        Request::Status { job_id } => Ok(serde_json::to_value(store.status(job_id).await?)?),
+        Request::Status { job_id } => {
+            let mut result = serde_json::to_value(store.status(job_id.clone()).await?)?;
+            let wait = store
+                .read(move |db| crate::goal_wait::summary_for_job(db, &job_id))
+                .await?;
+            if let Some(wait) = wait {
+                result["goal_wait"] = wait;
+            }
+            Ok(result)
+        }
         Request::List { after, limit } => {
             let jobs = store.list(after, limit).await?;
             Ok(json!({"next_cursor":jobs.last().map_or(after,|j|j.sequence),"jobs":jobs}))
@@ -306,6 +377,8 @@ pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
             Ok(json!({"daemon":"reachable","runner_launch_from_loaded_image":cfg!(target_os="linux")&&crate::platform::self_image().is_ok(),"protocol_version":1,"version":env!("CARGO_PKG_VERSION"),"store":integrity,"capacity":crate::maintenance::capacity(db)?,"store_check":"connection and schema; use data check for full integrity","active_jobs":active,"orphaned_jobs":db.query_row("SELECT count(*) FROM jobs WHERE status='orphaned'",[],|r|r.get::<_,i64>(0))?,"delivery_recovery":true,"same_chat_recovery":true,"plugin_bridge":true,"delivery_time_renewal":true,"rebind_required":db.query_row("SELECT count(*) FROM deliveries WHERE status='retry_wait' AND failure_kind='rebind_required'",[],|r|r.get::<_,i64>(0))?,"retrying_deliveries":db.query_row("SELECT count(*) FROM deliveries WHERE status='retry_wait'",[],|r|r.get::<_,i64>(0))?,"sessions":db.query_row("SELECT count(*) FROM sessions WHERE connected=1 AND expires>?",[now()],|r|r.get::<_,i64>(0))?,"dead_letters":db.query_row("SELECT count(*) FROM deliveries WHERE status='dead_letter'",[],|r|r.get::<_,i64>(0))?,"runtime":std::env::consts::OS,"daemon_launch_method":std::env::var("AJR_DAEMON_LAUNCH_METHOD").unwrap_or_else(|_| "foreground".into()),"auto_resume":"not verified","next_step":"Use start --wake or job_start with wake_me=true from the current Desktop host context; no service is installed."})) }).await?;
             value["runtime_monitoring"] = json!(true);
             value["batch_submission"] = json!(true);
+            value["goal_waiting"] = json!(true);
+            value["goal_waits"] = store.read(|db|Ok(json!({"pending":db.query_row("SELECT count(*) FROM goal_waits WHERE status IN ('prepared','sealed','pausing','waiting','resuming')",[],|r|r.get::<_,i64>(0))?,"attention":db.query_row("SELECT count(*) FROM goal_waits WHERE status='attention'",[],|r|r.get::<_,i64>(0))?}))).await?;
             value["remote_execution"] = json!(true);
             value["github_actions_observation"] = json!(true);
             let mut ui = store

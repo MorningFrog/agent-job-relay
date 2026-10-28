@@ -4,6 +4,7 @@
 
 ### Added
 
+- Add explicitly opted-in Desktop goal waiting through `connect --wait-goal`, ordinary bound MCP start/batch, CLI `--wake --wait-goal` and revision-fenced `goal-wait` / `job_goal_wait`. Freeze admitted member runs, pause with bounded public status-only Codex RPCs, restore on all-member completion and merge notifications. Preserve accounting, original IDs, audits, cancellation and crash/restore fences; never recreate deleted goals or replay ambiguous mutations. Schema v10 requires an explicit same-profile upgrade. This experimental source feature lacks actual Desktop/Windows goal acceptance and cannot eliminate replacement races without a host generation/CAS interface; published/sealed runtimes remain unchanged.
 - Add pinned remote launch/attach through a bounded stdio adapter contract and optional remote native runtime, preserving origin IDs, durable launch keys, raw-byte cursors and exact-run stopping across disconnect/observer recovery. Add read-only observation of an explicit GitHub Actions run attempt through local `gh`, shared CLI/MCP/inspect/Web evidence and `start-spec --file`. No service, automatic training restart, workflow dispatch or workflow cancellation is added.
 - Keep MCP discovery within existing installed-host/self-check limits by including only schema definitions reachable from each tool; preserve all referenced command variants.
 - Add CLI `start-batch --file` (including bounded stdin), MCP `job_start_batch` and shared IPC v1 admission for 1–16 independent commands. Require distinct stable per-item keys, preserve command/workspace/environment/session/rules and return indexed partial admission results under the existing eight-active-job quota. Identical retries retain original Job/Run IDs after response loss or restart; no scheduler or batch-wide cancellation is added.
@@ -13,6 +14,7 @@
 
 ### Added
 
+- Add explicitly opted-in Desktop goal waiting through `connect --wait-goal`, ordinary bound MCP start/batch, CLI `--wake --wait-goal` and revision-fenced `goal-wait` / `job_goal_wait`. Freeze admitted member runs, pause with bounded public status-only Codex RPCs, restore on all-member completion and merge notifications. Preserve accounting, original IDs, audits, cancellation and crash/restore fences; never recreate deleted goals or replay ambiguous mutations. Schema v10 requires an explicit same-profile upgrade. This experimental source feature lacks actual Desktop/Windows goal acceptance and cannot eliminate replacement races without a host generation/CAS interface; published/sealed runtimes remain unchanged.
 - Register `ajr` through the existing npm runtime package. Default to the online ChatGPT/Codex profile, support an explicit OpenCode selector and document standard global CLI installation and direct task-manager access from the plugin.
 
 ### Fixed
@@ -28,6 +30,7 @@
 
 ### Added
 
+- Add explicitly opted-in Desktop goal waiting through `connect --wait-goal`, ordinary bound MCP start/batch, CLI `--wake --wait-goal` and revision-fenced `goal-wait` / `job_goal_wait`. Freeze admitted member runs, pause with bounded public status-only Codex RPCs, restore on all-member completion and merge notifications. Preserve accounting, original IDs, audits, cancellation and crash/restore fences; never recreate deleted goals or replay ambiguous mutations. Schema v10 requires an explicit same-profile upgrade. This experimental source feature lacks actual Desktop/Windows goal acceptance and cannot eliminate replacement races without a host generation/CAS interface; published/sealed runtimes remain unchanged.
 - Add Agent-independent inspect/watch, durable runner-owned output/silence/elapsed rules, optional same-chat alerts, bounded rolling output tails and revision-fenced rule editing.
 - Bundle a React + Vite task manager in the native executable. Enable its authenticated loopback Web UI by default with each daemon; open the exact profile from CLI without a separate frontend deployment.
 - Add configurable graceful/forced cancellation and bounded stop-result observation, preserving trigger reasons, rule audits and monitor history across archive/backup/restore.
@@ -75,6 +78,7 @@
 
 ### Added
 
+- Add explicitly opted-in Desktop goal waiting through `connect --wait-goal`, ordinary bound MCP start/batch, CLI `--wake --wait-goal` and revision-fenced `goal-wait` / `job_goal_wait`. Freeze admitted member runs, pause with bounded public status-only Codex RPCs, restore on all-member completion and merge notifications. Preserve accounting, original IDs, audits, cancellation and crash/restore fences; never recreate deleted goals or replay ambiguous mutations. Schema v10 requires an explicit same-profile upgrade. This experimental source feature lacks actual Desktop/Windows goal acceptance and cannot eliminate replacement races without a host generation/CAS interface; published/sealed runtimes remain unchanged.
 - Automatically bootstrap the same Windows daemon profile through local CIM when a cleanup Job Object blocks native startup, with no login task/service registration or routine manual preparation. Keep native runner containment unchanged.
 - Authenticate both process instances/images/SIDs/integrity levels and private IPC before transferring the exact Unicode environment/cwd in memory. Reject restricted/AppContainer/low-integrity tokens, preserve caller isolation and expose direct-only policy plus copyable fallback diagnostics.
 - Cover host job destruction, cold start, crash restart without replay, environment preservation and refusal boundaries with native behavioral tests; package the matching runtime and plugin pins.

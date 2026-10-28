@@ -59,6 +59,10 @@ impl Store {
                     (target_id=? OR target_id=?) AND status='leased' AND lease_until>?)",
                     params![old,existing,t], |row| row.get(0))?;
                 let mut result = json!({"target_id":old,"job_id":job,"in_flight":busy,"applied":false});
+                if !crate::goal_wait::target_allowed(&tx,job,&s.key)? {
+                    result["skipped_reason"]=json!("goal_wait_retains_original_binding; inspect member results and use host goal controls explicitly");
+                    targets.push(result);continue;
+                }
                 if apply && !busy {
                     let new = add_target(&tx, job, &s.key)?;
                     let mut q = tx.prepare("SELECT id,event_id FROM deliveries WHERE target_id=? AND expires>?

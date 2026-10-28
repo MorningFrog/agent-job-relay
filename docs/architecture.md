@@ -15,6 +15,7 @@ One package and executable; CLI, stdio MCP, daemon and runner modes.
 | Bounded batch admission | `src/batch.rs`, shared CLI/MCP client and IPC dispatch; existing per-item storage transactions |
 | Job intent, execution and persistence | `src/core.rs`, `src/daemon.rs`, `src/runner.rs`, `src/storage.rs` |
 | Session binding and notifications | `src/session.rs`, `src/adapters.rs`, `src/plugin_bridge.rs`, `src/delivery.rs`, `src/recovery.rs`, `src/renewal.rs` |
+| Explicit goal waiting | `src/goal_wait.rs`, `src/goal_wait.sql`, `src/goal_control.rs`; terminal capture, durable group/control phases and delivery gate |
 | Idle scheduling and local wake signals | `src/scheduling.rs`, `src/storage.rs` |
 | Automatic archive, budgets, backup and restore | `src/archive.rs`, `src/maintenance.rs`, `src/maintenance.sql` |
 | Local Web UI and bundled assets | `src/web.rs`, `web/`, `build.rs` |
@@ -95,6 +96,12 @@ Explicit stop can select the installation receipt via `--install-root`, independ
 Same-chat recovery (recovery.rs) probes a fresh current-terminal registration, checks the unchanged session snapshot inside a transaction, and scopes old targets to identical agent/logical/host/caller identities. It transfers only unexpired unresolved deliveries, retaining IDs/history/TTL; accepted events and live claims are excluded. New immutable targets and the recovery audit commit atomically.
 
 Automatic bindings opt into delivery-time renewal (renewal.rs). Only an actual result claim can trigger a same-endpoint owner/fingerprint/capability probe; no periodic host polling is needed. Near-expired/expired sessions extend only after an unchanged-snapshot/current-claim check, atomically with a renewal audit. Invalidation or host replacement requires explicit recovery. Manual/old bindings remain opted out. Capability preflight rejects old daemons before automatic binding.
+
+## Explicit goal waiting (unreleased schema v10)
+
+`connect --wait-goal` captures the actual Desktop terminal’s goal/controller/profile and pins its original registration; opaque binding metadata reaches ordinary MCP start/batch. Job admission and group membership commit together, then freeze the accepted subset before acknowledging pause. A separate native coordinator reads member state while jobs run without model/goal RPC polling. On exact-run completion it verifies the original paused goal and endpoint, restores status only and releases one merged outbox message. Per-group process locks and revision CAS fence local transitions; no database transaction spans host I/O.
+
+Deleted or observably changed goals and changed bindings/controllers suppress continuation. Cancellation/manual member stops close future continuation; uncertain mutation acknowledgements require manual host handling rather than replay. Daemon startup seals interrupted committed admissions, and backup restore cancels goal control intents. Membership/audits survive hot-job archival. Recovery skips pinned groups explicitly. Current host RPCs lack generation/CAS, so identical same-second replacement and verification/mutation/transmission races remain; opt-in is experimental. See [goal waiting](goal-waiting.md) and [ADR 0017](adr/0017-opted-in-goal-waiting.md).
 
 ## Public host plugin bridge
 

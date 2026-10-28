@@ -206,6 +206,12 @@ pub async fn connect_context(
 pub fn brief_binding(value: Value) -> Value {
     let mut brief = json!({"session_key":value["session"]["key"],"binding":value["binding"],"probe":"passed","can_resume":true,"can_confirm_resume":false,
         "next_step":"Call job_start with binding and spec.command; end this turn after submission."});
+    if let Some(wait) = value.get("goal_wait") {
+        brief["goal_wait"] = wait.clone();
+        brief["next_step"] = json!(
+            "Pass this binding unchanged to job_start/job_start_batch. Goal waiting is armed only after jobs are admitted."
+        );
+    }
     if let Some(recovery) = value.get("recovery") {
         brief["recovery"] = crate::output::compact("recover_session", recovery.clone());
         brief["next_step"] = brief["recovery"]["next_step"].clone();
@@ -225,6 +231,72 @@ pub async fn recover(config: &Config, apply: bool, after: i64, limit: u32) -> Re
             apply,
             after,
             limit,
+        },
+    )
+    .await
+}
+pub async fn connect_with_goal(config: &Config, cwd: PathBuf) -> Result<Value> {
+    let mut value = connect_context(config, cwd, None).await?;
+    ensure!(
+        ipc::call(config, Request::Doctor).await?["goal_waiting"] == true,
+        "selected daemon does not support goal waiting; explicitly finish/stop/update this same profile first"
+    );
+    let thread = desktop_registration()?.0.session_id;
+    let (controller, expected) = crate::goal_control::Controller::capture(thread).await?;
+    let wait = ipc::call(
+        config,
+        Request::PrepareGoalWait {
+            session_key: value["session"]["key"]
+                .as_str()
+                .context("missing caller key")?
+                .into(),
+            controller,
+            expected: serde_json::to_value(expected)?,
+        },
+    )
+    .await?;
+    value["binding"]["goal_wait_id"] = wait["goal_wait_id"].clone();
+    value["goal_wait"] = wait;
+    Ok(value)
+}
+pub async fn start_waiting(
+    config: &Config,
+    mut specs: Vec<StartSpec>,
+    batch: bool,
+) -> Result<Value> {
+    ensure!(
+        specs.iter().all(|s| s.session.is_none()),
+        "automatic goal waiting requires the current caller, not explicit sessions"
+    );
+    if batch {
+        crate::batch::validate(&specs)?;
+    } else {
+        ensure!(specs.len() == 1, "one specification required");
+        specs[0].validate()?;
+    }
+    let binding = connect_with_goal(config, std::env::current_dir()?).await?;
+    let key = binding["session"]["key"]
+        .as_str()
+        .context("missing session")?;
+    for spec in &mut specs {
+        spec.session = Some(key.into());
+    }
+    let goal_wait_id = binding["goal_wait"]["goal_wait_id"]
+        .as_str()
+        .context("missing goal wait")?
+        .into();
+    call(
+        config,
+        if batch {
+            Request::StartGoalBatch {
+                specs,
+                goal_wait_id,
+            }
+        } else {
+            Request::StartGoal {
+                spec: specs.remove(0),
+                goal_wait_id,
+            }
         },
     )
     .await
@@ -375,6 +447,44 @@ pub async fn call(config: &Config, request: Request) -> Result<Value> {
     match request {
         Request::Start { spec } => start(config, spec, false).await,
         Request::StartBatch { specs } => start_batch(config, specs, false).await,
+        request @ (Request::StartGoal { .. }
+        | Request::StartGoalBatch { .. }
+        | Request::PrepareGoalWait { .. }) => {
+            ensure_daemon(config).await?;
+            ensure!(
+                ipc::call(config, Request::Doctor).await?["goal_waiting"] == true,
+                "selected daemon does not support goal waiting; no goal-aware work was submitted; finish/stop/update this same profile explicitly"
+            );
+            ipc::call(config, request).await
+        }
+        request @ Request::GoalWait { cancel: true, .. } => {
+            ensure_daemon(config).await?;
+            ipc::call(config, request).await
+        }
+        Request::GoalWait {
+            goal_wait_id,
+            cancel: false,
+            expected_revision,
+        } => {
+            match ipc::call(
+                config,
+                Request::GoalWait {
+                    goal_wait_id: goal_wait_id.clone(),
+                    cancel: false,
+                    expected_revision,
+                },
+            )
+            .await
+            {
+                Ok(value) => Ok(value),
+                Err(error) if unavailable(&error) => {
+                    crate::storage::Store::readonly(config.clone())
+                        .goal_wait(goal_wait_id, false, None)
+                        .await
+                }
+                Err(error) => Err(error),
+            }
+        }
         Request::Doctor => {
             let mut report = ipc::call(config, Request::Doctor).await?;
             report["desktop_context"] = context_summary();

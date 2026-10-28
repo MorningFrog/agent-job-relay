@@ -2,7 +2,7 @@
 
 [Documentation index](README.md) · [Command reference](commands.md) · [Updating](updating.md)
 
-Version 0.1.10 and newer use schema v9; 0.1.9 uses schema v6. Finish existing workloads and explicitly stop the selected old daemon before upgrading. Migration refuses an old daemon lock or launching/running jobs; older executables refuse the new schema. Keep the same state profile and never downgrade a used database.
+Published 0.1.10 and the original sealed 0.1.11 use schema v9; unreleased goal waiting uses v10, and 0.1.9 uses v6. Finish existing workloads and explicitly stop the selected old daemon before upgrading. Migration refuses an old daemon lock or launching/running jobs; older executables refuse the new schema. Keep the same state profile and never downgrade a used database.
 
 Examples use the online ChatGPT/Codex profile. Substitute the appropriate [command prefix](commands.md#choose-the-entry-point-and-profile) for OpenCode or a native offline installation; keep the original profile for all operations.
 
@@ -49,7 +49,7 @@ agent-job-relay codex data restore --from "<backup-directory>" --to "<new-state-
 agent-job-relay --state-dir "<new-state-directory>" data check
 ```
 
-Expected: checksums, file inventory, schema, SQLite integrity and foreign keys pass before the new profile is published. Existing state is never overwritten. Queued/launching/running jobs become `orphaned`; commands are not replayed. Sessions are invalidated and outstanding claims are fenced without changing their IDs, expiry or attempt history. Accepted notifications are not resent. Explicitly bind the actual current caller and recover eligible notifications if needed. Audit external side effects before deliberately submitting work again.
+Expected: checksums, file inventory, schema, SQLite integrity and foreign keys pass before the new profile is published. Existing state is never overwritten. Queued/launching/running jobs become `orphaned`; commands are not replayed. Sessions are invalidated and outstanding claims are fenced without changing their IDs, expiry or attempt history. Accepted notifications are not resent. Source v10 restores verified v8/v9/v10 backups forward, cancels restored goal-control intents and grouped notifications, and retains membership/audits without touching the old host goal. Goal waits are not moved by ordinary notification recovery. Explicitly bind the actual current caller and recover eligible notifications if needed. Audit external side effects before deliberately submitting work again.
 
 ## Interrupted operations and diagnostics
 

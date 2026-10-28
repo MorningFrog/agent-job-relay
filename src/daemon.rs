@@ -94,6 +94,7 @@ pub async fn serve(config: Config) -> Result<()> {
     let store = Store::new(config.clone());
     store.init().await?;
     let _lock = config.daemon_lock()?;
+    crate::goal_wait::recover_admissions(&store).await?;
     #[cfg(any(unix, windows))]
     {
         let path = config.socket();
@@ -103,6 +104,7 @@ pub async fn serve(config: Config) -> Result<()> {
         // Recreating ctrl_c() inside select loses signals in that interval.
         let mut interrupt = crate::platform::interrupt_signal()?;
         let delivery_task = tokio::spawn(crate::delivery::worker(store.clone()));
+        let goal_task = tokio::spawn(crate::goal_wait::worker(store.clone()));
         let (stop, stopped) = tokio::sync::watch::channel(false);
         let web_task = match crate::web::start(store.clone(), stopped.clone()).await {
             Ok(task) => task,
@@ -136,7 +138,9 @@ pub async fn serve(config: Config) -> Result<()> {
         // writer backlog must not keep reconciliation waiting during shutdown.
         tasks.shutdown().await;
         delivery_task.abort();
+        goal_task.abort();
         let _ = delivery_task.await;
+        let _ = goal_task.await;
         reconcile_task.await?;
         maintenance_task.await?;
         if let Some(mut task) = web_task

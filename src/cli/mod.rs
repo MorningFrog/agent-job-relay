@@ -75,7 +75,11 @@ pub(super) async fn run() -> Result<()> {
             }
             return Ok(());
         }
-        Commands::StartSpec { file, wake } => {
+        Commands::StartSpec {
+            file,
+            wake,
+            wait_goal,
+        } => {
             use std::io::Read;
             let reader: Box<dyn Read> = if file == std::path::Path::new("-") {
                 Box::new(std::io::stdin())
@@ -86,7 +90,11 @@ pub(super) async fn run() -> Result<()> {
             reader.take(65537).read_to_end(&mut bytes)?;
             anyhow::ensure!(bytes.len() <= 65536, "specification exceeds 64 KiB");
             let spec = serde_json::from_slice(&bytes).context("input must be a JSON StartSpec")?;
-            let value = agent_job_relay::client::start(&config, spec, wake).await?;
+            let value = if wait_goal {
+                agent_job_relay::client::start_waiting(&config, vec![spec], false).await?
+            } else {
+                agent_job_relay::client::start(&config, spec, wake).await?
+            };
             println!("{}", serde_json::to_string(&value)?);
             return Ok(());
         }
@@ -173,13 +181,22 @@ pub(super) async fn run() -> Result<()> {
             after,
             limit,
             full,
+            wait_goal,
         } => {
-            let value = agent_job_relay::client::connect_context(
-                &config,
-                cwd.unwrap_or(std::env::current_dir()?),
-                recover.then_some((apply, after, limit)),
-            )
-            .await?;
+            let value = if wait_goal {
+                agent_job_relay::client::connect_with_goal(
+                    &config,
+                    cwd.unwrap_or(std::env::current_dir()?),
+                )
+                .await?
+            } else {
+                agent_job_relay::client::connect_context(
+                    &config,
+                    cwd.unwrap_or(std::env::current_dir()?),
+                    recover.then_some((apply, after, limit)),
+                )
+                .await?
+            };
             println!(
                 "{}",
                 serde_json::to_string(&if full {
@@ -190,6 +207,15 @@ pub(super) async fn run() -> Result<()> {
             );
             return Ok(());
         }
+        Commands::GoalWait {
+            goal_wait_id,
+            cancel,
+            expected_revision,
+        } => Request::GoalWait {
+            goal_wait_id,
+            cancel,
+            expected_revision,
+        },
         Commands::Plugin { command } => {
             let result = tokio::task::spawn_blocking(move || -> Result<serde_json::Value> {
                 use agent_job_relay::{deployment, plugin};
@@ -542,6 +568,7 @@ pub(super) async fn run() -> Result<()> {
             timeout,
             session,
             wake,
+            wait_goal,
             idempotency_key,
             monitor,
             command,
@@ -588,14 +615,20 @@ pub(super) async fn run() -> Result<()> {
             };
             println!(
                 "{}",
-                serde_json::to_string_pretty(
-                    &agent_job_relay::client::start(&config, spec, wake).await?
-                )?
+                serde_json::to_string_pretty(&if wait_goal {
+                    agent_job_relay::client::start_waiting(&config, vec![spec], false).await?
+                } else {
+                    agent_job_relay::client::start(&config, spec, wake).await?
+                })?
             );
             return Ok(());
         }
         Commands::Status { job_id } => Request::Status { job_id },
-        Commands::StartBatch { file, wake } => {
+        Commands::StartBatch {
+            file,
+            wake,
+            wait_goal,
+        } => {
             use std::io::Read;
             let reader: Box<dyn Read> = if file == std::path::Path::new("-") {
                 Box::new(std::io::stdin())
@@ -612,7 +645,11 @@ pub(super) async fn run() -> Result<()> {
             );
             let specs = serde_json::from_slice(&bytes)
                 .context("batch input must be a JSON array of start specifications")?;
-            let result = agent_job_relay::client::start_batch(&config, specs, wake).await?;
+            let result = if wait_goal {
+                agent_job_relay::client::start_waiting(&config, specs, true).await?
+            } else {
+                agent_job_relay::client::start_batch(&config, specs, wake).await?
+            };
             println!("{}", serde_json::to_string_pretty(&result)?);
             return Ok(());
         }

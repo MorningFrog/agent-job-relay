@@ -363,7 +363,7 @@ async fn schema_upgrade_refuses_an_old_daemon_or_in_flight_runner_before_changes
     let job = f.job("upgrade", None, false).await;
     f.store
         .call(|db| {
-            db.execute_batch("DROP TABLE monitor_rules; DROP TABLE monitor_changes; DROP TABLE runtime_observations; DROP TABLE stop_requests; PRAGMA user_version=6;")?;
+            db.execute_batch("DROP TABLE goal_wait_audits; DROP TABLE goal_wait_jobs; DROP TABLE goal_waits; DROP TABLE monitor_rules; DROP TABLE monitor_changes; DROP TABLE runtime_observations; DROP TABLE stop_requests; PRAGMA user_version=6;")?;
             Ok(())
         })
         .await
@@ -742,7 +742,7 @@ async fn schema_eight_backups_restore_forward_without_changing_the_original() {
     let f = Fixture::new().await;
     let job = f.job("old-backup", None, true).await;
     f.log(&job, b"old backup history");
-    f.store.call(|db|{db.execute_batch("DROP TABLE monitor_rules;DROP TABLE monitor_changes;DROP TABLE runtime_observations;DROP TABLE stop_requests;PRAGMA user_version=8;")?;Ok(())}).await.unwrap();
+    f.store.call(|db|{db.execute_batch("DROP TABLE goal_wait_audits; DROP TABLE goal_wait_jobs; DROP TABLE goal_waits; DROP TABLE monitor_rules;DROP TABLE monitor_changes;DROP TABLE runtime_observations;DROP TABLE stop_requests;PRAGMA user_version=8;")?;Ok(())}).await.unwrap();
     let backup = f.store.backup().await.unwrap();
     let from = PathBuf::from(backup["path"].as_str().unwrap());
     let to = f.dir.path().join("forward-restored");

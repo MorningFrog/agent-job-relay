@@ -69,6 +69,8 @@ Rules use one condition: `--no-output <duration>`, `--elapsed <duration>` or `--
 | Command after the prefix | Purpose |
 |---|---|
 | `connect [--cwd <absolute-project>]` | Obtain a fresh current-chat/workspace binding from its actual terminal |
+| `connect --wait-goal` (experimental source) | Prepare an explicitly authorized active-goal wait from the actual Desktop terminal; pass the returned binding to start/batch |
+| `goal-wait <id> [--cancel --expected-revision <n>]` (experimental source) | Inspect/cancel future automatic goal control and grouped notification; jobs keep running; [limits and interruption](goal-waiting.md) |
 | `connect --recover [--apply]` | Preview/apply same-chat recovery; `--after`, `--limit`, `--full` |
 | `session connect [--brief]` | Compatible current-terminal binding entry |
 | `session recover [--apply]` | Compatible same-chat recovery entry |
@@ -81,6 +83,8 @@ Rules use one condition: `--no-output <duration>`, `--elapsed <duration>` or `--
 | `delivery retry <delivery-id>` | Explicit retry with renewed TTL, preserving ID/history; never rerun the job |
 | `target add <job-id> <session-key> [--replay]` | Advanced exact-session target, optionally replaying eligible existing terminal events |
 | `target rebind <target-id> <session-key>` | Advanced explicit target replacement |
+
+Source `start`, `start-spec` and `start-batch` additionally accept `--wake --wait-goal`. Goal waiting requires the matching source daemon/profile and explicit opt-in; published/sealed runtimes lack it. See [goal waiting](goal-waiting.md).
 
 Recovery preserves original expiry and excludes accepted/expired events and live claims. Explicit delivery retry has different TTL semantics. Never guess caller IDs or reuse a binding from another chat. See [MCP submission](usage.md#submit-through-mcp-with-same-chat-notification), [recovery](usage.md#recover-notifications) and [protocol](protocol.md) before advanced target operations.
 
@@ -136,6 +140,7 @@ Policy flags are `--hot-jobs`, `--archive-after-days`, `--hot-log-mib`, `--backu
 | Purpose | Tools |
 |---|---|
 | Execution and results | `job_start`, `job_status`, `job_list`, `job_logs`, `job_events`, `job_wait`, `job_stop` |
+| Experimental source | `job_start_batch`, `job_goal_wait`; goal-aware start/batch uses the `connect --wait-goal` binding |
 | Inspection and rules | `job_inspect`, `job_monitor` |
 | Health | `job_doctor` |
 | Session binding and inbox | `job_connect_session`, `job_register_session`, `job_sessions`, `job_probe_session`, `job_recover_session`, `job_invalidate_session`, `job_inbox` |

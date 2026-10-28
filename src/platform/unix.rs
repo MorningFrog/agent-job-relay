@@ -8,6 +8,21 @@ use std::{
     path::Path,
     process::Command,
 };
+/// File-instance stamp for bounded executable-digest caching.
+pub fn file_identity(file: &std::fs::File) -> Result<String> {
+    let m = file.metadata()?;
+    Ok(format!(
+        "{}:{}:{}:{}:{}:{}:{}",
+        m.dev(),
+        m.ino(),
+        m.len(),
+        m.ctime(),
+        m.ctime_nsec(),
+        m.mtime(),
+        m.mtime_nsec()
+    ))
+}
+pub fn supervised_helper(_: &mut std::process::Command) {}
 pub fn available_space(path: &Path) -> Result<u64> {
     use std::os::unix::ffi::OsStrExt;
     let path = std::ffi::CString::new(path.as_os_str().as_bytes())?;
