@@ -19,7 +19,7 @@
 
 ### Verification boundary
 
-- These changes are unreleased. New monitoring/Web UI behavior requires separate Windows and real-host qualification. Linux behavioral verification covers automatic operation, budgets, archive/backup recovery, hot/cold queries, migration fences and control responsiveness; Windows native/package and real-host acceptance need separate qualification.
+- These changes are unreleased. All four Linux delivery gates pass (110 tests), React/Vite production assets build, and isolated npm/native UI plus actual Codex/OpenCode loader checks pass; OpenCode uses a simulated model. New monitoring/Web UI behavior requires separate Windows and real-host qualification. Linux behavioral verification covers automatic operation, budgets, archive/backup recovery, hot/cold queries, migration fences and control responsiveness; Windows native/package and real-host acceptance need separate qualification.
 
 ## [0.1.9] - 2026-10-28
 
