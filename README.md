@@ -30,7 +30,7 @@ Run long commands independently of the Agent connection, keep their results, and
 
 Online installation needs Node.js 20+/npm and network access. ChatGPT Desktop/Codex also needs Codex CLI on PATH and Git for catalog fetching; Desktop requires a local executor. No Rust compiler is needed. Commands below use Bash; [PowerShell and Release ZIP alternatives](docs/installation.md#chatgpt-desktop--codex) are available.
 
-Before updating, finish active jobs and retain the original profile. A loaded incompatible daemon needs an explicit same-profile stop; package/plugin updates do not replace it automatically. See [upgrade preparation](docs/updating.md#before-updating).
+Retain the original profile when updating. Current source automatically replaces an older daemon on first runtime use and restarts an online daemon after a local runtime update; finish active jobs before file replacement or schema migration. Published versions still require a manual same-profile stop. See [upgrade preparation](docs/updating.md#before-updating).
 
 ### ChatGPT Desktop
 

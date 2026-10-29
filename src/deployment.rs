@@ -388,8 +388,21 @@ pub(crate) fn idle_guards(state: &Path, install_root: &Path) -> Result<Vec<File>
             locks.push(f);
         }
     }
+    require_idle_jobs(state)?;
+    Ok(locks)
+}
+fn require_idle_jobs(state: &Path) -> Result<()> {
     let db = state.join("relay.sqlite3");
-    if db.exists() {
+    let metadata = match std::fs::symlink_metadata(&db) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error.into()),
+    };
+    ensure!(
+        metadata.is_file() && !crate::platform::is_link(&metadata),
+        "database must be a regular file, not a symbolic link"
+    );
+    {
         let conn =
             rusqlite::Connection::open_with_flags(db, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
         let active: i64 = conn.query_row(
@@ -402,7 +415,7 @@ pub(crate) fn idle_guards(state: &Path, install_root: &Path) -> Result<Vec<File>
             "active jobs exist; wait for completion or explicitly cancel them before replacing/removing binaries"
         );
     }
-    Ok(locks)
+    Ok(())
 }
 pub(crate) fn write_artifact(path: &Path, file: &Artifact) -> Result<()> {
     #[cfg(windows)]
@@ -433,15 +446,15 @@ pub(crate) fn write_artifact(path: &Path, file: &Artifact) -> Result<()> {
     }
     Ok(())
 }
-pub fn change(config: &Config, root: PathBuf, remove: bool, apply: bool) -> Result<Value> {
+pub async fn change(config: &Config, root: PathBuf, remove: bool, apply: bool) -> Result<Value> {
     let files = if remove {
         BTreeMap::new()
     } else {
         render(config, &root, payload()?)?
     };
-    change_artifacts(config, root, remove, apply, files)
+    change_artifacts(config, root, remove, apply, files).await
 }
-pub(crate) fn change_artifacts(
+pub(crate) async fn change_artifacts(
     config: &Config,
     root: PathBuf,
     remove: bool,
@@ -490,6 +503,7 @@ pub(crate) fn change_artifacts(
             .is_none_or(|old| old.files != desired.files || old.state_dir != desired.state_dir)
     };
     let mut backup = None;
+    let mut restarted = false;
     if apply && changed {
         std::fs::create_dir_all(parent)?;
         let lock = crate::platform::private_file(&parent.join(format!(
@@ -510,7 +524,50 @@ pub(crate) fn change_artifacts(
             if !remove {
                 crate::plugin::guard_downgrade(&root, &files)?;
             }
-            guards.extend(idle_guards(&old.state_dir, &root)?);
+            if remove {
+                guards.extend(idle_guards(&old.state_dir, &root)?);
+            } else {
+                let old_config = Config {
+                    root: old.state_dir.clone(),
+                };
+                if old.state_dir.exists() {
+                    checked_path(&old.state_dir)?;
+                    let startup =
+                        crate::platform::private_file(&old.state_dir.join("startup.lock"))?;
+                    startup
+                        .try_lock()
+                        .context("another daemon startup/update is in progress; retry")?;
+                    guards.push(startup);
+                    // Refuse active work before touching the old daemon or files.
+                    require_idle_jobs(&old.state_dir)?;
+                    match crate::ipc::doctor_peer(&old_config).await {
+                        Ok((health, peer)) => {
+                            let profile: RuntimeProfile =
+                                serde_json::from_slice(&files[PROFILE].bytes)?;
+                            let running_version = health["version"]
+                                .as_str()
+                                .context("daemon version is missing; update refused")?;
+                            ensure!(
+                                crate::plugin::version(running_version)?
+                                    <= crate::plugin::version(&profile.version)?,
+                                "running daemon is newer than the update; downgrade refused"
+                            );
+                            let peer =
+                                peer.context("cannot pin the installed daemon; update refused")?;
+                            crate::client::stop_daemon_peer(&old_config, Some(&peer)).await?;
+                            restarted = true;
+                        }
+                        Err(error) if crate::client::unavailable(&error) => {}
+                        Err(error) => return Err(error),
+                    }
+                    guards.push(old_config.daemon_lock()?);
+                    require_idle_jobs(&old.state_dir).context("work was admitted during update; daemon stopped, files preserved; restart the installed runtime and finish its jobs before retrying")?;
+                }
+                // A changed explicit profile must also be idle before replacement.
+                if old.state_dir != config.root {
+                    guards.extend(idle_guards(&config.root, &root)?);
+                }
+            }
         }
         if remove {
             let old = existing.as_ref().unwrap();
@@ -537,6 +594,11 @@ pub(crate) fn change_artifacts(
             )?;
         }
         drop(guards);
+        if restarted {
+            let profile: RuntimeProfile = serde_json::from_slice(&files[PROFILE].bytes)?;
+            crate::client::start_installed_daemon(config, &root.join(crate::platform::NATIVE_FILE), &profile.version)
+                .await.context("runtime files were updated but the new daemon did not become ready; inspect this same profile and run its installed daemon start; no rollback was attempted")?;
+        }
     }
     let state = if remove {
         existing
@@ -547,7 +609,7 @@ pub(crate) fn change_artifacts(
         &config.root
     };
     Ok(
-        json!({"mode":mode,"changed":changed,"action":if remove{"remove owned local installation"}else{"install native executable and Desktop plugin"},"root":root,"executable":root.join(crate::platform::NATIVE_FILE),"launcher":root.join(crate::platform::LAUNCHER_FILE),"state_dir":state,"backup":backup,"data":"preserved","configuration":"not changed; setup codex/plugin is a separate preview/apply operation","next_step":if remove{"Remove any owned MCP/marketplace entry before uninstall; plugin cache copies are managed by the host. State and installation backups are retained."}else{"Run the installed relay launcher with setup plugin --dry-run or setup codex --dry-run. Install the plugin from its local marketplace, then start a new chat."}}),
+        json!({"mode":mode,"changed":changed,"action":if remove{"remove owned local installation"}else{"install native executable and Desktop plugin"},"root":root,"executable":root.join(crate::platform::NATIVE_FILE),"launcher":root.join(crate::platform::LAUNCHER_FILE),"state_dir":state,"backup":backup,"daemon_restarted":restarted,"data":"preserved","configuration":"not changed; setup codex/plugin is a separate preview/apply operation","next_step":if remove{"Remove any owned MCP/marketplace entry before uninstall; plugin cache copies are managed by the host. State and installation backups are retained."}else{"Run the installed relay launcher with setup plugin --dry-run or setup codex --dry-run. Install the plugin from its local marketplace, then start a new chat."}}),
     )
 }
 fn remove_empty_dirs(dir: &Path) -> Result<()> {

@@ -4,7 +4,7 @@
 
 Experimental, explicitly opted-in **unreleased source** support pauses the originating Desktop chat's active goal after Relay accepts work. After all accepted members finish, Relay restores that goal and sends one combined result notification to the original chat. During the wait, native code checks job state; no Agent, model or goal RPC is polled. The submitting Agent must end its turn after acknowledged pause. This does not interrupt an already running turn, child Agent or another chat's goal.
 
-Published 0.1.10 and the original sealed 0.1.11 candidate lack this capability. Use a matching source build/offline plugin and its existing profile; see [source installation](source-install.md) and [upgrade preparation](updating.md#before-updating). Source uses schema v10 and advertises `goal_waiting=true` / MCP `job_goal_wait`. Upgrading requires finishing old runs and explicitly stopping the selected old daemon. Do not switch profiles or silently restart an installed daemon to obtain the feature.
+Published 0.1.10 and the original sealed 0.1.11 candidate lack this capability. Use a matching source build/offline plugin and its existing profile; see [source installation](source-install.md) and [upgrade preparation](updating.md#before-updating). Source uses schema v10 and advertises `goal_waiting=true` / MCP `job_goal_wait`. Upgrading requires finishing old runs; current-source runtime entries then replace the selected older daemon automatically with pinned-peer shutdown and schema checks. Use an explicitly updated runtime and retain the same profile. Published clients still need the manual stop fallback.
 
 ## Submit from the actual chat
 

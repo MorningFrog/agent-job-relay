@@ -8,7 +8,11 @@ use crate::{
 };
 use anyhow::{Context, Result, ensure};
 use serde_json::{Value, json};
-use std::{path::PathBuf, process::Stdio, time::Duration};
+use std::{
+    path::{Path, PathBuf},
+    process::Stdio,
+    time::Duration,
+};
 
 fn desktop_registration() -> Result<(Registration, String)> {
     crate::platform::require_runtime()?;
@@ -62,32 +66,86 @@ pub async fn start_daemon(config: &Config) -> Result<Value> {
 
 /// Start only our own per-state daemon, without a system service or PATH edit.
 async fn ensure_daemon(config: &Config) -> Result<()> {
-    tokio::time::timeout(Duration::from_secs(if cfg!(windows) { 20 } else { 8 }), ensure_daemon_inner(config))
+    ensure_daemon_from(
+        config,
+        &crate::platform::self_image()?,
+        env!("CARGO_PKG_VERSION"),
+    )
+    .await
+}
+async fn ensure_daemon_from(config: &Config, image: &Path, version: &str) -> Result<()> {
+    tokio::time::timeout(Duration::from_secs(30), ensure_daemon_inner(config, image, version))
         .await
         .context("daemon readiness timed out; run foreground daemon with the same --state-dir for diagnostics")?
 }
-async fn ensure_daemon_inner(config: &Config) -> Result<()> {
+pub(crate) async fn start_installed_daemon(
+    config: &Config,
+    image: &Path,
+    version: &str,
+) -> Result<()> {
+    // Start through the installed CLI so Windows' daemon-only CIM broker still
+    // authenticates its own image, even when the updater is a different binary.
+    let mut command = tokio::process::Command::new(image);
+    command
+        .arg("--state-dir")
+        .arg(&config.root)
+        .args(["daemon", "start"])
+        .env_remove("CODEX_THREAD_ID")
+        .env_remove("CODEX_APP_TOOLS_PIPE_PATH")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .kill_on_drop(true);
+    let status = tokio::time::timeout(Duration::from_secs(35), command.status())
+        .await
+        .context("installed daemon startup timed out")??;
+    ensure!(
+        status.success(),
+        "installed daemon start failed ({status}); run the installed daemon start for diagnostics"
+    );
+    let info = ipc::call(config, Request::Doctor).await?;
+    ensure!(
+        !older_daemon(&info, version)?,
+        "installed daemon did not load the requested version"
+    );
+    verify_runner_launch(&info)
+}
+async fn ensure_daemon_inner(config: &Config, image: &Path, version: &str) -> Result<()> {
     match ipc::call(config, Request::Doctor).await {
-        Ok(info) => return verify_runner_launch(&info),
+        Ok(info) if !older_daemon(&info, version)? => return verify_runner_launch(&info),
+        Ok(_) => {}
         Err(e) if unavailable(&e) => {}
         Err(e) => return Err(e),
     }
     config.prepare()?;
     crate::platform::validate_local_endpoint(&config.socket())?;
     let lock = crate::platform::private_file(&config.root.join("startup.lock"))?;
-    let owns_startup = match lock.try_lock() {
-        Ok(()) => true,
-        Err(std::fs::TryLockError::WouldBlock) => false,
-        Err(e) => return Err(e.into()),
-    };
-    if owns_startup {
+    loop {
+        match lock.try_lock() {
+            Ok(()) => break,
+            Err(std::fs::TryLockError::WouldBlock) => {
+                tokio::time::sleep(Duration::from_millis(25)).await
+            }
+            Err(e) => return Err(e.into()),
+        }
+    }
+    {
         // Another starter may have become ready while this lock was acquired.
-        match ipc::call(config, Request::Doctor).await {
-            Ok(info) => return verify_runner_launch(&info),
+        match ipc::doctor_peer(config).await {
+            Ok((info, peer)) => {
+                if !older_daemon(&info, version)? {
+                    return verify_runner_launch(&info);
+                }
+                // Do not stop a useful old runtime when its runners prevent migration.
+                upgrade_preflight(config)?;
+                let peer =
+                    peer.context("cannot pin the old daemon process; automatic upgrade refused")?;
+                stop_daemon_peer(config, Some(&peer)).await?;
+            }
             Err(e) if unavailable(&e) => {}
             Err(e) => return Err(e),
         }
-        let mut command = std::process::Command::new(crate::platform::self_image()?);
+        let mut command = std::process::Command::new(image);
         command
             .arg("--state-dir")
             .arg(&config.root)
@@ -111,7 +169,13 @@ async fn ensure_daemon_inner(config: &Config) -> Result<()> {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(8);
     loop {
         match ipc::call(config, Request::Doctor).await {
-            Ok(info) => return verify_runner_launch(&info),
+            Ok(info) => {
+                ensure!(
+                    !older_daemon(&info, version)?,
+                    "daemon upgrade did not load the requested version"
+                );
+                return verify_runner_launch(&info);
+            }
             Err(e) if unavailable(&e) => {}
             Err(e) => return Err(e),
         }
@@ -122,6 +186,43 @@ async fn ensure_daemon_inner(config: &Config) -> Result<()> {
         );
         tokio::time::sleep(Duration::from_millis(25)).await;
     }
+}
+fn older_daemon(info: &Value, version: &str) -> Result<bool> {
+    let current = info["version"]
+        .as_str()
+        .context("daemon version is missing; automatic upgrade refused")?;
+    Ok(crate::plugin::version(current)? < crate::plugin::version(version)?)
+}
+fn upgrade_preflight(config: &Config) -> Result<()> {
+    let path = config.root.join("relay.sqlite3");
+    let metadata = match std::fs::symlink_metadata(&path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error.into()),
+    };
+    ensure!(
+        metadata.is_file() && !crate::platform::is_link(&metadata),
+        "database must be a regular file, not a symbolic link"
+    );
+    let db =
+        rusqlite::Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+    let version: i64 = db.pragma_query_value(None, "user_version", |r| r.get(0))?;
+    ensure!(
+        version <= 10,
+        "database schema is newer than this executable; downgrade refused"
+    );
+    if version > 0 && version < 10 {
+        let running: bool = db.query_row(
+            "SELECT EXISTS(SELECT 1 FROM jobs WHERE status IN ('launching','running'))",
+            [],
+            |r| r.get(0),
+        )?;
+        ensure!(
+            !running,
+            "finish active runs with the previous runtime before upgrading the data schema; old daemon was left running"
+        );
+    }
+    Ok(())
 }
 pub(crate) fn verify_runner_launch(info: &Value) -> Result<()> {
     ensure!(
@@ -389,7 +490,14 @@ pub async fn start_batch(
     Ok(value)
 }
 pub async fn stop_daemon(config: &Config) -> Result<Value> {
-    match ipc::call(config, Request::Shutdown).await {
+    stop_daemon_peer(config, None).await
+}
+pub(crate) async fn stop_daemon_peer(config: &Config, peer: Option<&ipc::Peer>) -> Result<Value> {
+    let response = match peer {
+        Some(peer) => ipc::call_pinned(config, Request::Shutdown, peer).await,
+        None => ipc::call(config, Request::Shutdown).await,
+    };
+    match response {
         Ok(mut v) => {
             wait_for_daemon_stop(config).await?;
             v["daemon"] = json!("stopped");

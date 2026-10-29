@@ -36,7 +36,7 @@ Use a candidate directory containing only the reviewed version's two tarballs an
 }
 ```
 
-Published packages default to their bundled runtime and persistent opencode profile; the tuple above demonstrates explicit development overrides. Normal installation uses `agent-job-relay-opencode-v1@latest`. The plugin configures only its `agent_job_relay` MCP name and refuses an existing entry with that name. It requires native >=0.1.6 on Linux and >=0.1.7 on Windows; an older running daemon must be updated/stopped explicitly for the same profile, never silently replaced. A long socket path fails clearly; it does not switch profiles or use a shared temporary directory. Keep state outside plugin/cache directories.
+Published packages default to their bundled runtime and persistent opencode profile; the tuple above demonstrates explicit development overrides. Normal installation uses `agent-job-relay-opencode-v1@latest`. The plugin configures only its `agent_job_relay` MCP name and refuses an existing entry with that name. It requires native >=0.1.6 on Linux and >=0.1.7 on Windows; current source automatically replaces an older running daemon during new-runtime binding/submission for the same profile, with pinned-peer shutdown and schema checks; published versions retain the explicit stop fallback. A long socket path fails clearly; it does not switch profiles or use a shared temporary directory. Keep state outside plugin/cache directories.
 
 On Windows, use the bundled `.exe` and a persistent Windows path (JSON requires escaped backslashes). The native helper pins the Node/Bun pipe's server process and secures its owner/DACL before registration. For Windows candidate checks and Windows automatic-startup/fallback behavior, see [Windows operation](windows.md).
 

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Replace older per-profile daemons automatically on runtime use, serializing concurrent entries and pinning the original peer before graceful shutdown. Preserve compatible running jobs and reuse newer daemons without downgrade; refuse schema migration while old runs remain active. Applied owned-runtime updates restart an online daemon from the installed new image and retain the profile/history/backups; preview, cache-only maintenance and removal keep their existing boundaries.
+
 ### Added
 
 - Add explicitly opted-in Desktop goal waiting through `connect --wait-goal`, ordinary bound MCP start/batch, CLI `--wake --wait-goal` and revision-fenced `goal-wait` / `job_goal_wait`. Freeze admitted member runs, pause with bounded public status-only Codex RPCs, restore on all-member completion and merge notifications. Preserve accounting, original IDs, audits, cancellation and crash/restore fences; never recreate deleted goals or replay ambiguous mutations. Schema v10 requires an explicit same-profile upgrade. This experimental source feature lacks actual Desktop/Windows goal acceptance and cannot eliminate replacement races without a host generation/CAS interface; published/sealed runtimes remain unchanged.

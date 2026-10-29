@@ -411,6 +411,20 @@ pub(crate) async fn start_result(store: &Store, job: Job) -> Value {
     json!({"job":job,"wake":wake})
 }
 pub async fn call(config: &Config, request: Request) -> Result<Value> {
+    Ok(exchange(config, request, None).await?.0)
+}
+pub(crate) type Peer = (u32, String);
+pub(crate) async fn doctor_peer(config: &Config) -> Result<(Value, Option<Peer>)> {
+    exchange(config, Request::Doctor, None).await
+}
+pub(crate) async fn call_pinned(config: &Config, request: Request, peer: &Peer) -> Result<Value> {
+    Ok(exchange(config, request, Some(peer)).await?.0)
+}
+async fn exchange(
+    config: &Config,
+    request: Request,
+    expected_peer: Option<&Peer>,
+) -> Result<(Value, Option<Peer>)> {
     crate::platform::require_runtime()?;
     #[cfg(any(unix, windows))]
     {
@@ -422,10 +436,13 @@ pub async fn call(config: &Config, request: Request) -> Result<Value> {
                 .context(
                     "daemon unavailable; start/job_start auto-starts it, or run agent-job-relay --state-dir <same-path> daemon",
                 )?;
-            let shutdown_peer = if is_shutdown {
+            let peer = if is_shutdown || is_doctor || expected_peer.is_some() {
                 crate::platform::peer_pid(&stream)?
                     .and_then(|pid| crate::platform::identity(pid).map(|identity| (pid, identity)))
             } else { None };
+            if let Some(expected) = expected_peer {
+                ensure!(peer.as_ref() == Some(expected), "daemon peer changed during upgrade; no shutdown was sent; retry for the same profile");
+            }
             let image_path_available = if is_doctor {
                 crate::platform::peer_pid(&stream).ok().flatten()
                     .and_then(crate::platform::process_image_path_available)
@@ -446,11 +463,11 @@ pub async fn call(config: &Config, request: Request) -> Result<Value> {
                     ensure!(result.is_object(), "malformed doctor result");
                     result["daemon_executable_path_available"] = json!(available);
                 }
-                Ok(result)
+                Ok((result, peer))
             } else {
                 Err(RemoteError {
                     message: response["error"].as_str().unwrap_or("invalid daemon response").into(),
-                    shutdown_peer,
+                    shutdown_peer: if is_shutdown { peer } else { None },
                 }.into())
             }
         })
@@ -459,7 +476,7 @@ pub async fn call(config: &Config, request: Request) -> Result<Value> {
     }
     #[cfg(not(any(unix, windows)))]
     {
-        let _ = (config, request);
+        let _ = (config, request, expected_peer);
         bail!("native IPC unavailable")
     }
 }
@@ -505,4 +522,33 @@ pub async fn write_frame<S: tokio::io::AsyncWrite + Unpin>(s: &mut S, v: &Value)
     s.write_all(&b).await?;
     s.flush().await?;
     Ok(())
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod upgrade_tests {
+    use super::*;
+    #[tokio::test]
+    async fn changed_peer_receives_no_shutdown_frame() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(".tmp");
+        std::fs::create_dir_all(&root).unwrap();
+        let dir = tempfile::tempdir_in(root).unwrap();
+        let config = Config::new(Some(dir.path().join("state"))).unwrap();
+        config.prepare().unwrap();
+        let listener = tokio::net::UnixListener::bind(config.socket()).unwrap();
+        let receiver = tokio::spawn(async move {
+            use tokio::io::AsyncReadExt;
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut frame = [0; 4];
+            assert_eq!(stream.read(&mut frame).await.unwrap(), 0);
+        });
+        let error = call_pinned(
+            &config,
+            Request::Shutdown,
+            &(std::process::id(), "stale-identity".into()),
+        )
+        .await
+        .unwrap_err();
+        assert!(error.to_string().contains("peer changed"));
+        receiver.await.unwrap();
+    }
 }

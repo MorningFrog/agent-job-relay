@@ -217,7 +217,7 @@ pub(super) async fn run() -> Result<()> {
             expected_revision,
         },
         Commands::Plugin { command } => {
-            let result = tokio::task::spawn_blocking(move || -> Result<serde_json::Value> {
+            let result: serde_json::Value = async {
                 use agent_job_relay::{deployment, plugin};
                 let root =
                     |path: Option<PathBuf>| path.map(Ok).unwrap_or_else(deployment::plugin_root);
@@ -243,7 +243,8 @@ pub(super) async fn run() -> Result<()> {
                             marketplace,
                             cache,
                             apply,
-                        )?;
+                        )
+                        .await?;
                         Ok(if full {
                             value
                         } else {
@@ -265,7 +266,7 @@ pub(super) async fn run() -> Result<()> {
                                 agent_job_relay::integration::Client::Plugin,
                             )
                         })?;
-                        plugin::bootstrap(&config, root(path)?, marketplace, apply)
+                        plugin::bootstrap(&config, root(path)?, marketplace, apply).await
                     }
                     PluginCommand::Update {
                         root: path,
@@ -273,7 +274,7 @@ pub(super) async fn run() -> Result<()> {
                         cache,
                         apply,
                         ..
-                    } => plugin::update(root(path)?, bundle, cache, apply),
+                    } => plugin::update(root(path)?, bundle, cache, apply).await,
                     PluginCommand::Status { root: path, cache } => {
                         plugin::status(root(path)?, cache)
                     }
@@ -287,8 +288,8 @@ pub(super) async fn run() -> Result<()> {
                             },
                     } => plugin::refresh_cache(root(path)?, cache, apply),
                 }
-            })
-            .await??;
+            }
+            .await?;
             println!("{}", serde_json::to_string_pretty(&result)?);
             return Ok(());
         }
@@ -514,10 +515,8 @@ pub(super) async fn run() -> Result<()> {
             let root = root
                 .map(Ok)
                 .unwrap_or_else(agent_job_relay::deployment::default_root)?;
-            let result = tokio::task::spawn_blocking(move || {
-                agent_job_relay::deployment::change(&config, root, remove_install, apply)
-            })
-            .await??;
+            let result =
+                agent_job_relay::deployment::change(&config, root, remove_install, apply).await?;
             println!("{}", serde_json::to_string_pretty(&result)?);
             return Ok(());
         }

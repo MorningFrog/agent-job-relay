@@ -77,11 +77,10 @@ AJR_INSTALL_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/agent-job-relay"
 
 ```bash
 "$AJR_BUNDLE/relay" plugin install --root "$AJR_INSTALL_ROOT" --from "$AJR_BUNDLE" --dry-run
-"$AJR_BUNDLE/relay" daemon stop --install-root "$AJR_INSTALL_ROOT"
 "$AJR_BUNDLE/relay" plugin install --root "$AJR_INSTALL_ROOT" --from "$AJR_BUNDLE" --apply
 ```
 
-预期：预览保留原状态目录，apply 保留历史并报告生成的备份。更新不会自动停止 daemon。遇到活动任务、所有权或降级错误时，应停止并诊断，不要换用新状态目录绕过错误。这一步更新的是受管理运行时；ChatGPT Desktop 插件及缓存仍需执行第 6 步。
+预期：预览保留原状态目录，apply 保留历史并报告生成的备份。apply 会在检查活动任务后自动停止在线 daemon，并用更新后的安装启动新版；原本离线的 profile 保持离线。遇到活动任务、所有权或降级错误时，应停止并诊断，不要换用新状态目录绕过错误。这一步更新的是受管理运行时；ChatGPT Desktop 插件及缓存仍需执行第 6 步。
 
 ## 5. 检查已安装入口
 

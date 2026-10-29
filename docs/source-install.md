@@ -77,11 +77,10 @@ Use the same plugin install entry for an existing runtime, selecting its origina
 
 ```bash
 "$AJR_BUNDLE/relay" plugin install --root "$AJR_INSTALL_ROOT" --from "$AJR_BUNDLE" --dry-run
-"$AJR_BUNDLE/relay" daemon stop --install-root "$AJR_INSTALL_ROOT"
 "$AJR_BUNDLE/relay" plugin install --root "$AJR_INSTALL_ROOT" --from "$AJR_BUNDLE" --apply
 ```
 
-Expected: the preview retains the original state directory; apply retains history and reports any backup. Update does not stop the daemon automatically. Stop and diagnose active-job, ownership or downgrade errors; do not switch to a fresh profile to bypass them. This changes the managed runtime; the ChatGPT Desktop plugin/cache still needs step 6.
+Expected: the preview retains the original state directory; apply retains history and reports any backup. Apply automatically restarts an online daemon from the updated installation after active-job checks; an offline profile stays offline. Stop and diagnose active-job, ownership or downgrade errors; do not switch to a fresh profile to bypass them. This changes the managed runtime; the ChatGPT Desktop plugin/cache still needs step 6.
 
 ## 5. Check the installed entry point
 

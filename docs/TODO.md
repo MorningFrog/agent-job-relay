@@ -24,6 +24,8 @@ This is the sole project backlog. Current functionality, completed acceptance an
 
 ## Runtime and maintenance
 
+- [x] Replace older daemons automatically on new runtime use and restart online daemons during applied owned-runtime updates; preserve profile/history/compatible runners, serialize concurrent starters and retain pinned-peer, downgrade, migration and active-job fences. See [upgrade decision](adr/0018-automatic-daemon-upgrade.md).
+- [ ] **P1:** natively qualify automatic daemon handover and installed update on Windows, including host cleanup/CIM fallback and held MCP executable images. Linux regression evidence does not establish Windows or new real-host acceptance.
 - [ ] **P1:** implement and natively verify macOS process identity, lifecycle and IPC. Plugin packaging and portable compilation do not establish runtime support.
 - [ ] **P1:** strengthen Linux containment for escaped descendants/runner death and add longer soak plus controlled disk/power-loss tests. Current process-group cancellation assumes trusted non-daemonizing workloads.
 - [ ] **P1:** strengthen per-call identity authentication for shared hosts. Current caller identity is trusted input; never infer it from a latest-session record.

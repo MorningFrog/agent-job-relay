@@ -131,14 +131,16 @@ async fn installed_legacy_stop_keeps_profile_and_history_and_allows_immediate_up
             .is_err()
     );
     assert!(legacy.child.try_wait().unwrap().is_none());
-    let blocked = cli()
-        .args(["install", "--root"])
-        .arg(&install)
-        .arg("--apply")
-        .output()
-        .unwrap();
-    assert!(!blocked.status.success());
-    assert!(String::from_utf8_lossy(&blocked.stderr).contains("daemon stop --install-root"));
+    let preview = success(
+        cli()
+            .args(["install", "--root"])
+            .arg(&install)
+            .arg("--dry-run")
+            .output()
+            .unwrap(),
+    );
+    assert_eq!(preview["changed"], true);
+    assert!(legacy.child.try_wait().unwrap().is_none());
     let foreign_state = dir.path().join("wrong-exported-state");
     let stopped = success(
         cli()
@@ -152,6 +154,7 @@ async fn installed_legacy_stop_keeps_profile_and_history_and_allows_immediate_up
     assert_eq!(stopped["state_dir"], state.to_str().unwrap());
     assert_eq!(stopped["daemon"], "stopped");
     assert!(legacy.child.wait().unwrap().success());
+    let mut legacy = launch(&state, &executable).await;
     let upgraded = success(
         cli()
             .args(["install", "--root"])
@@ -161,12 +164,19 @@ async fn installed_legacy_stop_keeps_profile_and_history_and_allows_immediate_up
             .unwrap(),
     );
     assert_eq!(upgraded["changed"], true);
+    assert_eq!(upgraded["daemon_restarted"], true);
+    assert!(legacy.child.wait().unwrap().success());
     assert_eq!(upgraded["state_dir"], state.to_str().unwrap());
     assert!(!foreign_state.exists());
     assert_eq!(
         std::fs::read_to_string(state.join("history")).unwrap(),
         "keep all previous results"
     );
+    assert_eq!(
+        ipc::call(&config, Request::Doctor).await.unwrap()["version"],
+        env!("CARGO_PKG_VERSION")
+    );
+    agent_job_relay::client::stop_daemon(&config).await.unwrap();
     assert!(!config.socket().exists());
 }
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -217,4 +227,20 @@ async fn other_shutdown_errors_do_not_trigger_legacy_signals() {
     assert!(!result.status.success());
     assert!(String::from_utf8_lossy(&result.stderr).contains("shutdown permission denied"));
     assert!(legacy.child.try_wait().unwrap().is_none());
+    let foreign = dir.path().join("foreign.sqlite3");
+    std::fs::write(&foreign, "preserve foreign content").unwrap();
+    std::os::unix::fs::symlink(&foreign, state.join("relay.sqlite3")).unwrap();
+    let result = cli()
+        .arg("--state-dir")
+        .arg(&state)
+        .args(["daemon", "start"])
+        .output()
+        .unwrap();
+    assert!(!result.status.success());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("symbolic link"));
+    assert!(legacy.child.try_wait().unwrap().is_none());
+    assert_eq!(
+        std::fs::read_to_string(foreign).unwrap(),
+        "preserve foreign content"
+    );
 }

@@ -30,7 +30,7 @@ Tasks run in the background. Agents pick up when needed.
 
 在线安装需要 Node.js 20+/npm 和网络。ChatGPT Desktop/Codex 还需要 PATH 中可用的 Codex CLI 和获取目录所需的 Git，Desktop 需要本地执行环境，无需 Rust 编译器。以下命令使用 Bash；另有 [PowerShell 和 Release ZIP 安装方式](docs/installation.md#chatgpt-desktop--codex)。
 
-更新前先完成活动任务，并保留原数据目录。若运行中的 daemon 与新版本不兼容，需要显式停止同一数据目录的 daemon；安装包或更新插件不会自动替换它，见[更新前的准备](docs/updating.md#before-updating)。
+更新时保留原数据目录。当前源码会在新版运行入口首次使用时自动接替旧 daemon，本地运行时更新也会自动重启在线 daemon；替换文件或迁移 schema 前须完成活动任务。已发布版本仍需手动停止同一数据目录的 daemon，见[更新前的准备](docs/updating.md#before-updating)。
 
 ### ChatGPT Desktop
 

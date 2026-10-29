@@ -178,7 +178,7 @@ pub fn installation(value: Value) -> Value {
         .unwrap_or(serde_json::Value::Null);
     result["install"] = fields(
         &value["install"],
-        &["changed", "root", "state_dir", "backup"],
+        &["changed", "root", "state_dir", "backup", "daemon_restarted"],
     );
     if let Some(marketplace) = value.get("marketplace") {
         result["marketplace"] = fields(marketplace, &["changed", "config_path", "backup"]);

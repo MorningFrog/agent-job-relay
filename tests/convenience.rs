@@ -11,7 +11,7 @@ use std::{path::PathBuf, process::Stdio, time::Duration};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 #[tokio::test]
-async fn old_notification_runtime_is_refused_before_registration_or_workload() {
+async fn missing_notification_capability_is_refused_before_registration_or_workload() {
     let r = Rig::new();
     let host = Host::new(&r, true);
     r.config.prepare().unwrap();
@@ -21,7 +21,7 @@ async fn old_notification_runtime_is_refused_before_registration_or_workload() {
             let (mut stream, _) = listener.accept().await.unwrap();
             let v = ipc::read_frame(&mut stream, 65536).await.unwrap();
             assert_eq!(v["request"]["op"], "doctor");
-            ipc::write_frame(&mut stream,&json!({"protocol_version":1,"ok":true,"result":{"runner_launch_from_loaded_image":true,"version":"0.1.2"}})).await.unwrap();
+            ipc::write_frame(&mut stream,&json!({"protocol_version":1,"ok":true,"result":{"runner_launch_from_loaded_image":true,"version":env!("CARGO_PKG_VERSION")}})).await.unwrap();
         }
     });
     let out = r
@@ -47,7 +47,7 @@ async fn old_notification_runtime_is_refused_before_registration_or_workload() {
 }
 
 #[tokio::test]
-async fn old_web_runtime_is_refused_without_ui_request_or_restart() {
+async fn missing_web_capability_is_refused_without_ui_request_or_restart() {
     let r = Rig::new();
     r.config.prepare().unwrap();
     let listener = tokio::net::UnixListener::bind(r.config.socket()).unwrap();
@@ -58,7 +58,7 @@ async fn old_web_runtime_is_refused_without_ui_request_or_restart() {
             assert_eq!(request["request"]["op"], "doctor");
             ipc::write_frame(
                 &mut stream,
-                &json!({"protocol_version":1,"ok":true,"result":{"runner_launch_from_loaded_image":true,"version":"0.1.9","active_jobs":1}}),
+                &json!({"protocol_version":1,"ok":true,"result":{"runner_launch_from_loaded_image":true,"version":env!("CARGO_PKG_VERSION"),"active_jobs":1}}),
             )
             .await
             .unwrap();
@@ -72,7 +72,7 @@ async fn old_web_runtime_is_refused_without_ui_request_or_restart() {
     let out = r.cli(&["ui", "--no-open"], None).await;
     assert!(!out.status.success());
     let error = String::from_utf8_lossy(&out.stderr);
-    assert!(error.contains("selected daemon 0.1.9 does not support the Web UI"));
+    assert!(error.contains("does not support the Web UI"));
     assert!(error.contains("same profile"));
     assert!(!r.config.root.join("relay.sqlite3").exists());
     old.await.unwrap();
@@ -238,7 +238,7 @@ fn success(out: std::process::Output) -> Value {
 }
 
 #[tokio::test]
-async fn old_batch_runtime_is_refused_without_submission_or_restart() {
+async fn missing_batch_capability_is_refused_without_submission_or_restart() {
     let r = Rig::new();
     r.config.prepare().unwrap();
     let listener = tokio::net::UnixListener::bind(r.config.socket()).unwrap();
@@ -247,7 +247,7 @@ async fn old_batch_runtime_is_refused_without_submission_or_restart() {
             let (mut stream, _) = listener.accept().await.unwrap();
             let request = ipc::read_frame(&mut stream, 65536).await.unwrap();
             assert_eq!(request["request"]["op"], "doctor");
-            ipc::write_frame(&mut stream,&json!({"protocol_version":1,"ok":true,"result":{"runner_launch_from_loaded_image":true}})).await.unwrap();
+            ipc::write_frame(&mut stream,&json!({"protocol_version":1,"ok":true,"result":{"runner_launch_from_loaded_image":true,"version":env!("CARGO_PKG_VERSION")}})).await.unwrap();
         }
         assert!(
             tokio::time::timeout(Duration::from_millis(200), listener.accept())

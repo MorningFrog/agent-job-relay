@@ -452,13 +452,17 @@ fn unsafe_cache_paths_and_symlinks_do_not_create_lock_files_in_the_installation(
 }
 
 #[tokio::test]
-async fn active_runtime_blocks_update_and_cache_refresh_leaves_the_daemon_running() {
+async fn update_restarts_idle_daemon_but_active_jobs_and_cache_refresh_preserve_it() {
     let r = Rig::new();
     r.pack();
     r.bootstrap(true);
     let cache = r.snapshot("cache", false);
     r.change_bundle_skill();
-    let started = ok(r.installed(&["start", "--", "/bin/sleep", "0.4"]));
+    let started = ok(r.installed(&[
+        "start",
+        "--shell",
+        "while [ ! -f finish-work ]; do sleep 0.05; done",
+    ]));
     let before = std::fs::read(r.install.join(PROFILE)).unwrap();
     fails(r.update(&[&cache], true), "active");
     assert_eq!(std::fs::read(r.install.join(PROFILE)).unwrap(), before);
@@ -473,10 +477,42 @@ async fn active_runtime_blocks_update_and_cache_refresh_leaves_the_daemon_runnin
         .unwrap();
     assert_eq!(socket.peer_cred().unwrap().pid(), Some(owner));
     drop(socket);
+    std::fs::write(r.dir.path().join("finish-work"), b"").unwrap();
     r.wait(started["job"]["job_id"].as_str().unwrap());
-    fails(r.update(&[], true), "active");
-    r.stop();
-    assert_eq!(ok(r.update(&[&cache], true))["install"]["changed"], true);
+    let preview = ok(r.update(&[&cache], false));
+    assert_eq!(preview["install"]["changed"], true);
+    let socket = tokio::net::UnixStream::connect(r.state.join("relay.sock"))
+        .await
+        .unwrap();
+    assert_eq!(socket.peer_cred().unwrap().pid(), Some(owner));
+    drop(socket);
+    let updated = ok(r.update(&[&cache], true));
+    assert_eq!(updated["install"]["changed"], true);
+    assert_eq!(updated["install"]["daemon_restarted"], true);
+    let socket = tokio::net::UnixStream::connect(r.state.join("relay.sock"))
+        .await
+        .unwrap();
+    let new_owner = socket.peer_cred().unwrap().pid();
+    assert_ne!(new_owner, Some(owner));
+    assert_eq!(
+        std::fs::read_link(format!("/proc/{}/exe", new_owner.unwrap())).unwrap(),
+        r.install.join("bin/agent-job-relay")
+    );
+    drop(socket);
+    assert_eq!(
+        ok(r.installed(&["doctor"]))["version"],
+        env!("CARGO_PKG_VERSION")
+    );
+    assert_eq!(
+        ok(r.installed(&["status", started["job"]["job_id"].as_str().unwrap()]))["status"],
+        "completed"
+    );
+    let unchanged = ok(r.update(&[&cache], true));
+    assert_eq!(unchanged["install"]["changed"], false);
+    let socket = tokio::net::UnixStream::connect(r.state.join("relay.sock"))
+        .await
+        .unwrap();
+    assert_eq!(socket.peer_cred().unwrap().pid(), new_owner);
 }
 
 #[test]

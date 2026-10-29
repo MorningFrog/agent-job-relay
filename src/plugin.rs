@@ -39,7 +39,7 @@ struct Bundle {
     files: BTreeMap<String, String>,
 }
 
-fn version(value: &str) -> Result<[u64; 3]> {
+pub(crate) fn version(value: &str) -> Result<[u64; 3]> {
     let parts: Vec<_> = value
         .split('.')
         .map(str::parse::<u64>)
@@ -253,17 +253,17 @@ pub(crate) fn guard_downgrade(root: &Path, files: &BTreeMap<String, Artifact>) -
 }
 
 /// Run from the package, install its validated bytes, and register the local marketplace.
-pub fn bootstrap(
+pub async fn bootstrap(
     config: &Config,
     root: PathBuf,
     marketplace: PathBuf,
     apply: bool,
 ) -> Result<Value> {
-    install(config, root, None, marketplace, Vec::new(), apply)
+    install(config, root, None, marketplace, Vec::new(), apply).await
 }
 
 /// One preview/apply entry for first installation and profile-preserving update.
-pub fn install(
+pub async fn install(
     config: &Config,
     root: PathBuf,
     bundle_path: Option<PathBuf>,
@@ -314,6 +314,7 @@ pub fn install(
         Some(marketplace),
         apply,
     )
+    .await
 }
 
 fn mode(apply: bool) -> &'static str {
@@ -465,7 +466,7 @@ pub fn refresh_cache(root: PathBuf, cache: PathBuf, apply: bool) -> Result<Value
     )
 }
 
-pub fn update(
+pub async fn update(
     root: PathBuf,
     bundle_path: PathBuf,
     caches: Vec<PathBuf>,
@@ -477,10 +478,10 @@ pub fn update(
     )?;
     let config = Config { root: state };
     let (bundle, files) = read_bundle(&bundle_path)?;
-    deploy_bundle(&config, root, bundle, files, caches, None, apply)
+    deploy_bundle(&config, root, bundle, files, caches, None, apply).await
 }
 
-fn deploy_bundle(
+async fn deploy_bundle(
     config: &Config,
     root: PathBuf,
     bundle: Bundle,
@@ -513,10 +514,10 @@ fn deploy_bundle(
             preview_caches.push(json!({"mode":mode(false),"path":cache,"changed":deploy::digest(&deploy::read_file(&cache.join(PROFILE))?) != deploy::digest(&files[PROFILE].bytes),"old_version":old.version,"version":new_profile.version}));
         }
     }
-    let installation = deploy::change_artifacts(config, root.clone(), false, apply, files)?;
+    let installation = deploy::change_artifacts(config, root.clone(), false, apply, files).await?;
     if !apply {
         let mut value = json!({"mode":mode(false),"version":bundle.version,"install":installation,"caches":preview_caches,"data":"preserved","configuration":"unchanged",
-            "next_step":"Review the preview, then repeat with --apply. Finish active jobs and explicitly stop the same installed daemon before replacing a changed runtime."});
+            "next_step":"Review the preview, then repeat with --apply. Finish active jobs first; apply restarts an online daemon from the updated installation."});
         if let Some(registration) = registration {
             value["marketplace"] = registration;
             value["configuration"] = json!("previewed");
@@ -531,7 +532,7 @@ fn deploy_bundle(
             .context("runtime update may have completed; cache refresh failed; inspect plugin status and retry cache refresh (no automatic rollback)")?);
     }
     let mut value = json!({"mode":mode(apply),"version":bundle.version,"management":{"program":root.join(if cfg!(windows){"relay.cmd"}else{"relay"}),"args":["ui"]},"install":installation,"caches":refreshed,
-        "data":"preserved","configuration":"unchanged","next_step":"Refresh/enable AgentJobRelay in the host, then reconnect MCP. No daemon was stopped automatically."});
+        "data":"preserved","configuration":"unchanged","next_step":"Refresh/enable AgentJobRelay in the host, then reconnect MCP. Changed runtime updates restart an online daemon; an offline profile starts on demand."});
     if let Some(registration) = registration {
         value["marketplace"] = registration;
         value["configuration"] = json!("managed marketplace entry");

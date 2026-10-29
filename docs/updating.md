@@ -2,7 +2,7 @@
 
 [Documentation index](README.md) · [Install](installation.md) · [Troubleshooting](troubleshooting.md)
 
-Use the route matching your original installation. Installing a new package does not replace a loaded daemon, update a host's selected plugin snapshot or migrate history between profiles.
+Use the route matching your original installation. Current source replaces an older daemon when the new runtime first starts/binds work or opens the UI. Applied local runtime updates restart an online daemon from the new installation. Host plugin snapshots still need refresh/MCP reconnection; history stays in its original profile. Published versions predate automatic handover and retain the manual stop fallback below.
 
 | Installation | Update procedure |
 |---|---|
@@ -14,9 +14,9 @@ Use the route matching your original installation. Installing a new package does
 
 ## Before updating
 
-Finish active jobs and retain the original profile. Record the installed version and inspect that profile with `doctor`, `list` or `inspect` using its [correct command prefix](commands.md#choose-the-entry-point-and-profile). Explicitly stop the same daemon when a runtime/schema change requires it; update commands never stop it automatically. `daemon stop` leaves runners independent, so it is not a substitute for finishing jobs.
+Finish active jobs and retain the original profile. Record the installed version and inspect that profile with `doctor`, `list` or `inspect` using its [correct command prefix](commands.md#choose-the-entry-point-and-profile). Current source serializes the handover, pins the original daemon process before shutdown and verifies readiness/version afterward. Equal/newer daemons are reused. Compatible independent runners survive the handover; local file replacement and incompatible schema migration still require completed jobs. `daemon stop` leaves runners independent, so it is not a substitute for finishing jobs.
 
-External-task command variants are unreadable by older binaries; unreleased goal waiting additionally migrates the profile to schema v10. Before first use, finish active jobs and explicitly stop/update the same selected daemon when capability preflight requests it. Preserve the matching runtime on both hosts and the remote target profile; do not downgrade a profile containing external-task records. See [remote task requirements](remote-execution.md).
+External-task command variants are unreadable by older binaries; unreleased goal waiting additionally migrates the profile to schema v10. Before first use, finish active jobs and use the updated runtime for that same profile. Automatic handover refuses migration while old runs remain active. Preserve the matching runtime on both hosts and the remote target profile; do not downgrade a profile containing external-task records. See [remote task requirements](remote-execution.md).
 
 Published 0.1.10 and the original sealed 0.1.11 use schema v9; unreleased goal waiting uses v10, and 0.1.9 uses v6. Migration refuses an old daemon lock or launching/running jobs, and older executables refuse newer schemas. Preserve backups and never downgrade a used database. See [data maintenance](data-maintenance.md) for backup and restore.
 
@@ -30,7 +30,7 @@ npm install --global --ignore-scripts --registry=https://registry.npmjs.org "age
 agent-job-relay codex --version
 ```
 
-Expected: the CLI reports the resolved version. Update the host plugin separately below. If `ui` reports an older daemon, finish its jobs, run `agent-job-relay codex daemon stop`, then retry `agent-job-relay codex ui` for that same profile. Substitute the OpenCode or native prefix when appropriate; do not switch profiles. PowerShell can use `npm.cmd` and `agent-job-relay.cmd`.
+Expected: the CLI reports the resolved version. Update the host plugin separately below. With current source, `ui`, `daemon start`, submission or explicit session binding replaces an older daemon automatically. For published versions that still report an older daemon, finish its jobs, run `agent-job-relay codex daemon stop`, then retry `agent-job-relay codex ui` for that same profile. Substitute the OpenCode or native prefix when appropriate; do not switch profiles. PowerShell can use `npm.cmd` and `agent-job-relay.cmd`.
 
 ## Update the online marketplace
 
@@ -52,11 +52,11 @@ if ($LASTEXITCODE -ne 0) { throw "Could not remove the old marketplace registrat
 codex.cmd plugin marketplace add MorningFrog/agent-job-relay --ref "v$($AjrVersion.Trim())"
 ```
 
-Expected: the catalog is registered at the newly resolved tag. Refresh/reinstall AgentJobRelay through the host and reconnect MCP; CLI users can run `codex plugin add agent-job-relay@agent-job-relay` again. Removing this catalog registration preserves the external runtime profile/history. Already running processes retain their loaded version; explicitly stop the same profile before an incompatible upgrade.
+Expected: the catalog is registered at the newly resolved tag. Refresh/reinstall AgentJobRelay through the host and reconnect MCP; CLI users can run `codex plugin add agent-job-relay@agent-job-relay` again. Removing this catalog registration preserves the external runtime profile/history. Reconnect MCP so the new runtime can replace the older daemon on first use. Finish old runs before an incompatible schema migration; published versions still need the manual same-profile stop.
 
 ## Update OpenCode V1
 
-Keep `agent-job-relay-opencode-v1@latest` in `opencode.json`. Finish jobs, refresh its package cache using the host-supported mechanism and restart OpenCode. The plugin's native runtime dependency is pinned to its matching version. A loaded incompatible daemon still needs an explicit same-profile stop; updating the package does not replace that process. Use the plugin's actual caller-context recovery when needed; see [host integration](host-plugins.md).
+Keep `agent-job-relay-opencode-v1@latest` in `opencode.json`. Finish jobs, refresh its package cache using the host-supported mechanism and restart OpenCode. The plugin's native runtime dependency is pinned to its matching version. Current source replaces an older daemon during the new plugin's explicit session binding/submission. Published versions still need a manual same-profile stop before an incompatible upgrade. Use the plugin's actual caller-context recovery when needed; see [host integration](host-plugins.md).
 
 ## Unified install and update
 
@@ -64,29 +64,27 @@ Set AJR_INSTALL_ROOT to the existing installation's absolute directory and AJR_B
 
 ```bash
 "$AJR_BUNDLE/relay" plugin install --root "$AJR_INSTALL_ROOT" --from "$AJR_BUNDLE" --dry-run
-"$AJR_BUNDLE/relay" daemon stop --install-root "$AJR_INSTALL_ROOT"
 "$AJR_BUNDLE/relay" plugin install --root "$AJR_INSTALL_ROOT" --from "$AJR_BUNDLE" --apply
 "$AJR_INSTALL_ROOT/relay" --version
 "$AJR_INSTALL_ROOT/relay" doctor --client plugin --check-mcp
 ```
 
-Expected: the preview keeps the recorded state profile, apply preserves history and reports its backup, and the installed version/local stdio check match the new bundle. Review the preview and finish jobs before stopping the daemon. Repeating an unchanged update is a no-op; downgrades and active runtimes/jobs are refused. The installed launcher's `plugin install --from "$AJR_BUNDLE"` is also available when it supports this entry.
+Expected: the preview keeps the recorded state profile, apply preserves history and reports its backup, and the installed version/local stdio check match the new bundle. Review the preview and finish active jobs. Apply automatically stops an online daemon, replaces the runtime and starts/verifies the installed new daemon; its report includes `daemon_restarted`. An offline profile stays offline. Repeating an unchanged update is a no-op; downgrades and active jobs are refused before shutdown. The installed launcher's `plugin install --from "$AJR_BUNDLE"` is also available when it supports this entry.
 
 The command validates bundle ownership/version and each explicitly selected cache (`--cache` may repeat), then maintains the runtime and local marketplace entry. `--config` selects a custom marketplace file; reuse that selection on later maintenance. Default output includes changed destinations, preserved profile, backups and next action; `--full` includes complete reports. Directory replacements and marketplace writes are separate operations. No cache scanning or automatic profile migration occurs.
 
-Refresh/reinstall the plugin through the host and reconnect MCP afterward. Already loaded processes keep their old image until restarted/reconnected. Rebuilding source does not update installed binaries or caches. If replacement was interrupted, use the [recorded repair procedure](#compatibility-and-interrupted-operations), then retry the update.
+Refresh/reinstall the plugin through the host and reconnect MCP afterward. MCP reconnection loads the new client; the updated online daemon is already running after a successful applied local update. Rebuilding source does not update installed binaries or caches. If replacement was interrupted, use the [recorded repair procedure](#compatibility-and-interrupted-operations), then retry the update.
 
 ## Updating an existing installation
 
-For bundles without `plugin install`, use the compatible `plugin update` entry from the new bundle, even when the installed version is too old to recognize it. Keep AJR_BUNDLE and AJR_INSTALL_ROOT selected as above:
+For bundles without `plugin install`, use the compatible `plugin update` entry from the new bundle, even when the installed version is too old to recognize it. Keep AJR_BUNDLE and AJR_INSTALL_ROOT selected as above. Older update executables require `"$AJR_BUNDLE/relay" daemon stop --install-root "$AJR_INSTALL_ROOT"` after preview and before apply; current source handles stop/start automatically:
 
 ```bash
 "$AJR_BUNDLE/relay" plugin update --root "$AJR_INSTALL_ROOT" --from "$AJR_BUNDLE" --dry-run
-"$AJR_BUNDLE/relay" daemon stop --install-root "$AJR_INSTALL_ROOT"
 "$AJR_BUNDLE/relay" plugin update --root "$AJR_INSTALL_ROOT" --from "$AJR_BUNDLE" --apply
 ```
 
-Expected: the same profile-preservation, backup, no-op and downgrade/active-job checks apply. Review the preview, finish jobs before stopping, then verify the installed version/local stdio and refresh the host as in the unified procedure. Do not switch state directories to work around a failure. Early legacy shutdown handling is described in [ADR 0005](adr/0005-legacy-shutdown-upgrade.md).
+Expected: the same profile-preservation, backup, no-op and downgrade/active-job checks apply. Review the preview and finish jobs; current source automatically restarts an online daemon during apply. Older update executables still require `daemon stop --install-root` first. Then verify the installed version/local stdio and refresh the host as in the unified procedure. Do not switch state directories to work around a failure. Early legacy shutdown handling is described in [ADR 0005](adr/0005-legacy-shutdown-upgrade.md).
 
 ## Cache inspection and refresh
 

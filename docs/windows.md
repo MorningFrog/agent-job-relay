@@ -82,9 +82,9 @@ Native tests cover nested host jobs, direct-only refusal before state/workload e
 
 Follow [native updates and repair](updating.md#unified-install-and-update), [same-chat recovery](usage.md#recover-notifications) or [uninstallation](uninstalling.md) for the complete procedure. The Windows-specific file-lock boundaries below also apply.
 
-Use the new bundle's launcher, finish active jobs, explicitly stop the original installation's daemon, and preview/apply `plugin update --root <original-install> --from <new-bundle>`. Keep the recorded state. Close host MCP processes when replacing their Windows executable/cache files; Windows may retain an executable image lock. An interrupted operation retains its journal/backups; run `plugin repair --path <exact-directory>` from the new bundle to preview and finish forward after releasing the lock. Never delete a cache or switch state to hide an update failure.
+Use the new bundle's launcher, finish active jobs and preview/apply `plugin update --root <original-install> --from <new-bundle>`. Keep the recorded state. Close host MCP processes when replacing their Windows executable/cache files; Windows may retain an executable image lock. An interrupted operation retains its journal/backups; run `plugin repair --path <exact-directory>` from the new bundle to preview and finish forward after releasing the lock. Never delete a cache or switch state to hide an update failure.
 
-`daemon stop --install-root <original-install>` leaves runners independent. Installation/cache/configuration operations remain separate and never stop daemons automatically. Normal removal keeps SQLite history/logs; independent Windows installers and WinGet distribution are not planned.
+`daemon stop --install-root <original-install>` leaves runners independent. Current-source applied runtime updates restart an online daemon from the new installation; cache/configuration/repair operations remain separate and do not stop it. Published versions still require a manual same-profile stop. Automatic upgrade behavior has Linux regression coverage; this change has no new Windows native qualification. Normal removal keeps SQLite history/logs; independent Windows installers and WinGet distribution are not planned.
 
 ## Execution boundaries
 
