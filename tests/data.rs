@@ -363,7 +363,7 @@ async fn schema_upgrade_refuses_an_old_daemon_or_in_flight_runner_before_changes
     let job = f.job("upgrade", None, false).await;
     f.store
         .call(|db| {
-            db.execute_batch("DROP TABLE goal_wait_audits; DROP TABLE goal_wait_jobs; DROP TABLE goal_waits; DROP TABLE monitor_rules; DROP TABLE monitor_changes; DROP TABLE runtime_observations; DROP TABLE stop_requests; PRAGMA user_version=6;")?;
+            db.execute_batch("DROP TABLE goal_wait_audits; DROP TABLE goal_wait_jobs; DROP TABLE goal_waits; DROP TABLE goal_consent_audits; DROP TABLE goal_consents; DROP TABLE monitor_rules; DROP TABLE monitor_changes; DROP TABLE runtime_observations; DROP TABLE stop_requests; PRAGMA user_version=6;")?;
             Ok(())
         })
         .await
@@ -742,7 +742,7 @@ async fn schema_eight_backups_restore_forward_without_changing_the_original() {
     let f = Fixture::new().await;
     let job = f.job("old-backup", None, true).await;
     f.log(&job, b"old backup history");
-    f.store.call(|db|{db.execute_batch("DROP TABLE goal_wait_audits; DROP TABLE goal_wait_jobs; DROP TABLE goal_waits; DROP TABLE monitor_rules;DROP TABLE monitor_changes;DROP TABLE runtime_observations;DROP TABLE stop_requests;PRAGMA user_version=8;")?;Ok(())}).await.unwrap();
+    f.store.call(|db|{db.execute_batch("DROP TABLE goal_wait_audits; DROP TABLE goal_wait_jobs; DROP TABLE goal_waits; DROP TABLE goal_consent_audits; DROP TABLE goal_consents; DROP TABLE monitor_rules;DROP TABLE monitor_changes;DROP TABLE runtime_observations;DROP TABLE stop_requests;PRAGMA user_version=8;")?;Ok(())}).await.unwrap();
     let backup = f.store.backup().await.unwrap();
     let from = PathBuf::from(backup["path"].as_str().unwrap());
     let to = f.dir.path().join("forward-restored");
@@ -762,4 +762,29 @@ async fn schema_eight_backups_restore_forward_without_changing_the_original() {
         restored.status(job.job_id).await.unwrap().status,
         "completed"
     );
+}
+
+#[tokio::test]
+async fn schema_ten_upgrade_preserves_existing_history_and_adds_empty_consent_state() {
+    let f = Fixture::new().await;
+    let job = f.job("before-consent-schema", None, true).await;
+    f.log(&job, b"preserve existing output");
+    f.store.call(|db|{db.execute_batch("BEGIN IMMEDIATE; ALTER TABLE goal_waits DROP COLUMN consent_id; DROP TABLE goal_consent_audits; DROP TABLE goal_consents; PRAGMA user_version=10; COMMIT;")?;Ok(())}).await.unwrap();
+    let before = f.store.status(job.job_id.clone()).await.unwrap();
+    f.store.init().await.unwrap();
+    assert_eq!(
+        f.store.status(job.job_id.clone()).await.unwrap().run_id,
+        before.run_id
+    );
+    assert_eq!(
+        f.store
+            .read(|db| Ok(db.pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0))?))
+            .await
+            .unwrap(),
+        11
+    );
+    assert_eq!(f.count("goal_consents").await, 0);
+    assert_eq!(f.count("goal_consent_audits").await, 0);
+    assert_eq!(f.store.list(0, 100).await.unwrap().len(), 1);
+    assert!(f.store.data_check().await.is_ok());
 }

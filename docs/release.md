@@ -10,7 +10,7 @@ Version **0.1.11** is prepared and remains unpublished; npm latest is **0.1.10**
 
 Preserve candidate_run_id=40715744368 and its exact original bytes. That candidate excludes current Unreleased batch, external-task and goal-waiting changes. A revision containing runtime/package/CHANGELOG changes cannot reuse the documentation/tooling-only recover_candidate exception; a release containing these changes needs a new version and qualified candidate. To publish the original 0.1.11, use its reviewed source or an eligible documentation/tooling-only descendant, with dry_run checked for preview and maintainer confirmation before publication. Never rebuild or replace the original candidate. Channel is sealed as latest; candidate artifacts expire after 14 days. See [verification and remaining limits](IMPLEMENTATION_STATUS.md).
 
-For existing profiles, finish old jobs before a schema upgrade (v9 in published/sealed releases, v10 in current source); keep the recorded profile and backups. Current-source runtime entries hand over older daemons automatically, and applied local updates restart an online daemon after active-job checks. Published versions retain the manual same-profile stop fallback. See [upgrade and restore](data-maintenance.md).
+For existing profiles, finish old jobs before a schema upgrade (v9 in published/sealed releases, v11 in current source); keep the recorded profile and backups. Current-source runtime entries hand over older daemons automatically, and applied local updates restart an online daemon after active-job checks. Published versions retain the manual same-profile stop fallback. See [upgrade and restore](data-maintenance.md).
 
 ## Choose an entry point
 

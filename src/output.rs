@@ -29,6 +29,9 @@ fn job(value: &Value) -> Value {
 }
 
 pub fn compact(op: &str, value: Value) -> Value {
+    if value.get("consent").is_some() && value.get("job").is_none() {
+        return value;
+    }
     match op {
         "start_batch" => {
             let mut result = value;
@@ -122,6 +125,8 @@ pub fn compact(op: &str, value: Value) -> Value {
                     "goal_wait_policy",
                     "automatic_goal_pause_supported",
                     "goal_pause_authorization_policy",
+                    "scoped_goal_consent",
+                    "native_goal_consent_form",
                     "automatic_goal_pause_reason",
                     "managed_mcp_updates_supported",
                     "runtime_workflow_sha256",

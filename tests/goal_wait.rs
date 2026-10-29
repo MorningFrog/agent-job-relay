@@ -815,10 +815,15 @@ async fn missing_goal_pause_authority_stops_before_connect_single_or_batch_admis
             command.args(["start", "--wake", "--", "/bin/true"]);
         }
         let response = command.output().await.unwrap();
-        assert!(!response.status.success());
         assert!(
-            String::from_utf8_lossy(&response.stderr).contains("goal_pause_authorization_required")
+            response.status.success(),
+            "{}",
+            String::from_utf8_lossy(&response.stderr)
         );
+        let response: Value = serde_json::from_slice(&response.stdout).unwrap();
+        assert_eq!(response["status"], "needs_confirmation");
+        assert_eq!(response["consent"]["status"], "pending");
+        assert!(response.get("binding").is_none());
         assert!(f.mutations().is_empty());
         assert_eq!(f.controller.read().await.unwrap(), Some(f.goal.clone()));
         assert!(f.store.list(0, 100).await.unwrap().is_empty());
@@ -1385,4 +1390,627 @@ async fn shared_mcp_uses_only_the_bound_wait_and_exposes_revision_fenced_cancell
     ipc::call(&f.store.config, Request::Shutdown).await.unwrap();
     daemon.wait().unwrap();
     assert!(f.messages.lock().unwrap().is_empty());
+}
+
+impl Fixture {
+    async fn consent(&self, jobs: u32) -> Value {
+        self.store
+            .prepare_goal_consent(
+                self.session.clone(),
+                self.controller.clone(),
+                self.goal.clone(),
+                self.dir.path().into(),
+                agent_job_relay::goal_consent::Options {
+                    label: Some("three separate scans".into()),
+                    job_limit: Some(jobs),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap()
+    }
+    async fn approve_consent(&self, c: &Value) -> Value {
+        self.store
+            .decide_goal_consent(
+                c["request_id"].as_str().unwrap().into(),
+                self.session.clone(),
+                c["revision"].as_i64().unwrap(),
+                agent_job_relay::goal_consent::Decision::Allow,
+                "simulated explicit user answer",
+            )
+            .await
+            .unwrap()
+    }
+}
+
+#[tokio::test]
+async fn scoped_consent_survives_reconnect_and_admits_exactly_three_serial_runs() {
+    let f = Fixture::new().await;
+    let pending = f.consent(3).await;
+    let request = pending["request_id"].as_str().unwrap().to_owned();
+    let mut later = f.goal.clone();
+    later.tokens_used += 5;
+    later.updated_at += 1;
+    f.write_goal(&later);
+    let repeated = f.consent(3).await;
+    assert_eq!(repeated["request_id"], pending["request_id"]);
+    assert_eq!(repeated["expires_at"], pending["expires_at"]);
+    assert!(f.store.start(f.spec("bypass-consent")).await.is_err());
+    let approved = f.approve_consent(&pending).await;
+    assert!(
+        f.store
+            .decide_goal_consent(
+                request.clone(),
+                f.session.clone(),
+                i64::MAX,
+                agent_job_relay::goal_consent::Decision::Allow,
+                "invalid revision"
+            )
+            .await
+            .is_err()
+    );
+    let repeated = f.approve_consent(&pending).await;
+    assert_eq!(
+        approved, repeated,
+        "answer retry must not renew or expand consent"
+    );
+    let delivery = tokio::spawn(agent_job_relay::delivery::worker(f.store.clone()));
+    for round in 0..3 {
+        let wait = f
+            .store
+            .prepare_goal_wait_scoped(
+                f.session.clone(),
+                f.controller.clone(),
+                f.goal.clone(),
+                Some(request.clone()),
+            )
+            .await
+            .unwrap();
+        let wait = wait["goal_wait_id"].as_str().unwrap();
+        let spec = f.spec(&format!("consent-round-{round}"));
+        if round == 0 {
+            let mut moved = spec.clone();
+            moved.cwd = f.dir.path().parent().unwrap().into();
+            assert!(
+                ipc::dispatch(
+                    &f.store,
+                    Request::StartGoal {
+                        spec: moved,
+                        goal_wait_id: wait.into()
+                    }
+                )
+                .await
+                .is_err()
+            );
+            assert_eq!(
+                f.store
+                    .goal_consent_view(request.clone(), f.session.clone())
+                    .await
+                    .unwrap()["jobs_admitted"],
+                0
+            );
+        }
+        let start = ipc::dispatch(
+            &f.store,
+            Request::StartGoal {
+                spec: spec.clone(),
+                goal_wait_id: wait.into(),
+            },
+        )
+        .await
+        .unwrap();
+        let duplicate = ipc::dispatch(
+            &f.store,
+            Request::StartGoal {
+                spec,
+                goal_wait_id: wait.into(),
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(start["job"]["job_id"], duplicate["job"]["job_id"]);
+        assert_eq!(f.pause_and_confirm(wait).await["status"], "waiting");
+        f.finish(&start).await;
+        goal_wait::progress(&f.store, wait).await.unwrap();
+        tokio::time::timeout(Duration::from_secs(8), async {
+            while f.state(wait).await["notification_accepted"] != true {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .unwrap();
+        let consent = f
+            .store
+            .goal_consent_view(request.clone(), f.session.clone())
+            .await
+            .unwrap();
+        assert_eq!(consent["jobs_admitted"], round + 1);
+        assert_eq!(
+            consent["jobs"].as_array().unwrap().len(),
+            round as usize + 1
+        );
+        assert_eq!(f.controller.read().await.unwrap().unwrap().status, "active");
+    }
+    assert_eq!(
+        f.store
+            .goal_consent_view(request.clone(), f.session.clone())
+            .await
+            .unwrap()["status"],
+        "exhausted"
+    );
+    assert!(
+        f.store
+            .prepare_goal_wait_scoped(
+                f.session.clone(),
+                f.controller.clone(),
+                f.goal.clone(),
+                Some(request)
+            )
+            .await
+            .is_err()
+    );
+    assert_eq!(f.store.list(0, 100).await.unwrap().len(), 3);
+    assert_eq!(f.messages.lock().unwrap().len(), 3);
+    delivery.abort();
+    let _ = delivery.await;
+}
+
+#[tokio::test]
+async fn scoped_consent_fences_question_claims_callers_changes_expiry_and_restore() {
+    use agent_job_relay::goal_consent::{Decision, Options};
+    let f = Fixture::new().await;
+    let pending = f.consent(3).await;
+    let id = pending["request_id"].as_str().unwrap().to_string();
+    let question = f
+        .store
+        .claim_goal_question(id.clone(), f.session.clone(), 1, false)
+        .await
+        .unwrap();
+    assert!(
+        f.store
+            .claim_goal_question(id.clone(), f.session.clone(), 1, false)
+            .await
+            .is_err()
+    );
+    assert_eq!(f.consent(3).await["status"], "asking");
+    assert!(
+        f.store
+            .goal_consent_record(id.clone(), agent_job_relay::core::id())
+            .await
+            .is_err()
+    );
+    assert!(
+        f.store
+            .prepare_goal_consent(
+                f.session.clone(),
+                f.controller.clone(),
+                f.goal.clone(),
+                f.dir.path().into(),
+                Options {
+                    request_id: Some(id.clone()),
+                    job_limit: Some(4),
+                    ..Default::default()
+                }
+            )
+            .await
+            .is_err()
+    );
+    let approved = f
+        .store
+        .decide_goal_consent(
+            id.clone(),
+            f.session.clone(),
+            question.revision,
+            Decision::Allow,
+            "simulated host question reply",
+        )
+        .await
+        .unwrap();
+    let backup = f.store.backup().await.unwrap();
+    let restored_path = f.dir.path().join("consent-restore");
+    agent_job_relay::maintenance::restore(
+        backup["path"].as_str().unwrap().into(),
+        restored_path.clone(),
+    )
+    .await
+    .unwrap();
+    let restored = Store::new(Config::new(Some(restored_path)).unwrap());
+    restored.init().await.unwrap();
+    assert_eq!(
+        restored
+            .read(move |db| Ok(db
+                .query_row("SELECT status FROM goal_consents", [], |r| r
+                    .get::<_, String>(0))?))
+            .await
+            .unwrap(),
+        "invalidated"
+    );
+    let wait = f
+        .store
+        .prepare_goal_wait_scoped(
+            f.session.clone(),
+            f.controller.clone(),
+            f.goal.clone(),
+            Some(id.clone()),
+        )
+        .await
+        .unwrap();
+    let wait = wait["goal_wait_id"].as_str().unwrap();
+    let started = f.admit(wait, "revoked-request").await;
+    f.pause_and_confirm(wait).await;
+    let revoked = f
+        .store
+        .decide_goal_consent(
+            id.clone(),
+            f.session.clone(),
+            approved["revision"].as_i64().unwrap(),
+            Decision::Revoke,
+            "user revoked this request",
+        )
+        .await
+        .unwrap();
+    assert_eq!(revoked["status"], "revoked");
+    assert_eq!(f.state(wait).await["status"], "cancelled");
+    assert_eq!(
+        f.store
+            .status(started["job"]["job_id"].as_str().unwrap().into())
+            .await
+            .unwrap()
+            .status,
+        "queued",
+        "revocation must not stop or replay execution"
+    );
+    f.finish(&started).await;
+    assert!(f.mutations().is_empty());
+}
+
+#[tokio::test]
+async fn native_answers_cannot_grant_after_expiry_or_goal_deletion_and_do_not_reprompt() {
+    for removed in [false, true] {
+        let f = Fixture::new().await;
+        let pending = f.consent(1).await;
+        let id = pending["request_id"].as_str().unwrap().to_string();
+        let c = f
+            .store
+            .claim_goal_question(id.clone(), f.session.clone(), 1, true)
+            .await
+            .unwrap();
+        let token = Store::question_token(&c).unwrap();
+        if removed {
+            std::fs::remove_file(f.controller.home.join("goal.json")).unwrap();
+        } else {
+            let key = id.clone();
+            f.store
+                .call(move |db| {
+                    db.execute("UPDATE goal_consents SET expires=0 WHERE id=?", [key])?;
+                    Ok(())
+                })
+                .await
+                .unwrap();
+        }
+        let answer = f
+            .store
+            .answer_goal_question(id.clone(), f.session.clone(), token, true)
+            .await
+            .unwrap();
+        assert_eq!(
+            answer["status"],
+            if removed { "invalidated" } else { "expired" }
+        );
+        assert!(
+            f.store
+                .claim_goal_question(id, f.session.clone(), c.revision, true)
+                .await
+                .is_err()
+        );
+        assert!(f.store.list(0, 100).await.unwrap().is_empty());
+        assert!(f.mutations().is_empty());
+    }
+}
+
+struct ConsentMcp {
+    meta: Option<Value>,
+    child: tokio::process::Child,
+    input: tokio::process::ChildStdin,
+    lines: tokio::io::Lines<tokio::io::BufReader<tokio::process::ChildStdout>>,
+}
+impl ConsentMcp {
+    async fn start(f: &Fixture, version: &str, native: bool) -> Self {
+        use tokio::io::AsyncBufReadExt;
+        let mut child = tokio::process::Command::new(env!("CARGO_BIN_EXE_agent-job-relay"))
+            .args([
+                "--state-dir",
+                f.store.config.root.to_str().unwrap(),
+                "mcp",
+                "--shared-host",
+            ])
+            .env_remove("CODEX_THREAD_ID")
+            .env_remove("CODEX_APP_TOOLS_PIPE_PATH")
+            .env_remove("CODEX_APP_RUNTIME_CLI_PATH")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .kill_on_drop(true)
+            .spawn()
+            .unwrap();
+        let input = child.stdin.take().unwrap();
+        let lines = tokio::io::BufReader::new(child.stdout.take().unwrap()).lines();
+        let meta=(version=="2026-07-28").then(||json!({"io.modelcontextprotocol/protocolVersion":version,"io.modelcontextprotocol/clientCapabilities":if native{json!({"elicitation":{"form":{}}})}else{json!({})},"io.modelcontextprotocol/clientInfo":{"name":"scoped-consent-fixture","version":"1"}}));
+        let mut this = Self {
+            meta,
+            child,
+            input,
+            lines,
+        };
+        if version == "2026-07-28" {
+            this.send(json!({"jsonrpc":"2.0","id":1,"method":"server/discover","params":{}}))
+                .await;
+            let discovery = this.receive().await;
+            assert!(
+                discovery["result"]["supportedVersions"]
+                    .as_array()
+                    .unwrap()
+                    .contains(&json!(version)),
+                "{discovery}"
+            );
+            return this;
+        }
+        this.send(json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":version,"capabilities":if native{json!({"elicitation":{"form":{}}})}else{json!({})},"clientInfo":{"name":"scoped-consent-fixture","version":"1"}}})).await;
+        assert_eq!(
+            this.receive().await["result"]["serverInfo"]["name"],
+            "agent-job-relay"
+        );
+        this.send(json!({"jsonrpc":"2.0","method":"notifications/initialized"}))
+            .await;
+        this
+    }
+    async fn send(&mut self, mut value: Value) {
+        use tokio::io::AsyncWriteExt;
+        if value.get("method").is_some()
+            && value.get("id").is_some()
+            && let Some(meta) = &self.meta
+        {
+            value["params"]["_meta"] = meta.clone();
+        }
+        self.input
+            .write_all(format!("{value}\n").as_bytes())
+            .await
+            .unwrap();
+        self.input.flush().await.unwrap();
+    }
+    async fn receive(&mut self) -> Value {
+        serde_json::from_str(
+            &tokio::time::timeout(Duration::from_secs(12), self.lines.next_line())
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap(),
+        )
+        .unwrap()
+    }
+    async fn call(&mut self, id: u32, args: Value) {
+        self.send(json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"job_goal_consent","arguments":args}})).await;
+    }
+    async fn close(mut self) {
+        use tokio::io::AsyncWriteExt;
+        self.input.shutdown().await.unwrap();
+        drop(self.input);
+        assert!(self.child.wait().await.unwrap().success());
+    }
+}
+fn consent_result(v: &Value) -> Value {
+    assert_ne!(v["result"]["isError"], true, "{v}");
+    serde_json::from_str(v["result"]["content"][0]["text"].as_str().unwrap()).unwrap()
+}
+
+#[tokio::test]
+async fn native_mcp_questions_and_fallback_require_real_answers_and_preserve_one_prompt() {
+    for version in ["2025-06-18", "2026-07-28"] {
+        for allow in [true, false] {
+            let f = Fixture::new().await;
+            let mut daemon = f.daemon().await;
+            let c = f.consent(1).await;
+            let id = c["request_id"].as_str().unwrap();
+            let mut mcp = ConsentMcp::start(&f, version, true).await;
+            let args = json!({"request_id":id,"session_key":f.session});
+            mcp.call(2, args.clone()).await;
+            let question = mcp.receive().await;
+            assert!(f.store.list(0, 100).await.unwrap().is_empty());
+            assert_eq!(f.controller.read().await.unwrap().unwrap().status, "active");
+            let answer = json!({"action":if allow{"accept"}else{"cancel"},"content":if allow{json!({"allow_goal_pause":true})}else{Value::Null}});
+            if version == "2026-07-28" {
+                assert_eq!(
+                    question["result"]["resultType"], "input_required",
+                    "{question}"
+                );
+                let schema = &question["result"]["inputRequests"][id]["params"]["requestedSchema"];
+                assert!(
+                    schema["properties"]["allow_goal_pause"]
+                        .get("default")
+                        .is_none()
+                );
+                mcp.call(3, args.clone()).await;
+                assert_eq!(
+                    consent_result(&mcp.receive().await)["question_pending"],
+                    true
+                );
+                mcp.send(json!({"jsonrpc":"2.0","id":40,"method":"tools/call","params":{"name":"job_goal_consent","arguments":args,"requestState":"tampered-token","inputResponses":{id:answer}}})).await;
+                assert_eq!(mcp.receive().await["result"]["isError"], true);
+                assert_eq!(
+                    f.store
+                        .goal_consent_view(id.into(), f.session.clone())
+                        .await
+                        .unwrap()["status"],
+                    "asking"
+                );
+                mcp.send(json!({"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"job_goal_consent","arguments":args,"requestState":question["result"]["requestState"],"inputResponses":{id:answer}}})).await;
+            } else {
+                assert_eq!(question["method"], "elicitation/create", "{question}");
+                mcp.call(3, args.clone()).await;
+                assert_eq!(
+                    consent_result(&mcp.receive().await)["question_pending"],
+                    true
+                );
+                mcp.send(json!({"jsonrpc":"2.0","id":question["id"],"result":answer}))
+                    .await;
+            }
+            let result = consent_result(&mcp.receive().await);
+            assert_eq!(
+                result["status"],
+                if allow { "approved" } else { "declined" }
+            );
+            mcp.call(5, args).await;
+            assert_eq!(consent_result(&mcp.receive().await), result);
+            assert!(f.store.list(0, 100).await.unwrap().is_empty());
+            assert!(f.mutations().is_empty());
+            mcp.close().await;
+            ipc::call(&f.store.config, Request::Shutdown).await.unwrap();
+            daemon.wait().unwrap();
+        }
+    }
+    let f = Fixture::new().await;
+    let mut daemon = f.daemon().await;
+    let c = f.consent(1).await;
+    let mut mcp = ConsentMcp::start(&f, "2025-06-18", false).await;
+    let args = json!({"request_id":c["request_id"],"session_key":f.session});
+    mcp.call(2, args.clone()).await;
+    let question = consent_result(&mcp.receive().await);
+    assert_eq!(question["ask_user_now"], true);
+    mcp.call(3, args.clone()).await;
+    let repeated = consent_result(&mcp.receive().await);
+    assert_eq!(repeated["question_pending"], true);
+    assert!(repeated.get("ask_user_now").is_none());
+    let mut answer = args;
+    answer["decision"] = json!("allow");
+    answer["expected_revision"] = question["revision"].clone();
+    mcp.call(4, answer).await;
+    assert_eq!(consent_result(&mcp.receive().await)["status"], "approved");
+    mcp.close().await;
+    ipc::call(&f.store.config, Request::Shutdown).await.unwrap();
+    daemon.wait().unwrap();
+}
+
+#[tokio::test]
+async fn scoped_terminal_request_reuses_one_answer_for_three_real_background_submissions() {
+    use agent_job_relay::goal_consent::Decision;
+    let f = Fixture::new().await;
+    let mut daemon = f.daemon().await;
+    let out = f
+        .cli()
+        .args([
+            "connect",
+            "--request-label",
+            "three separate scans",
+            "--job-count",
+            "3",
+        ])
+        .output()
+        .await
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let pending: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(pending["status"], "needs_confirmation");
+    assert!(pending.get("binding").is_none());
+    let key = pending["session_key"].as_str().unwrap().to_string();
+    let request = pending["consent"]["request_id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(
+        ipc::call(
+            &f.store.config,
+            Request::Start {
+                spec: StartSpec {
+                    session: Some(key.clone()),
+                    ..f.spec("stripped-confirmation")
+                }
+            }
+        )
+        .await
+        .is_err()
+    );
+    ipc::call(
+        &f.store.config,
+        Request::GoalConsent {
+            request_id: request.clone(),
+            session_key: key.clone(),
+            decision: Decision::Allow,
+            expected_revision: Some(1),
+        },
+    )
+    .await
+    .unwrap();
+    for round in 0..3 {
+        let out = f
+            .cli()
+            .args(["connect", "--request-id", &request])
+            .output()
+            .await
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let binding: Value = serde_json::from_slice(&out.stdout).unwrap();
+        assert_eq!(binding["status"], "ready");
+        assert_eq!(binding["consent"]["jobs_admitted"], round);
+        let wait = binding["binding"]["goal_wait_id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let mut spec = f.spec(&format!("real-round-{round}"));
+        spec.session = Some(key.clone());
+        spec.command = CommandSpec::Shell {
+            interpreter: "/bin/sh".into(),
+            script: "printf 'once\\n' >> scoped-executions; sleep .05".into(),
+        };
+        let started = ipc::call(
+            &f.store.config,
+            Request::StartGoal {
+                spec: spec.clone(),
+                goal_wait_id: wait.clone(),
+            },
+        )
+        .await
+        .unwrap();
+        let retried = ipc::call(
+            &f.store.config,
+            Request::StartGoal {
+                spec,
+                goal_wait_id: wait.clone(),
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(started["job"]["job_id"], retried["job"]["job_id"]);
+        f.pause_and_confirm(&wait).await;
+        tokio::time::timeout(Duration::from_secs(10), async {
+            while f.state(&wait).await["notification_accepted"] != true {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .unwrap();
+    }
+    let out = f
+        .cli()
+        .args(["connect", "--request-id", &request])
+        .output()
+        .await
+        .unwrap();
+    assert!(out.status.success());
+    let ended: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(ended["status"], "request_closed");
+    assert_eq!(ended["consent"]["jobs"].as_array().unwrap().len(), 3);
+    assert_eq!(
+        std::fs::read_to_string(f.dir.path().join("scoped-executions")).unwrap(),
+        "once\nonce\nonce\n"
+    );
+    ipc::call(&f.store.config, Request::Shutdown).await.unwrap();
+    daemon.wait().unwrap();
 }

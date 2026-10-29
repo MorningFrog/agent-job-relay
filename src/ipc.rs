@@ -38,6 +38,27 @@ pub enum Request {
         session_key: String,
         controller: crate::goal_control::Controller,
         expected: serde_json::Value,
+        #[serde(default)]
+        consent_id: Option<String>,
+    },
+    PrepareGoalConsent {
+        session_key: String,
+        controller: crate::goal_control::Controller,
+        expected: serde_json::Value,
+        cwd: std::path::PathBuf,
+        request_id: Option<String>,
+        label: Option<String>,
+        job_limit: Option<u32>,
+        #[serde(default)]
+        user_authorized: bool,
+    },
+    /// Inspect or resolve scoped consent; native questions are handled by MCP.
+    GoalConsent {
+        request_id: String,
+        session_key: String,
+        #[serde(default)]
+        decision: crate::goal_consent::Decision,
+        expected_revision: Option<i64>,
     },
     GoalWait {
         goal_wait_id: String,
@@ -243,9 +264,59 @@ pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
             session_key,
             controller,
             expected,
+            consent_id,
         } => {
             store
-                .prepare_goal_wait(session_key, controller, serde_json::from_value(expected)?)
+                .prepare_goal_wait_scoped(
+                    session_key,
+                    controller,
+                    serde_json::from_value(expected)?,
+                    consent_id,
+                )
+                .await
+        }
+        Request::PrepareGoalConsent {
+            session_key,
+            controller,
+            expected,
+            cwd,
+            request_id,
+            label,
+            job_limit,
+            user_authorized,
+        } => {
+            store
+                .prepare_goal_consent(
+                    session_key,
+                    controller,
+                    serde_json::from_value(expected)?,
+                    cwd,
+                    crate::goal_consent::Options {
+                        request_id,
+                        label,
+                        job_limit,
+                        user_authorized,
+                    },
+                )
+                .await
+        }
+        Request::GoalConsent {
+            request_id,
+            session_key,
+            decision,
+            expected_revision,
+        } => {
+            if matches!(decision, crate::goal_consent::Decision::Ask) {
+                return store.goal_consent_view(request_id, session_key).await;
+            }
+            store
+                .decide_goal_consent(
+                    request_id,
+                    session_key,
+                    expected_revision.context("consent decision requires expected_revision")?,
+                    decision,
+                    "Agent assertion of actual user reply",
+                )
                 .await
         }
         Request::GoalWait {
@@ -392,6 +463,7 @@ pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
             value["batch_submission"] = json!(true);
             value["goal_waiting"] = json!(true);
             value["goal_wait_host_pause"] = json!(true);
+            value["scoped_goal_consent"] = json!(true);
             value["automatic_goal_pause_supported"] = json!(false);
             value["goal_pause_authorization_policy"] = json!("ask_once_per_request");
             value["automatic_goal_pause_reason"] = json!(

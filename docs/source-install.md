@@ -89,7 +89,7 @@ Expected: the preview retains the original state directory; apply retains histor
 "$AJR_INSTALL_ROOT/relay" doctor --client plugin --check-mcp
 ```
 
-Expected: the installed version matches the build, the owned marketplace entry matches, and `stdio_self_check.status` is `passed` with 24 tools for current source (22 in published 0.1.10/sealed 0.1.11). A stopped daemon before the first submission is normal. This check submits no job and establishes local stdio discovery, not ChatGPT Desktop tool connectivity or chat continuation.
+Expected: the installed version matches the build, the owned marketplace entry matches, and `stdio_self_check.status` is `passed` with 25 tools for current source (22 in published 0.1.10/sealed 0.1.11). A stopped daemon before the first submission is normal. This check submits no job and establishes local stdio discovery, not ChatGPT Desktop tool connectivity or chat continuation.
 
 Keep AJR_INSTALL_ROOT present: cached MCP and terminal launchers use its native executable. Rebuilding `target/release` alone does not update this installation. Task state/history stays separate; [installation profiles](installation.md#custom-directories-and-stored-data), [updates](updating.md) and [uninstallation](uninstalling.md) cover later maintenance.
 
@@ -123,7 +123,7 @@ Then restart/reconnect ChatGPT Desktop and open the new local chat as above. CLI
 
 With the local plugin selected, first ask:
 
-> Call AgentJobRelay's MCP job_doctor tool and verify managed_mcp_updates_supported=true and goal_wait_policy=required_for_active_desktop_goal, plus confirm_paused in the discovered job_goal_wait interface. Do not submit a task. If its MCP tools are missing, report that and stop; do not use CLI fallback or another plugin's tools.
+> Call AgentJobRelay's MCP job_doctor tool and verify managed_mcp_updates_supported=true and goal_wait_policy=required_for_active_desktop_goal, scoped_goal_consent=true, plus job_goal_consent and confirm_paused in job_goal_wait. Do not submit a task. If its MCP tools are missing, report that and stop; do not use CLI fallback or another plugin's tools.
 
 Expected: an actual AgentJobRelay `job_doctor` call succeeds with those capabilities. Compare its `runtime_workflow_sha256` with the selected launcher's `instructions` digest when investigating a same-version update; a matching version number alone is insufficient. For shared MCP, `binding_mode=explicit current-terminal binding` and `desktop_context.available=false` are normal; the current chat is bound later through its terminal.
 
@@ -133,7 +133,7 @@ Only after that succeeds, use your next real long task:
 
 Expected: the Agent obtains a fresh terminal binding, submits through AgentJobRelay MCP `job_start`, reports the job ID and ends its turn. Observed same-chat continuation is a separate acceptance result; host acceptance alone does not prove it. See [manual acceptance](manual-testing.md) for evidence boundaries.
 
-Desktop native goal pause requires user consent. The current workflow asks one short question if that consent is absent, then uses the native-confirmation/restoration protocol; the affirmative reply covers later rounds of the same request on the same goal. Plugin messages cannot grant consent. See [goal waiting](goal-waiting.md).
+Desktop goal pause asks once when permission is absent. Source preflight returns `needs_confirmation`; `job_goal_consent` uses native input or one Agent question, then `connect --request-id` reuses the approved scope for later rounds. The user has confirmed automatic pause after approval locally. Direct MCP form UI/full multi-round restoration remain separate acceptance. See [goal waiting](goal-waiting.md).
 
 ## If the skill appears but job_start is missing
 

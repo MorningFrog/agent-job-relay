@@ -62,6 +62,15 @@ pub(super) enum Commands {
         /// Use the native-pause protocol only for an independently requested goal pause
         #[arg(long, conflicts_with = "recover")]
         wait_goal: bool,
+        /// Continue the same scoped goal-consent request returned by connect
+        #[arg(long, conflicts_with = "recover")]
+        request_id: Option<String>,
+        /// Brief user-visible description of this request
+        #[arg(long, conflicts_with = "recover")]
+        request_label: Option<String>,
+        /// Maximum original jobs covered by this request (1..16; default 1)
+        #[arg(long, conflicts_with = "recover")]
+        job_count: Option<u32>,
     },
     /// Inspect, confirm an originating-host pause, or cancel future goal waiting
     GoalWait {

@@ -127,7 +127,7 @@ async def run(binary, codex, marketplace=None, registry=None):
             server = next((s for s in inventory["data"] if s["name"] == "agent-job-relay"), None)
             required = {"job_start", "job_status", "job_logs", "job_doctor", "job_stop", "job_recover_session"}
             if not marketplace:
-                required |= {"job_start_batch", "job_goal_wait"}
+                required |= {"job_start_batch", "job_goal_consent", "job_goal_wait"}
             if not server or not required <= set(server["tools"]):
                 raise RuntimeError(f"installed plugin MCP tools unavailable: {server and server.get('toolsError')}")
             if not marketplace and "confirm_paused" not in server["tools"]["job_goal_wait"]["inputSchema"]["properties"]:

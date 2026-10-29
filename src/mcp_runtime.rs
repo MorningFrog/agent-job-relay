@@ -2,6 +2,7 @@
 //! It never searches caches, changes profiles or replays an uncertain call.
 use crate::{config::Config, deployment as install};
 use anyhow::{Context, Result, ensure};
+use rmcp::{RoleServer, model::*, service::RequestContext};
 use serde_json::{Value, json};
 use std::{path::PathBuf, process::Stdio, time::Duration};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
@@ -141,8 +142,9 @@ pub(crate) async fn exchange(
     shared: bool,
     method: &str,
     params: Value,
+    context: &RequestContext<RoleServer>,
 ) -> Result<Value> {
-    tokio::time::timeout(Duration::from_secs(90), async {
+    tokio::time::timeout(Duration::from_secs(90+crate::goal_consent::QUESTION_SECONDS), async {
         let mut command=tokio::process::Command::new(image);
         command.arg("--state-dir").arg(&config.root).args(["mcp","--worker"]);
         if shared {command.arg("--shared-host").env_remove("CODEX_THREAD_ID").env_remove("CODEX_SESSION_ID").env_remove("CODEX_APP_TOOLS_PIPE_PATH");}
@@ -151,19 +153,66 @@ pub(crate) async fn exchange(
         let mut child=command.spawn().context("cannot start verified current MCP runtime")?;
         let mut input=child.stdin.take().context("missing current MCP stdin")?;
         let mut output=BufReader::new(child.stdout.take().context("missing current MCP stdout")?);
-        let init=json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"agent-job-relay-managed-forwarder","version":env!("CARGO_PKG_VERSION")}}});
+        let version=context.protocol_version().unwrap_or(ProtocolVersion::V_2025_06_18);
+        let capabilities=context.client_capabilities().unwrap_or_default();
+        let meta=RequestMetaObject::with_client_context(version.clone(),context.client_info().unwrap_or_else(||Implementation::new("agent-job-relay-managed-forwarder",env!("CARGO_PKG_VERSION"))),capabilities.clone());
+        let modern=version>=ProtocolVersion::V_2026_07_28;
+        let init=if modern {json!({"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":meta}})}else{json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":version,"capabilities":capabilities,"clientInfo":{"name":"agent-job-relay-managed-forwarder","version":env!("CARGO_PKG_VERSION")}}})};
         input.write_all(format!("{init}\n").as_bytes()).await?;
-        let initialized=response(&mut output,1).await?;
-        ensure!(initialized["serverInfo"]["name"]=="agent-job-relay","unexpected managed MCP identity");
-        input.write_all(b"{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}\n").await?;
+        let initialized=tokio::time::timeout(Duration::from_secs(10),response(&mut output,1)).await??;
+        if modern {
+            ensure!(initialized["supportedVersions"].as_array().is_some_and(|v|v.contains(&json!(version))),"updated runtime lacks the caller's negotiated protocol");
+        }else{
+            ensure!(initialized["serverInfo"]["name"]=="agent-job-relay","unexpected managed MCP identity");
+            input.write_all(b"{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}\n").await?;
+        }
+        let mut params=params;
+        if modern {params["_meta"]=serde_json::to_value(meta)?;}
         let mut request=serde_json::to_vec(&json!({"jsonrpc":"2.0","id":2,"method":method,"params":params}))?;
         ensure!(request.len()<=131072,"managed MCP request exceeds 128 KiB");
         request.push(b'\n');input.write_all(&request).await?;input.flush().await?;
-        let result=response(&mut output,2).await?;
+        let mut deadline=tokio::time::Instant::now()+Duration::from_secs(90);
+        let mut asked=false;
+        let result=loop {
+            let raw=tokio::select! {
+                _=context.ct.cancelled()=>anyhow::bail!("host cancelled current-runtime request; no replay was attempted"),
+                raw=tokio::time::timeout_at(deadline,frame(&mut output))=>raw??,
+            };
+            if raw.get("method").is_some() {
+                ensure!(!asked && method=="tools/call" && params["name"]=="job_goal_consent" && raw["method"]=="elicitation/create","unexpected worker request; no automatic replay");
+                asked=true;
+                let question=serde_json::from_value(raw["params"].clone())?;
+                let started=tokio::time::Instant::now();
+                let answer=tokio::select! {
+                    _=context.ct.cancelled()=>anyhow::bail!("host cancelled native confirmation; no replay was attempted"),
+                    answer=context.peer.create_elicitation_with_timeout(question,Some(Duration::from_secs(crate::goal_consent::QUESTION_SECONDS)))=>answer,
+                };
+                deadline+=started.elapsed();
+                let answer=match answer {Ok(value)=>json!({"jsonrpc":"2.0","id":raw["id"],"result":value}),Err(_)=>json!({"jsonrpc":"2.0","id":raw["id"],"error":{"code":-32603,"message":"native question unavailable, cancelled or timed out"}})};
+                input.write_all(format!("{answer}\n").as_bytes()).await?;input.flush().await?;
+                continue;
+            }
+            ensure!(raw["id"]==2 && raw.get("error").is_none(),"current runtime response mismatch/rejection; no replay was attempted");
+            break raw.get("result").cloned().context("current MCP result missing")?;
+        };
         drop(input);
         ensure!(child.wait().await?.success(),"current MCP disconnected after its response; inspect original IDs before retrying");
         Ok(result)
     }).await.context("current MCP deadline exceeded; inspect original Job/Run IDs before retrying an uncertain submission")?
+}
+async fn frame<R: tokio::io::AsyncBufRead + Unpin>(reader: &mut R) -> Result<Value> {
+    let mut raw = Vec::new();
+    let n = reader.take(1048577).read_until(b'\n', &mut raw).await?;
+    ensure!(
+        n > 0 && n <= 1048576 && raw.last() == Some(&b'\n'),
+        "missing or oversized current MCP response"
+    );
+    let value: Value = serde_json::from_slice(&raw)?;
+    ensure!(
+        value["jsonrpc"] == "2.0",
+        "invalid current MCP response protocol"
+    );
+    Ok(value)
 }
 async fn response<R: tokio::io::AsyncBufRead + Unpin>(reader: &mut R, id: u32) -> Result<Value> {
     for _ in 0..16 {

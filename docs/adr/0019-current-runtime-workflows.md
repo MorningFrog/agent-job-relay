@@ -6,11 +6,11 @@ A source installation can change native bytes and restart its daemon while the h
 
 ## Decision
 
-Keep native cached skills as stable instruction entries. At each submission, result notification and maintenance request, load `instructions` through the selected profile-preserving launcher. Maintain the full workflow once in `plugins/workflows/background-jobs.md` and embed it in the executable. Return its policy and digest without creating daemon/job state. Native cached launchers already point to the managed installation; online npm entries retain their pinned release route.
+Keep native cached skills and MCP initialization as stable instruction entries. At each submission, result notification and maintenance request, load `instructions` through the selected profile-preserving launcher. Maintain the full workflow once in `plugins/workflows/background-jobs.md` and embed it in the executable. Return its policy and digest without creating daemon/job state. Native cached launchers already point to the managed installation; online npm entries retain their pinned release route.
 
 A managed MCP connection captures its original installation/profile, platform, version and image digest. Before catalog/call handling it checks the current receipt/profile/image and takes a shared installation lock through execution, fencing cooperating replacements while permitting parallel readers. If bytes changed, use the verified current executable's internal stdio MCP worker with the connection's explicit state. This includes same-version source updates. Shared workers drop inherited caller IDs; the original arguments and stable workload identities remain untouched. Emit a catalog notification once per runtime image revision.
 
-The worker uses the existing standard MCP transport. Initialization, request/response correlation, bounded frames/deadline and supervised child cleanup are mandatory. A transmitted request is never automatically retried, including acknowledgement loss. Job execution and delivery remain owned by the existing daemon/runner/storage lifecycles.
+The worker uses the existing standard MCP transport. Preserve negotiated protocols/capabilities and native input responses/request state. Legacy input is forwarded once with bounded human-wait allowance; modern input-required returns immediately. Initialization/discovery, request/response correlation, bounded frames/deadlines and supervised child cleanup are mandatory. A transmitted request is never automatically retried, including acknowledgement loss. Job execution and delivery remain owned by the existing daemon/runner/storage lifecycles.
 
 ## Boundaries
 

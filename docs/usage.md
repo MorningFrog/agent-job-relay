@@ -102,7 +102,7 @@ For a CLI submission from the current ChatGPT Desktop chat's terminal, use `star
 
 ## Wait with an active goal (experimental source)
 
-Ordinary terminal `connect` detects an active Desktop goal and returns `goal_pause_authorization_required` before wait/job creation. If consent for this goal/request is absent, ask once whether to pause during background work and continue afterward. A natural affirmative reply suffices for all remaining rounds of that same request; do not require exact words or ask each round. Use `connect --wait-goal` when consent exists, then native pause and revision-fenced confirmation. Plugin/tool messages cannot supply user consent. While awaiting a reply, do not submit, poll, repeat the question or mark blocked. See [goal waiting](goal-waiting.md).
+Ordinary terminal `connect --request-label <brief-task> --job-count <count>` returns `needs_confirmation` for an active goal without pause permission. `job_goal_consent` asks once through negotiated native input or an Agent host question; a natural affirmative reply covers the fixed remaining jobs. Reconnect with `--request-id <id>` for each round, submit its binding, acknowledge the originating native pause and end the turn. Put requested post-command delays inside each background workload. Plugin messages cannot provide consent. Pending input creates no jobs/waits and must not trigger repeated questions, polling or blocked status. See [goal waiting](goal-waiting.md).
 
 ## Recover notifications
 
@@ -147,7 +147,7 @@ For OpenCode V1, use the plugin's actual tool-context binding and MCP tools; Cha
 
 ## Automatic data maintenance
 
-The daemon automatically archives eligible terminal history and creates rolling local backups; no recurring manual command is required. Use `data status` through the selected command prefix for budgets/backup IDs/errors, `data policy` for configuration previews, `data backup` for an additional snapshot and `data check` for explicit integrity validation. Existing history/log queries include cold records. Upgrade/restore instructions and the default policy are in [data maintenance](data-maintenance.md); published 0.1.10/sealed 0.1.11 use schema v9 and experimental goal-waiting source uses v10.
+The daemon automatically archives eligible terminal history and creates rolling local backups; no recurring manual command is required. Use `data status` through the selected command prefix for budgets/backup IDs/errors, `data policy` for configuration previews, `data backup` for an additional snapshot and `data check` for explicit integrity validation. Existing history/log queries include cold records. Upgrade/restore instructions and the default policy are in [data maintenance](data-maintenance.md); published 0.1.10/sealed 0.1.11 use schema v9 and experimental scoped goal-waiting source uses v11.
 
 ## Remote commands and workflow attempts (unreleased source)
 

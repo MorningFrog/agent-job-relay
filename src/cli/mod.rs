@@ -189,8 +189,23 @@ pub(super) async fn run() -> Result<()> {
             limit,
             full,
             wait_goal,
+            request_id,
+            request_label,
+            job_count,
         } => {
-            let value = if wait_goal {
+            let value = if request_id.is_some() || request_label.is_some() || job_count.is_some() {
+                agent_job_relay::client::connect_request(
+                    &config,
+                    cwd.unwrap_or(std::env::current_dir()?),
+                    agent_job_relay::goal_consent::Options {
+                        request_id,
+                        label: request_label,
+                        job_limit: job_count,
+                        user_authorized: wait_goal,
+                    },
+                )
+                .await?
+            } else if wait_goal {
                 agent_job_relay::client::connect_with_goal(
                     &config,
                     cwd.unwrap_or(std::env::current_dir()?),

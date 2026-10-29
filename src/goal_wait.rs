@@ -121,6 +121,20 @@ pub(crate) fn attach(
     spec: &StartSpec,
 ) -> Result<()> {
     let record = read(db, wait)?;
+    let consent: Option<String> = db.query_row(
+        "SELECT consent_id FROM goal_waits WHERE id=?",
+        [wait],
+        |r| r.get(0),
+    )?;
+    if let Some(consent) = consent {
+        crate::goal_consent::consume(
+            db,
+            &consent,
+            &record.session_key,
+            &record.expected,
+            &spec.cwd,
+        )?;
+    }
     ensure!(
         record.controller.host_pause,
         "legacy goal binding cannot acknowledge an originating-host pause; prepare a new binding"
@@ -161,6 +175,16 @@ impl Store {
         controller: Controller,
         expected: Goal,
     ) -> Result<Value> {
+        self.prepare_goal_wait_scoped(session_key, controller, expected, None)
+            .await
+    }
+    pub async fn prepare_goal_wait_scoped(
+        &self,
+        session_key: String,
+        controller: Controller,
+        expected: Goal,
+        consent_id: Option<String>,
+    ) -> Result<Value> {
         validate_id(&session_key)?;
         ensure!(
             controller.host_pause,
@@ -195,12 +219,14 @@ impl Store {
         self.call(move|db|{
             let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
             let t=now();
+            if let Some(consent)=&consent_id {crate::goal_consent::check_scope(&tx,consent,&session_key,&current,None)?;}
             let expired={let mut q=tx.prepare("SELECT id FROM goal_waits WHERE status='prepared' AND expires<=? AND NOT EXISTS(SELECT 1 FROM goal_wait_jobs m WHERE m.wait_id=goal_waits.id)")?;q.query_map([t],|r|r.get::<_,String>(0))?.collect::<rusqlite::Result<Vec<_>>>()?};
             for id in expired { close_tx(&tx,&read(&tx,&id)?,"cancelled","unused binding expired")?; }
             let busy:Option<String>=tx.query_row(&format!("SELECT w.id FROM goal_waits w JOIN sessions a ON a.key=w.session_key JOIN sessions b ON b.key=? WHERE (w.status IN ({OPEN}) OR (w.status='resumed' AND w.notified=0)) AND a.agent=b.agent AND a.logical=b.logical AND a.host=b.host LIMIT 1"),[&session_key],|r|r.get(0)).optional()?;
             if let Some(id)=busy {
                 let old=read(&tx,&id)?;
-                if old.status=="prepared" && old.session_key==session_key && old.session_snapshot==session_snapshot && old.expected.same_identity(&current) && serde_json::to_value(&old.controller)?==serde_json::to_value(&controller)? {
+                let old_consent:Option<String>=tx.query_row("SELECT consent_id FROM goal_waits WHERE id=?",[&id],|r|r.get(0))?;
+                if old.status=="prepared" && old.session_key==session_key && old_consent==consent_id && old.session_snapshot==session_snapshot && old.expected.same_identity(&current) && serde_json::to_value(&old.controller)?==serde_json::to_value(&controller)? {
                     let result=brief(&tx,&id)?;tx.commit()?;return Ok(result);
                 }
                 anyhow::bail!("this logical chat already has goal wait {id}; inspect or cancel that exact wait before creating another");
@@ -211,6 +237,7 @@ impl Store {
             let actual=crate::session::read_session(&tx,&session_key)?;
             ensure!(serde_json::to_string(&json!({"registration":actual.registration,"endpoint_identity":actual.endpoint_identity}))?==session_snapshot && actual.connected && actual.expires_at>t,"caller binding changed during goal preparation");
             tx.execute("INSERT INTO goal_waits(id,session_key,controller,expected,session_snapshot,status,created,updated,expires,next_at) VALUES(?,?,?,?,?,'prepared',?,?,?,?)",params![id,session_key,serde_json::to_string(&controller)?,serde_json::to_string(&current)?,session_snapshot,t,t,t+300000,t])?;
+            tx.execute("UPDATE goal_waits SET consent_id=? WHERE id=?",params![consent_id,id])?;
             audit(&tx,&id,1,"prepared","current-terminal active goal requires handoff; goal unchanged")?;
             let result=brief(&tx,&id)?;tx.commit()?;Ok(result)
         }).await
@@ -317,6 +344,17 @@ fn close_tx(db: &Connection, record: &Wait, status: &str, detail: &str) -> Resul
     db.execute("UPDATE deliveries SET status='cancelled',failure_kind='goal_wait',last_error=?,token=NULL,lease_until=NULL WHERE target_id IN (SELECT t.id FROM targets t JOIN goal_wait_jobs m ON m.job_id=t.job_id WHERE m.wait_id=?) AND (status IN ('pending','retry_wait','dead_letter') OR (status='leased' AND lease_until<=?))",params![detail,record.id,now()])?;
     db.execute("UPDATE delivery_attempts SET ended=?,outcome='cancelled',error=? WHERE ended IS NULL AND delivery_id IN (SELECT d.id FROM deliveries d JOIN targets t ON t.id=d.target_id JOIN goal_wait_jobs m ON m.job_id=t.job_id WHERE m.wait_id=? AND d.status='cancelled' AND d.failure_kind='goal_wait')",params![now(),detail,record.id])?;
     Ok(true)
+}
+pub(crate) fn cancel_for_consent(db: &Connection, consent: &str, detail: &str) -> Result<()> {
+    let ids = {
+        let mut q=db.prepare("SELECT id FROM goal_waits WHERE consent_id=? AND (status IN ('prepared','sealed','pausing','waiting','resuming') OR (status='resumed' AND notified=0))")?;
+        q.query_map([consent], |r| r.get::<_, String>(0))?
+            .collect::<rusqlite::Result<Vec<_>>>()?
+    };
+    for id in ids {
+        close_tx(db, &read(db, &id)?, "cancelled", detail)?;
+    }
+    Ok(())
 }
 pub(crate) fn cancel_job_tx(db: &Connection, job: &str) -> Result<()> {
     let id: Option<String> = db

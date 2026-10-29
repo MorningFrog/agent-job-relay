@@ -743,10 +743,11 @@ pub async fn restore(from: PathBuf, to: PathBuf) -> Result<Value> {
             ensure!(actual.sha256==record.sha256&&actual.bytes==record.bytes,"backup changed while restoring");
         }
         let mut db=Connection::open(stage.join("relay.sqlite3"))?;
-        let schema:i64=db.pragma_query_value(None,"user_version",|r|r.get(0))?;ensure!(matches!(schema,8..=10),"backup schema is not supported by this executable");
+        let schema:i64=db.pragma_query_value(None,"user_version",|r|r.get(0))?;ensure!(matches!(schema,8..=11),"backup schema is not supported by this executable");
         let integrity:String=db.query_row("PRAGMA quick_check",[],|r|r.get(0))?;ensure!(integrity=="ok","backup database integrity failed");
         if schema==8 {db.pragma_update(None,"foreign_keys",false)?;db.execute_batch(include_str!("monitor.sql"))?;}
         if schema<10 {db.execute_batch(include_str!("goal_wait.sql"))?;}
+        if schema<11 {db.execute_batch(include_str!("goal_consent.sql"))?;}
         db.execute_batch("PRAGMA foreign_keys=ON;")?;
         let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         let mut q=tx.prepare("SELECT id FROM jobs WHERE status IN ('queued','launching','running')")?;
@@ -755,6 +756,7 @@ pub async fn restore(from: PathBuf, to: PathBuf) -> Result<Value> {
         let t=now();
         tx.execute("UPDATE sessions SET connected=0",[])?;
         crate::goal_wait::restore_fence(&tx)?;
+        crate::goal_consent::restore_fence(&tx)?;
         tx.execute("UPDATE delivery_attempts SET ended=?,outcome='restore_fenced',error='backup restored; explicit recovery required' WHERE ended IS NULL",[t])?;
         tx.execute("UPDATE deliveries SET status=CASE WHEN expires>? THEN 'retry_wait' ELSE 'dead_letter' END,failure_kind=CASE WHEN expires>? THEN 'rebind_required' ELSE 'expired' END,next_at=expires,token=NULL,lease_until=NULL,last_error='backup restored; explicit recovery required' WHERE status IN ('pending','leased','retry_wait')",params![t,t])?;
         tx.execute("UPDATE deliveries SET status='cancelled',failure_kind='goal_wait',last_error='backup restored; goal control and notification were not replayed' WHERE status IN ('pending','retry_wait','dead_letter') AND target_id IN (SELECT t.id FROM targets t JOIN goal_wait_jobs m ON m.job_id=t.job_id)",[])?;

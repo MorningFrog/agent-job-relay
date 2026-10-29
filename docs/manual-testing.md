@@ -38,7 +38,7 @@ Then check:
 "$AJR_INSTALL_ROOT/relay" doctor --client plugin --check-mcp
 ```
 
-Expected: version matches the bundle, owned marketplace entry matches, and `stdio_self_check.status=passed` with 24 tools for current source (22 for 0.1.10/sealed 0.1.11). `daemon=stopped` is normal before a submission; the check must not start a workload. This result establishes local installation/configuration/stdio only. For a source build, follow the [local installation walkthrough](source-install.md) ([简体中文](source-install.zh-CN.md)) first.
+Expected: version matches the bundle, owned marketplace entry matches, and `stdio_self_check.status=passed` with 25 tools for current source (22 for 0.1.10/sealed 0.1.11). `daemon=stopped` is normal before a submission; the check must not start a workload. This result establishes local installation/configuration/stdio only. For a source build, follow the [local installation walkthrough](source-install.md) ([简体中文](source-install.zh-CN.md)) first.
 
 ## 2. Refresh the plugin in ChatGPT Desktop
 

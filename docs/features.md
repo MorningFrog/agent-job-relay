@@ -9,7 +9,7 @@ AgentJobRelay is a single-user local runtime for long commands initiated by an A
 | Capability | Behavior |
 |---|---|
 | Explicit commands | Execute argv or an explicitly selected shell with a working directory, timeout and idempotency key |
-| Goal waiting (experimental source) | Active Desktop goals require native pause and Relay confirmation by default, with no extra user wording; restore on all-member completion with one original-chat notification and no Agent polling. Storage-only pause cannot update Desktop; [opt-in, interruption and host race limits](goal-waiting.md) |
+| Goal waiting (experimental source) | One native or Agent question when pause permission is absent; durable approval covers the original request’s bounded rounds. Native handoff/restoration and one merged completion avoid Agent polling; [scope, interruption and host limits](goal-waiting.md) |
 | Batch submission (unreleased source) | CLI/MCP accepts 1–16 independent specs with per-item results, stable-key retries and the existing eight-active-job quota; see [batch usage](usage.md#submit-independent-commands-together-unreleased-source) |
 | Remote execution/observation (unreleased source) | Pinned native remote launch/attach, reconnect and exact-run stop; existing GitHub Actions attempt observation through `gh`; [requirements and limits](remote-execution.md) |
 | Independent lifetime | A detached runner owns the workload; closing the submitting chat, MCP client, terminal viewer or browser does not stop it |

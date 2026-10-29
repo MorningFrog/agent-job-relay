@@ -491,7 +491,7 @@ async fn version_one_database_upgrades_without_losing_job_or_run() {
             .call(|db| Ok(db.pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0))?))
             .await
             .unwrap(),
-        10
+        11
     );
 }
 
@@ -513,7 +513,7 @@ async fn version_four_upgrade_preserves_pending_delivery_and_attempt_history() {
     f.store
         .call(|db| {
             db.execute_batch(
-                "DROP TABLE goal_wait_audits; DROP TABLE goal_wait_jobs; DROP TABLE goal_waits; DROP TABLE monitor_rules; DROP TABLE monitor_changes; DROP TABLE runtime_observations; DROP TABLE stop_requests; DROP TABLE target_recoveries; ALTER TABLE deliveries DROP COLUMN failure_kind; PRAGMA user_version=4;",
+                "DROP TABLE goal_wait_audits; DROP TABLE goal_wait_jobs; DROP TABLE goal_waits; DROP TABLE goal_consent_audits; DROP TABLE goal_consents; DROP TABLE monitor_rules; DROP TABLE monitor_changes; DROP TABLE runtime_observations; DROP TABLE stop_requests; DROP TABLE target_recoveries; ALTER TABLE deliveries DROP COLUMN failure_kind; PRAGMA user_version=4;",
             )?;
             Ok(())
         })

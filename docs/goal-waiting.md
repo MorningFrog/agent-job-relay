@@ -2,65 +2,75 @@
 
 [Documentation index](README.md) · [Commands](commands.md) · [Verification](live-e2e.md#goal-waiting-protocol-proof)
 
-An active Desktop goal must pause through its native tool while Relay work runs. If the user has not already allowed that pause, ask once: **“后台期间暂停目标，完成后继续，可以吗？”** Prefer an available native question/approval tool that allows this confirmation, with “允许本次任务／取消后台任务” choices; otherwise ask normally. A preselected choice without a user response is not approval. An affirmative reply such as “可以” is enough; no fixed wording is required. Reuse consent for the remaining rounds of this same request on the same goal, including three separately submitted scans. Ordinary `connect` reports `goal_pause_authorization_required` before creating waits/jobs; after actual consent, use `connect --wait-goal` and the native-confirmation protocol below. A plugin/tool reminder is not user consent and must not be sent as a substitute user message. While awaiting the answer, do not repeat the question, poll, submit work or mark the goal blocked/complete. Without an active goal, no pause question is needed.
+An active Desktop goal must pause through its native tool while Relay work runs. If pause permission is missing, ask once: **“允许本次后台任务暂停目标，完成后继续吗？”** A natural affirmative answer is enough for the remaining rounds of this same request and goal. No fixed authorization phrase or per-round question is required. The user has verified locally that automatic pause works after approval; the new direct MCP confirmation form and full multi-round restoration workflow have separate acceptance boundaries.
 
-The independently authorized native-pause protocol remains experimental source behavior, advertised separately as `goal_wait_host_pause=true`; `automatic_goal_pause_supported=false` is not contradicted by that flag. Published 0.1.10 and the original sealed 0.1.11 candidate lack the protocol. Source schema v10 needs a matching runtime/profile and completed old runs before migration. Earlier storage-only waits cannot authorize continuation. An existing active turn/child Agent is not interrupted merely by changing goal status; goal generation/CAS also remains unavailable.
+This is experimental source behavior, using schema v11 and 25 MCP tools. Published 0.1.10 and the original sealed 0.1.11 candidate do not contain it. Finish existing runs before migration, preserve the original profile and backups, and never downgrade a used database. `goal_wait_host_pause=true` advertises the supported handoff; `automatic_goal_pause_supported=false` means consent-free pause is unavailable.
 
-## Current runtime workflow
+## 1. Prepare this request
 
-The cached skill is a stable entry that reads the selected launcher's `instructions` at each submission, result notification and maintenance request. This command prints the current embedded workflow, policy and content digest without starting a daemon or job. A cached native launcher already points to the original managed installation; retain that installation. The online entry follows its pinned npm runtime and normal release update route.
-
-A one-time migration from historical full cached skills/MCP binaries still needs the known cache refreshed and the host connection reloaded. Thereafter native managed connections verify the installation receipt and follow updated runtime bytes, including same-version source updates; they preserve the connection's state profile and notify the host when its tool catalog changes. They reject modified images, downgrade or profile movement and never replay an uncertain call. No cache scanning or deletion occurs. See [updates and migration](updating.md#cache-inspection-and-refresh).
-
-## Submit from the actual chat
-
-Use the selected launcher's ordinary terminal binding command:
+Use the selected plugin launcher's absolute path as `AJR_RELAY`. From the actual chat terminal, run:
 
 ```bash
-"$AJR_RELAY" connect --cwd "<absolute-project>"
+"$AJR_RELAY" connect --cwd "<absolute-project>" --request-label "Three separate scans" --job-count 3
 ```
 
-`AJR_RELAY` is the selected native/offline launcher's absolute path. The terminal must supply its actual caller and runtime; shared MCP environment, an external terminal or guessed thread IDs cannot provide that binding. Without an active goal, pass the returned binding unchanged to normal `job_start`/`job_start_batch` and end the submitting turn. Recovery (`connect --recover`) remains separate and does not prepare waiting.
+Without an active goal, use the returned ordinary binding and submit normally. With an active goal and missing permission, the command succeeds with `status=needs_confirmation`, `session_key` and a `consent` record containing `request_id`, `revision`, scope, expiry and remaining job count. There is no submission binding, wait group, workload or goal mutation yet. This is pending user input, not a tool failure or a blocked goal. The actual caller/runtime must come from the host terminal; shared MCP environment, guessed IDs and external terminals cannot identify this chat.
 
-With an active goal and missing consent, expected behavior is one brief question prompted by the tool’s prerequisite response, with no jobs/waits or goal mutation until a direct user reply. An initial prompt already permitting pause skips that question. Do not silently add `--wait-goal` based on a plugin message, silence or automatic continuation; if the user declines, do not submit goal-bound work. Consent cannot extend to a different goal, request or chat and can be revoked.
+Keep the request ID. The job count is 1–16, default 1, and limits newly admitted jobs; retries do not consume another slot. If the initial user request already permits this pause, adding `--wait-goal` records that actual permission and skips the question. The flag is a cooperative assertion, not independent host attestation.
 
-## Independently authorized native-pause compatibility
+## 2. Ask once when needed
 
-After the user permits this goal pause, either in the initial request or through the short confirmation, use:
+Call `job_goal_consent` with the returned `request_id`, `session_key` and `expected_revision`. Default `decision=ask` uses the negotiated MCP form capability. Legacy protocols use `elicitation/create`; protocol 2026-07-28 uses `input_required` with opaque request state and matching input responses. The form must return an accepted response containing `allow_goal_pause=true`. A default selection, empty response, cancellation or silence never approves work.
+
+When the host does not advertise form support, the tool returns `ask_user_now=true`. The Agent asks the displayed short question through an available host question tool that permits permission requests, or ordinary chat. After the actual reply, record `decision=allow` or `decline` with the question's returned revision. Later calls while the question is pending return `question_pending`, without asking again. Plugin/tool-generated messages cannot provide user permission; a plain Agent assertion cannot override a pending native form.
+
+While the answer is pending, end the turn without submitting work, polling, repeating the question or marking the goal blocked/complete. Declining leaves work unsubmitted. A prepared request expires after ten minutes; a claimed question has five minutes. A closed request is not automatically reopened or re-prompted.
+
+## 3. Submit each requested round
+
+After approval, reconnect from the same chat terminal and workspace:
 
 ```bash
-"$AJR_RELAY" connect --wait-goal --cwd "<absolute-project>"
+"$AJR_RELAY" connect --cwd "<absolute-project>" --request-id "<returned-request-id>"
 ```
 
-The flag selects this protocol; it does not itself supply model authority. Expected: `automatic_goal_pause_supported=false`, `goal_state_verified=true`, `goal_wait.status=prepared`, and an opaque binding with `session_key`, `cwd` and `goal_wait_id`. Preparation does not pause or submit work and expires after five minutes. An unused repeated preparation retains its ID/expiry; paused, completed and absent goals are not adopted.
+Expected: `status=ready`, approved consent and a binding with `session_key`, `cwd` and `goal_wait_id`. Pass the full binding unchanged to `job_start` or `job_start_batch`, using stable idempotency keys. Preparation itself neither submits nor pauses. Accepted jobs consume consent slots atomically with admission; identical accepted-key retries retain their IDs and consume no extra slot.
 
-Pass the full binding unchanged to ordinary MCP start/batch with stable idempotency keys. Admission returns original Job/Run IDs, `goal_wait.status=sealed`, `host_pause_required=true` and a revision. Finish other work, invoke this chat's native `update_goal(status="paused")` under its actual authority, then confirm successful acknowledgement:
+For three separate calls, submit one job, complete its handoff, inspect its result, then reconnect with the same request ID for the next round. Do not replace separate calls with a batch. Put a requested post-command delay inside that round's background workload, so the delay also occurs while the goal waits. Keep updates brief and give one final summary when all rounds finish.
+
+Consent is pinned to the original registration/endpoint, goal/controller, workspace, request label and job limit. Approval lasts at most 24 hours for admission; it is not a workload timeout. A new request never silently adopts an earlier approval. Reconnection with an exhausted or closed request returns its state and original Job/Run/wait IDs for recovery, without replaying work. `decision=revoke` with the observed revision closes future admission/control/notification while admitted commands keep running; it does not resume an already paused goal.
+
+## 4. Acknowledge the native pause
+
+Admission returns `sealed`, `host_pause_required=true`, original Job/Run/wait IDs and a revision. Finish other Agent work, invoke this chat's native `update_goal(status="paused")` under the actual user permission, then confirm its successful acknowledgement:
 
 ```json
 {"goal_wait_id":"<returned-wait-id>","confirm_paused":true,"expected_revision":2}
 ```
 
-Replace `2` with the admission revision. Only `waiting` acknowledges the complete handoff; end the turn immediately. A separate CLI/app-server storage write cannot update Desktop's cached goal state. If authority/native pause is unavailable, rejected or uncertain, cancel the wait and report the limitation once; admitted jobs stay admitted. Missing confirmation expires with `attention` after five minutes without changing host state. Retry a lost confirmation with the original revision and uncertain admission with the original binding/keys/specs; never repeat native pause or workload to recover an acknowledgement.
+Replace `2` with the admission revision. Only `waiting` acknowledges the complete handoff; end the turn immediately. A separate CLI/app-server storage write cannot update Desktop's cached state. If native pause is unavailable, rejected or uncertain, cancel the wait with its observed revision and report the failure once; admitted jobs keep running. Do not ask for renewed permission or replay an uncertain host mutation.
 
-CLI `start`, `start-spec` and `start-batch --wake --wait-goal` select the same independently authorized protocol, followed by native pause and `goal-wait <id> --confirm-paused --expected-revision <revision>`. Goal batches freeze accepted membership, reject new members on retry and release one combined completion after every original run finishes. Local monitor/stop rules remain available, while running `notify_agent` rules are rejected. Stopping a member cancels group continuation, not other jobs. Revision-fenced wait cancellation stops future controls/notification while workloads keep running; transmitted effects cannot be recalled. Host replacement/recovery never moves a pinned group.
+Missing pause acknowledgement expires with `attention` after five minutes. Retry a lost Relay confirmation using its original revision, or an uncertain admission using the original binding/keys/specs. Never repeat native pause or execution to recover a lost acknowledgement. Direct `connect --wait-goal` without scoped options and `start --wake --wait-goal` retain the single-handoff compatibility path; scoped requests are preferred for multiple rounds.
 
-## Completion and failure boundaries
+## Completion and recovery
 
 | Situation | Relay behavior |
 |---|---|
-| All original members finish | Verify original paused goal and binding, restore status only, then send one merged result notification |
-| Goal deleted or observably replaced/resumed/paused again | Suppress continuation; never recreate a goal or modify a detected replacement |
-| Daemon lost before sealing | Recover committed members only, then await native pause confirmation; never replay execution |
-| Daemon lost after acknowledged pause | Resume durable observation of the original member runs |
-| Restore acknowledgement lost or crash during mutation | Close with `attention`; never replay the mutation |
-| Original endpoint temporarily unavailable | Bounded retry with original IDs and expiry |
-| Binding/controller/profile/image replaced | Require manual goal handling; never move the wait implicitly |
-| Backup restored | Fence all restored controls and grouped notifications; do not touch the old host goal |
+| All original members finish | Verify the original paused goal/binding, restore status only and send one merged result notification |
+| Goal deleted or observably replaced/changed | Invalidate consent and suppress continuation; never recreate a goal |
+| Daemon lost before sealing | Recover committed members only, then await native acknowledgement; never replay execution |
+| Daemon lost after acknowledged pause | Continue durable observation of the original runs |
+| Restore acknowledgement lost or mutation interrupted | Close with `attention`; never replay the mutation |
+| Original endpoint temporarily unavailable | Bounded retry with original delivery IDs and expiry |
+| Binding/controller/profile/image replaced | Require manual goal handling; never move consent or waits |
+| Backup restored | Invalidate consent and fence all restored controls/grouped notifications |
 
-Running groups have no separate deadline beyond member timeouts. Completion must resolve within 24 hours of the last member outcome. Delivery IDs, expiry and attempt history survive retries; host acceptance does not prove Agent execution or exactly-once effects. A restored goal can remain active after notification failure, requiring manual inspection. Membership/audits survive archival, with a 10,000-group quota and at most 32 displayed audits; there is no destructive history purge.
+Wait cancellation and manual member stops close future continuation, without stopping other members. Batches freeze accepted membership; rejected/uncommitted items cannot join on retry. Local monitoring/stopping remains available, while `notify_agent` rules are rejected for goal-wait members. Running groups have no separate deadline beyond member timeouts; completion must resolve within 24 hours of the last member outcome. Consent and wait history each have a 10,000-record quota. Delivery expiry/attempts and membership/audits survive retries and archival. Host acceptance is not proof of Agent execution.
 
-## Host compatibility
+## Runtime updates and host limits
 
-The controller uses the documented [Codex goal RPCs](https://learn.chatgpt.com/docs/app-server#manage-a-thread-goal) through the actual Desktop-selected executable/profile for bounded reads and restoration, without loading a thread or invoking a model. Restoration omits objectives/budgets, preserving accounting and preventing deleted-goal recreation. Pause acknowledgement is a cooperative assertion from the originating Agent, checked against the paused snapshot; it is not independent host attestation.
+Cached skills and MCP initialization provide stable entries to the selected launcher's `instructions`. It reads the current embedded workflow/policy/digest without starting a daemon or job. Managed native MCP connections verify their recorded installation and forward later calls to updated bytes, including same-version source updates, while preserving the profile and negotiated input protocol. One initial migration/reconnection is required for historical full-skill/pre-forwarder entries; subsequent verified native updates need no cache-content rewrite. No cache scanning occurs. See [updates](updating.md#cache-inspection-and-refresh).
 
-The documented [goal lifecycle authority](https://developers.openai.com/cookbook/examples/codex/using_goals_in_codex) reserves pause/resume/clear for user/system control. User live testing confirms explicit native pause and rejects automatic no-extra-wording delegation; a simulated authorized pause cannot qualify model permission. Second-resolution timestamps and missing generation/CAS also leave identical same-second changes, final accounting and verification/write/send races. Windows controller behavior and long-duration savings remain unqualified. See [current evidence](live-e2e.md#goal-waiting-protocol-proof).
+The controller uses documented [Codex goal RPCs](https://learn.chatgpt.com/docs/app-server#manage-a-thread-goal) through the actual Desktop-selected executable/profile for bounded reads and restoration. It does not load threads, invoke a model, change objectives/budgets or recreate deleted goals. Agent/terminal consent assertions and native-pause confirmation remain cooperative; they are not independent host attestation.
+
+The host has no goal generation/CAS and uses second-resolution timestamps, leaving identical same-second replacement and final verification/write/send races. Existing turns/child Agents are not interrupted by a goal status change. Windows schema v11/controller behavior, direct MCP form UI, full real-model three-round restoration and long-duration savings remain unqualified. See [current evidence](live-e2e.md#goal-waiting-protocol-proof).

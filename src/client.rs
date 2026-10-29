@@ -65,7 +65,7 @@ pub async fn start_daemon(config: &Config) -> Result<Value> {
 }
 
 /// Start only our own per-state daemon, without a system service or PATH edit.
-async fn ensure_daemon(config: &Config) -> Result<()> {
+pub(crate) async fn ensure_daemon(config: &Config) -> Result<()> {
     ensure_daemon_from(
         config,
         &crate::platform::self_image()?,
@@ -208,10 +208,10 @@ fn upgrade_preflight(config: &Config) -> Result<()> {
         rusqlite::Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
     let version: i64 = db.pragma_query_value(None, "user_version", |r| r.get(0))?;
     ensure!(
-        version <= 10,
+        version <= 11,
         "database schema is newer than this executable; downgrade refused"
     );
-    if version > 0 && version < 10 {
+    if version > 0 && version < 11 {
         let running: bool = db.query_row(
             "SELECT EXISTS(SELECT 1 FROM jobs WHERE status IN ('launching','running'))",
             [],
@@ -274,7 +274,108 @@ pub async fn connect_context(
     cwd: PathBuf,
     recovery: Option<(bool, i64, u32)>,
 ) -> Result<Value> {
-    connect_context_inner(config, cwd, recovery, false).await
+    if recovery.is_some() {
+        return connect_context_inner(config, cwd, recovery, false).await;
+    }
+    connect_request(config, cwd, crate::goal_consent::Options::default()).await
+}
+
+pub async fn connect_request(
+    config: &Config,
+    cwd: PathBuf,
+    options: crate::goal_consent::Options,
+) -> Result<Value> {
+    let cwd = crate::platform::normalized_path(cwd.canonicalize()?);
+    ensure!(
+        cwd.is_absolute() && cwd.is_dir(),
+        "binding cwd must be a directory"
+    );
+    let goal =
+        crate::goal_control::Controller::detect(desktop_registration()?.0.session_id).await?;
+    let mut value = connect(config).await?;
+    value["goal_wait_policy"] = json!("required_for_active_desktop_goal");
+    value["automatic_goal_pause_supported"] = json!(false);
+    let key = value["session"]["key"]
+        .as_str()
+        .context("missing caller key")?
+        .to_string();
+    let Some((controller, expected)) = goal else {
+        if ipc::call(config, Request::Doctor).await?["scoped_goal_consent"] == true {
+            crate::storage::Store::new(config.clone())
+                .clear_obsolete_goal_consents(key.clone())
+                .await?;
+        }
+        if let Some(request_id) = options.request_id {
+            value["consent"] = ipc::call(
+                config,
+                Request::GoalConsent {
+                    request_id,
+                    session_key: key,
+                    decision: Default::default(),
+                    expected_revision: None,
+                },
+            )
+            .await?;
+            value["status"] = json!("goal_not_active");
+            value["next_step"] = json!(
+                "This original request has no active goal. Do not submit remaining rounds or move its consent to another goal."
+            );
+        } else {
+            value["binding"] = json!({"session_key":key,"cwd":cwd});
+            value["status"] = json!("ready");
+        }
+        value["goal_state_verified"] =
+            json!(std::env::var_os("CODEX_APP_RUNTIME_CLI_PATH").is_some());
+        return Ok(value);
+    };
+    ensure!(
+        ipc::call(config, Request::Doctor).await?["scoped_goal_consent"] == true,
+        "selected daemon lacks scoped goal consent; update the same profile before submission"
+    );
+    let consent = ipc::call(
+        config,
+        Request::PrepareGoalConsent {
+            session_key: key.clone(),
+            controller: controller.clone(),
+            expected: serde_json::to_value(&expected)?,
+            cwd: cwd.clone(),
+            request_id: options.request_id,
+            label: options.label,
+            job_limit: options.job_limit,
+            user_authorized: options.user_authorized,
+        },
+    )
+    .await?;
+    value["status"] = json!(if consent["status"] == "approved" {
+        "ready"
+    } else if matches!(consent["status"].as_str(), Some("pending" | "asking")) {
+        "needs_confirmation"
+    } else {
+        "request_closed"
+    });
+    value["next_step"] = consent["next_step"].clone();
+    value["goal_state_verified"] = json!(true);
+    if consent["status"] == "approved" {
+        let wait = ipc::call(
+            config,
+            Request::PrepareGoalWait {
+                session_key: key.clone(),
+                controller,
+                expected: serde_json::to_value(expected)?,
+                consent_id: Some(
+                    consent["request_id"]
+                        .as_str()
+                        .context("missing consent ID")?
+                        .into(),
+                ),
+            },
+        )
+        .await?;
+        value["binding"] = json!({"session_key":key,"cwd":cwd,"goal_wait_id":wait["goal_wait_id"]});
+        value["goal_wait"] = wait;
+    }
+    value["consent"] = consent;
+    Ok(value)
 }
 
 async fn connect_context_inner(
@@ -294,9 +395,7 @@ async fn connect_context_inner(
             "invalid recovery pagination"
         );
     }
-    // A plugin instruction cannot grant the model authority to pause a goal.
-    // Check before creating registrations/waits, rather than admitting jobs
-    // into a handoff the host's native tool contract forbids completing.
+    // Compatibility binding requires actual permission; ordinary requests use scoped preflight.
     let goal = if recovery.is_none() {
         crate::goal_control::Controller::detect(desktop_registration()?.0.session_id).await?
     } else {
@@ -304,7 +403,7 @@ async fn connect_context_inner(
     };
     ensure!(
         goal.is_none() || native_pause_requested,
-        "goal_pause_authorization_required: no job or goal wait was created. If the user already allowed pausing this goal for this background request, use connect --wait-goal. Otherwise ask one short question in the user's language: may the goal pause during background work and continue afterward? An affirmative user reply covers the remaining rounds of this same request and goal; do not require exact wording or ask again each round. A plugin/tool-generated message is not user consent. Do not mark the goal blocked, submit work, poll or repeat the question while the reply is pending"
+        "native goal handoff requires actual user permission; ordinary requests use scoped preflight"
     );
     let mut value = connect(config).await?;
     value["binding"] = json!({"session_key":value["session"]["key"],"cwd":cwd});
@@ -336,6 +435,7 @@ async fn connect_context_inner(
                     .into(),
                 controller,
                 expected: serde_json::to_value(expected)?,
+                consent_id: None,
             },
         )
         .await?;
@@ -349,6 +449,17 @@ async fn connect_context_inner(
     Ok(value)
 }
 pub fn brief_binding(value: Value) -> Value {
+    if value.get("consent").is_some() {
+        let mut result = json!({"status":value["status"],"session_key":value["session"]["key"],"consent":value["consent"],"goal_state_verified":value["goal_state_verified"],"next_step":value["next_step"]});
+        if let Some(binding) = value.get("binding") {
+            result["binding"] = binding.clone();
+        }
+        if let Some(wait) = value.get("goal_wait") {
+            result["goal_wait"] = wait.clone();
+            result["next_step"] = wait["next_step"].clone();
+        }
+        return result;
+    }
     let mut brief = json!({"session_key":value["session"]["key"],"binding":value["binding"],"goal_wait_policy":value["goal_wait_policy"],"automatic_goal_pause_supported":value["automatic_goal_pause_supported"],"goal_state_verified":value["goal_state_verified"],"probe":"passed","can_resume":true,"can_confirm_resume":false,
         "next_step":"Call job_start with binding and spec.command; end this turn after submission."});
     if let Some(wait) = value.get("goal_wait") {
@@ -461,6 +572,9 @@ pub async fn start(config: &Config, mut spec: StartSpec, wake_me: bool) -> Resul
         } else {
             connect_registration(config, registration, fingerprint).await?
         };
+        if session["status"] == "needs_confirmation" || session["status"] == "request_closed" {
+            return Ok(brief_binding(session));
+        }
         spec.session = Some(
             session["session"]["key"]
                 .as_str()
@@ -518,6 +632,9 @@ pub async fn start_batch(
         } else {
             connect_registration(config, registration, fingerprint).await?
         };
+        if session["status"] == "needs_confirmation" || session["status"] == "request_closed" {
+            return Ok(brief_binding(session));
+        }
         let key = session["session"]["key"]
             .as_str()
             .context("daemon returned no session key")?;
@@ -618,7 +735,9 @@ pub async fn call(config: &Config, request: Request) -> Result<Value> {
         Request::StartBatch { specs } => start_batch(config, specs, false).await,
         request @ (Request::StartGoal { .. }
         | Request::StartGoalBatch { .. }
-        | Request::PrepareGoalWait { .. }) => {
+        | Request::PrepareGoalWait { .. }
+        | Request::PrepareGoalConsent { .. }
+        | Request::GoalConsent { .. }) => {
             ensure_daemon(config).await?;
             ensure!(
                 ipc::call(config, Request::Doctor).await?["goal_wait_host_pause"] == true,

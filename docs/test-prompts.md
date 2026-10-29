@@ -49,8 +49,11 @@ Run the current project's full build and test suite. Use AgentJobRelay to manage
 ## Pause a goal while a scan runs
 
 ```text
-Use AgentJobRelay to scan my home directory in the background. Pause the current goal while waiting, then restore it and report the results when the scan finishes.
+Use AgentJobRelay to scan my home directory in the background three times, with one separate call per round. Wait 15 seconds after each scan finishes.
 ```
+
+Expected in an active goal: ask once if pause permission is missing; a natural affirmative answer covers all three rounds. Each round pauses through the native host tool, includes its delay in background work and restores before the next submission.
+
 
 ## Observe a workflow
 

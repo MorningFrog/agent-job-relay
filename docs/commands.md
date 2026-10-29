@@ -71,7 +71,8 @@ Rules use one condition: `--no-output <duration>`, `--elapsed <duration>` or `--
 | Command after the prefix | Purpose |
 |---|---|
 | `connect [--cwd <absolute-project>]` | Obtain a fresh current-chat/workspace binding from its actual terminal |
-| `connect --wait-goal` (experimental source) | Prepare an explicitly authorized active-goal wait from the actual Desktop terminal; pass the returned binding to start/batch |
+| `connect [--request-label <label>] [--job-count <1..16>] [--request-id <id>]` (experimental source) | Prepare a scoped request or reconnect after approval; pending input creates no wait/job |
+| `connect --wait-goal` (experimental source) | Assert actual user pause permission; scoped options record it for this request, otherwise use single-handoff compatibility |
 | `instructions` | Read the current embedded plugin workflow, policy and digest without starting a daemon/job; cached skills load this at every invocation |
 | `goal-wait <id> [--confirm-paused\|--cancel] [--expected-revision <n>]` (experimental source) | Inspect, confirm this chat's successful native goal pause, or cancel future control/notification; mutations require the observed revision and jobs keep running; [handoff and interruption](goal-waiting.md) |
 | `connect --recover [--apply]` | Preview/apply same-chat recovery; `--after`, `--limit`, `--full` |
@@ -87,7 +88,7 @@ Rules use one condition: `--no-output <duration>`, `--elapsed <duration>` or `--
 | `target add <job-id> <session-key> [--replay]` | Advanced exact-session target, optionally replaying eligible existing terminal events |
 | `target rebind <target-id> <session-key>` | Advanced explicit target replacement |
 
-Source `connect` and wake-enabled `start`, `start-spec` and `start-batch` detect active Desktop goals and return `goal_pause_authorization_required` before wait/job creation when the explicit native-pause route was not selected. The Agent checks actual conversation consent, asks one short question if needed, then uses `--wait-goal`; the flag asserts consent but cannot create it. The reply covers this request’s remaining rounds on the same goal. Doctor/instructions report `goal_pause_authorization_policy=ask_once_per_request`, separately from consent-free `automatic_goal_pause_supported=false` and supported `goal_wait_host_pause=true`. See [goal waiting](goal-waiting.md).
+Source `connect` and wake-enabled start routes return successful `needs_confirmation` before wait/job creation for an active goal without recorded permission. Use `job_goal_consent` for one native form or Agent-question fallback, then `connect --request-id <id>` for this request’s remaining rounds. `--request-label` and `--job-count` fix the scope; `--wait-goal` may assert actual permission already present in the initial user request. Doctor separates scoped consent/native handoff from unavailable consent-free pause. See [goal waiting](goal-waiting.md).
 
 Recovery preserves original expiry and excludes accepted/expired events and live claims. Explicit delivery retry has different TTL semantics. Never guess caller IDs or reuse a binding from another chat. See [MCP submission](usage.md#submit-through-mcp-with-same-chat-notification), [recovery](usage.md#recover-notifications) and [protocol](protocol.md) before advanced target operations.
 
@@ -143,7 +144,7 @@ Policy flags are `--hot-jobs`, `--archive-after-days`, `--hot-log-mib`, `--backu
 | Purpose | Tools |
 |---|---|
 | Execution and results | `job_start`, `job_status`, `job_list`, `job_logs`, `job_events`, `job_wait`, `job_stop` |
-| Experimental source | `job_start_batch`, `job_goal_wait`; goal-aware start/batch uses the `connect --wait-goal` binding |
+| Experimental source | `job_start_batch`, `job_goal_consent`, `job_goal_wait`; scoped consent and native handoff use the actual terminal binding |
 | Inspection and rules | `job_inspect`, `job_monitor` |
 | Health | `job_doctor` |
 | Session binding and inbox | `job_connect_session`, `job_register_session`, `job_sessions`, `job_probe_session`, `job_recover_session`, `job_invalidate_session`, `job_inbox` |

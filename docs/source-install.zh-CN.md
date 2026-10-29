@@ -89,7 +89,7 @@ AJR_INSTALL_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/agent-job-relay"
 "$AJR_INSTALL_ROOT/relay" doctor --client plugin --check-mcp
 ```
 
-预期：已安装版本与构建版本一致，受管理的 marketplace 条目匹配，`stdio_self_check.status` 为 `passed`，当前源码工具数为 24（已发布 0.1.10／原封存 0.1.11 为 22）。首次提交任务前 daemon 处于 stopped 状态是正常的。该检查不提交任务，只验证本机 stdio 工具发现，不能证明 ChatGPT Desktop 已连接或聊天能自动续接。
+预期：已安装版本与构建版本一致，受管理的 marketplace 条目匹配，`stdio_self_check.status` 为 `passed`，当前源码工具数为 25（已发布 0.1.10／原封存 0.1.11 为 22）。首次提交任务前 daemon 处于 stopped 状态是正常的。该检查不提交任务，只验证本机 stdio 工具发现，不能证明 ChatGPT Desktop 已连接或聊天能自动续接。
 
 请保留 AJR_INSTALL_ROOT：缓存中的 MCP 和终端启动器都使用该目录中的原生程序。仅重新编译 `target/release` 不会更新已安装运行时。任务状态和历史另行保存；[状态配置](installation.md#custom-directories-and-stored-data)、[更新](updating.md)和[卸载](uninstalling.md)分别见对应指南。
 
@@ -123,7 +123,7 @@ codex plugin add agent-job-relay@agent-job-relay-local
 
 选中本地插件后，先发送：
 
-> 调用 AgentJobRelay 的 MCP job_doctor，验证 managed_mcp_updates_supported=true、goal_wait_policy=required_for_active_desktop_goal，并确认发现的 job_goal_wait 接口包含 confirm_paused。不提交任务。如果没有它的 MCP 工具，请报告并停止，不使用 CLI 降级，也不使用其他插件的工具。
+> 调用 AgentJobRelay 的 MCP job_doctor，验证 managed_mcp_updates_supported=true、goal_wait_policy=required_for_active_desktop_goal，scoped_goal_consent=true，并确认发现 job_goal_consent 及包含 confirm_paused 的 job_goal_wait。不提交任务。如果没有它的 MCP 工具，请报告并停止，不使用 CLI 降级，也不使用其他插件的工具。
 
 预期：实际调用 AgentJobRelay 的 `job_doctor` 成功且具备上述能力。排查同版本更新时，可将其 `runtime_workflow_sha256` 与所选启动器 `instructions` 返回的摘要比较；仅版本号相同不足以证明更新生效。共享 MCP 中，`binding_mode=explicit current-terminal binding` 和 `desktop_context.available=false` 是正常结果；真正提交任务时才会通过终端绑定当前聊天。
 
@@ -133,7 +133,7 @@ codex plugin add agent-job-relay@agent-job-relay-local
 
 预期：Agent 从当前聊天终端取得新的绑定，通过 AgentJobRelay MCP `job_start` 提交，报告任务 ID，然后结束本轮。实际观察到同聊天续接是另一项验收结果，宿主接收本身不能证明续接成功。验证边界见[人工验收](manual-testing.md)。
 
-Desktop 原生 goal 暂停需要用户授权。当前流程仅在缺少授权时简短询问一次，肯定答复覆盖同一请求、同一 goal 的后续轮次，再执行原生确认／恢复流程；插件消息不能代替授权。见 [goal 等待](goal-waiting.md)。
+Desktop goal 暂停仅在缺少许可时询问一次。源码预检查返回 `needs_confirmation`，`job_goal_consent` 使用原生确认或一次 Agent 提问，再通过 `connect --request-id` 在后续轮次沿用批准范围。用户已确认本地批准后自动暂停有效；新的直接 MCP 确认界面和完整多轮恢复分别验收。见 [goal 等待](goal-waiting.md)。
 
 ## 能看到技能，但没有 job_start 时
 

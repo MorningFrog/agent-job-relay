@@ -98,7 +98,7 @@ impl Store {
                     if readonly {
                         ensure!(
                             db.pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0))?
-                                == 10,
+                                == 11,
                             "offline schema is unsupported; use the matching runtime"
                         );
                     }
@@ -141,7 +141,7 @@ impl Store {
             .await?;
         // Older daemons allocate rowids independently of the archive high-water
         // marks. Never migrate underneath one or an older in-flight runner.
-        let _migration_lock = if version < 10 {
+        let _migration_lock = if version < 11 {
             Some(
                 self.config
                     .daemon_lock()
@@ -153,10 +153,10 @@ impl Store {
         self.call(|db| {
             let v: i64 = db.pragma_query_value(None, "user_version", |r| r.get(0))?;
             ensure!(
-                v <= 10,
+                v <= 11,
                 "database schema is newer than this executable; downgrade refused"
             );
-            if v > 0 && v < 10 {
+            if v > 0 && v < 11 {
                 let running:bool=db.query_row("SELECT EXISTS(SELECT 1 FROM jobs WHERE status IN ('launching','running'))",[],|r|r.get(0))?;
                 ensure!(!running,"finish active runs with the previous runtime before upgrading the data schema");
             }
@@ -209,6 +209,7 @@ impl Store {
                 ensure!(!db.prepare("PRAGMA foreign_key_check")?.exists([])?, "migration foreign-key check failed");
             }
             if v < 10 { db.execute_batch(include_str!("goal_wait.sql"))?; }
+            if v < 11 { db.execute_batch(include_str!("goal_consent.sql"))?; }
             Ok(())
         })
         .await
@@ -234,6 +235,7 @@ impl Store {
                 ensure!(hash==crate::archive::hash(raw.as_bytes()),"idempotency key already used with a different specification");crate::goal_wait::check_retry(&tx, &id, goal_wait.as_deref())?;return read_job(&tx,&id);
             }
             if goal_wait.is_none() && let Some(session)=&spec.session {
+                ensure!(!tx.query_row("SELECT EXISTS(SELECT 1 FROM goal_consents WHERE session_key=? AND status IN ('pending','asking','approved') AND expires>? AND used<job_limit)",params![session,now()],|r|r.get::<_,bool>(0))?,"this request needs its approved goal-wait binding; ordinary submission cannot bypass pause consent");
                 ensure!(!tx.query_row("SELECT EXISTS(SELECT 1 FROM goal_waits WHERE session_key=? AND status IN ('prepared','sealed','pausing','waiting','resuming') AND expires>?)",params![session,now()],|r|r.get::<_,bool>(0))?,"this chat has a required goal handoff; preserve its goal_wait_id binding instead of submitting ordinary work");
             }
             let active:i64=tx.query_row("SELECT count(*) FROM jobs WHERE status IN ('queued','launching','running')",[],|r|r.get(0))?;

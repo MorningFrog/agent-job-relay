@@ -267,7 +267,7 @@ async fn retained_mcp_and_cached_launcher_follow_verified_same_version_runtime_u
         .await
         .unwrap()
     }
-    rpc(&mut input,&mut output,&mut notices,1,"initialize",json!({"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"retained-client","version":"1"}})).await;
+    rpc(&mut input,&mut output,&mut notices,1,"initialize",json!({"protocolVersion":"2025-06-18","capabilities":{"elicitation":{"form":{}}},"clientInfo":{"name":"retained-client","version":"1"}})).await;
     input
         .write_all(b"{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}\n")
         .await
@@ -281,7 +281,7 @@ async fn retained_mcp_and_cached_launcher_follow_verified_same_version_runtime_u
         json!({}),
     )
     .await;
-    assert_eq!(first["result"]["tools"].as_array().unwrap().len(), 24);
+    assert_eq!(first["result"]["tools"].as_array().unwrap().len(), 25);
     let native = format!("payload/{}", agent_job_relay::platform::NATIVE_FILE);
     // ELF permits trailing bytes: this is a real native runtime with a distinct
     // image identity and the same version, exercising the actual MCP worker.
@@ -291,7 +291,9 @@ async fn retained_mcp_and_cached_launcher_follow_verified_same_version_runtime_u
     let mut manifest = read_json(&r.bundle.join("bundle.json"));
     manifest["files"][&native] = json!(hash(&new_image));
     write_json(&r.bundle.join("bundle.json"), &manifest);
-    ok(r.update(&[], true));
+    let first_update = ok(r.update(&[], true));
+    let retained_image = PathBuf::from(first_update["install"]["backup"].as_str().unwrap())
+        .join(agent_job_relay::platform::NATIVE_FILE);
     let current = rpc(
         &mut input,
         &mut output,
@@ -376,6 +378,76 @@ async fn retained_mcp_and_cached_launcher_follow_verified_same_version_runtime_u
         notices, 2,
         "one catalog notification per runtime revision avoids reload loops"
     );
+    // Human input may take longer than the active 90-second RPC budget.
+    input.write_all(format!("{}\n",json!({"jsonrpc":"2.0","id":40,"method":"tools/call","params":{"name":"job_goal_consent","arguments":{"question":true}}})).as_bytes()).await.unwrap();
+    input.flush().await.unwrap();
+    let question: Value = serde_json::from_str(
+        &tokio::time::timeout(Duration::from_secs(8), output.next_line())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(question["method"], "elicitation/create", "{question}");
+    tokio::time::sleep(Duration::from_secs(91)).await;
+    input.write_all(format!("{}\n",json!({"jsonrpc":"2.0","id":question["id"],"result":{"action":"accept","content":{"allow":true}}})).as_bytes()).await.unwrap();
+    input.flush().await.unwrap();
+    let answered: Value = serde_json::from_str(
+        &tokio::time::timeout(Duration::from_secs(8), output.next_line())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(answered["id"], 40, "{answered}");
+    let answered: Value =
+        serde_json::from_str(answered["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    assert_eq!(answered["answer"]["content"]["allow"], true);
+    assert_eq!(answered["client_protocol"], "2025-06-18");
+    assert_eq!(answered["state"], s(&r.state));
+    assert_eq!(
+        r.database_hash(),
+        history,
+        "confirmation transport must not mutate job history"
+    );
+    // New-protocol input requests must survive stateless worker replacement.
+    let mut modern = tokio::process::Command::from(r.command(&retained_image))
+        .args(["--state-dir", s(&r.state), "mcp", "--shared-host"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .kill_on_drop(true)
+        .spawn()
+        .unwrap();
+    let mut modern_in = modern.stdin.take().unwrap();
+    let mut modern_out = BufReader::new(modern.stdout.take().unwrap()).lines();
+    let mut modern_notices = 0;
+    let meta = json!({"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"retained-modern-fixture","version":"1"},"io.modelcontextprotocol/clientCapabilities":{"elicitation":{"form":{}}}});
+    let scope_args = json!({"mrtr":true,"binding":{"session_key":"original-caller","cwd":r.dir.path()},"idempotency_key":"same-scope"});
+    let first = rpc(
+        &mut modern_in,
+        &mut modern_out,
+        &mut modern_notices,
+        50,
+        "tools/call",
+        json!({"_meta":meta,"name":"job_goal_consent","arguments":scope_args}),
+    )
+    .await;
+    assert_eq!(first["result"]["resultType"], "input_required", "{first}");
+    let accepted=rpc(&mut modern_in,&mut modern_out,&mut modern_notices,51,"tools/call",json!({"_meta":meta,"name":"job_goal_consent","arguments":scope_args,"requestState":first["result"]["requestState"],"inputResponses":{"scope":{"action":"accept","content":{"allow":true}}}})).await;
+    let accepted: Value =
+        serde_json::from_str(accepted["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    assert_eq!(accepted["arguments"], scope_args);
+    assert_eq!(
+        accepted["inputResponses"]["scope"]["content"]["allow"],
+        true
+    );
+    modern_in.shutdown().await.unwrap();
+    drop(modern_in);
+    assert!(modern.wait().await.unwrap().success());
+    assert_eq!(r.database_hash(), history);
     let entered = r.dir.path().join("entered-forwarded-call");
     let release = r.dir.path().join("release-forwarded-call");
     r.change_bundle_skill();

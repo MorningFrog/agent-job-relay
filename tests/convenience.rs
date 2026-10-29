@@ -616,12 +616,7 @@ async fn installed_shared_mcp_uses_each_terminal_binding_and_never_its_inherited
         serde_json::from_str(&text).unwrap()
     }
     let init = rpc(&mut input, &mut lines, json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"installed-plugin-test","version":"1"}}})).await;
-    assert!(
-        init["result"]["instructions"]
-            .as_str()
-            .unwrap()
-            .contains("shared MCP process")
-    );
+    assert_eq!(init["result"]["serverInfo"]["name"], "agent-job-relay");
     input
         .write_all(b"{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}\n")
         .await
