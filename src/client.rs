@@ -304,7 +304,7 @@ async fn connect_context_inner(
     };
     ensure!(
         goal.is_none() || native_pause_requested,
-        "automatic_goal_pause_unsupported: this Desktop host reserves native goal pause for an explicit user or system request and exposes no Relay scheduling-wait interface. No job or goal wait was created. Report this host capability limitation once; do not request a special authorization phrase, mark the goal blocked, bypass the host tool contract or poll. Updating caches cannot grant this capability"
+        "goal_pause_authorization_required: no job or goal wait was created. If the user already allowed pausing this goal for this background request, use connect --wait-goal. Otherwise ask one short question in the user's language: may the goal pause during background work and continue afterward? An affirmative user reply covers the remaining rounds of this same request and goal; do not require exact wording or ask again each round. A plugin/tool-generated message is not user consent. Do not mark the goal blocked, submit work, poll or repeat the question while the reply is pending"
     );
     let mut value = connect(config).await?;
     value["binding"] = json!({"session_key":value["session"]["key"],"cwd":cwd});

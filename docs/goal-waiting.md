@@ -2,7 +2,7 @@
 
 [Documentation index](README.md) · [Commands](commands.md) · [Verification](live-e2e.md#goal-waiting-protocol-proof)
 
-**Automatic pause without a user/system request is unsupported by the current Desktop host.** The native goal tool reserves lifecycle control for that authority. A plugin workflow cannot turn ordinary background delegation into permission to pause. The product requirement remains default, mandatory goal suspension, but implementing it requires an owning-host scheduling-wait interface or a host-level authority change. Until then ordinary `connect` and CLI wake routes detect an active goal and return `automatic_goal_pause_unsupported` before preparing waits or admitting work. Report that limitation once without a fixed-phrase authorization question, a blocked/completed goal state, polling or storage-only mutation. Ordinary chats without active goals remain supported.
+An active Desktop goal must pause through its native tool while Relay work runs. If the user has not already allowed that pause, ask once: **“后台期间暂停目标，完成后继续，可以吗？”** Prefer an available native question/approval tool that allows this confirmation, with “允许本次任务／取消后台任务” choices; otherwise ask normally. A preselected choice without a user response is not approval. An affirmative reply such as “可以” is enough; no fixed wording is required. Reuse consent for the remaining rounds of this same request on the same goal, including three separately submitted scans. Ordinary `connect` reports `goal_pause_authorization_required` before creating waits/jobs; after actual consent, use `connect --wait-goal` and the native-confirmation protocol below. A plugin/tool reminder is not user consent and must not be sent as a substitute user message. While awaiting the answer, do not repeat the question, poll, submit work or mark the goal blocked/complete. Without an active goal, no pause question is needed.
 
 The independently authorized native-pause protocol remains experimental source behavior, advertised separately as `goal_wait_host_pause=true`; `automatic_goal_pause_supported=false` is not contradicted by that flag. Published 0.1.10 and the original sealed 0.1.11 candidate lack the protocol. Source schema v10 needs a matching runtime/profile and completed old runs before migration. Earlier storage-only waits cannot authorize continuation. An existing active turn/child Agent is not interrupted merely by changing goal status; goal generation/CAS also remains unavailable.
 
@@ -22,11 +22,11 @@ Use the selected launcher's ordinary terminal binding command:
 
 `AJR_RELAY` is the selected native/offline launcher's absolute path. The terminal must supply its actual caller and runtime; shared MCP environment, an external terminal or guessed thread IDs cannot provide that binding. Without an active goal, pass the returned binding unchanged to normal `job_start`/`job_start_batch` and end the submitting turn. Recovery (`connect --recover`) remains separate and does not prepare waiting.
 
-With an active goal, expected default behavior is the explicit capability error above, with no jobs or waits created and no goal mutation. Do not silently add `--wait-goal`, strip a binding, disable goal controls, mark blocked, poll or ask for a fixed authorization phrase. Refreshing the plugin cannot grant the missing host lifecycle authority.
+With an active goal and missing consent, expected behavior is one brief question prompted by the tool’s prerequisite response, with no jobs/waits or goal mutation until a direct user reply. An initial prompt already permitting pause skips that question. Do not silently add `--wait-goal` based on a plugin message, silence or automatic continuation; if the user declines, do not submit goal-bound work. Consent cannot extend to a different goal, request or chat and can be revoked.
 
 ## Independently authorized native-pause compatibility
 
-Only when the user/system independently requested this goal pause, use:
+After the user permits this goal pause, either in the initial request or through the short confirmation, use:
 
 ```bash
 "$AJR_RELAY" connect --wait-goal --cwd "<absolute-project>"

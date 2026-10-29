@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Request one brief goal-pause confirmation when user consent is absent; accept a natural affirmative reply for later rounds of the same request/goal. Report `goal_pause_authorization_required` before admission and advertise `goal_pause_authorization_policy=ask_once_per_request`. Plugin messages cannot supply user consent.
+
 ### Fixed
 
 - Report `automatic_goal_pause_supported=false` and refuse unsupported automatic active-goal delegation before wait/job creation. Remove the claim that plugin instructions authorize native pause; do not demand a fixed authorization phrase or mark a goal blocked. Retain the independently authorized `--wait-goal` protocol and inactive-goal/ordinary background behavior.

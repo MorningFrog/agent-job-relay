@@ -220,7 +220,7 @@ ws.addEventListener('close', () => process.exit());
             try:
                 await relay("connect", "--cwd", work, caller=thread)
             except RuntimeError as error:
-                if "automatic_goal_pause_unsupported" not in str(error):
+                if "goal_pause_authorization_required" not in str(error):
                     raise
             else:
                 raise RuntimeError("ordinary active-goal delegation falsely advertised automatic pause")
@@ -283,7 +283,7 @@ ws.addEventListener('close', () => process.exit());
             final = await relay("status", job)
             if final["status"] != "completed" or final["exit_code"] != 0:
                 raise RuntimeError("member did not complete successfully")
-            report["cases"].append({"scenario": scenario, "job_id": job, "run_id": final["run_id"], "thread_id": thread, "goal_wait": await relay("goal-wait", wait_id), "waiting_seconds": args.wait_seconds, "active_checks_observed_before_pause": True, "owning_runtime_pause_event_observed": True, "submitting_agent": "simulated explicitly authorized native-goal action on owning connection", "automatic_goal_pause_supported": False, "ordinary_active_goal_submission_refused": True, "model_requests_during_wait": 0, "result_turn_observed": scenario == "resume"})
+            report["cases"].append({"scenario": scenario, "job_id": job, "run_id": final["run_id"], "thread_id": thread, "goal_wait": await relay("goal-wait", wait_id), "waiting_seconds": args.wait_seconds, "active_checks_observed_before_pause": True, "owning_runtime_pause_event_observed": True, "submitting_agent": "simulated explicitly authorized native-goal action on owning connection", "automatic_goal_pause_supported": False, "ordinary_active_goal_authorization_required": True, "model_requests_during_wait": 0, "result_turn_observed": scenario == "resume"})
             if goal is not None:
                 await rpc.call("thread/goal/clear", {"threadId": thread, "origin": "user"})
             print(json.dumps({"scenario": scenario, "result": "passed"}), flush=True)

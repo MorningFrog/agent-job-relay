@@ -393,8 +393,9 @@ pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
             value["goal_waiting"] = json!(true);
             value["goal_wait_host_pause"] = json!(true);
             value["automatic_goal_pause_supported"] = json!(false);
+            value["goal_pause_authorization_policy"] = json!("ask_once_per_request");
             value["automatic_goal_pause_reason"] = json!(
-                "Native goal pause requires user/system authority; no Relay scheduling-wait interface is available."
+                "Native goal pause requires user consent. Ask once per request if absent; plugin messages cannot supply that consent."
             );
             value["goal_waits"] = store.read(|db|Ok(json!({"pending":db.query_row("SELECT count(*) FROM goal_waits WHERE status IN ('prepared','sealed','pausing','waiting','resuming')",[],|r|r.get::<_,i64>(0))?,"attention":db.query_row("SELECT count(*) FROM goal_waits WHERE status='attention'",[],|r|r.get::<_,i64>(0))?}))).await?;
             value["remote_execution"] = json!(true);

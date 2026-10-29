@@ -16,7 +16,7 @@ Run long commands independently of the Agent connection, keep their results, and
 | Capability | Use it for |
 |---|---|
 | Durable background jobs | Builds, tests, training and data processing that continue after a chat or viewer closes |
-| Goal waiting (experimental source) | An independently authorized native pause can be confirmed and restored after jobs finish; deleted goals stay deleted. **Automatic pause without a user/system request is unsupported by the current host** and is refused before submission. [Usage and host limits](docs/goal-waiting.md) |
+| Goal waiting (experimental source) | Ask once, briefly, for permission to pause an active goal during background work and continue afterward; reuse consent across the same request’s rounds. Native confirmation, restoration and deletion safeguards remain. [Usage and host limits](docs/goal-waiting.md) |
 | Batch submission (unreleased source) | Submit 1–16 independent commands through CLI/MCP, with per-item results and safe retries; [usage](docs/usage.md#submit-independent-commands-together-unreleased-source) |
 | Remote tasks (unreleased source) | Launch/attach on a pinned remote runtime and observe a fixed GitHub Actions attempt; [setup and boundaries](docs/remote-execution.md) |
 | Mid-run feedback (unreleased source) | Structured stages/steps/metrics, repeated milestone or threshold alerts and a bounded checker recipe; [usage and limits](docs/progress.md) |

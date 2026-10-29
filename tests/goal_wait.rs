@@ -798,7 +798,7 @@ async fn backup_restore_fences_waits_and_retains_member_audits_without_host_cont
 }
 
 #[tokio::test]
-async fn automatic_goal_pause_is_refused_before_connect_single_or_batch_admission() {
+async fn missing_goal_pause_authority_stops_before_connect_single_or_batch_admission() {
     for route in ["connect", "single", "batch"] {
         let f = Fixture::new().await;
         let mut daemon = f.daemon().await;
@@ -817,7 +817,7 @@ async fn automatic_goal_pause_is_refused_before_connect_single_or_batch_admissio
         let response = command.output().await.unwrap();
         assert!(!response.status.success());
         assert!(
-            String::from_utf8_lossy(&response.stderr).contains("automatic_goal_pause_unsupported")
+            String::from_utf8_lossy(&response.stderr).contains("goal_pause_authorization_required")
         );
         assert!(f.mutations().is_empty());
         assert_eq!(f.controller.read().await.unwrap(), Some(f.goal.clone()));
@@ -1343,6 +1343,10 @@ async fn shared_mcp_uses_only_the_bound_wait_and_exposes_revision_fenced_cancell
         serde_json::from_str(report["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
     assert_eq!(report["goal_wait_host_pause"], true);
     assert_eq!(report["automatic_goal_pause_supported"], false);
+    assert_eq!(
+        report["goal_pause_authorization_policy"],
+        "ask_once_per_request"
+    );
     let binding = json!({"session_key":f.session,"cwd":f.dir.path(),"goal_wait_id":wait});
     let bad=rpc(&mut input,&mut lines,3,"tools/call",json!({"name":"job_start","arguments":{"binding":binding,"spec":{"command":{"kind":"exec","program":"true","args":[]},"session":id()}}})).await;
     assert_eq!(bad["result"]["isError"], true);

@@ -102,7 +102,7 @@ For a CLI submission from the current ChatGPT Desktop chat's terminal, use `star
 
 ## Wait with an active goal (experimental source)
 
-Ordinary terminal `connect` detects active Desktop goals but refuses automatic handoff with `automatic_goal_pause_unsupported` before preparing waits or admitting jobs. The native goal tool requires an explicit user/system pause request; plugin instructions cannot override it. Report the host limitation once, without a special authorization phrase, blocked/completed goal state, polling or a storage-only pause. An independently authorized pause may use `connect --wait-goal`, ordinary bound start/batch, native pause and revision-fenced confirmation; only `waiting` acknowledges that explicit handshake. See [goal waiting](goal-waiting.md) for the existing restoration/deletion/cancellation protocol and host API requirements.
+Ordinary terminal `connect` detects an active Desktop goal and returns `goal_pause_authorization_required` before wait/job creation. If consent for this goal/request is absent, ask once whether to pause during background work and continue afterward. A natural affirmative reply suffices for all remaining rounds of that same request; do not require exact words or ask each round. Use `connect --wait-goal` when consent exists, then native pause and revision-fenced confirmation. Plugin/tool messages cannot supply user consent. While awaiting a reply, do not submit, poll, repeat the question or mark blocked. See [goal waiting](goal-waiting.md).
 
 ## Recover notifications
 

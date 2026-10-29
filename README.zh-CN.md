@@ -16,7 +16,7 @@ Tasks run in the background. Agents pick up when needed.
 | 能力 | 用途 |
 |---|---|
 | 持久后台任务 | 运行构建、测试、训练和数据处理，关闭聊天或查看器后仍可继续 |
-| Goal 等待（实验性源码） | 已获用户／系统授权的原生暂停可向 Relay 确认，任务完成后恢复，删除的 goal 不会重建。**当前宿主不支持无需用户／系统请求的自动暂停**，会在提交前拒绝。见[用法及宿主限制](docs/goal-waiting.md) |
+| Goal 等待（实验性源码） | 活动 goal 在后台运行期间暂停、完成后继续；缺少授权时简短询问一次，同一请求的后续轮次沿用答复。保留原生确认、恢复和删除保护。见[用法及宿主限制](docs/goal-waiting.md) |
 | 批量提交（未发布源码） | 通过 CLI/MCP 一次提交 1–16 个独立命令，逐项返回结果并支持安全重试，见[使用指南](docs/usage.md#submit-independent-commands-together-unreleased-source) |
 | 远程任务（未发布源码） | 在固定身份的远端运行时启动或附加命令，或观察固定的 GitHub Actions attempt；见[配置与边界](docs/remote-execution.md) |
 | 中间反馈（未发布源码） | 结构化阶段、步数和指标，重复里程碑或阈值告警，以及有界 checker 示例；见[用法与边界](docs/progress.md) |
