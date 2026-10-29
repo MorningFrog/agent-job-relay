@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- Adapt the Web task manager to narrow chat panels with expandable icon navigation, inline details directly below the selected task and matching disclosure arrows. Preserve adjacent columns on wide screens.
+- Open accepted background tasks automatically beside their originating chat through the host Agent workflow, using exact-profile job URLs before yielding or native goal handoff. Keep batch viewing to one panel and report unavailable embedded browsers without altering accepted work.
+
 ## [0.1.12] - 2026-10-29
 
 ### Added

@@ -22,11 +22,11 @@ The user verified v0.1.8 with official Desktop 26.1021.3705.0, bundled Codex 0.1
 
 ## Distribution
 
-npm/GitHub 0.1.11 is public and both npm latest tags resolve to it. Full read-only public-byte/install checker evidence remains at 0.1.10. Version 0.1.12 is prepared in source; its new native/package CI, sealed candidate and OIDC preview remain required. Published 0.1.11 candidate 40715744368 cannot qualify the changed payload. No official-directory submission occurred. See [release preparation](release.md).
+npm/GitHub 0.1.11 is public and both npm latest tags resolve to it. Full read-only public-byte/install checker evidence remains at 0.1.10. Version 0.1.12 has a reviewed sealed candidate and passing CI/OIDC preview; subsequent source Web UI/workflow changes are excluded from those bytes and require a new version/candidate. See the current [implementation status](IMPLEMENTATION_STATUS.md). No official-directory submission occurred. See [release preparation](release.md).
 
 ## Runtime monitoring boundary
 
-The bundled React/Vite panel has isolated Linux browser verification for live inspection, rules/application/alert evidence, progress and manual stopping. Windows native HTTP/package checks cover applicable monitor/Web/maintenance behavior. No current real Desktop/OpenCode mid-run continuation or Windows browser interaction is claimed. Completion continuation does not qualify mid-run alerts.
+The current bundled React/Vite panel has isolated Linux embedded-browser verification at 360–1440 CSS-pixel widths: compact hover/toggle navigation, details immediately after the selected row, wide adjacent columns, no horizontal overflow, search/collapse, output/events, rules/application and observed stopping. Exact-job URLs and the updated runtime workflow are verified; automatic opening by a newly updated real host Agent remains separate acceptance. Existing progress/alert evidence remains applicable. Windows native HTTP/package checks cover applicable monitor/Web/maintenance behavior. No current real Desktop/OpenCode mid-run continuation or Windows browser interaction is claimed. Completion continuation does not qualify mid-run alerts.
 
 ## Goal waiting protocol proof
 

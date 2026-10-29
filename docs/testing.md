@@ -29,6 +29,12 @@ The four configuration-integration fixtures run serially within their test binar
 
 Plugin update/repair preservation checks checkpoint committed WAL pages before comparing complete database hashes. Terminal state and daemon-lock release can precede the last pooled connection closing; checkpoint timing alone must not look like data loss. The interrupted-repair fixture seeds committed WAL history before taking its snapshot and verifies that record remains readable after repair, alongside the existing backup/journal and database-preservation assertions.
 
+## Embedded panel layout
+
+Build the frontend before the native executable, then open `ui <job-id> --no-open` through the host’s embedded-browser tool using an isolated repository-local test profile. Check 360, 480, 761, 1250 and 1440 CSS-pixel widths. Expected: no page-wide horizontal overflow; an icon rail through 1250 pixels; mouse hover and keyboard/touch toggling reveal navigation without moving the main content; Escape/backdrop closes an explicitly opened menu. Selecting a task inserts exactly one detail panel directly after that row, switches cleanly to another row and collapses on a second activation. Wider windows place the same task detail beside the list. Search/filter must not leave a hidden selected task’s detail below the narrow list; direct task URLs must retain the requested job even outside the latest history page.
+
+Verify stdout/stderr, rules/form controls, events and a stop request against fixture jobs. Expected: the rule’s saved/applied state and eventual terminal status remain visible in the inline panel. Reset temporary viewport overrides afterward. The runtime workflow must open one exact-profile task panel after accepted submission and before yielding/native goal pause; pending/rejected submissions do not open one, and UI failures do not resubmit or cancel accepted execution. Runtime-instruction inspection plus a manually exercised host-panel tool establishes the opening mechanism, while a newly updated real host Agent following it remains separate acceptance.
+
 ## Behavior coverage
 
 | Suite | Coverage | Boundary |
