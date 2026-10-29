@@ -21,7 +21,9 @@ See [daily usage](usage.md) and the [command reference](commands.md). Commands e
 
 ## Inspection, rules and task manager
 
-CLI, MCP and the bundled Web UI share the same inspection, monitor and stop behavior. Inspect task state and recent output; add persistent literal-output, silence or elapsed-time rules that record an alert or stop the workload. Rules run in the runner without an Agent, browser or daemon remaining connected. A rule fires once per revision and can be rearmed explicitly.
+CLI, MCP and the bundled Web UI share the same inspection, monitor and stop behavior. Inspect task state and recent output; add persistent literal-output, silence or elapsed-time rules that record an alert or stop the workload. Rules run in the runner without an Agent, browser or daemon remaining connected. These literal/time rules fire once per revision and can be rearmed explicitly.
+
+Unreleased source adds structured stage/step/metric progress, bounded repeated feedback rules with cooldown/notification budgets, terminal milestone summaries and a pinned-run reference checker. The same CLI/MCP/Web paths expose this evidence. See [mid-run feedback](progress.md) and copyable test prompts in [English](test-prompts.md) or [简体中文](test-prompts.zh-CN.md); native Windows and real mid-run Agent continuation remain separate qualifications.
 
 The task manager is embedded in the native executable and enabled by default with the daemon. It uses authenticated loopback access and opens only on request. See [runtime monitoring](runtime-monitoring.md) for rule limits, application evidence, credentials and offline snapshots.
 
