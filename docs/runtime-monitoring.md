@@ -2,7 +2,7 @@
 
 [Documentation index](README.md) · [Command reference](commands.md) · [Daily usage](usage.md)
 
-These interfaces require runtime 0.1.10 or newer, including the running daemon. Commands below use the published online ChatGPT/Codex entry, `agent-job-relay codex`; substitute `agent-job-relay opencode` for OpenCode or the installed `relay` / `relay.cmd` for a native offline profile. The source 0.1.11 npm package also provides `ajr`, awaiting publication. Keep the same profile between plugin, terminal and browser; see [command entry points](commands.md#choose-the-entry-point-and-profile). `doctor` reports explicit argv for the selected profile.
+These interfaces require runtime 0.1.10 or newer, including the running daemon. Commands below use the published online ChatGPT/Codex entry, `agent-job-relay codex`; substitute `agent-job-relay opencode` for OpenCode or the installed `relay` / `relay.cmd` for a native offline profile. npm 0.1.11 and newer also provide `ajr`. Keep the same profile between plugin, terminal and browser; see [command entry points](commands.md#choose-the-entry-point-and-profile). `doctor` reports explicit argv for the selected profile.
 
 ## Open the bundled Web UI
 
@@ -53,7 +53,7 @@ Each rule revision triggers once; enable it again to rearm. At most 16 rule iden
 
 `--notify-agent` additionally enqueues an alert for the job's explicit bound session. It does not create or guess a binding; unsupported hosts remain inbox-only. Terminal results supersede unresolved alert deliveries and fence expired claims while retaining live per-chat exclusion, IDs, expiry and attempt history. Accepted or in-flight host effects cannot be recalled. Host acceptance remains separate from observed Agent execution. New running-alert continuation needs its own real-host qualification.
 
-## Mid-run feedback (unreleased source)
+## Mid-run feedback (0.1.12 source)
 
 Use existing flushed marker rules for a few known milestones, or source-only `AJR_PROGRESS` frames and repeated stage/step/metric conditions. CLI `--progress`, MCP and Web share the same durable rules and snapshots; terminal events retain bounded milestone summaries. The [progress guide](progress.md) includes the versioned protocol, limits, source capability check and pinned-run reference checker. Ordinary literal/time rules keep the once-per-revision policy. Real mid-run Agent execution remains a separate qualification.
 

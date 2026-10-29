@@ -29,7 +29,7 @@ Use job_inspect for a bounded task snapshot and job_monitor for explicitly reque
 
 The same installed launcher supports inspect, monitor, stop --grace/--wait and ui. ui opens the bundled React task manager for that exact profile without creating a caller binding; --no-open prints its access URL. Web UI is enabled by default while the daemon runs. Never put access URLs into host notifications. Closing a browser/viewer does not stop jobs. Distinguish a saved rule from its applied revision and a cancellation request from an observed terminal outcome. New monitoring requires the matching 0.1.10 runtime; do not silently restart an old shared daemon or change profiles.
 
-## Mid-run feedback (unreleased source)
+## Mid-run feedback (0.1.12 source)
 
 For a few known checkpoints, install an initial contains rule with a distinctive marker, then have the explicitly submitted workload/checker print and flush it. For structured progress, first require Doctor structured_progress_v1=true and a catalog advertising the progress condition; published/sealed runtimes lack it. Do not change profiles or silently update/restart a daemon to obtain it. Include initial spec.monitor_rules with condition {"kind":"progress","source":"training","trigger":{"kind":"stage"},"cooldown_seconds":60}; use action=alert and notify_agent=true only when the user requests feedback and the job has this actual caller's binding. Metric triggers use {"kind":"metric","name":"loss","comparison":"le","value":0.1}; step triggers use {"kind":"step","every":100}.
 

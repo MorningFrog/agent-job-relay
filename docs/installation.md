@@ -27,7 +27,7 @@ agent-job-relay codex ui
 
 Expected: npm registers `agent-job-relay`; `ui` opens the embedded task manager for the online ChatGPT/Codex profile. No shell function, source checkout or separate frontend installation is needed. Node.js 20+/npm and npm's global command directory must be on PATH; use a user-writable npm installation. In PowerShell, use `npm.cmd` and `agent-job-relay.cmd` if script policy blocks npm's `.ps1` wrappers.
 
-The 0.1.11 source also registers `ajr`, awaiting publication. With that version installed:
+npm 0.1.11 and newer also register `ajr`. With that version installed:
 
 ```bash
 ajr list

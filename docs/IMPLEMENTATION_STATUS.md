@@ -8,10 +8,10 @@ Current handoff: **2026-10-29 (Asia/Shanghai)**. Read [PROJECT_SPEC.md](../PROJE
 
 | Baseline | Current state |
 |---|---|
-| Published | npm/GitHub **0.1.10**, with successful manual OIDC publication, provenance and public-byte/install checking |
-| Source | Cargo **0.1.11** plus Unreleased daemon upgrades, scoped goal consent/waiting, current-runtime forwarding, batch, external tasks and progress |
-| Storage/interfaces | One Rust package/executable, SQLite **v11**, IPC **v1**, **25 MCP tools**; published/sealed baseline uses v9 and 22 tools |
-| Release candidate | Original **40715744368** is sealed and unpublished; it excludes current Unreleased behavior. A release containing these changes requires a new version and qualified candidate |
+| Published | npm/GitHub **0.1.11**, confirmed through public release and both npm latest metadata; full public-byte/install checker evidence remains at 0.1.10 |
+| Source | Cargo **0.1.12** with daemon upgrades, scoped goal consent/waiting, current-runtime forwarding, batch, external tasks and progress |
+| Storage/interfaces | One Rust package/executable, SQLite **v11**, IPC **v1**, **25 MCP tools**; published 0.1.11 baseline uses v9 and 22 tools |
+| Release candidate | 0.1.12 requires full revision CI and a new qualified manual candidate; published 0.1.11 candidate **40715744368** remains immutable and excluded from this release |
 | Native platforms | Linux and Windows verified for the applicable baselines below; macOS native execution/IPC unimplemented |
 | Actual Desktop evidence | Completion continuation on Linux/Windows v0.1.8; user-confirmed current Linux goal pause after approval |
 
@@ -42,7 +42,7 @@ Submissions/register operations start the selected daemon on demand. Doctor/stat
 | Linux delivery gates | React/Vite build, fmt, all-target Clippy, 158 Linux tests (0 failed/ignored) and release build pass |
 | Scoped consent/handoff | Isolated Linux storage/CLI/MCP fixtures cover one approval for three separate actual submissions, no duplicate-budget use, caller/goal/workspace/revision fences, native accept/cancel, one-question fallback, expiry/deletion/revocation/restore and unchanged native-pause/recovery behavior |
 | Retained managed MCP | Actual native image replacement and fixture workers cover same-version updates, original history/caller/profile, writer exclusion, catalog notices, lost-ACK non-replay, a 91-second human wait and modern input-required forwarding; real host form UI/Windows remain separate |
-| Local installed update | Final installed bytes match the verified build, with schema v11/25 tools and original profile/history/backups preserved. A runtime-only update leaves the cached skill unchanged; its launcher and the retained actual host MCP both report the new workflow digest. This host advertises no native form support, so uses the Agent-question fallback; newly added tool discovery still requires host catalog refresh/verification |
+| Local installed update | The earlier installed source snapshot (versioned 0.1.11) matches its verified build, with schema v11/25 tools and original profile/history/backups preserved. A runtime-only update leaves the cached skill unchanged; its launcher and the retained actual host MCP both report the new workflow digest. This host advertises no native form support, so uses the Agent-question fallback; newly added tool discovery still requires host catalog refresh/verification |
 | Codex loader | Actual Codex plugin loader discovers 25 current-source tools without daemon/workload creation |
 | Codex goal integration | Actual bundled Codex plus simulated submitting Agent/endpoint/model proves owner pause notification, zero model-request growth during confirmed pause and resume/deleted/replaced behavior; it does not qualify real-model dialogue/UI |
 | User goal acceptance | User confirms local goal mode pauses automatically after approval. Direct MCP form UI and complete three-round real-host restoration remain separate acceptance |
@@ -57,6 +57,6 @@ Use [testing](testing.md) for reproduction/coverage. Fake-host, injected expiry 
 
 ## Release and support boundaries
 
-Original 0.1.11 [native/package CI](https://github.com/MorningFrog/agent-job-relay/actions/runs/40715676443), [Prepare Release](https://github.com/MorningFrog/agent-job-relay/actions/runs/40715744368) and [OIDC preview](https://github.com/MorningFrog/agent-job-relay/actions/runs/40718116781) passed; publication/checking were skipped. Preserve its exact sealed bytes. Current behavior cannot use its documentation-only recovery exception. The sealed Linux candidate requires glibc 2.34; local source binaries require the build machine's compatible libc. Hashes alone do not authenticate a publisher. See [release handoff](release.md#current-release-handoff).
+Version 0.1.12 has dated release notes and synchronized Cargo/npm/plugin pins. Its revision CI and new Release All dry-run remain required before publication. The published 0.1.11 candidate 40715744368 remains immutable and cannot qualify the changed payload. Packaging targets Linux glibc 2.34; local source binaries require the build machine's compatible libc. Hashes alone do not authenticate a publisher. See [release handoff](release.md#current-release-handoff).
 
 Windows goal/schema v11, direct native confirmation UI, full real-model multi-round restoration, changed-host goal handling and long-duration savings need separate qualification. Host goal generation/CAS is unavailable. Actual results completed while Desktop is closed, receiver deduplication and multi-day renewal remain open. Claude account-backed loading, OpenCode real-provider/V2, stronger containment, disk-loss qualification and cross-file install recovery remain in [TODO](TODO.md). No adapter automatically records `confirmed_resumed`.

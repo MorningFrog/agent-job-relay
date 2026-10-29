@@ -1,8 +1,8 @@
-# Remote tasks and workflow observation (unreleased source)
+# Remote tasks and workflow observation (0.1.12 source)
 
 [Documentation index](README.md) · [Commands](commands.md) · [Protocol](protocol.md)
 
-Use the current source build on the observing machine. These command variants are not in published npm 0.1.10 or the sealed 0.1.11 candidate. Remote tasks share the existing eight-active-job quota, CLI/MCP, loopback Web UI, history and initiating-session notifications.
+Use the current source build on the observing machine. These command variants are not in published npm 0.1.11. Remote tasks share the existing eight-active-job quota, CLI/MCP, loopback Web UI, history and initiating-session notifications.
 
 ## Choose an execution owner
 

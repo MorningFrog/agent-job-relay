@@ -10,7 +10,7 @@ This reference groups public commands by purpose: [tasks](#start-and-read-tasks)
 |---|---|---|
 | Published npm runtime, ChatGPT/Codex | `agent-job-relay codex` | Persistent online `codex` profile |
 | Published npm runtime, OpenCode | `agent-job-relay opencode` | Persistent online `opencode` profile |
-| Source 0.1.11 npm package, pending publication | `ajr` or `ajr opencode` | `codex` by default, or `opencode` explicitly |
+| npm 0.1.11 and newer | `ajr` or `ajr opencode` | `codex` by default, or `opencode` explicitly |
 | Native offline installation | `"$AJR_INSTALL_ROOT/relay"` | That installation's recorded profile |
 | Windows native installation | `& "$ajrInstall\relay.cmd"` in PowerShell | That installation's recorded profile |
 | Source/developer binary | `./target/release/agent-job-relay` | Explicit state, environment or XDG/HOME default |
@@ -33,9 +33,9 @@ agent-job-relay codex monitor add --help
 |---|---|
 | `start -- <program> <args...>` | Submit explicit argv; `--cwd`, `--timeout <seconds>`, `--idempotency-key`, `--session` or current-terminal `--wake` |
 | `start --shell '<script>'` | Explicit shell execution; `--interpreter` selects the shell |
-| `start-batch --file <json-file>` (unreleased source) | Submit a JSON array of 1–16 specs with distinct stable keys; `--file -` reads stdin, `--wake` binds every item to the actual caller; [partial-admission/retry semantics](usage.md#submit-independent-commands-together-unreleased-source) |
-| `start-spec --file <json-file>` (unreleased source) | Submit one bounded JSON StartSpec, including remote launch/attach or GitHub Actions observation; `--file -` for stdin and `--wake` for the current caller |
-| `remote init` / `remote serve` (unreleased source) | Explicit remote-profile provisioning / one authenticated stdio request; [setup and protocol](remote-execution.md) |
+| `start-batch --file <json-file>` (0.1.12 source) | Submit a JSON array of 1–16 specs with distinct stable keys; `--file -` reads stdin, `--wake` binds every item to the actual caller; [partial-admission/retry semantics](usage.md#submit-independent-commands-together-0112-source) |
+| `start-spec --file <json-file>` (0.1.12 source) | Submit one bounded JSON StartSpec, including remote launch/attach or GitHub Actions observation; `--file -` for stdin and `--wake` for the current caller |
+| `remote init` / `remote serve` (0.1.12 source) | Explicit remote-profile provisioning / one authenticated stdio request; [setup and protocol](remote-execution.md) |
 | `list` | Bounded history; `--after`, `--limit` |
 | `status <job-id>` | Durable job/run state and exit outcome |
 | `logs <job-id>` | Bounded stdout/stderr; `--stream`, byte `--cursor`, `--limit`, optional human-viewer `--follow` |

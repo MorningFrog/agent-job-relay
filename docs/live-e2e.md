@@ -22,7 +22,7 @@ The user verified v0.1.8 with official Desktop 26.1021.3705.0, bundled Codex 0.1
 
 ## Distribution
 
-npm/GitHub 0.1.10 publication and read-only public-byte/install checking passed, with npm provenance. Original 0.1.11 native/package CI, sealed candidate and OIDC preview passed; it remains unpublished and excludes current Unreleased behavior. Those source changes need a future version and qualified candidate. No official-directory submission occurred. See [release preparation](release.md).
+npm/GitHub 0.1.11 is public and both npm latest tags resolve to it. Full read-only public-byte/install checker evidence remains at 0.1.10. Version 0.1.12 is prepared in source; its new native/package CI, sealed candidate and OIDC preview remain required. Published 0.1.11 candidate 40715744368 cannot qualify the changed payload. No official-directory submission occurred. See [release preparation](release.md).
 
 ## Runtime monitoring boundary
 
@@ -38,6 +38,6 @@ The bundled React/Vite panel has isolated Linux browser verification for live in
 
 Direct MCP form UI, complete three-round real-model restoration, Windows schema v11/controller, changed-host goal recovery and long-duration savings remain unqualified. The host lacks generation/CAS and uses second-resolution timestamps, so identical same-second replacement and final verification/write/send races remain. No real chats/goals are created or changed by these fixtures. See [operation and limits](goal-waiting.md) and [backlog](TODO.md).
 
-## External tasks (unreleased source)
+## External tasks (0.1.12 source)
 
 Linux→Windows native execution through the existing authenticated VM channel under SYSTEM verifies one launch, cwd/env/output, injected transport and local observer/daemon loss, stable local/remote IDs after reconnect and observed exact-run cancellation. This is not SSH-server, ordinary-user, machine-restart or real Desktop acceptance. A completed real GitHub Actions attempt is observed read-only with matching conclusion/URL; status/auth/attempt transitions use fixtures. External-task same-chat continuation and prolonged reliability remain unqualified.

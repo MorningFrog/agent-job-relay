@@ -1,6 +1,6 @@
 # ADR 0016: Pinned external execution and recoverable observation
 
-Status: accepted for unreleased source.
+Status: accepted.
 
 ## Context
 

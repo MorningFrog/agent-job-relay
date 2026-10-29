@@ -4,7 +4,7 @@
 
 Start with [installation](installation.md#terminal-and-web-ui). Examples use the published online ChatGPT/Codex entry, `agent-job-relay codex`. Substitute `agent-job-relay opencode` for OpenCode or your installed `relay` / `relay.cmd` for a native offline installation. Keep the original recorded profile; see [command entry points](commands.md#choose-the-entry-point-and-profile).
 
-The source 0.1.11 npm package adds `ajr`, awaiting publication. For a native offline installation, invoke `"$AJR_INSTALL_ROOT/relay"` after setting AJR_INSTALL_ROOT to its original absolute root, normally `${XDG_DATA_HOME:-$HOME/.local/share}/agent-job-relay` on Linux.
+npm 0.1.11 and newer also register `ajr`. For a native offline installation, invoke `"$AJR_INSTALL_ROOT/relay"` after setting AJR_INSTALL_ROOT to its original absolute root, normally `${XDG_DATA_HOME:-$HOME/.local/share}/agent-job-relay` on Linux.
 
 Windows PowerShell commands and automatic-startup/fallback guidance are in the [Windows guide](windows.md). `daemon start` explicitly starts/reuses the selected runtime without a job/session; `daemon stop` leaves independent runners and history intact.
 
@@ -43,9 +43,9 @@ The first submission starts the daemon. Eight active jobs are allowed. Identical
 
 Lists/events/deliveries return `next_cursor`; use `--after` for the next page. Log cursors are byte offsets. Text reads use lossy UTF-8, while raw bytes are retained up to 16 MiB per stream; further output is drained/discarded. Human viewers can use `logs "$JOB_ID" --follow`; Ctrl-C stops only the viewer. Wait is bounded and may return a `started` event before completion. Agents should not loop on waits/log follow for long jobs.
 
-## Submit independent commands together (unreleased source)
+## Submit independent commands together (0.1.12 source)
 
-The source adds `start-batch --file <json-file>` and MCP `job_start_batch`; published packages and the sealed 0.1.11 candidate do not contain them. Build/use the matching source runtime. An older loaded daemon fails the batch capability preflight; finish active work and explicitly update/stop only that same profile before retrying.
+The source adds `start-batch --file <json-file>` and MCP `job_start_batch`; published 0.1.11 packages do not contain them. Build/use the matching source runtime. An older loaded daemon fails the batch capability preflight; finish active work and explicitly update/stop only that same profile before retrying.
 
 Create a JSON array of 1–16 ordinary start specifications, replacing `<absolute-project>` with each command's actual directory:
 
@@ -147,8 +147,8 @@ For OpenCode V1, use the plugin's actual tool-context binding and MCP tools; Cha
 
 ## Automatic data maintenance
 
-The daemon automatically archives eligible terminal history and creates rolling local backups; no recurring manual command is required. Use `data status` through the selected command prefix for budgets/backup IDs/errors, `data policy` for configuration previews, `data backup` for an additional snapshot and `data check` for explicit integrity validation. Existing history/log queries include cold records. Upgrade/restore instructions and the default policy are in [data maintenance](data-maintenance.md); published 0.1.10/sealed 0.1.11 use schema v9 and experimental scoped goal-waiting source uses v11.
+The daemon automatically archives eligible terminal history and creates rolling local backups; no recurring manual command is required. Use `data status` through the selected command prefix for budgets/backup IDs/errors, `data policy` for configuration previews, `data backup` for an additional snapshot and `data check` for explicit integrity validation. Existing history/log queries include cold records. Upgrade/restore instructions and the default policy are in [data maintenance](data-maintenance.md); published 0.1.11 uses schema v9 and experimental scoped goal-waiting source uses v11.
 
-## Remote commands and workflow attempts (unreleased source)
+## Remote commands and workflow attempts (0.1.12 source)
 
 Use [remote execution](remote-execution.md) for provisioning, JSON launch/attach specifications, SSH/custom transport, observation deadlines and exact-run stopping. The same specs work through `start-spec --file`, MCP `job_start` and batch submission. The host binding supplies the local workspace and initiating session; remote cwd/env/rules stay inside the remote launch spec. No Agent polling loop is needed. A copied remote native executable is sufficient; GitHub Actions observation needs only local `gh`.

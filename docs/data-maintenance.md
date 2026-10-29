@@ -2,7 +2,7 @@
 
 [Documentation index](README.md) · [Command reference](commands.md) · [Updating](updating.md)
 
-Published 0.1.10 and the original sealed 0.1.11 use schema v9; unreleased scoped goal waiting uses v11, and 0.1.9 uses v6. Finish existing workloads before upgrading. Current-source runtime entries hand over an older daemon automatically after migration checks; published versions still need an explicit same-profile stop. Migration refuses an old daemon lock or launching/running jobs; older executables refuse the new schema. Keep the same state profile and never downgrade a used database.
+Published 0.1.11 uses schema v9; 0.1.12 scoped goal waiting uses v11, and 0.1.9 uses v6. Finish existing workloads before upgrading. Current-source runtime entries hand over an older daemon automatically after migration checks; published versions still need an explicit same-profile stop. Migration refuses an old daemon lock or launching/running jobs; older executables refuse the new schema. Keep the same state profile and never downgrade a used database.
 
 Examples use the online ChatGPT/Codex profile. Substitute the appropriate [command prefix](commands.md#choose-the-entry-point-and-profile) for OpenCode or a native offline installation; keep the original profile for all operations.
 

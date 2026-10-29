@@ -1,8 +1,8 @@
-# Mid-run feedback (unreleased source)
+# Mid-run feedback (0.1.12 source)
 
 [Documentation index](README.md) · [Monitoring](runtime-monitoring.md) · [Protocol](protocol.md)
 
-Use a flushed marker for a small set of predefined milestones, or structured progress for changing stages, steps and numeric metrics. An independent Runner detects them while the Agent turn, daemon or browser is closed. Local evidence needs no host. Optional notifications use the job's existing explicit session and ordinary durable Event/Outbox; a host acknowledgement does not establish actual Agent execution. Real mid-run continuation and native Windows qualification of these additions remain pending. Published/sealed 0.1.11 packages do not contain this feature; check Doctor `structured_progress_v1=true` on the selected source runtime before using it, without changing profiles or silently updating an installation.
+Use a flushed marker for a small set of predefined milestones, or structured progress for changing stages, steps and numeric metrics. An independent Runner detects them while the Agent turn, daemon or browser is closed. Local evidence needs no host. Optional notifications use the job's existing explicit session and ordinary durable Event/Outbox; a host acknowledgement does not establish actual Agent execution. Real mid-run continuation and native Windows qualification of these additions remain pending. Published 0.1.11 packages do not contain this feature; check Doctor `structured_progress_v1=true` on the selected source runtime before using it, without changing profiles or silently updating an installation.
 
 For copyable whole-feature test requests, use [English prompts](test-prompts.md) or [中文提示词](test-prompts.zh-CN.md), including bounded Linux/Windows home scans and repeated feedback.
 

@@ -1,25 +1,29 @@
 # Changelog
 
-## [Unreleased]
-
-### Fixed
-
-- Return structured `needs_confirmation` before goal-bound admission; ask once through negotiated MCP input or an Agent host question and persist actual approval for this request’s fixed job budget. Reuse it by request ID across rounds, without exact wording, duplicate prompts, polling or blocked status. Fence caller/goal/workspace/revision changes, expiry, revocation and restore; plugin text never supplies consent. Schema v11 and `job_goal_consent` bring the source catalog to 25 tools.
-- Keep cached native skills as stable `instructions` entries and let retained managed MCP connections verify/follow current installation bytes, including same-version source updates. Preserve profiles/caller arguments/history, fence concurrent replacements, notify catalogs once per image and never replay uncertain requests. Historical full-skill/pre-forwarder entries require one migration/reconnection; online pins remain release-managed. Validate version pins at actual launchers/MCP declarations, leaving the skill as a stable entry. Refresh the host catalog for newly added tools only when needed.
-
-- Require the originating Desktop chat's native goal pause and revision-fenced `confirm_paused` acknowledgement before Relay reports `waiting`. Separate app-server writes only changed persisted state and left Desktop checking its cached active goal. Keep admitted commands, bound unconfirmed handoffs to five minutes, fence legacy waits and advertise `goal_wait_host_pause`; update CLI/MCP/plugin guidance and owning-runtime notification verification. User confirms local pause after approval; direct MCP form UI, full multi-round restoration and Windows acceptance remain separate.
-
-- Replace older per-profile daemons automatically on runtime use, serializing concurrent entries and pinning the original peer before graceful shutdown. Preserve compatible running jobs and reuse newer daemons without downgrade; refuse schema migration while old runs remain active. Applied owned-runtime updates restart an online daemon from the installed new image and retain the profile/history/backups; preview, cache-only maintenance and removal keep their existing boundaries.
+## [0.1.12] - 2026-10-29
 
 ### Added
 
-- Add bounded v1 `AJR_PROGRESS` frames with durable source-sequence deduplication, stage/step/metric rules, repeated feedback cooldowns and job-wide notification limits. Share progress snapshots and revision-fenced rule control across CLI/MCP/Web, retain milestones in terminal events and archive/backup history, and provide a pinned-run reference checker. These source-only additions require new platform/real-host qualification; published/sealed candidates remain unchanged.
+- Add scoped Desktop goal waiting: ask once through negotiated MCP input or an Agent question, persist approval for the request's bounded rounds, and reuse it by request ID. Freeze original Job/Run membership, preserve goal accounting and merge completion notifications. Plugin text never supplies consent.
+- Add CLI `start-batch --file` and MCP `job_start_batch` for 1–16 independent specifications, with distinct stable keys, indexed partial admission and safe unchanged-key retries under the eight-active-job quota. Bind every item to the actual host caller.
+- Add pinned remote launch/attach over bounded authenticated stdio, with durable launch keys, raw-byte cursors, reconnect and exact-run control. Add read-only observation of a fixed GitHub Actions attempt through local `gh`; stopping observation never cancels its target.
+- Add bounded `AJR_PROGRESS` v1 stages/steps/metrics, durable sequence deduplication, repeated feedback cooldowns and notification limits. Share snapshots/rules across CLI/MCP/Web, retain terminal milestones and provide a pinned-run checker recipe.
 
-- Add Desktop goal waiting through `connect --wait-goal`, ordinary bound MCP start/batch, CLI `--wake --wait-goal` and revision-fenced `goal-wait` / `job_goal_wait`. Freeze admitted member runs, require the originating chat's native pause and Relay confirmation, restore through bounded public status-only Codex RPCs on all-member completion and merge notifications. Preserve accounting, original IDs, audits, cancellation and crash/restore fences; never recreate deleted goals or replay ambiguous mutations. Schema v11 requires an idle same-profile migration. User confirms local pause after approval; direct MCP form UI, full multi-round restoration and Windows goal acceptance remain separate. Replacement races cannot be fully fenced without a host generation/CAS interface; published/sealed runtimes remain unchanged.
-- Add pinned remote launch/attach through a bounded stdio adapter contract and optional remote native runtime, preserving origin IDs, durable launch keys, raw-byte cursors and exact-run stopping across disconnect/observer recovery. Add read-only observation of an explicit GitHub Actions run attempt through local `gh`, shared CLI/MCP/inspect/Web evidence and `start-spec --file`. No service, automatic training restart, workflow dispatch or workflow cancellation is added.
-- Keep MCP discovery within existing installed-host/self-check limits by including only schema definitions reachable from each tool; preserve all referenced command variants.
-- Add CLI `start-batch --file` (including bounded stdin), MCP `job_start_batch` and shared IPC v1 admission for 1–16 independent commands. Require distinct stable per-item keys, preserve command/workspace/environment/session/rules and return indexed partial admission results under the existing eight-active-job quota. Identical retries retain original Job/Run IDs after response loss or restart; no scheduler or batch-wide cancellation is added.
-- Bind every batch item to the actual host caller and provide compact/full MCP results, old-daemon capability preflight and host workflow guidance. The sealed 0.1.11 release candidate is unchanged and excludes these additions.
+### Changed
+
+- Replace older same-profile daemons automatically on runtime use and restart idle online daemons after applied owned-runtime updates. Preserve compatible runners/history/backups, serialize starters and fence peer identity, downgrades and migrations with active old runs.
+- Keep cached skills as stable `instructions` entries. Retained managed MCP connections verify/follow current installation bytes, including same-version updates, preserve caller/profile/history and forward catalog/native-input changes without replaying uncertain requests. Historical entries need one checked migration/reconnection.
+- Limit MCP discovery schemas to definitions reachable from each tool while preserving all referenced command variants.
+
+### Fixed
+
+- Require the originating chat's native goal pause and revision-fenced `confirm_paused` acknowledgement before reporting `waiting`; storage-only changes cannot notify Desktop's cached goal state. Preserve admitted commands and expire unconfirmed handoffs after five minutes.
+- Fence scoped consent to the original caller, endpoint, goal/controller, workspace, revision and job budget. Preserve one pending question; expiry, revocation, restore, deletion and uncertain host mutations cannot authorize new work or replay control.
+
+### Compatibility and verification
+
+- SQLite schema v11 and 25 MCP tools replace the published 0.1.11 v9/22-tool baseline. Finish existing jobs before migration, preserve the original profile/backups and never downgrade a used database. Original 0.1.11 candidate bytes remain immutable.
+- User-confirmed Linux approval→pause and automated fixtures do not qualify direct MCP form UI, full real-model multi-round restoration, Windows goal control or real mid-run continuation. Current evidence and support limits are maintained in [implementation status](docs/IMPLEMENTATION_STATUS.md).
 
 ## [0.1.11] - 2026-10-28
 

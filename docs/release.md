@@ -6,11 +6,11 @@
 
 ## Current release handoff
 
-Version **0.1.11** is prepared and remains unpublished; npm latest is **0.1.10**. The [release-revision CI](https://github.com/MorningFrog/agent-job-relay/actions/runs/40715676443) and [Release All dry-run](https://github.com/MorningFrog/agent-job-relay/actions/runs/40715714094) passed. Original candidate **40715744368** ([Prepare Release](https://github.com/MorningFrog/agent-job-relay/actions/runs/40715744368)) contains Linux x86_64/glibc >= 2.34 and Windows x86_64 packages. Both native/package gates and actual host loaders pass, including Windows `ajr.cmd`; OpenCode uses a simulated model. The [actual publisher OIDC preview](https://github.com/MorningFrog/agent-job-relay/actions/runs/40718116781) passed without publication. Downloaded assets, checksums, source/run identity and release notes were reviewed.
+Version **0.1.12** is the current release source, dated **2026-10-29** in CHANGELOG; npm latest is **0.1.11**. Push this reviewed revision, require its full native/package CI, then run **Release All** on main with dry_run=true, candidate_run_id empty, channel=latest and recover_candidate=false. The new Prepare Release run must qualify and seal this version before its actual publisher OIDC preview. Publication requires a separate maintainer decision after candidate review.
 
-Preserve candidate_run_id=40715744368 and its exact original bytes. That candidate excludes current Unreleased batch, external-task and goal-waiting changes. A revision containing runtime/package/CHANGELOG changes cannot reuse the documentation/tooling-only recover_candidate exception; a release containing these changes needs a new version and qualified candidate. To publish the original 0.1.11, use its reviewed source or an eligible documentation/tooling-only descendant, with dry_run checked for preview and maintainer confirmation before publication. Never rebuild or replace the original candidate. Channel is sealed as latest; candidate artifacts expire after 14 days. See [verification and remaining limits](IMPLEMENTATION_STATUS.md).
+Published 0.1.11 uses the original sealed candidate **40715744368**. Preserve its bytes; it excludes 0.1.12's daemon upgrades, scoped goal consent/waiting, current-runtime forwarding, batch, external tasks and progress. Never reuse it for this release or use recover_candidate to admit runtime/package/CHANGELOG changes. Candidate artifacts expire after 14 days. Current evidence and platform/host limits are in [implementation status](IMPLEMENTATION_STATUS.md).
 
-For existing profiles, finish old jobs before a schema upgrade (v9 in published/sealed releases, v11 in current source); keep the recorded profile and backups. Current-source runtime entries hand over older daemons automatically, and applied local updates restart an online daemon after active-job checks. Published versions retain the manual same-profile stop fallback. See [upgrade and restore](data-maintenance.md).
+For existing profiles, finish old jobs before a schema upgrade (v9 in published 0.1.11, v11 in current source); keep the recorded profile and backups. Current-source runtime entries hand over older daemons automatically, and applied local updates restart an online daemon after active-job checks. Published versions retain the manual same-profile stop fallback. See [upgrade and restore](data-maintenance.md).
 
 ## Choose an entry point
 
@@ -54,7 +54,7 @@ Prepare Release, Check Release and Release All are not npm publishing identities
 
 ### Prepare and review
 
-Use a new numeric x.y.z in Cargo.toml. Synchronize the root Cargo.lock entry, both npm manifests, OpenCode's exact runtime dependency, plugin descriptors, both online MCP declarations/launchers and the online skill pin. Add exactly one nonempty CHANGELOG section for that version; keep unfinished work under Unreleased. Validate locally:
+Use a new numeric x.y.z in Cargo.toml. Synchronize the root Cargo.lock entry, both npm manifests, OpenCode's exact runtime dependency, plugin descriptors, both online MCP declarations/launchers and the stable online skill entry. Skills load the selected runtime workflow rather than carrying a version pin. Add exactly one nonempty CHANGELOG section for that version; keep unfinished work under Unreleased. Validate locally:
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 python3 scripts/release_actions.py source

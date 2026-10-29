@@ -2,7 +2,7 @@
 
 [Documentation index](README.md) · [Limitations](limitations.md) · [Data maintenance](data-maintenance.md)
 
-Trusted single local user; this executes arbitrary commands with that user's permissions. It is not a sandbox, permission broker or multi-user service. No telemetry, public TCP execution API or automatic host discovery. Unreleased remote tasks use explicitly configured authenticated stdio transports and pinned remote identities.
+Trusted single local user; this executes arbitrary commands with that user's permissions. It is not a sandbox, permission broker or multi-user service. No telemetry, public TCP execution API or automatic host discovery. The 0.1.12 remote tasks use explicitly configured authenticated stdio transports and pinned remote identities.
 
 ## Local state and process permissions
 
