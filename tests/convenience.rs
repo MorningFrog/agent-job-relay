@@ -759,10 +759,12 @@ async fn installed_recovery_previews_then_rebinds_only_current_chat_after_host_r
             .args([
                 "start",
                 "--wake",
+                "--timeout",
+                "10",
                 "--cwd",
                 r.dir.path().to_str().unwrap(),
                 "--shell",
-                "sleep 0.4; echo recovery",
+                "while [ ! -f release-recovery ]; do sleep 0.02; done; echo recovery",
             ])
             .env("CODEX_THREAD_ID", thread)
             .env("CODEX_APP_TOOLS_PIPE_PATH", &host.endpoint)
@@ -776,15 +778,28 @@ async fn installed_recovery_previews_then_rebinds_only_current_chat_after_host_r
     drop(host);
     std::fs::remove_file(&endpoint).unwrap();
     let mut replacement = Host::new(&r, true);
+    std::fs::write(r.dir.path().join("release-recovery"), "release").unwrap();
     for job in &jobs {
         assert_eq!(r.terminal(job).await.status, "completed");
     }
     let store = Store::new(r.config.clone());
-    let before = store
-        .deliveries(Some(jobs[0].clone()), 0, 20)
-        .await
-        .unwrap()["deliveries"][0]
-        .clone();
+    // Recovery deliberately skips a live delivery claim. Observe its recorded
+    // stale-endpoint outcome before asserting that an explicit retry applies.
+    let before = tokio::time::timeout(Duration::from_secs(8), async {
+        loop {
+            let delivery = store
+                .deliveries(Some(jobs[0].clone()), 0, 20)
+                .await
+                .unwrap()["deliveries"][0]
+                .clone();
+            if delivery["status"] == "retry_wait" && delivery["failure_kind"] == "rebind_required" {
+                break delivery;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
     let recover = |apply: bool| {
         let mut c = tokio::process::Command::new(install.join("relay"));
         c.args(["connect", "--recover", "--full"])
@@ -800,7 +815,7 @@ async fn installed_recovery_previews_then_rebinds_only_current_chat_after_host_r
     assert_eq!(preview["targets"].as_array().unwrap().len(), 1);
     assert_eq!(preview["targets"][0]["job_id"], jobs[0]);
     let result = success(recover(true).output().await.unwrap())["recovery"].clone();
-    assert_eq!(result["targets"][0]["applied"], true);
+    assert_eq!(result["targets"][0]["applied"], true, "{result}");
     let message = replacement.delivery().await;
     assert_eq!(message["params"]["arguments"]["threadId"], "thread-a");
     assert_eq!(message["params"]["callId"], before["id"]);
