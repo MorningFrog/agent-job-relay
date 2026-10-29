@@ -9,18 +9,22 @@ use std::{
     process::Command,
 };
 /// File-instance stamp for bounded executable-digest caching.
-pub fn file_identity(file: &std::fs::File) -> Result<String> {
+pub fn file_identity(file: &std::fs::File) -> Result<super::FileIdentity> {
     let m = file.metadata()?;
-    Ok(format!(
-        "{}:{}:{}:{}:{}:{}:{}",
-        m.dev(),
-        m.ino(),
-        m.len(),
-        m.ctime(),
-        m.ctime_nsec(),
-        m.mtime(),
-        m.mtime_nsec()
-    ))
+    Ok(super::FileIdentity {
+        stamp: format!(
+            "{}:{}:{}:{}:{}:{}:{}",
+            m.dev(),
+            m.ino(),
+            m.len(),
+            m.ctime(),
+            m.ctime_nsec(),
+            m.mtime(),
+            m.mtime_nsec()
+        ),
+        cacheable: super::file_timestamp_cacheable(m.ctime(), m.ctime_nsec())
+            && super::file_timestamp_cacheable(m.mtime(), m.mtime_nsec()),
+    })
 }
 pub fn supervised_helper(_: &mut std::process::Command) {}
 pub fn available_space(path: &Path) -> Result<u64> {

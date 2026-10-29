@@ -2,6 +2,23 @@ use anyhow::{Result, bail};
 #[cfg(not(windows))]
 use std::fs::OpenOptions;
 use std::{fs::File, path::Path};
+pub struct FileIdentity {
+    pub stamp: String,
+    pub cacheable: bool,
+}
+// Filesystems can round several writes into the same timestamp tick. Only
+// metadata older than the ambiguity window may authorize digest reuse.
+#[cfg(any(unix, windows))]
+fn file_timestamp_cacheable(seconds: i64, nanos: i64) -> bool {
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
+    if seconds < 0 || !(0..1_000_000_000).contains(&nanos) {
+        return false;
+    }
+    UNIX_EPOCH
+        .checked_add(Duration::new(seconds as u64, nanos as u32))
+        .and_then(|time| SystemTime::now().duration_since(time).ok())
+        .is_some_and(|age| age >= Duration::from_secs(2))
+}
 #[cfg(unix)]
 mod unix;
 #[cfg(unix)]
@@ -44,7 +61,7 @@ pub fn exit_signal(_: &std::process::ExitStatus) -> Option<i32> {
     None
 }
 #[cfg(not(any(unix, windows)))]
-pub fn file_identity(_: &File) -> Result<String> {
+pub fn file_identity(_: &File) -> Result<FileIdentity> {
     bail!("native file identity unavailable")
 }
 #[cfg(not(any(unix, windows)))]

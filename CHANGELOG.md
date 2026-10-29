@@ -17,6 +17,7 @@
 
 ### Fixed
 
+- Rehash recently changed goal-controller executables instead of reusing ambiguous filesystem timestamps, including same-length rewrites with preserved modification times. Stable image caching still pins file identity and checks for changes during hashing.
 - Require the originating chat's native goal pause and revision-fenced `confirm_paused` acknowledgement before reporting `waiting`; storage-only changes cannot notify Desktop's cached goal state. Preserve admitted commands and expire unconfirmed handoffs after five minutes.
 - Fence scoped consent to the original caller, endpoint, goal/controller, workspace, revision and job budget. Preserve one pending question; expiry, revocation, restore, deletion and uncertain host mutations cannot authorize new work or replay control.
 

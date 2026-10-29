@@ -68,12 +68,14 @@ pub fn executable_hash(path: &std::path::Path) -> Result<String> {
         metadata.is_file() && metadata.len() <= 1024 * 1024 * 1024,
         "invalid Codex executable"
     );
-    let stamp = crate::platform::file_identity(&file)?;
+    let identity = crate::platform::file_identity(&file)?;
+    let stamp = identity.stamp;
     let cache = CACHE.get_or_init(Default::default);
-    if let Some((old, digest)) = cache
-        .lock()
-        .map_err(|_| anyhow::anyhow!("executable digest cache poisoned"))?
-        .get(path)
+    if identity.cacheable
+        && let Some((old, digest)) = cache
+            .lock()
+            .map_err(|_| anyhow::anyhow!("executable digest cache poisoned"))?
+            .get(path)
         && old == &stamp
     {
         return Ok(digest.clone());
@@ -94,13 +96,17 @@ pub fn executable_hash(path: &std::path::Path) -> Result<String> {
         hash.update(&buffer[..n]);
     }
     ensure!(
-        crate::platform::file_identity(&file)? == stamp,
+        crate::platform::file_identity(&file)?.stamp == stamp,
         "Codex executable changed while hashing"
     );
     let digest = format!("{:x}", hash.finalize());
     let mut cache = cache
         .lock()
         .map_err(|_| anyhow::anyhow!("executable digest cache poisoned"))?;
+    if !identity.cacheable {
+        cache.remove(path);
+        return Ok(digest);
+    }
     if cache.len() >= 16 {
         cache.pop_first();
     }
@@ -404,10 +410,17 @@ mod tests {
             host_pause: true,
         };
         controller.validate().unwrap();
+        let modified = std::fs::metadata(&executable).unwrap().modified().unwrap();
         std::fs::write(&executable, "new").unwrap();
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open(&executable)
+            .unwrap()
+            .set_modified(modified)
+            .unwrap();
         assert!(
             controller.validate().is_err(),
-            "an unchanged path/length must not reuse a stale digest"
+            "an unchanged path/length/mtime must not reuse a stale digest"
         );
     }
 }

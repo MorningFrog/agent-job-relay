@@ -95,6 +95,8 @@ The developer-only `scripts/check_desktop_restart.py` provides a bounded FIFO ha
 
 [Host plugins](host-plugins.md) provides dependency/setup commands for `scripts/check_opencode_plugin.py` and `scripts/check_claude_scaffold.py`. OpenCode 1.19.4 uses the actual loader/MCP/session API and agent loop with a local simulated model, checking a completed response and an untouched second session. Claude uses synthetic callers and the actual MCP launcher only; its caller-isolation check requests `full=true` to inspect the stored session and inbox-only capability. Its loader/skill substitution/account/model remain untested. Docker recipes/version matrices and account-backed Claude tests are welcome through [community contributions](../CONTRIBUTING.md).
 
+The goal-controller image regression rewrites an equal-length executable while preserving its modification time and requires validation to reject the changed bytes, including filesystems that round consecutive writes into one timestamp tick.
+
 The portable progress test verifies archival on every build platform, explicit atomic-backup refusal on unsupported platforms, and complete backup/restore evidence on Linux/Windows. macOS compilation and portable tests do not establish native runtime support.
 
 The Python MCP probes allow at most 1 MiB per JSON line so the full tool catalog fits (25 tools in current source, 22 in published 0.1.11); asyncio's default 64-KiB reader limit is too small for the expanded schemas. The Claude scaffold check retains its request deadlines, required-tool checks, explicit caller-isolation assertions and inbox-only boundary.

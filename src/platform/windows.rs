@@ -29,7 +29,7 @@ fn wide(value: impl AsRef<OsStr>) -> Vec<u16> {
     value.as_ref().encode_wide().chain(Some(0)).collect()
 }
 /// Pin volume/file identity and change time, not a pathname or timestamp alone.
-pub fn file_identity(file: &File) -> Result<String> {
+pub fn file_identity(file: &File) -> Result<super::FileIdentity> {
     unsafe {
         let mut info: BY_HANDLE_FILE_INFORMATION = zeroed();
         check(GetFileInformationByHandle(
@@ -43,16 +43,25 @@ pub fn file_identity(file: &File) -> Result<String> {
             (&mut basic as *mut FILE_BASIC_INFO).cast(),
             size_of::<FILE_BASIC_INFO>() as u32,
         ))?;
-        Ok(format!(
-            "{}:{}:{}:{}:{}:{}:{}",
-            info.dwVolumeSerialNumber,
-            info.nFileIndexHigh,
-            info.nFileIndexLow,
-            file.metadata()?.len(),
-            basic.CreationTime,
-            basic.LastWriteTime,
-            basic.ChangeTime
-        ))
+        let changed = basic.LastWriteTime.max(basic.ChangeTime);
+        Ok(super::FileIdentity {
+            stamp: format!(
+                "{}:{}:{}:{}:{}:{}:{}",
+                info.dwVolumeSerialNumber,
+                info.nFileIndexHigh,
+                info.nFileIndexLow,
+                file.metadata()?.len(),
+                basic.CreationTime,
+                basic.LastWriteTime,
+                basic.ChangeTime
+            ),
+            cacheable: basic.LastWriteTime > 0
+                && basic.ChangeTime > 0
+                && super::file_timestamp_cacheable(
+                    changed / 10_000_000 - 11_644_473_600,
+                    (changed % 10_000_000) * 100,
+                ),
+        })
     }
 }
 pub fn supervised_helper(command: &mut std::process::Command) {
