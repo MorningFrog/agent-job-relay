@@ -2,9 +2,9 @@
 
 [Documentation index](README.md) · [Commands](commands.md) · [Verification](live-e2e.md#goal-waiting-protocol-proof)
 
-In current **unreleased source**, handing Desktop goal work to Relay includes pausing that goal while accepted jobs run and restoring it on completion. This is required default scheduling: users do not need to add “allow goal pause” or approve each handoff. The originating Agent still uses its native host goal tool; Relay verifies the acknowledgement before entering `waiting`. No Agent/model/goal-RPC polling runs during the wait. An already executing turn or child Agent is not interrupted by a goal status change.
+**Automatic pause without a user/system request is unsupported by the current Desktop host.** The native goal tool reserves lifecycle control for that authority. A plugin workflow cannot turn ordinary background delegation into permission to pause. The product requirement remains default, mandatory goal suspension, but implementing it requires an owning-host scheduling-wait interface or a host-level authority change. Until then ordinary `connect` and CLI wake routes detect an active goal and return `automatic_goal_pause_unsupported` before preparing waits or admitting work. Report that limitation once without a fixed-phrase authorization question, a blocked/completed goal state, polling or storage-only mutation. Ordinary chats without active goals remain supported.
 
-Published 0.1.10 and the original sealed 0.1.11 candidate lack this behavior. Use a matching source build and profile with `goal_wait_host_pause=true`. Current source uses schema v10; finish old runs before migration and preserve the same profile. Earlier storage-only waits require manual host goal handling and cannot authorize automatic continuation. Current host APIs lack goal generation/CAS, so replacement and final verification/write/send races remain experimental limitations.
+The independently authorized native-pause protocol remains experimental source behavior, advertised separately as `goal_wait_host_pause=true`; `automatic_goal_pause_supported=false` is not contradicted by that flag. Published 0.1.10 and the original sealed 0.1.11 candidate lack the protocol. Source schema v10 needs a matching runtime/profile and completed old runs before migration. Earlier storage-only waits cannot authorize continuation. An existing active turn/child Agent is not interrupted merely by changing goal status; goal generation/CAS also remains unavailable.
 
 ## Current runtime workflow
 
@@ -20,43 +20,29 @@ Use the selected launcher's ordinary terminal binding command:
 "$AJR_RELAY" connect --cwd "<absolute-project>"
 ```
 
-`AJR_RELAY` is the selected native/offline launcher's absolute path. The current Desktop terminal must supply its actual caller and selected Codex runtime. Shared MCP environment, a standalone terminal and guessed thread IDs cannot provide this binding. Recovery (`connect --recover`) remains a separate operation and does not prepare goal waiting.
+`AJR_RELAY` is the selected native/offline launcher's absolute path. The terminal must supply its actual caller and runtime; shared MCP environment, an external terminal or guessed thread IDs cannot provide that binding. Without an active goal, pass the returned binding unchanged to normal `job_start`/`job_start_batch` and end the submitting turn. Recovery (`connect --recover`) remains separate and does not prepare waiting.
 
-Expected for an active goal: `goal_wait_policy=required_for_active_desktop_goal`, `goal_state_verified=true`, `goal_wait.status=prepared` and a binding containing `session_key`, `cwd` and opaque `goal_wait_id`. Preparation does not pause or submit work and expires after five minutes. Repeating an unused preparation retains its ID and expiry. A user-paused, completed or absent goal is not adopted. Without the selected runtime's goal API, an Agent in goal mode must stop before submission and report unsupported goal detection.
+With an active goal, expected default behavior is the explicit capability error above, with no jobs or waits created and no goal mutation. Do not silently add `--wait-goal`, strip a binding, disable goal controls, mark blocked, poll or ask for a fixed authorization phrase. Refreshing the plugin cannot grant the missing host lifecycle authority.
 
-Pass the **entire binding unchanged** to MCP `job_start` or `job_start_batch`:
+## Independently authorized native-pause compatibility
 
-```json
-{
-  "binding": {"session_key":"<returned-key>","cwd":"<returned-directory>","goal_wait_id":"<returned-wait-id>"},
-  "spec": {"command":{"kind":"exec","program":"<program>","args":[]},"idempotency_key":"<stable-key>"}
-}
+Only when the user/system independently requested this goal pause, use:
+
+```bash
+"$AJR_RELAY" connect --wait-goal --cwd "<absolute-project>"
 ```
 
-Expected: original Job/Run IDs, `goal_wait.status=sealed`, `host_pause_required=true` and an admission revision. Ordinary submission cannot bypass an unresolved wait by removing `goal_wait_id`. Retain the IDs, finish other Agent work, then call **this chat's native `update_goal(status="paused")`** as part of the requested Relay delegation. Do not ask the user for additional pause wording or approval. Finish handoff bookkeeping with MCP `job_goal_wait`:
+The flag selects this protocol; it does not itself supply model authority. Expected: `automatic_goal_pause_supported=false`, `goal_state_verified=true`, `goal_wait.status=prepared`, and an opaque binding with `session_key`, `cwd` and `goal_wait_id`. Preparation does not pause or submit work and expires after five minutes. An unused repeated preparation retains its ID/expiry; paused, completed and absent goals are not adopted.
+
+Pass the full binding unchanged to ordinary MCP start/batch with stable idempotency keys. Admission returns original Job/Run IDs, `goal_wait.status=sealed`, `host_pause_required=true` and a revision. Finish other work, invoke this chat's native `update_goal(status="paused")` under its actual authority, then confirm successful acknowledgement:
 
 ```json
 {"goal_wait_id":"<returned-wait-id>","confirm_paused":true,"expected_revision":2}
 ```
 
-Replace the example revision `2` with the actual admission revision. Only `status=waiting` acknowledges the full handoff; end the turn immediately. A separate CLI/app-server write changes storage without notifying Desktop's cached goal and cannot substitute for the native tool. If native pause is unavailable, rejected or uncertain, cancel this wait and report the capability failure; admitted jobs remain admitted. Never wait by marking the goal complete/blocked, looping on status or starting a checking Agent.
+Replace `2` with the admission revision. Only `waiting` acknowledges the complete handoff; end the turn immediately. A separate CLI/app-server storage write cannot update Desktop's cached goal state. If authority/native pause is unavailable, rejected or uncertain, cancel the wait and report the limitation once; admitted jobs stay admitted. Missing confirmation expires with `attention` after five minutes without changing host state. Retry a lost confirmation with the original revision and uncertain admission with the original binding/keys/specs; never repeat native pause or workload to recover an acknowledgement.
 
-Missing confirmation closes with `attention` after five minutes without changing the host goal. Retry a lost confirmation response with its original revision while waiting; do not repeat the native pause or workload. After a lost admission response, inspect existing original IDs/waits before retrying. Reuse the original binding, keys and specifications; never assign new keys to uncertain work.
-
-CLI `start`, `start-spec` and `start-batch` with `--wake` also detect active goals automatically. The compatibility `--wait-goal` flag asserts that an active goal must exist. CLI confirmation uses `goal-wait <id> --confirm-paused --expected-revision <admission-revision>` after the same native host pause.
-
-## Several commands and interruption
-
-A batch has 1–16 items with distinct stable keys; the eight-active-job quota still applies. Membership freezes to the accepted subset, with each original Job/Run retaining independent execution and stopping. One completion notification waits for every accepted member. Accepted-key retries retain IDs; rejected/uncommitted items cannot join a sealed group and need a fresh group after resolution/cancellation. Local monitoring and automatic stops remain available; `notify_agent` rules are rejected for goal members.
-
-Inspect and cancel future automatic continuation with:
-
-```bash
-"$AJR_RELAY" goal-wait <goal-wait-id>
-"$AJR_RELAY" goal-wait <goal-wait-id> --cancel --expected-revision <returned-revision>
-```
-
-MCP uses `job_goal_wait` with optional `cancel=true` and the observed revision. Cancellation keeps workloads running and leaves explicit manual goal control to the user; an already transmitted host effect cannot be recalled. Stopping an active member also closes group continuation without stopping other members. Closed waits are never rearmed. Direct target moves and implicit host/profile replacement are refused; ordinary notification recovery skips pinned goal members.
+CLI `start`, `start-spec` and `start-batch --wake --wait-goal` select the same independently authorized protocol, followed by native pause and `goal-wait <id> --confirm-paused --expected-revision <revision>`. Goal batches freeze accepted membership, reject new members on retry and release one combined completion after every original run finishes. Local monitor/stop rules remain available, while running `notify_agent` rules are rejected. Stopping a member cancels group continuation, not other jobs. Revision-fenced wait cancellation stops future controls/notification while workloads keep running; transmitted effects cannot be recalled. Host replacement/recovery never moves a pinned group.
 
 ## Completion and failure boundaries
 
@@ -77,4 +63,4 @@ Running groups have no separate deadline beyond member timeouts. Completion must
 
 The controller uses the documented [Codex goal RPCs](https://learn.chatgpt.com/docs/app-server#manage-a-thread-goal) through the actual Desktop-selected executable/profile for bounded reads and restoration, without loading a thread or invoking a model. Restoration omits objectives/budgets, preserving accounting and preventing deleted-goal recreation. Pause acknowledgement is a cooperative assertion from the originating Agent, checked against the paused snapshot; it is not independent host attestation.
 
-Second-resolution timestamps and missing generation/CAS cannot distinguish identical same-second changes, final in-flight accounting that masks a pause change, or every final verification/write/send race. Completion uses the existing experimental Desktop adapter. The user has confirmed Desktop native pause when explicitly requested; the new no-extra-wording default, Windows controller behavior and long-duration savings require separate live acceptance. See [current evidence](live-e2e.md#goal-waiting-protocol-proof).
+The documented [goal lifecycle authority](https://developers.openai.com/cookbook/examples/codex/using_goals_in_codex) reserves pause/resume/clear for user/system control. User live testing confirms explicit native pause and rejects automatic no-extra-wording delegation; a simulated authorized pause cannot qualify model permission. Second-resolution timestamps and missing generation/CAS also leave identical same-second changes, final accounting and verification/write/send races. Windows controller behavior and long-duration savings remain unqualified. See [current evidence](live-e2e.md#goal-waiting-protocol-proof).

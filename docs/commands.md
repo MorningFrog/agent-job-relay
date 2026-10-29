@@ -87,7 +87,7 @@ Rules use one condition: `--no-output <duration>`, `--elapsed <duration>` or `--
 | `target add <job-id> <session-key> [--replay]` | Advanced exact-session target, optionally replaying eligible existing terminal events |
 | `target rebind <target-id> <session-key>` | Advanced explicit target replacement |
 
-Source `connect` and wake-enabled `start`, `start-spec` and `start-batch` automatically detect an active Desktop goal and require its pause handoff. `--wait-goal` remains a compatibility assertion that a goal exists. Goal waiting requires the matching source daemon/profile; published/sealed runtimes lack it. See [goal waiting](goal-waiting.md).
+Source `connect` and wake-enabled `start`, `start-spec` and `start-batch` detect active Desktop goals but reject automatic suspension before wait/job creation: `automatic_goal_pause_unsupported`. Only an independently requested native pause may use `--wait-goal` and the explicit confirmation protocol; the flag cannot grant model authority. Doctor/instructions report `automatic_goal_pause_supported=false` separately from `goal_wait_host_pause=true`. See [goal waiting](goal-waiting.md).
 
 Recovery preserves original expiry and excludes accepted/expired events and live claims. Explicit delivery retry has different TTL semantics. Never guess caller IDs or reuse a binding from another chat. See [MCP submission](usage.md#submit-through-mcp-with-same-chat-notification), [recovery](usage.md#recover-notifications) and [protocol](protocol.md) before advanced target operations.
 

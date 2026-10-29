@@ -798,12 +798,14 @@ async fn backup_restore_fences_waits_and_retains_member_audits_without_host_cont
 }
 
 #[tokio::test]
-async fn ordinary_wake_submissions_require_goal_handoff_without_an_opt_in_flag() {
-    for batch in [false, true] {
+async fn automatic_goal_pause_is_refused_before_connect_single_or_batch_admission() {
+    for route in ["connect", "single", "batch"] {
         let f = Fixture::new().await;
         let mut daemon = f.daemon().await;
         let mut command = f.cli();
-        if batch {
+        if route == "connect" {
+            command.arg("connect");
+        } else if route == "batch" {
             let file = f.dir.path().join("batch.json");
             let mut spec = f.spec("automatic-batch");
             spec.session = None;
@@ -813,30 +815,24 @@ async fn ordinary_wake_submissions_require_goal_handoff_without_an_opt_in_flag()
             command.args(["start", "--wake", "--", "/bin/true"]);
         }
         let response = command.output().await.unwrap();
+        assert!(!response.status.success());
         assert!(
-            response.status.success(),
-            "{}",
-            String::from_utf8_lossy(&response.stderr)
+            String::from_utf8_lossy(&response.stderr).contains("automatic_goal_pause_unsupported")
         );
-        let response: Value = serde_json::from_slice(&response.stdout).unwrap();
-        assert_eq!(response["goal_wait"]["status"], "sealed", "{response}");
-        assert_eq!(response["goal_wait"]["host_pause_required"], true);
-        assert!(
-            f.mutations().is_empty(),
-            "mandatory handoff still requires the actual native host pause"
+        assert!(f.mutations().is_empty());
+        assert_eq!(f.controller.read().await.unwrap(), Some(f.goal.clone()));
+        assert!(f.store.list(0, 100).await.unwrap().is_empty());
+        assert_eq!(
+            f.store
+                .read(
+                    |db| Ok(db.query_row("SELECT count(*) FROM goal_waits", [], |r| r
+                        .get::<_, i64>(0))?)
+                )
+                .await
+                .unwrap(),
+            0
         );
-        let wait = response["goal_wait"]["goal_wait_id"].as_str().unwrap();
-        let waiting = f.pause_and_confirm(wait).await;
-        assert_eq!(waiting["status"], "waiting");
-        tokio::time::timeout(Duration::from_secs(8), async {
-            while f.state(wait).await["notification_accepted"] != true {
-                tokio::time::sleep(Duration::from_millis(20)).await;
-            }
-        })
-        .await
-        .unwrap();
-        assert_eq!(f.store.list(0, 100).await.unwrap().len(), 1);
-        assert_eq!(f.messages.lock().unwrap().len(), 1);
+        assert!(f.messages.lock().unwrap().is_empty());
         ipc::call(&f.store.config, Request::Shutdown).await.unwrap();
         daemon.wait().unwrap();
     }
@@ -871,9 +867,35 @@ async fn default_detection_preserves_inactive_goals_and_refuses_unverifiable_goa
             let value: Value = serde_json::from_slice(&result.stdout).unwrap();
             assert!(value["binding"].get("goal_wait_id").is_none());
             assert_eq!(value["goal_state_verified"], true);
+            assert_eq!(value["automatic_goal_pause_supported"], false);
+            let started = f
+                .cli()
+                .args(["start", "--wake", "--", "/bin/true"])
+                .output()
+                .await
+                .unwrap();
+            assert!(
+                started.status.success(),
+                "{}",
+                String::from_utf8_lossy(&started.stderr)
+            );
+            let started: Value = serde_json::from_slice(&started.stdout).unwrap();
+            assert!(started.get("goal_wait").is_none());
+            let job = started["job"]["job_id"].as_str().unwrap();
+            tokio::time::timeout(Duration::from_secs(8), async {
+                while !terminal(&f.store.status(job.into()).await.unwrap().status) {
+                    tokio::time::sleep(Duration::from_millis(20)).await;
+                }
+            })
+            .await
+            .unwrap();
+            assert_eq!(f.store.status(job.into()).await.unwrap().exit_code, Some(0));
         }
         assert!(f.mutations().is_empty());
-        assert!(f.store.list(0, 100).await.unwrap().is_empty());
+        assert_eq!(
+            f.store.list(0, 100).await.unwrap().len(),
+            usize::from(mode != "different-goal")
+        );
         ipc::call(&f.store.config, Request::Shutdown).await.unwrap();
         daemon.wait().unwrap();
     }
@@ -910,6 +932,7 @@ async fn real_cli_binding_and_runner_survive_daemon_loss_and_finish_one_wait() {
             "--state-dir",
             f.store.config.root.to_str().unwrap(),
             "connect",
+            "--wait-goal",
         ])
         .env("CODEX_THREAD_ID", &f.controller.thread_id)
         .env(
@@ -1308,6 +1331,18 @@ async fn shared_mcp_uses_only_the_bound_wait_and_exposes_revision_fenced_cancell
             .iter()
             .any(|t| t["name"] == "job_prepare_goal_wait" || t["name"] == "job_start_goal")
     );
+    let report = rpc(
+        &mut input,
+        &mut lines,
+        20,
+        "tools/call",
+        json!({"name":"job_doctor","arguments":{}}),
+    )
+    .await;
+    let report: Value =
+        serde_json::from_str(report["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    assert_eq!(report["goal_wait_host_pause"], true);
+    assert_eq!(report["automatic_goal_pause_supported"], false);
     let binding = json!({"session_key":f.session,"cwd":f.dir.path(),"goal_wait_id":wait});
     let bad=rpc(&mut input,&mut lines,3,"tools/call",json!({"name":"job_start","arguments":{"binding":binding,"spec":{"command":{"kind":"exec","program":"true","args":[]},"session":id()}}})).await;
     assert_eq!(bad["result"]["isError"], true);

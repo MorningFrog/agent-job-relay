@@ -2,7 +2,7 @@
 
 ## Problem
 
-A source installation can change native bytes and restart its daemon while the host retains a same-version skill snapshot and long-lived MCP server. Matching version strings do not establish matching workflow/code. Historical full cached skills can therefore submit ordinary jobs instead of the required goal handoff, even when the installed runtime supports it.
+A source installation can change native bytes and restart its daemon while the host retains a same-version skill snapshot and long-lived MCP server. Matching version strings do not establish matching workflow/code. Historical cached skills can therefore use an obsolete handoff workflow. Current instructions must distinguish supported protocol operations from missing host lifecycle authority; updated bytes alone cannot enable automatic goal pause.
 
 ## Decision
 

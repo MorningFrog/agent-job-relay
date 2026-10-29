@@ -59,7 +59,7 @@ pub(super) enum Commands {
         /// Include complete host registration and recovery audit records
         #[arg(long)]
         full: bool,
-        /// Assert that an active goal exists; ordinary connect already detects it
+        /// Use the native-pause protocol only for an independently requested goal pause
         #[arg(long, conflicts_with = "recover")]
         wait_goal: bool,
     },

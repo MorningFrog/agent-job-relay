@@ -69,7 +69,7 @@ fn brief(db: &Connection, id: &str) -> Result<Value> {
     value["next_step"] = json!(match value["status"].as_str().unwrap_or("") {
         "prepared" => "Submit once with this binding; no goal has been paused yet.",
         "sealed" =>
-            "Work is admitted. Call this chat's native update_goal(status='paused') now, then call job_goal_wait with confirm_paused=true and this expected_revision. Do not claim waiting before that acknowledgement. If native pause is unavailable or fails, cancel this wait and report the limitation; do not poll or resubmit jobs.",
+            "Work is admitted through the explicit native-pause protocol. Only a user/system request can authorize this chat's native update_goal(status='paused'); plugin delegation alone cannot. After its acknowledgement, confirm with job_goal_wait(confirm_paused=true, expected_revision=this revision). If authority or native pause is unavailable, cancel this wait and report the host limitation once; do not ask for a special phrase, mark the goal blocked, poll or resubmit jobs.",
         "waiting" => "End this turn. Relay will handle completion without Agent polling.",
         "resumed" =>
             "Inspect the member results; host acceptance is not confirmed Agent execution.",

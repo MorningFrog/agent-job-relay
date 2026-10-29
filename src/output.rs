@@ -120,6 +120,8 @@ pub fn compact(op: &str, value: Value) -> Value {
                     "goal_waiting",
                     "goal_wait_host_pause",
                     "goal_wait_policy",
+                    "automatic_goal_pause_supported",
+                    "automatic_goal_pause_reason",
                     "managed_mcp_updates_supported",
                     "runtime_workflow_sha256",
                     "goal_waits",

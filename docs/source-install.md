@@ -133,7 +133,7 @@ Only after that succeeds, use your next real long task:
 
 Expected: the Agent obtains a fresh terminal binding, submits through AgentJobRelay MCP `job_start`, reports the job ID and ends its turn. Observed same-chat continuation is a separate acceptance result; host acceptance alone does not prove it. See [manual acceptance](manual-testing.md) for evidence boundaries.
 
-For an active Desktop goal, ordinary background delegation automatically requires goal pause/restoration; do not add an authorization phrase. The Agent must obtain an automatic goal binding, submit once, perform native pause, confirm `waiting` and end the turn. See [goal waiting](goal-waiting.md).
+The current Desktop host requires user/system authority for native goal pause; automatic no-extra-wording delegation is unsupported and refused before submission. An independently requested pause can use the experimental native handshake; plugin installation or cache refresh cannot grant host lifecycle authority. See [goal waiting](goal-waiting.md).
 
 ## If the skill appears but job_start is missing
 

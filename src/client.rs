@@ -274,6 +274,15 @@ pub async fn connect_context(
     cwd: PathBuf,
     recovery: Option<(bool, i64, u32)>,
 ) -> Result<Value> {
+    connect_context_inner(config, cwd, recovery, false).await
+}
+
+async fn connect_context_inner(
+    config: &Config,
+    cwd: PathBuf,
+    recovery: Option<(bool, i64, u32)>,
+    native_pause_requested: bool,
+) -> Result<Value> {
     let cwd = crate::platform::normalized_path(cwd.canonicalize()?);
     ensure!(
         cwd.is_absolute() && cwd.is_dir(),
@@ -285,6 +294,18 @@ pub async fn connect_context(
             "invalid recovery pagination"
         );
     }
+    // A plugin instruction cannot grant the model authority to pause a goal.
+    // Check before creating registrations/waits, rather than admitting jobs
+    // into a handoff the host's native tool contract forbids completing.
+    let goal = if recovery.is_none() {
+        crate::goal_control::Controller::detect(desktop_registration()?.0.session_id).await?
+    } else {
+        None
+    };
+    ensure!(
+        goal.is_none() || native_pause_requested,
+        "automatic_goal_pause_unsupported: this Desktop host reserves native goal pause for an explicit user or system request and exposes no Relay scheduling-wait interface. No job or goal wait was created. Report this host capability limitation once; do not request a special authorization phrase, mark the goal blocked, bypass the host tool contract or poll. Updating caches cannot grant this capability"
+    );
     let mut value = connect(config).await?;
     value["binding"] = json!({"session_key":value["session"]["key"],"cwd":cwd});
     if let Some((apply, after, limit)) = recovery {
@@ -301,9 +322,7 @@ pub async fn connect_context(
             },
         )
         .await?;
-    } else if let Some((controller, expected)) =
-        crate::goal_control::Controller::detect(desktop_registration()?.0.session_id).await?
-    {
+    } else if let Some((controller, expected)) = goal {
         ensure!(
             ipc::call(config, Request::Doctor).await?["goal_wait_host_pause"] == true,
             "this active goal requires native-host pause acknowledgement; update the selected runtime before submitting work"
@@ -324,17 +343,18 @@ pub async fn connect_context(
         value["goal_wait"] = wait;
     }
     value["goal_wait_policy"] = json!("required_for_active_desktop_goal");
+    value["automatic_goal_pause_supported"] = json!(false);
     value["goal_state_verified"] =
         json!(recovery.is_none() && std::env::var_os("CODEX_APP_RUNTIME_CLI_PATH").is_some());
     Ok(value)
 }
 pub fn brief_binding(value: Value) -> Value {
-    let mut brief = json!({"session_key":value["session"]["key"],"binding":value["binding"],"goal_wait_policy":value["goal_wait_policy"],"goal_state_verified":value["goal_state_verified"],"probe":"passed","can_resume":true,"can_confirm_resume":false,
+    let mut brief = json!({"session_key":value["session"]["key"],"binding":value["binding"],"goal_wait_policy":value["goal_wait_policy"],"automatic_goal_pause_supported":value["automatic_goal_pause_supported"],"goal_state_verified":value["goal_state_verified"],"probe":"passed","can_resume":true,"can_confirm_resume":false,
         "next_step":"Call job_start with binding and spec.command; end this turn after submission."});
     if let Some(wait) = value.get("goal_wait") {
         brief["goal_wait"] = wait.clone();
         brief["next_step"] = json!(
-            "Active goal: use this binding unchanged. After admission, pause through this chat's native update_goal(status='paused'), confirm with job_goal_wait, then end the turn. Goal handoff is required by the selected Relay workflow; no additional user wording or confirmation is needed."
+            "Explicit native-pause workflow: preserve this binding. Only if the user or system has requested this goal pause, admit work, use this chat's native update_goal(status='paused'), confirm with job_goal_wait, then end the turn. This is not automatic pause support; plugin instructions cannot override the host's lifecycle authority."
         );
     }
     if let Some(recovery) = value.get("recovery") {
@@ -361,7 +381,7 @@ pub async fn recover(config: &Config, apply: bool, after: i64, limit: u32) -> Re
     .await
 }
 pub async fn connect_with_goal(config: &Config, cwd: PathBuf) -> Result<Value> {
-    let value = connect_context(config, cwd, None).await?;
+    let value = connect_context_inner(config, cwd, None, true).await?;
     ensure!(
         value.get("goal_wait").is_some(),
         "goal waiting requires an active goal and the current Desktop runtime; no job was submitted"

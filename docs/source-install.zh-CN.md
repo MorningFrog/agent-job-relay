@@ -133,7 +133,7 @@ codex plugin add agent-job-relay@agent-job-relay-local
 
 预期：Agent 从当前聊天终端取得新的绑定，通过 AgentJobRelay MCP `job_start` 提交，报告任务 ID，然后结束本轮。实际观察到同聊天续接是另一项验收结果，宿主接收本身不能证明续接成功。验证边界见[人工验收](manual-testing.md)。
 
-活动 Desktop goal 中的普通后台委托默认强制暂停／完成后恢复，不需要补充授权短语。Agent 应自动取得 goal 绑定，提交一次、原生暂停、确认 `waiting` 后结束回合。见 [goal 等待](goal-waiting.md)。
+当前 Desktop 宿主要求用户／系统授权原生 goal 暂停；无需额外措辞的自动交接不受支持，会在提交前拒绝。已有独立暂停请求时可使用实验性的原生确认流程；插件安装或缓存刷新不能授予宿主生命周期控制权限。见 [goal 等待](goal-waiting.md)。
 
 ## 能看到技能，但没有 job_start 时
 
