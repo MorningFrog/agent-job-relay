@@ -132,6 +132,7 @@ pub(crate) fn attach(
             &consent,
             &record.session_key,
             &record.expected,
+            &record.controller,
             &spec.cwd,
         )?;
     }
@@ -219,7 +220,7 @@ impl Store {
         self.call(move|db|{
             let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
             let t=now();
-            if let Some(consent)=&consent_id {crate::goal_consent::check_scope(&tx,consent,&session_key,&current,None)?;}
+            if let Some(consent)=&consent_id {crate::goal_consent::check_scope(&tx,consent,&session_key,&current,&controller,None)?;}
             let expired={let mut q=tx.prepare("SELECT id FROM goal_waits WHERE status='prepared' AND expires<=? AND NOT EXISTS(SELECT 1 FROM goal_wait_jobs m WHERE m.wait_id=goal_waits.id)")?;q.query_map([t],|r|r.get::<_,String>(0))?.collect::<rusqlite::Result<Vec<_>>>()?};
             for id in expired { close_tx(&tx,&read(&tx,&id)?,"cancelled","unused binding expired")?; }
             let busy:Option<String>=tx.query_row(&format!("SELECT w.id FROM goal_waits w JOIN sessions a ON a.key=w.session_key JOIN sessions b ON b.key=? WHERE (w.status IN ({OPEN}) OR (w.status='resumed' AND w.notified=0)) AND a.agent=b.agent AND a.logical=b.logical AND a.host=b.host LIMIT 1"),[&session_key],|r|r.get(0)).optional()?;

@@ -350,6 +350,7 @@ pub(crate) fn check_scope(
     id: &str,
     session: &str,
     goal: &Goal,
+    controller: &Controller,
     cwd: Option<&std::path::Path>,
 ) -> Result<()> {
     let c = read(db, id)?;
@@ -359,8 +360,10 @@ pub(crate) fn check_scope(
         "request consent is pending, closed, expired or exhausted"
     );
     ensure!(
-        c.expected.same_identity(goal) && cwd.is_none_or(|p| p == c.cwd),
-        "pause consent cannot move to another goal or workspace"
+        c.expected.same_identity(goal)
+            && serde_json::to_value(&c.controller)? == serde_json::to_value(controller)?
+            && cwd.is_none_or(|p| p == c.cwd),
+        "pause consent cannot move to another goal, controller or workspace"
     );
     Ok(())
 }
@@ -369,9 +372,10 @@ pub(crate) fn consume(
     id: &str,
     session: &str,
     goal: &Goal,
+    controller: &Controller,
     cwd: &std::path::Path,
 ) -> Result<()> {
-    check_scope(db, id, session, goal, Some(cwd))?;
+    check_scope(db, id, session, goal, controller, Some(cwd))?;
     db.execute(
         "UPDATE goal_consents SET used=used+1,updated=? WHERE id=?",
         params![now(), id],

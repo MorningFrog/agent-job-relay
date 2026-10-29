@@ -1606,6 +1606,25 @@ async fn scoped_consent_fences_question_claims_callers_changes_expiry_and_restor
         )
         .await
         .unwrap();
+    let mut moved_controller = f.controller.clone();
+    moved_controller.home = f.dir.path().join("other-controller-profile");
+    std::fs::create_dir(&moved_controller.home).unwrap();
+    std::fs::write(
+        moved_controller.home.join("goal.json"),
+        serde_json::to_vec(&f.goal).unwrap(),
+    )
+    .unwrap();
+    assert!(
+        f.store
+            .prepare_goal_wait_scoped(
+                f.session.clone(),
+                moved_controller,
+                f.goal.clone(),
+                Some(id.clone())
+            )
+            .await
+            .is_err()
+    );
     let backup = f.store.backup().await.unwrap();
     let restored_path = f.dir.path().join("consent-restore");
     agent_job_relay::maintenance::restore(
