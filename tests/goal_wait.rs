@@ -45,6 +45,46 @@ impl Drop for OwnedDaemon {
     }
 }
 impl Fixture {
+    async fn daemon(&self) -> OwnedDaemon {
+        let daemon = OwnedDaemon(
+            Command::new(env!("CARGO_BIN_EXE_agent-job-relay"))
+                .args([
+                    "--state-dir",
+                    self.store.config.root.to_str().unwrap(),
+                    "daemon",
+                ])
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn()
+                .unwrap(),
+        );
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while ipc::call(&self.store.config, Request::Doctor)
+                .await
+                .is_err()
+            {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .unwrap();
+        daemon
+    }
+    fn cli(&self) -> tokio::process::Command {
+        let mut command = tokio::process::Command::new(env!("CARGO_BIN_EXE_agent-job-relay"));
+        command
+            .args(["--state-dir", self.store.config.root.to_str().unwrap()])
+            .env("CODEX_THREAD_ID", &self.controller.thread_id)
+            .env(
+                "CODEX_APP_TOOLS_PIPE_PATH",
+                self.dir.path().join("desktop.sock"),
+            )
+            .env("CODEX_APP_RUNTIME_CLI_PATH", &self.controller.executable)
+            .env("CODEX_HOME", &self.controller.home)
+            .current_dir(self.dir.path());
+        command
+    }
     async fn new() -> Self {
         agent_job_relay::platform::initialize();
         let dir = tempfile::Builder::new()
@@ -609,9 +649,9 @@ async fn lost_mutation_acknowledgements_are_durable_and_not_replayed() {
 async fn explicit_cancel_manual_stop_and_stale_revisions_leave_host_goal_and_other_jobs_alone() {
     for manual_stop in [false, true] {
         let f = Fixture::new().await;
+        let other = f.store.start(f.spec("unrelated")).await.unwrap();
         let wait = f.prepare().await;
         let result = f.submit(&wait, "one").await;
-        let other = f.store.start(f.spec("unrelated")).await.unwrap();
         let state = f.state(&wait).await;
         assert!(
             f.store
@@ -758,6 +798,88 @@ async fn backup_restore_fences_waits_and_retains_member_audits_without_host_cont
 }
 
 #[tokio::test]
+async fn ordinary_wake_submissions_require_goal_handoff_without_an_opt_in_flag() {
+    for batch in [false, true] {
+        let f = Fixture::new().await;
+        let mut daemon = f.daemon().await;
+        let mut command = f.cli();
+        if batch {
+            let file = f.dir.path().join("batch.json");
+            let mut spec = f.spec("automatic-batch");
+            spec.session = None;
+            std::fs::write(&file, serde_json::to_vec(&vec![spec]).unwrap()).unwrap();
+            command.args(["start-batch", "--wake", "--file"]).arg(file);
+        } else {
+            command.args(["start", "--wake", "--", "/bin/true"]);
+        }
+        let response = command.output().await.unwrap();
+        assert!(
+            response.status.success(),
+            "{}",
+            String::from_utf8_lossy(&response.stderr)
+        );
+        let response: Value = serde_json::from_slice(&response.stdout).unwrap();
+        assert_eq!(response["goal_wait"]["status"], "sealed", "{response}");
+        assert_eq!(response["goal_wait"]["host_pause_required"], true);
+        assert!(
+            f.mutations().is_empty(),
+            "mandatory handoff still requires the actual native host pause"
+        );
+        let wait = response["goal_wait"]["goal_wait_id"].as_str().unwrap();
+        let waiting = f.pause_and_confirm(wait).await;
+        assert_eq!(waiting["status"], "waiting");
+        tokio::time::timeout(Duration::from_secs(8), async {
+            while f.state(wait).await["notification_accepted"] != true {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(f.store.list(0, 100).await.unwrap().len(), 1);
+        assert_eq!(f.messages.lock().unwrap().len(), 1);
+        ipc::call(&f.store.config, Request::Shutdown).await.unwrap();
+        daemon.wait().unwrap();
+    }
+}
+
+#[tokio::test]
+async fn default_detection_preserves_inactive_goals_and_refuses_unverifiable_goal_state() {
+    for mode in ["absent", "paused", "different-goal"] {
+        let f = Fixture::new().await;
+        let mut daemon = f.daemon().await;
+        match mode {
+            "absent" => std::fs::remove_file(f.controller.home.join("goal.json")).unwrap(),
+            _ => {
+                let mut goal = f.goal.clone();
+                if mode == "paused" {
+                    goal.status = "paused".into();
+                } else {
+                    goal.thread_id = id();
+                }
+                f.write_goal(&goal);
+            }
+        }
+        let result = f.cli().arg("connect").output().await.unwrap();
+        if mode == "different-goal" {
+            assert!(!result.status.success());
+        } else {
+            assert!(
+                result.status.success(),
+                "{}",
+                String::from_utf8_lossy(&result.stderr)
+            );
+            let value: Value = serde_json::from_slice(&result.stdout).unwrap();
+            assert!(value["binding"].get("goal_wait_id").is_none());
+            assert_eq!(value["goal_state_verified"], true);
+        }
+        assert!(f.mutations().is_empty());
+        assert!(f.store.list(0, 100).await.unwrap().is_empty());
+        ipc::call(&f.store.config, Request::Shutdown).await.unwrap();
+        daemon.wait().unwrap();
+    }
+}
+
+#[tokio::test]
 async fn real_cli_binding_and_runner_survive_daemon_loss_and_finish_one_wait() {
     let f = Fixture::new().await;
     let mut daemon = OwnedDaemon(
@@ -788,7 +910,6 @@ async fn real_cli_binding_and_runner_survive_daemon_loss_and_finish_one_wait() {
             "--state-dir",
             f.store.config.root.to_str().unwrap(),
             "connect",
-            "--wait-goal",
         ])
         .env("CODEX_THREAD_ID", &f.controller.thread_id)
         .env(
@@ -814,6 +935,18 @@ async fn real_cli_binding_and_runner_survive_daemon_loss_and_finish_one_wait() {
         .as_str()
         .unwrap()
         .to_string();
+    assert_eq!(
+        binding["goal_wait_policy"],
+        "required_for_active_desktop_goal"
+    );
+    let mut ordinary = f.spec("binding-must-not-be-stripped");
+    ordinary.session = Some(session.clone());
+    assert!(
+        ipc::call(&f.store.config, Request::Start { spec: ordinary })
+            .await
+            .is_err()
+    );
+    assert!(f.store.list(0, 100).await.unwrap().is_empty());
     let gate = f.dir.path().join("go");
     let mut spec = f.spec("real");
     spec.session = Some(session);
@@ -925,9 +1058,9 @@ async fn real_cli_binding_and_runner_survive_daemon_loss_and_finish_one_wait() {
 #[tokio::test]
 async fn interrupted_admission_recovers_committed_members_without_replaying_execution() {
     let f = Fixture::new().await;
-    let wait = f.prepare().await;
     let spec = f.spec("interrupted-admission");
     let job = f.store.start(spec.clone()).await.unwrap();
+    let wait = f.prepare().await;
     let (key, job_id, run_id) = (wait.clone(), job.job_id.clone(), job.run_id.clone());
     // Reconstruct a committed admission whose submitting process died before sealing.
     f.store
@@ -997,9 +1130,9 @@ async fn interrupted_admission_recovers_committed_members_without_replaying_exec
 #[tokio::test]
 async fn recovery_skips_pinned_waits_and_still_recovers_unrelated_targets() {
     let f = Fixture::new().await;
+    let other = f.store.start(f.spec("ordinary")).await.unwrap();
     let wait = f.prepare().await;
     let member = f.submit(&wait, "member").await;
-    let other = f.store.start(f.spec("ordinary")).await.unwrap();
     let mut registration = f
         .store
         .session(f.session.clone())

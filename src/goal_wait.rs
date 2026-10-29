@@ -1,4 +1,4 @@
-//! Opted-in, durable goal waiting. This owns host control, never job execution.
+//! Required Desktop goal handoff. This owns host control, never job execution.
 use crate::{
     core::*,
     goal_control::{Controller, Goal},
@@ -211,7 +211,7 @@ impl Store {
             let actual=crate::session::read_session(&tx,&session_key)?;
             ensure!(serde_json::to_string(&json!({"registration":actual.registration,"endpoint_identity":actual.endpoint_identity}))?==session_snapshot && actual.connected && actual.expires_at>t,"caller binding changed during goal preparation");
             tx.execute("INSERT INTO goal_waits(id,session_key,controller,expected,session_snapshot,status,created,updated,expires,next_at) VALUES(?,?,?,?,?,'prepared',?,?,?,?)",params![id,session_key,serde_json::to_string(&controller)?,serde_json::to_string(&current)?,session_snapshot,t,t,t+300000,t])?;
-            audit(&tx,&id,1,"prepared","explicit current-terminal opt-in; goal unchanged")?;
+            audit(&tx,&id,1,"prepared","current-terminal active goal requires handoff; goal unchanged")?;
             let result=brief(&tx,&id)?;tx.commit()?;Ok(result)
         }).await
     }

@@ -34,6 +34,7 @@ impl Rig {
             .env_remove("AJR_STATE_DIR")
             .env_remove("CODEX_THREAD_ID")
             .env_remove("CODEX_APP_TOOLS_PIPE_PATH")
+            .env_remove("CODEX_APP_RUNTIME_CLI_PATH")
             .env("HOME", self.dir.path().join("home"))
             .env("XDG_DATA_HOME", self.dir.path().join("home/.local/share"))
             .env("XDG_STATE_HOME", self.dir.path().join("default-state"))
@@ -195,6 +196,272 @@ fn copy_tree(from: &Path, to: &Path, with_receipt: bool) {
             std::fs::copy(path, target).unwrap();
         }
     }
+}
+
+#[tokio::test]
+async fn retained_mcp_and_cached_launcher_follow_verified_same_version_runtime_updates() {
+    use std::{os::unix::fs::PermissionsExt, process::Stdio};
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+    let r = Rig::new();
+    r.pack();
+    r.bootstrap(true);
+    let cache = r.snapshot("unchanged host cache", true);
+    let old_workflow = ok(r
+        .command(&cache.join("relay"))
+        .arg("instructions")
+        .output()
+        .unwrap());
+    assert_eq!(
+        old_workflow["goal_wait_policy"],
+        "required_for_active_desktop_goal"
+    );
+    let cached_skill = std::fs::read(cache.join("skills/background-jobs/SKILL.md")).unwrap();
+    let mut command =
+        tokio::process::Command::from(r.command(&r.install.join("bin/agent-job-relay")));
+    let mut child = command
+        .args(["--state-dir", s(&r.state), "mcp", "--shared-host"])
+        .env("CODEX_THREAD_ID", "stale-shared-caller")
+        .env("CODEX_APP_TOOLS_PIPE_PATH", "must-not-be-used")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .kill_on_drop(true)
+        .spawn()
+        .unwrap();
+    let mut input = child.stdin.take().unwrap();
+    let mut output = BufReader::new(child.stdout.take().unwrap()).lines();
+    let mut notices = 0;
+    async fn rpc(
+        input: &mut tokio::process::ChildStdin,
+        output: &mut tokio::io::Lines<BufReader<tokio::process::ChildStdout>>,
+        notices: &mut usize,
+        id: u32,
+        method: &str,
+        params: Value,
+    ) -> Value {
+        input
+            .write_all(
+                format!(
+                    "{}\n",
+                    json!({"jsonrpc":"2.0","id":id,"method":method,"params":params})
+                )
+                .as_bytes(),
+            )
+            .await
+            .unwrap();
+        input.flush().await.unwrap();
+        tokio::time::timeout(Duration::from_secs(8), async {
+            loop {
+                let value: Value = serde_json::from_str(
+                    &output.next_line().await.unwrap().expect("MCP disconnected"),
+                )
+                .unwrap();
+                if value["method"] == "notifications/tools/list_changed" {
+                    *notices += 1;
+                }
+                if value["id"] == id {
+                    return value;
+                }
+            }
+        })
+        .await
+        .unwrap()
+    }
+    rpc(&mut input,&mut output,&mut notices,1,"initialize",json!({"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"retained-client","version":"1"}})).await;
+    input
+        .write_all(b"{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}\n")
+        .await
+        .unwrap();
+    let first = rpc(
+        &mut input,
+        &mut output,
+        &mut notices,
+        2,
+        "tools/list",
+        json!({}),
+    )
+    .await;
+    assert_eq!(first["result"]["tools"].as_array().unwrap().len(), 24);
+    let native = format!("payload/{}", agent_job_relay::platform::NATIVE_FILE);
+    // ELF permits trailing bytes: this is a real native runtime with a distinct
+    // image identity and the same version, exercising the actual MCP worker.
+    let mut new_image = std::fs::read(r.bundle.join(&native)).unwrap();
+    new_image.extend(b"\nAJR native same-version fixture\n");
+    std::fs::write(r.bundle.join(&native), &new_image).unwrap();
+    let mut manifest = read_json(&r.bundle.join("bundle.json"));
+    manifest["files"][&native] = json!(hash(&new_image));
+    write_json(&r.bundle.join("bundle.json"), &manifest);
+    ok(r.update(&[], true));
+    let current = rpc(
+        &mut input,
+        &mut output,
+        &mut notices,
+        10,
+        "tools/call",
+        json!({"name":"job_doctor","arguments":{}}),
+    )
+    .await;
+    let current: Value =
+        serde_json::from_str(current["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    assert_eq!(current["managed_mcp_updates_supported"], true);
+    assert_eq!(
+        current["runtime_workflow_sha256"],
+        old_workflow["workflow_sha256"]
+    );
+    assert!(
+        !r.state.exists(),
+        "read-only forwarding must not create state"
+    );
+    let started=rpc(&mut input,&mut output,&mut notices,11,"tools/call",json!({"name":"job_start","arguments":{"spec":{"command":{"kind":"shell","interpreter":"/bin/sh","script":"echo once >> execution-count"},"cwd":r.dir.path(),"idempotency_key":"retained-native-call"}}})).await;
+    let started: Value =
+        serde_json::from_str(started["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    r.wait(started["job"]["job_id"].as_str().unwrap());
+    r.stop();
+    assert_eq!(
+        std::fs::read_to_string(r.dir.path().join("execution-count")).unwrap(),
+        "once\n"
+    );
+    let history = r.database_hash();
+    let replacement = include_bytes!("fixtures/current-mcp.py");
+    std::fs::write(r.bundle.join(&native), replacement).unwrap();
+    std::fs::set_permissions(
+        r.bundle.join(&native),
+        std::fs::Permissions::from_mode(0o700),
+    )
+    .unwrap();
+    let mut manifest = read_json(&r.bundle.join("bundle.json"));
+    manifest["files"][&native] = json!(hash(replacement));
+    write_json(&r.bundle.join("bundle.json"), &manifest);
+    assert_eq!(ok(r.update(&[], true))["install"]["changed"], true);
+    assert_eq!(
+        std::fs::read(cache.join("skills/background-jobs/SKILL.md")).unwrap(),
+        cached_skill
+    );
+    assert_eq!(
+        ok(r.command(&cache.join("relay"))
+            .arg("instructions")
+            .output()
+            .unwrap())["workflow"],
+        "current-runtime-workflow"
+    );
+    let updated = rpc(
+        &mut input,
+        &mut output,
+        &mut notices,
+        3,
+        "tools/list",
+        json!({}),
+    )
+    .await;
+    assert_eq!(
+        updated["result"]["tools"][0]["name"], "job_current_fixture",
+        "{updated}"
+    );
+    let arguments = json!({"binding":{"session_key":"actual-caller-key","cwd":r.dir.path()},"idempotency_key":"unchanged"});
+    let called = rpc(
+        &mut input,
+        &mut output,
+        &mut notices,
+        4,
+        "tools/call",
+        json!({"name":"job_current_fixture","arguments":arguments}),
+    )
+    .await;
+    let value: Value =
+        serde_json::from_str(called["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    assert_eq!(value["runtime"], "current");
+    assert_eq!(value["state"], s(&r.state));
+    assert_eq!(value["arguments"], arguments);
+    assert_eq!(
+        notices, 2,
+        "one catalog notification per runtime revision avoids reload loops"
+    );
+    let entered = r.dir.path().join("entered-forwarded-call");
+    let release = r.dir.path().join("release-forwarded-call");
+    r.change_bundle_skill();
+    let held = rpc(
+        &mut input,
+        &mut output,
+        &mut notices,
+        5,
+        "tools/call",
+        json!({"name":"job_current_fixture","arguments":{"hold":true,"entered":entered,"release":release}}),
+    );
+    let update = async {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while !entered.exists() {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
+        fails(
+            r.update(&[], true),
+            "another installation/removal is in progress",
+        );
+        std::fs::write(release, "release").unwrap();
+    };
+    let (held, ()) = tokio::join!(held, update);
+    assert_ne!(held["result"]["isError"], true, "{held}");
+    let record = r.dir.path().join("uncertain-calls");
+    let lost=rpc(&mut input,&mut output,&mut notices,6,"tools/call",json!({"name":"job_current_fixture","arguments":{"drop_ack":true,"record":record,"idempotency_key":"one-attempt"}})).await;
+    assert_eq!(lost["result"]["isError"], true);
+    assert_eq!(
+        std::fs::read_to_string(&record).unwrap(),
+        "one-attempt\n",
+        "uncertain calls must never be replayed by the bridge"
+    );
+    let saved_profile = read_json(&r.install.join(PROFILE));
+    let saved_receipt = read_json(&r.install.join(".agent-job-relay-install.json"));
+    for downgrade in [false, true] {
+        let mut profile = saved_profile.clone();
+        if downgrade {
+            profile["version"] = json!("0.1.10");
+        } else {
+            profile["state_dir"] = json!(r.dir.path().join("must-not-select-another-profile"));
+        }
+        write_json(&r.install.join(PROFILE), &profile);
+        let mut receipt = saved_receipt.clone();
+        receipt["files"][PROFILE] = json!(hash(&std::fs::read(r.install.join(PROFILE)).unwrap()));
+        write_json(&r.install.join(".agent-job-relay-install.json"), &receipt);
+        let denied = rpc(
+            &mut input,
+            &mut output,
+            &mut notices,
+            if downgrade { 13 } else { 12 },
+            "tools/call",
+            json!({"name":"job_doctor","arguments":{}}),
+        )
+        .await;
+        assert_eq!(denied["result"]["isError"], true, "{denied}");
+    }
+    write_json(&r.install.join(PROFILE), &saved_profile);
+    write_json(
+        &r.install.join(".agent-job-relay-install.json"),
+        &saved_receipt,
+    );
+    std::fs::write(r.install.join("bin/agent-job-relay"), b"modified").unwrap();
+    let refused = rpc(
+        &mut input,
+        &mut output,
+        &mut notices,
+        7,
+        "tools/call",
+        json!({"name":"job_doctor","arguments":{}}),
+    )
+    .await;
+    assert_eq!(refused["result"]["isError"], true);
+    assert_eq!(
+        notices, 2,
+        "rejected changes must not start a catalog reload loop"
+    );
+    assert_eq!(
+        r.database_hash(),
+        history,
+        "workflow/caller refresh and uncertain fixture calls must preserve native history"
+    );
+    drop(input);
+    child.wait().await.unwrap();
 }
 
 #[test]

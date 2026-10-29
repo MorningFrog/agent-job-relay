@@ -97,6 +97,7 @@ impl Rig {
             .arg(&self.config.root)
             .env_remove("CODEX_THREAD_ID")
             .env_remove("CODEX_APP_TOOLS_PIPE_PATH")
+            .env_remove("CODEX_APP_RUNTIME_CLI_PATH")
             .stdin(Stdio::null())
             .kill_on_drop(true);
         c
@@ -105,7 +106,8 @@ impl Rig {
         let mut c = self.command();
         c.args(args);
         if let Some((thread, endpoint)) = host {
-            c.env("CODEX_THREAD_ID", thread)
+            c.env_remove("CODEX_APP_RUNTIME_CLI_PATH")
+                .env("CODEX_THREAD_ID", thread)
                 .env("CODEX_APP_TOOLS_PIPE_PATH", endpoint);
         }
         // Installation hashes/copies the debug image several times. Shared CI
@@ -300,6 +302,7 @@ async fn batch_cli_and_shared_mcp_bind_every_item_to_the_actual_caller() {
     let mut retry = r.command();
     retry
         .args(["start-batch", "--file", "-", "--wake"])
+        .env_remove("CODEX_APP_RUNTIME_CLI_PATH")
         .env("CODEX_THREAD_ID", "batch-a")
         .env("CODEX_APP_TOOLS_PIPE_PATH", &host.endpoint)
         .stdin(Stdio::piped())
@@ -330,6 +333,7 @@ async fn batch_cli_and_shared_mcp_bind_every_item_to_the_actual_caller() {
     let mut child = r
         .command()
         .args(["mcp", "--shared-host"])
+        .env_remove("CODEX_APP_RUNTIME_CLI_PATH")
         .env("CODEX_THREAD_ID", "stale-shared-caller")
         .env("CODEX_APP_TOOLS_PIPE_PATH", &host.endpoint)
         .stdin(Stdio::piped())
@@ -503,7 +507,9 @@ async fn batch_cli_and_shared_mcp_bind_every_item_to_the_actual_caller() {
 async fn daemon_launches_runner_after_its_executable_is_replaced_by_a_rebuild() {
     let r = Rig::new();
     let image = r.dir.path().join("native");
-    std::fs::copy(env!("CARGO_BIN_EXE_agent-job-relay"), &image).unwrap();
+    // Avoid a new writable fixture image racing parallel process setup. The
+    // later rename still removes this exact loaded dentry, as a rebuild does.
+    std::fs::hard_link(env!("CARGO_BIN_EXE_agent-job-relay"), &image).unwrap();
     let first = success(
         tokio::process::Command::new(&image)
             .arg("--state-dir")
@@ -585,6 +591,7 @@ async fn installed_shared_mcp_uses_each_terminal_binding_and_never_its_inherited
                 .map(|v| v.as_str().unwrap()),
         )
         .env("AJR_STATE_DIR", r.dir.path().join("wrong-state"))
+        .env_remove("CODEX_APP_RUNTIME_CLI_PATH")
         .env("CODEX_THREAD_ID", "stale-server-thread")
         .env("CODEX_APP_TOOLS_PIPE_PATH", &host.endpoint)
         .stdin(Stdio::piped())
@@ -633,12 +640,18 @@ async fn installed_shared_mcp_uses_each_terminal_binding_and_never_its_inherited
             .starts_with("responding")
     );
     assert_eq!(doctor["desktop_context"]["available"], false);
+    assert_eq!(doctor["managed_mcp_updates_supported"], true);
+    assert_eq!(
+        doctor["goal_wait_policy"],
+        "required_for_active_desktop_goal"
+    );
     assert!(!r.config.root.exists());
     let mut jobs = Vec::new();
     for (i, thread) in ["thread-a", "thread-b"].iter().enumerate() {
         let bind = tokio::process::Command::new(install.join("relay"))
             .args(["connect", "--cwd", r.dir.path().to_str().unwrap()])
             .env("AJR_STATE_DIR", r.dir.path().join("wrong-state"))
+            .env_remove("CODEX_APP_RUNTIME_CLI_PATH")
             .env("CODEX_THREAD_ID", thread)
             .env("CODEX_APP_TOOLS_PIPE_PATH", &host.endpoint)
             .output()
@@ -766,6 +779,7 @@ async fn installed_recovery_previews_then_rebinds_only_current_chat_after_host_r
                 "--shell",
                 "while [ ! -f release-recovery ]; do sleep 0.02; done; echo recovery",
             ])
+            .env_remove("CODEX_APP_RUNTIME_CLI_PATH")
             .env("CODEX_THREAD_ID", thread)
             .env("CODEX_APP_TOOLS_PIPE_PATH", &host.endpoint)
             .env("AJR_STATE_DIR", r.dir.path().join("wrong-state"))
@@ -803,6 +817,7 @@ async fn installed_recovery_previews_then_rebinds_only_current_chat_after_host_r
     let recover = |apply: bool| {
         let mut c = tokio::process::Command::new(install.join("relay"));
         c.args(["connect", "--recover", "--full"])
+            .env_remove("CODEX_APP_RUNTIME_CLI_PATH")
             .env("CODEX_THREAD_ID", "thread-a")
             .env("CODEX_APP_TOOLS_PIPE_PATH", &endpoint)
             .env("AJR_STATE_DIR", r.dir.path().join("wrong-state"));
@@ -852,6 +867,7 @@ async fn installed_long_job_renews_expired_binding_only_when_completion_is_due()
             "--shell",
             "while [ ! -f release ]; do sleep 0.02; done; echo long-job",
         ])
+        .env_remove("CODEX_APP_RUNTIME_CLI_PATH")
         .env("CODEX_THREAD_ID", "thread-a")
         .env("CODEX_APP_TOOLS_PIPE_PATH", &host.endpoint)
         .output()
@@ -1071,6 +1087,7 @@ async fn mcp_wake_me_uses_current_context_and_survives_mcp_exit() {
     let mut command = r.command();
     command
         .arg("mcp")
+        .env_remove("CODEX_APP_RUNTIME_CLI_PATH")
         .env("CODEX_THREAD_ID", "mcp-thread-a")
         .env("CODEX_APP_TOOLS_PIPE_PATH", &host.endpoint)
         .stdin(Stdio::piped())

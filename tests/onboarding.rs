@@ -29,6 +29,7 @@ impl Rig {
         c.env_remove("AJR_STATE_DIR")
             .env_remove("CODEX_THREAD_ID")
             .env_remove("CODEX_APP_TOOLS_PIPE_PATH")
+            .env_remove("CODEX_APP_RUNTIME_CLI_PATH")
             .env("HOME", self.dir.path().join("home"))
             .env("CODEX_HOME", self.dir.path().join("home/.codex"))
             .current_dir(self.dir.path());

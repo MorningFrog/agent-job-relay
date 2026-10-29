@@ -15,6 +15,7 @@ pub mod ipc;
 pub mod lifecycle;
 pub mod maintenance;
 pub mod mcp;
+mod mcp_runtime;
 pub mod output;
 pub mod platform;
 pub mod plugin;

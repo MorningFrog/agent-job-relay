@@ -22,6 +22,8 @@ pub(super) struct Cli {
 }
 #[derive(Subcommand)]
 pub(super) enum Commands {
+    /// Read the current plugin workflow without starting a daemon or job
+    Instructions,
     /// Provision a remote identity or handle an authenticated stdio request
     Remote {
         #[command(subcommand)]
@@ -57,7 +59,7 @@ pub(super) enum Commands {
         /// Include complete host registration and recovery audit records
         #[arg(long)]
         full: bool,
-        /// Explicitly opt into experimental suspension of this chat's active goal
+        /// Assert that an active goal exists; ordinary connect already detects it
         #[arg(long, conflicts_with = "recover")]
         wait_goal: bool,
     },
@@ -91,6 +93,8 @@ pub(super) enum Commands {
         /// Ignore inherited chat identity; use a current-terminal session binding
         #[arg(long)]
         shared_host: bool,
+        #[arg(long, hide = true)]
+        worker: bool,
     },
     #[cfg(windows)]
     #[command(hide = true)]

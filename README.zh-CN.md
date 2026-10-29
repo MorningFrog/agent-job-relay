@@ -16,7 +16,7 @@ Tasks run in the background. Agents pick up when needed.
 | 能力 | 用途 |
 |---|---|
 | 持久后台任务 | 运行构建、测试、训练和数据处理，关闭聊天或查看器后仍可继续 |
-| Goal 等待（实验性源码） | 经授权后，由原聊天调用宿主原生暂停并向 Relay 确认，任务全部结束后恢复并通知原聊天；删除的 goal 不会重建。见[用法及宿主竞态边界](docs/goal-waiting.md) |
+| Goal 等待（实验性源码） | 活动 Desktop goal 委托后台任务时，默认强制原生暂停并向 Relay 确认，结束后恢复；无需另说“允许暂停”，删除的 goal 不会重建。见[用法及宿主竞态边界](docs/goal-waiting.md) |
 | 批量提交（未发布源码） | 通过 CLI/MCP 一次提交 1–16 个独立命令，逐项返回结果并支持安全重试，见[使用指南](docs/usage.md#submit-independent-commands-together-unreleased-source) |
 | 远程任务（未发布源码） | 在固定身份的远端运行时启动或附加命令，或观察固定的 GitHub Actions attempt；见[配置与边界](docs/remote-execution.md) |
 | 中间反馈（未发布源码） | 结构化阶段、步数和指标，重复里程碑或阈值告警，以及有界 checker 示例；见[用法与边界](docs/progress.md) |
@@ -32,6 +32,8 @@ Tasks run in the background. Agents pick up when needed.
 在线安装需要 Node.js 20+/npm 和网络。ChatGPT Desktop/Codex 还需要 PATH 中可用的 Codex CLI 和获取目录所需的 Git，Desktop 需要本地执行环境，无需 Rust 编译器。以下命令使用 Bash；另有 [PowerShell 和 Release ZIP 安装方式](docs/installation.md#chatgpt-desktop--codex)。
 
 更新时保留原数据目录。当前源码会在新版运行入口首次使用时自动接替旧 daemon，本地运行时更新也会自动重启在线 daemon；替换文件或迁移 schema 前须完成活动任务。已发布版本仍需手动停止同一数据目录的 daemon，见[更新前的准备](docs/updating.md#before-updating)。
+
+本地／源码插件通过稳定的指引入口和经过校验的 MCP 运行时转发跟随更新。旧入口需[一次迁移和重连](docs/updating.md#cache-inspection-and-refresh)；以后同版本本地更新也会使用当前流程，无需清理插件缓存。
 
 ### ChatGPT Desktop
 

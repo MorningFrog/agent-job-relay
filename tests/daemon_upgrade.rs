@@ -54,6 +54,7 @@ impl Rig {
             .env_remove("AJR_STATE_DIR")
             .env_remove("CODEX_THREAD_ID")
             .env_remove("CODEX_APP_TOOLS_PIPE_PATH")
+            .env_remove("CODEX_APP_RUNTIME_CLI_PATH")
             .stdin(Stdio::null())
             .kill_on_drop(true);
         command

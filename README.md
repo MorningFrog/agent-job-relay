@@ -16,7 +16,7 @@ Run long commands independently of the Agent connection, keep their results, and
 | Capability | Use it for |
 |---|---|
 | Durable background jobs | Builds, tests, training and data processing that continue after a chat or viewer closes |
-| Goal waiting (experimental source) | Hand off an opted-in Desktop goal through the originating chat's native pause and Relay confirmation, then restore it and notify the original chat after jobs finish; deletion never recreates a goal. [Usage and host race limits](docs/goal-waiting.md) |
+| Goal waiting (experimental source) | Automatically hand off an active Desktop goal through native pause and Relay confirmation, then restore it after jobs finish; no extra pause wording is needed and deleted goals stay deleted. [Usage and host race limits](docs/goal-waiting.md) |
 | Batch submission (unreleased source) | Submit 1–16 independent commands through CLI/MCP, with per-item results and safe retries; [usage](docs/usage.md#submit-independent-commands-together-unreleased-source) |
 | Remote tasks (unreleased source) | Launch/attach on a pinned remote runtime and observe a fixed GitHub Actions attempt; [setup and boundaries](docs/remote-execution.md) |
 | Mid-run feedback (unreleased source) | Structured stages/steps/metrics, repeated milestone or threshold alerts and a bounded checker recipe; [usage and limits](docs/progress.md) |
@@ -32,6 +32,8 @@ Run long commands independently of the Agent connection, keep their results, and
 Online installation needs Node.js 20+/npm and network access. ChatGPT Desktop/Codex also needs Codex CLI on PATH and Git for catalog fetching; Desktop requires a local executor. No Rust compiler is needed. Commands below use Bash; [PowerShell and Release ZIP alternatives](docs/installation.md#chatgpt-desktop--codex) are available.
 
 Retain the original profile when updating. Current source automatically replaces an older daemon on first runtime use and restarts an online daemon after a local runtime update; finish active jobs before file replacement or schema migration. Published versions still require a manual same-profile stop. See [upgrade preparation](docs/updating.md#before-updating).
+
+Native/source plugins use stable instruction entries and verified current-runtime MCP forwarding. Historical entries need [one migration and reconnection](docs/updating.md#cache-inspection-and-refresh); later same-version native updates follow the current workflow without clearing plugin caches.
 
 ### ChatGPT Desktop
 

@@ -95,6 +95,17 @@ AJR_INSTALL_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/agent-job-relay"
 
 ## 6. 在 ChatGPT Desktop 中安装并选择正确的插件
 
+已有插件若仍缓存完整旧技能，需要使用宿主／插件安装返回的**准确缓存目录**执行一次迁移，再按下文重连。不要传入缓存父目录，也不要搜索或删除其他插件：
+
+```bash
+AJR_CACHE="<宿主返回的缓存绝对目录>"
+"$AJR_INSTALL_ROOT/relay" plugin cache refresh --path "$AJR_CACHE" --dry-run
+"$AJR_INSTALL_ROOT/relay" plugin cache refresh --path "$AJR_CACHE" --apply
+"$AJR_INSTALL_ROOT/relay" plugin status --cache "$AJR_CACHE"
+```
+
+预期：`matches_installed=true`，并保留备份。新缓存技能每次调用都会通过 `relay instructions` 读取当前流程，受管 MCP 长连接会核对安装后使用后续更新的运行时。完成这次迁移和重连后，同版本本地源码更新也不必再手动刷新这些入口。在线固定版本 npm 包仍按其发行更新路线处理。
+
 1. 重启 ChatGPT Desktop，打开 **Plugins**。
 2. 选择个人市场 **AgentJobRelay Local**，安装并启用其中的 **AgentJobRelay**。若个人市场原来有其他名称，按 `$HOME/.agents/plugins/marketplace.json` 中的实际名称选择。
 3. 如果在线候选入口 `agent-job-relay@agent-job-relay` 已启用，先通过 ChatGPT Desktop 停用该候选入口，再验收本地插件，保留其他插件不变。
@@ -112,15 +123,17 @@ codex plugin add agent-job-relay@agent-job-relay-local
 
 选中本地插件后，先发送：
 
-> 调用 AgentJobRelay 的 MCP job_doctor 工具，报告连接是否正常，不提交任务。如果没有它的 MCP 工具，请报告并停止，不使用 CLI 降级，也不使用其他插件的工具。
+> 调用 AgentJobRelay 的 MCP job_doctor，验证 managed_mcp_updates_supported=true、goal_wait_policy=required_for_active_desktop_goal，并确认发现的 job_goal_wait 接口包含 confirm_paused。不提交任务。如果没有它的 MCP 工具，请报告并停止，不使用 CLI 降级，也不使用其他插件的工具。
 
-预期：实际调用 AgentJobRelay 的 `job_doctor` 成功。共享 MCP 中，`binding_mode=explicit current-terminal binding` 和 `desktop_context.available=false` 是正常结果；真正提交任务时才会通过终端绑定当前聊天。
+预期：实际调用 AgentJobRelay 的 `job_doctor` 成功且具备上述能力。排查同版本更新时，可将其 `runtime_workflow_sha256` 与所选启动器 `instructions` 返回的摘要比较；仅版本号相同不足以证明更新生效。共享 MCP 中，`binding_mode=explicit current-terminal binding` 和 `desktop_context.available=false` 是正常结果；真正提交任务时才会通过终端绑定当前聊天。
 
 成功后，再使用下一项实际需要的长任务：
 
 > 通过已选中的本地 AgentJobRelay 插件的 MCP 后台执行本项目的全量测试。绑定当前聊天，提交后结束本轮；完成后在当前聊天继续汇报。如果 MCP 不可用，请报告并停止本次验收，不使用 CLI 降级，也不使用其他插件的工具。
 
 预期：Agent 从当前聊天终端取得新的绑定，通过 AgentJobRelay MCP `job_start` 提交，报告任务 ID，然后结束本轮。实际观察到同聊天续接是另一项验收结果，宿主接收本身不能证明续接成功。验证边界见[人工验收](manual-testing.md)。
+
+活动 Desktop goal 中的普通后台委托默认强制暂停／完成后恢复，不需要补充授权短语。Agent 应自动取得 goal 绑定，提交一次、原生暂停、确认 `waiting` 后结束回合。见 [goal 等待](goal-waiting.md)。
 
 ## 能看到技能，但没有 job_start 时
 

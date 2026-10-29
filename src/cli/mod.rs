@@ -66,6 +66,13 @@ pub(super) async fn run() -> Result<()> {
     }
     let config = Config::new(state)?;
     let req = match cli.command {
+        Commands::Instructions => {
+            println!(
+                "{}",
+                serde_json::to_string(&agent_job_relay::mcp::workflow())?
+            );
+            return Ok(());
+        }
         Commands::Remote { command } => {
             match command {
                 RemoteCommand::Init => {
@@ -510,8 +517,11 @@ pub(super) async fn run() -> Result<()> {
             return Ok(());
         }
 
-        Commands::Mcp { shared_host } => {
-            return agent_job_relay::mcp::serve(config, shared_host).await;
+        Commands::Mcp {
+            shared_host,
+            worker,
+        } => {
+            return agent_job_relay::mcp::serve_mode(config, shared_host, !worker).await;
         }
         Commands::Install { root, apply, .. } | Commands::Uninstall { root, apply, .. } => {
             let root = root

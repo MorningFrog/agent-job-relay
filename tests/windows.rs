@@ -872,7 +872,8 @@ async fn offline_install_update_cache_and_removal_keep_state() {
         command
             .env_remove("AJR_STATE_DIR")
             .env_remove("CODEX_THREAD_ID")
-            .env_remove("CODEX_APP_TOOLS_PIPE_PATH");
+            .env_remove("CODEX_APP_TOOLS_PIPE_PATH")
+            .env_remove("CODEX_APP_RUNTIME_CLI_PATH");
         command
     };
     let run = |program: &Path, args: &[&std::ffi::OsStr]| -> Value {

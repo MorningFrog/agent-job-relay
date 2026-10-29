@@ -301,16 +301,40 @@ pub async fn connect_context(
             },
         )
         .await?;
+    } else if let Some((controller, expected)) =
+        crate::goal_control::Controller::detect(desktop_registration()?.0.session_id).await?
+    {
+        ensure!(
+            ipc::call(config, Request::Doctor).await?["goal_wait_host_pause"] == true,
+            "this active goal requires native-host pause acknowledgement; update the selected runtime before submitting work"
+        );
+        let wait = ipc::call(
+            config,
+            Request::PrepareGoalWait {
+                session_key: value["session"]["key"]
+                    .as_str()
+                    .context("missing caller key")?
+                    .into(),
+                controller,
+                expected: serde_json::to_value(expected)?,
+            },
+        )
+        .await?;
+        value["binding"]["goal_wait_id"] = wait["goal_wait_id"].clone();
+        value["goal_wait"] = wait;
     }
+    value["goal_wait_policy"] = json!("required_for_active_desktop_goal");
+    value["goal_state_verified"] =
+        json!(recovery.is_none() && std::env::var_os("CODEX_APP_RUNTIME_CLI_PATH").is_some());
     Ok(value)
 }
 pub fn brief_binding(value: Value) -> Value {
-    let mut brief = json!({"session_key":value["session"]["key"],"binding":value["binding"],"probe":"passed","can_resume":true,"can_confirm_resume":false,
+    let mut brief = json!({"session_key":value["session"]["key"],"binding":value["binding"],"goal_wait_policy":value["goal_wait_policy"],"goal_state_verified":value["goal_state_verified"],"probe":"passed","can_resume":true,"can_confirm_resume":false,
         "next_step":"Call job_start with binding and spec.command; end this turn after submission."});
     if let Some(wait) = value.get("goal_wait") {
         brief["goal_wait"] = wait.clone();
         brief["next_step"] = json!(
-            "Pass this binding unchanged to job_start/job_start_batch. Goal waiting is armed only after jobs are admitted."
+            "Active goal: use this binding unchanged. After admission, pause through this chat's native update_goal(status='paused'), confirm with job_goal_wait, then end the turn. Goal handoff is required by the selected Relay workflow; no additional user wording or confirmation is needed."
         );
     }
     if let Some(recovery) = value.get("recovery") {
@@ -337,27 +361,11 @@ pub async fn recover(config: &Config, apply: bool, after: i64, limit: u32) -> Re
     .await
 }
 pub async fn connect_with_goal(config: &Config, cwd: PathBuf) -> Result<Value> {
-    let mut value = connect_context(config, cwd, None).await?;
+    let value = connect_context(config, cwd, None).await?;
     ensure!(
-        ipc::call(config, Request::Doctor).await?["goal_wait_host_pause"] == true,
-        "selected daemon lacks originating-host goal pause acknowledgement; explicitly update this same profile first"
+        value.get("goal_wait").is_some(),
+        "goal waiting requires an active goal and the current Desktop runtime; no job was submitted"
     );
-    let thread = desktop_registration()?.0.session_id;
-    let (controller, expected) = crate::goal_control::Controller::capture(thread).await?;
-    let wait = ipc::call(
-        config,
-        Request::PrepareGoalWait {
-            session_key: value["session"]["key"]
-                .as_str()
-                .context("missing caller key")?
-                .into(),
-            controller,
-            expected: serde_json::to_value(expected)?,
-        },
-    )
-    .await?;
-    value["binding"]["goal_wait_id"] = wait["goal_wait_id"].clone();
-    value["goal_wait"] = wait;
     Ok(value)
 }
 pub async fn start_waiting(
@@ -426,13 +434,32 @@ pub async fn start(config: &Config, mut spec: StartSpec, wake_me: bool) -> Resul
         verify_external_runtime(&ipc::call(config, Request::Doctor).await?)?;
     }
     if let Some((registration, fingerprint)) = context {
-        let session = connect_registration(config, registration, fingerprint).await?;
+        // The actual terminal selects the goal controller; the daemon/shared
+        // MCP never infers it from its own inherited environment.
+        let session = if std::env::var_os("CODEX_APP_RUNTIME_CLI_PATH").is_some() {
+            connect_context(config, spec.cwd.clone(), None).await?
+        } else {
+            connect_registration(config, registration, fingerprint).await?
+        };
         spec.session = Some(
             session["session"]["key"]
                 .as_str()
                 .context("daemon returned no session key")?
                 .into(),
         );
+        if let Some(wait) = session["binding"]["goal_wait_id"].as_str() {
+            let mut result = ipc::call(
+                config,
+                Request::StartGoal {
+                    spec,
+                    goal_wait_id: wait.into(),
+                },
+            )
+            .await?;
+            result["wake"]["automatic_binding"] = json!(true);
+            result["wake"]["probe"] = json!("passed");
+            return Ok(result);
+        }
     }
     let mut result = ipc::call(config, Request::Start { spec }).await?;
     if wake_me {
@@ -466,12 +493,26 @@ pub async fn start_batch(
         "selected daemon does not support batch submission. No batch was submitted. Let active jobs finish, then explicitly stop/update the daemon for the same profile and retry"
     );
     if let Some((registration, fingerprint)) = context {
-        let session = connect_registration(config, registration, fingerprint).await?;
+        let session = if std::env::var_os("CODEX_APP_RUNTIME_CLI_PATH").is_some() {
+            connect_context(config, std::env::current_dir()?, None).await?
+        } else {
+            connect_registration(config, registration, fingerprint).await?
+        };
         let key = session["session"]["key"]
             .as_str()
             .context("daemon returned no session key")?;
         for spec in &mut specs {
             spec.session = Some(key.into());
+        }
+        if let Some(wait) = session["binding"]["goal_wait_id"].as_str() {
+            return ipc::call(
+                config,
+                Request::StartGoalBatch {
+                    specs,
+                    goal_wait_id: wait.into(),
+                },
+            )
+            .await;
         }
     }
     crate::batch::validate(&specs)?;

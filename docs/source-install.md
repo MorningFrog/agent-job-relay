@@ -95,6 +95,17 @@ Keep AJR_INSTALL_ROOT present: cached MCP and terminal launchers use its native 
 
 ## 6. Install and select the correct plugin in ChatGPT Desktop
 
+For an existing plugin with a historical full cached skill, perform this one-time migration using the exact cache directory reported by the host/plugin installation, then reconnect below. Never pass a cache parent or search/delete other plugins:
+
+```bash
+AJR_CACHE="<absolute-cache-directory-reported-by-host>"
+"$AJR_INSTALL_ROOT/relay" plugin cache refresh --path "$AJR_CACHE" --dry-run
+"$AJR_INSTALL_ROOT/relay" plugin cache refresh --path "$AJR_CACHE" --apply
+"$AJR_INSTALL_ROOT/relay" plugin status --cache "$AJR_CACHE"
+```
+
+Expected: `matches_installed=true`, with a retained backup. New cached skills load `relay instructions` for each invocation, and managed MCP connections verify/follow later runtime updates. After this initial migration/reconnection, same-version native source updates do not require manually refreshing those entry points. Online pinned-package updates remain separate.
+
 1. Restart ChatGPT Desktop and open **Plugins**.
 2. Choose the personal **AgentJobRelay Local** marketplace, then install/enable **AgentJobRelay**. If the personal catalog already had another name, use that name from `$HOME/.agents/plugins/marketplace.json`.
 3. If the online candidate `agent-job-relay@agent-job-relay` is enabled, disable that candidate through ChatGPT Desktop before testing the local plugin. Keep unrelated plugins unchanged.
@@ -112,15 +123,17 @@ Then restart/reconnect ChatGPT Desktop and open the new local chat as above. CLI
 
 With the local plugin selected, first ask:
 
-> Call AgentJobRelay's MCP job_doctor tool and report whether the connection works. Do not submit a task. If its MCP tools are missing, report that and stop; do not use CLI fallback or another plugin's tools.
+> Call AgentJobRelay's MCP job_doctor tool and verify managed_mcp_updates_supported=true and goal_wait_policy=required_for_active_desktop_goal, plus confirm_paused in the discovered job_goal_wait interface. Do not submit a task. If its MCP tools are missing, report that and stop; do not use CLI fallback or another plugin's tools.
 
-Expected: an actual AgentJobRelay `job_doctor` call succeeds. For shared MCP, `binding_mode=explicit current-terminal binding` and `desktop_context.available=false` are normal; the current chat is bound later through its terminal.
+Expected: an actual AgentJobRelay `job_doctor` call succeeds with those capabilities. Compare its `runtime_workflow_sha256` with the selected launcher's `instructions` digest when investigating a same-version update; a matching version number alone is insufficient. For shared MCP, `binding_mode=explicit current-terminal binding` and `desktop_context.available=false` are normal; the current chat is bound later through its terminal.
 
 Only after that succeeds, use your next real long task:
 
 > Use the selected local AgentJobRelay plugin's MCP tools to run this project's full tests in the background. Bind this chat and end your turn after submission. When the task finishes, continue in this chat and summarize the result. If MCP is unavailable, report that and stop this acceptance; do not use CLI fallback or another plugin's tools.
 
 Expected: the Agent obtains a fresh terminal binding, submits through AgentJobRelay MCP `job_start`, reports the job ID and ends its turn. Observed same-chat continuation is a separate acceptance result; host acceptance alone does not prove it. See [manual acceptance](manual-testing.md) for evidence boundaries.
+
+For an active Desktop goal, ordinary background delegation automatically requires goal pause/restoration; do not add an authorization phrase. The Agent must obtain an automatic goal binding, submit once, perform native pause, confirm `waiting` and end the turn. See [goal waiting](goal-waiting.md).
 
 ## If the skill appears but job_start is missing
 

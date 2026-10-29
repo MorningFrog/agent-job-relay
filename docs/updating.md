@@ -2,7 +2,7 @@
 
 [Documentation index](README.md) · [Install](installation.md) · [Troubleshooting](troubleshooting.md)
 
-Use the route matching your original installation. Current source replaces an older daemon when the new runtime first starts/binds work or opens the UI. Applied local runtime updates restart an online daemon from the new installation. Host plugin snapshots still need refresh/MCP reconnection; history stays in its original profile. Published versions predate automatic handover and retain the manual stop fallback below.
+Use the route matching your original installation. Current source replaces an older daemon when the new runtime first starts/binds work or opens the UI. Applied local runtime updates restart an online daemon from the new installation. Historical full-skill/MCP entries need one migration refresh/reconnection. New native cached entries read current runtime instructions, and retained managed MCP connections verify/follow the updated installation; history stays in its original profile. Published versions predate automatic handover and retain the manual stop fallback below.
 
 | Installation | Update procedure |
 |---|---|
@@ -73,7 +73,7 @@ Expected: the preview keeps the recorded state profile, apply preserves history 
 
 The command validates bundle ownership/version and each explicitly selected cache (`--cache` may repeat), then maintains the runtime and local marketplace entry. `--config` selects a custom marketplace file; reuse that selection on later maintenance. Default output includes changed destinations, preserved profile, backups and next action; `--full` includes complete reports. Directory replacements and marketplace writes are separate operations. No cache scanning or automatic profile migration occurs.
 
-Refresh/reinstall the plugin through the host and reconnect MCP afterward. MCP reconnection loads the new client; the updated online daemon is already running after a successful applied local update. Rebuilding source does not update installed binaries or caches. If replacement was interrupted, use the [recorded repair procedure](#compatibility-and-interrupted-operations), then retry the update.
+For historical entries, refresh the known cache and reconnect MCP once to install the stable instruction entry and managed forwarding support. Thereafter cached skills read `instructions` from the installed runtime, while retained managed MCP connections route calls/catalogs to verified current bytes, preserving their original profile. Same-version source updates are included; modified or downgraded runtimes fail without fallback/replay. A tool-catalog change emits one notification per runtime revision. The updated daemon is already running after a successful applied local update. Rebuilding source does not update installed binaries or caches. If replacement was interrupted, use the [recorded repair procedure](#compatibility-and-interrupted-operations), then retry the update.
 
 ## Updating an existing installation
 
@@ -98,7 +98,9 @@ For a known cache directory belonging to this plugin, set AJR_CACHE to that exac
 "$AJR_INSTALL_ROOT/relay" plugin cache refresh --path "$AJR_CACHE" --apply
 ```
 
-Commands run through a custom installed launcher default to its own root. Refresh validates the original installation/state/platform, complete file set and hashes. It supports host copies with or without the management receipt, refuses altered/unknown/missing/symlinked/foreign files, retains the previous snapshot as a backup and is idempotent. It does not scan/delete caches or change the host's registry/enabled state. Do not pass a parent containing other plugins. Reconnect MCP after a change.
+Commands run through a custom installed launcher default to its own root. Refresh validates the original installation/state/platform, complete file set and hashes. It supports host copies with or without the management receipt, refuses altered/unknown/missing/symlinked/foreign files, retains the previous snapshot as a backup and is idempotent. It does not scan/delete caches or change the host's registry/enabled state. Do not pass a parent containing other plugins. Reconnect MCP for the initial historical-entry migration; current managed connections follow subsequent verified native updates. This cannot retrofit an already running pre-forwarder binary without that first reconnection.
+
+For a stable instruction entry, `matches_installed` describes snapshot bytes, including an unused historical native copy; it can be false after a later runtime update without stale behavior. Compare the selected launcher's `instructions.workflow_sha256` with MCP `runtime_workflow_sha256`, and require `managed_mcp_updates_supported=true` for the connection. Do not treat a matching version string as proof, or delete snapshots to make the byte comparison pass.
 
 To preflight and refresh several known snapshots during runtime update, repeat `--cache <absolute-directory>` on `plugin update`. All selected caches are checked before runtime replacement. Cache refresh alone does not stop the daemon. Each directory replacement records a durable recovery operation; multiple directories and marketplace writes remain separate. On interruption use `plugin repair` for the exact affected directory, then retry the original update. No runtime/schema rollback occurs.
 

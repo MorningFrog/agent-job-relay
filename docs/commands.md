@@ -72,6 +72,7 @@ Rules use one condition: `--no-output <duration>`, `--elapsed <duration>` or `--
 |---|---|
 | `connect [--cwd <absolute-project>]` | Obtain a fresh current-chat/workspace binding from its actual terminal |
 | `connect --wait-goal` (experimental source) | Prepare an explicitly authorized active-goal wait from the actual Desktop terminal; pass the returned binding to start/batch |
+| `instructions` | Read the current embedded plugin workflow, policy and digest without starting a daemon/job; cached skills load this at every invocation |
 | `goal-wait <id> [--confirm-paused\|--cancel] [--expected-revision <n>]` (experimental source) | Inspect, confirm this chat's successful native goal pause, or cancel future control/notification; mutations require the observed revision and jobs keep running; [handoff and interruption](goal-waiting.md) |
 | `connect --recover [--apply]` | Preview/apply same-chat recovery; `--after`, `--limit`, `--full` |
 | `session connect [--brief]` | Compatible current-terminal binding entry |
@@ -86,7 +87,7 @@ Rules use one condition: `--no-output <duration>`, `--elapsed <duration>` or `--
 | `target add <job-id> <session-key> [--replay]` | Advanced exact-session target, optionally replaying eligible existing terminal events |
 | `target rebind <target-id> <session-key>` | Advanced explicit target replacement |
 
-Source `start`, `start-spec` and `start-batch` additionally accept `--wake --wait-goal`. Goal waiting requires the matching source daemon/profile and explicit opt-in; published/sealed runtimes lack it. See [goal waiting](goal-waiting.md).
+Source `connect` and wake-enabled `start`, `start-spec` and `start-batch` automatically detect an active Desktop goal and require its pause handoff. `--wait-goal` remains a compatibility assertion that a goal exists. Goal waiting requires the matching source daemon/profile; published/sealed runtimes lack it. See [goal waiting](goal-waiting.md).
 
 Recovery preserves original expiry and excludes accepted/expired events and live claims. Explicit delivery retry has different TTL semantics. Never guess caller IDs or reuse a binding from another chat. See [MCP submission](usage.md#submit-through-mcp-with-same-chat-notification), [recovery](usage.md#recover-notifications) and [protocol](protocol.md) before advanced target operations.
 

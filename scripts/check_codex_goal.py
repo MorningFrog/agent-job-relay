@@ -217,7 +217,7 @@ ws.addEventListener('close', () => process.exit());
             async def active_checks():
                 return sum(objective in json.dumps(r["body"].get("input", [])) for r in requests[request_offset:]) >= 2
             await until(active_checks, "active goal did not produce repeated control turns before pause")
-            binding = await relay("connect", "--cwd", work, "--wait-goal", caller=thread)
+            binding = await relay("connect", "--cwd", work, caller=thread)
             wait_id = binding["binding"]["goal_wait_id"]
             gate = work / (scenario + ".gate")
             script = "import pathlib,sys,time; p=pathlib.Path(sys.argv[1]); deadline=time.monotonic()+30\nwhile not p.exists():\n assert time.monotonic()<deadline\n time.sleep(.05)\nprint('RELAY_WORK_FINISHED')"

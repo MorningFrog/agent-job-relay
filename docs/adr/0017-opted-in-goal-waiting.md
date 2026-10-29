@@ -1,12 +1,14 @@
-# ADR 0017: Explicit goal waiting around Relay jobs
+# ADR 0017: Native goal handoff around Relay jobs
 
 ## Decision
 
-Add an explicitly opted-in waiting group, separate from job execution, sessions and deliveries. Preparation comes from the actual Desktop terminal and pins its CLI image digest, Codex profile, logical chat, goal snapshot and original notification registration. Bindings carry only the opaque wait ID into shared MCP. Attach members in their admission transactions; freeze accepted membership before pausing. Preserve original Job/Run IDs and all execution idempotency semantics. Resume only after every original member is terminal and send one existing outbox delivery containing all member identities.
+Use a waiting group required by default for an active Desktop goal, separate from job execution, sessions and deliveries. Ordinary terminal binding detects the active goal automatically; preparation comes from the actual Desktop terminal and pins its CLI image digest, Codex profile, logical chat, goal snapshot and original notification registration. Bindings carry only the opaque wait ID into shared MCP. Attach members in their admission transactions; freeze accepted membership before pausing. Preserve original Job/Run IDs and all execution idempotency semantics. Resume only after every original member is terminal and send one existing outbox delivery containing all member identities.
 
 After admission, return `sealed` with an explicit native-host pause action. The originating Agent uses its own `update_goal(status="paused")`, then confirms success through revision-fenced `job_goal_wait(confirm_paused=true)`. Verify the original paused goal/binding before entering `waiting`. A separate app-server's storage-only pause does not notify Desktop's in-memory goal state and caused continued checks; it must never acknowledge waiting. Confirmation is a cooperative caller assertion, not independent host attestation. Missing confirmation expires after five minutes without changing goals or replaying work; earlier storage-only waits close with `attention`.
 
 Use public Codex app-server initialize/get/status-only-set RPCs in bounded supervised processes for reads and restoration only. Never load/start/resume threads or send goal objectives/budgets. The existing Desktop adapter wakes the owning runtime on completion. No Agent or goal RPC polling occurs while jobs run; the native coordinator reads durable member state.
+
+The current product contract replaces the original opt-in workflow: no special pause phrase or repeated permission question is required. Inactive/deleted goals are not adopted, and user interruption/cancellation remains effective.
 
 ## Fencing and recovery
 
@@ -16,7 +18,7 @@ Pin groups permanently to their original registration. Ordinary same-chat recove
 
 ## Compatibility limit
 
-The current goal API has no generation/CAS and only second-resolution timestamps. Snapshot checks detect observable replacement and pause changes but cannot guarantee fencing identical same-second replacement, updates masked by final usage or a change between verification and mutation/message transmission. Status-only writes cannot resurrect a deleted goal, but can affect a replacement in that remaining race. Keep the feature experimental and explicitly opted in; do not claim strong host fencing. A future conditional host operation is required for that guarantee.
+The current goal API has no generation/CAS and only second-resolution timestamps. Snapshot checks detect observable replacement and pause changes but cannot guarantee fencing identical same-second replacement, updates masked by final usage or a change between verification and mutation/message transmission. Status-only writes cannot resurrect a deleted goal, but can affect a replacement in that remaining race. Keep the host compatibility limits experimental while treating pause/restoration as the required requested Relay scheduling; do not claim strong host fencing. A future conditional host operation is required for that guarantee.
 
 ## Verification
 
