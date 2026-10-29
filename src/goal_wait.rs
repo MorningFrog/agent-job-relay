@@ -11,6 +11,7 @@ use serde_json::{Value, json};
 
 const OPEN: &str = "'prepared','sealed','pausing','waiting','resuming'";
 const DAY: i64 = 86_400_000;
+const PAUSE_ACK_TIMEOUT: i64 = 300_000;
 
 #[derive(Clone)]
 struct Wait {
@@ -67,6 +68,8 @@ fn brief(db: &Connection, id: &str) -> Result<Value> {
     );
     value["next_step"] = json!(match value["status"].as_str().unwrap_or("") {
         "prepared" => "Submit once with this binding; no goal has been paused yet.",
+        "sealed" =>
+            "Work is admitted. Call this chat's native update_goal(status='paused') now, then call job_goal_wait with confirm_paused=true and this expected_revision. Do not claim waiting before that acknowledgement. If native pause is unavailable or fails, cancel this wait and report the limitation; do not poll or resubmit jobs.",
         "waiting" => "End this turn. Relay will handle completion without Agent polling.",
         "resumed" =>
             "Inspect the member results; host acceptance is not confirmed Agent execution.",
@@ -75,6 +78,7 @@ fn brief(db: &Connection, id: &str) -> Result<Value> {
         _ =>
             "Work is admitted, but goal pause is not yet acknowledged. Inspect this wait before claiming automatic waiting.",
     });
+    value["host_pause_required"] = json!(value["status"] == "sealed");
     Ok(value)
 }
 fn view(db: &Connection, id: &str) -> Result<Value> {
@@ -118,6 +122,10 @@ pub(crate) fn attach(
 ) -> Result<()> {
     let record = read(db, wait)?;
     ensure!(
+        record.controller.host_pause,
+        "legacy goal binding cannot acknowledge an originating-host pause; prepare a new binding"
+    );
+    ensure!(
         record.status == "prepared" && record.expires > now(),
         "goal wait is sealed or expired; retry accepted keys unchanged and use a fresh wait only for unsubmitted work"
     );
@@ -154,6 +162,10 @@ impl Store {
         expected: Goal,
     ) -> Result<Value> {
         validate_id(&session_key)?;
+        ensure!(
+            controller.host_pause,
+            "goal waiting requires the originating-host pause protocol"
+        );
         controller.validate_async().await?;
         ensure!(
             expected.thread_id == controller.thread_id && expected.status == "active",
@@ -240,6 +252,58 @@ impl Store {
             Ok(result)
         })
         .await
+    }
+
+    /// The submitting Agent must first use its own native goal tool, so the
+    /// owning runtime and Desktop receive the pause event. A separate app-server
+    /// can read/write the same DB without notifying either of them.
+    pub async fn confirm_goal_pause(
+        &self,
+        id: String,
+        expected_revision: Option<i64>,
+    ) -> Result<Value> {
+        validate_id(&id)?;
+        let key = id.clone();
+        let record = self.read(move |db| read(db, &key)).await?;
+        ensure!(
+            record.controller.host_pause,
+            "legacy wait has no originating-host pause acknowledgement"
+        );
+        // Lost confirmation responses are safe to retry with the original revision.
+        if record.status == "waiting" && expected_revision == Some(record.revision - 1) {
+            return self.goal_wait(id, false, None).await;
+        }
+        ensure!(
+            record.status == "sealed" && expected_revision == Some(record.revision),
+            "goal wait phase or revision changed; inspect before confirming pause"
+        );
+        ensure!(
+            record.expires > now(),
+            "host pause acknowledgement expired; use host goal controls explicitly"
+        );
+        let session = self.session(record.session_key.clone()).await?;
+        binding_matches(&record, &session)?;
+        let paused = record
+            .controller
+            .read()
+            .await?
+            .context("goal removed before pause acknowledgement")?;
+        ensure!(
+            record.expected.same_identity(&paused) && paused.status == "paused",
+            "originating-host pause is not visible for the original goal; do not claim waiting"
+        );
+        let expected = record.clone();
+        self.call(move |db| {
+            let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+            let current = read(&tx, &expected.id)?;
+            ensure!(current.status == "sealed" && current.revision == expected.revision && current.expires > now(), "goal wait changed before pause confirmation");
+            binding_matches(&current, &crate::session::read_session(&tx, &current.session_key)?)?;
+            tx.execute("UPDATE goal_waits SET status='waiting',revision=revision+1,paused=?,updated=?,next_at=?,expires=? WHERE id=? AND revision=?",params![serde_json::to_string(&paused)?,now(),now(),i64::MAX,current.id,current.revision])?;
+            audit(&tx,&current.id,current.revision+1,"waiting","originating Agent acknowledged native host pause; original paused goal verified")?;
+            let result = view(&tx, &current.id)?;
+            tx.commit()?;
+            Ok(result)
+        }).await
     }
 }
 
@@ -337,7 +401,7 @@ pub async fn seal(store: &Store, id: &str) -> Result<Value> {
         let record=read(&tx,&key)?;
         let count:i64=tx.query_row("SELECT count(*) FROM goal_wait_jobs WHERE wait_id=?",[&key],|r|r.get(0))?;
         if record.status=="prepared" && count>0 {
-            tx.execute("UPDATE goal_waits SET status='sealed',revision=revision+1,updated=?,expires=?,next_at=? WHERE id=?",params![now(),i64::MAX,now(),key])?;
+            tx.execute("UPDATE goal_waits SET status='sealed',revision=revision+1,updated=?,expires=?,next_at=? WHERE id=?",params![now(),now()+PAUSE_ACK_TIMEOUT,now()+PAUSE_ACK_TIMEOUT,key])?;
             audit(&tx,&key,record.revision+1,"sealed","accepted member set frozen")?;
         }
         tx.commit()?;Ok(())
@@ -413,6 +477,14 @@ pub async fn progress(store: &Store, id: &str) -> Result<()> {
     }
     let key = id.to_string();
     let record = store.read(move |db| read(db, &key)).await?;
+    if !record.controller.host_pause
+        && matches!(
+            record.status.as_str(),
+            "prepared" | "sealed" | "pausing" | "waiting" | "resuming"
+        )
+    {
+        return close(store, &record, "attention", "legacy storage-only pause did not acknowledge the owning host; use host goal controls explicitly").await;
+    }
     match record.status.as_str() {
         "resumed" if record.expires <= now() => {
             return close(
@@ -433,55 +505,8 @@ pub async fn progress(store: &Store, id: &str) -> Result<()> {
             .await;
         }
         "sealed" => {
-            let session = store.session(record.session_key.clone()).await?;
-            if let Err(e) = binding_matches(&record, &session) {
-                return close(
-                    store,
-                    &record,
-                    "attention",
-                    &format!("pause not attempted: {e:#}"),
-                )
-                .await;
-            }
-            let current = match record.controller.read().await {
-                Ok(Some(goal))
-                    if record.expected.same_identity(&goal) && goal.status == "active" =>
-                {
-                    goal
-                }
-                Ok(_) => {
-                    return close(
-                        store,
-                        &record,
-                        "suppressed",
-                        "goal removed, paused or changed before admission was armed",
-                    )
-                    .await;
-                }
-                Err(e) => {
-                    return close(
-                        store,
-                        &record,
-                        "attention",
-                        &format!("pause not attempted: {e:#}"),
-                    )
-                    .await;
-                }
-            };
-            let Some(record) = phase(store, &record, "pausing", None).await? else {
-                return Ok(());
-            };
-            match record
-                .controller
-                .set_status("paused", &current, mutation_allowed(store, &record))
-                .await
-            {
-                Ok(Some(paused)) if current.same_identity(&paused) && paused.status == "paused" => {
-                    phase(store, &record, "waiting", Some(&paused)).await?;
-                }
-                _ => {
-                    close(store,&record,"attention","pause outcome uncertain or goal changed; inspect host controls; no automatic replay").await?;
-                }
+            if record.expires <= now() {
+                close(store, &record, "attention", "originating-host pause was not confirmed within five minutes; admitted commands were retained; use host goal controls explicitly").await?;
             }
         }
         "waiting" => {
@@ -634,8 +659,16 @@ pub(crate) async fn recover_admissions(store: &Store) -> Result<()> {
         let mut q=tx.prepare("SELECT id,revision FROM goal_waits WHERE status='prepared' AND EXISTS(SELECT 1 FROM goal_wait_jobs m WHERE m.wait_id=goal_waits.id)")?;
         let rows=q.query_map([],|r|Ok((r.get::<_,String>(0)?,r.get::<_,i64>(1)?)))?.collect::<rusqlite::Result<Vec<_>>>()?;drop(q);
         for (id,revision) in rows {
-            tx.execute("UPDATE goal_waits SET status='sealed',revision=revision+1,updated=?,next_at=?,expires=? WHERE id=?",params![now(),now(),i64::MAX,id])?;
+            tx.execute("UPDATE goal_waits SET status='sealed',revision=revision+1,updated=?,next_at=?,expires=? WHERE id=?",params![now(),now()+PAUSE_ACK_TIMEOUT,now()+PAUSE_ACK_TIMEOUT,id])?;
             audit(&tx,&id,revision+1,"sealed","interrupted admission recovered; committed members retained without execution replay")?;
+        }
+        let ids = { let mut q=tx.prepare("SELECT id FROM goal_waits WHERE status IN ('prepared','sealed','pausing','waiting','resuming') OR (status='resumed' AND notified=0)")?;
+            q.query_map([],|r|r.get::<_,String>(0))?.collect::<rusqlite::Result<Vec<_>>>()? };
+        for id in ids {
+            let record=read(&tx,&id)?;
+            if !record.controller.host_pause {
+                close_tx(&tx,&record,"attention","legacy storage-only pause did not acknowledge the owning host; use host goal controls explicitly")?;
+            }
         }
         tx.commit()?;Ok(())
     }).await
@@ -663,6 +696,10 @@ pub(crate) async fn before_delivery(store: &Store, claim: &crate::delivery::Clai
         return Ok(true);
     };
     if record.status != "resumed" || record.session_key != claim.session.key {
+        return Ok(false);
+    }
+    if !record.controller.host_pause {
+        close(store, &record, "attention", "legacy storage-only pause cannot authorize completion notification; use host goal controls explicitly").await?;
         return Ok(false);
     }
     if serde_json::to_string(

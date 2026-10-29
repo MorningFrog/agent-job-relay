@@ -2,9 +2,9 @@
 
 [Documentation index](README.md) · [Commands](commands.md) · [Verification](live-e2e.md#goal-waiting-protocol-proof)
 
-Experimental, explicitly opted-in **unreleased source** support pauses the originating Desktop chat's active goal after Relay accepts work. After all accepted members finish, Relay restores that goal and sends one combined result notification to the original chat. During the wait, native code checks job state; no Agent, model or goal RPC is polled. The submitting Agent must end its turn after acknowledged pause. This does not interrupt an already running turn, child Agent or another chat's goal.
+Experimental, explicitly opted-in **unreleased source** support coordinates the originating Desktop chat's native goal pause after Relay accepts work. The submitting Agent pauses through its own host goal tool, then confirms that acknowledgement to Relay. After all accepted members finish, Relay restores that goal and sends one combined result notification to the original chat. During the wait, native code checks job state; no Agent, model or goal RPC is polled. The submitting Agent must end its turn after the confirmed handoff. This does not interrupt an already running turn, child Agent or another chat's goal.
 
-Published 0.1.10 and the original sealed 0.1.11 candidate lack this capability. Use a matching source build/offline plugin and its existing profile; see [source installation](source-install.md) and [upgrade preparation](updating.md#before-updating). Source uses schema v10 and advertises `goal_waiting=true` / MCP `job_goal_wait`. Upgrading requires finishing old runs; current-source runtime entries then replace the selected older daemon automatically with pinned-peer shutdown and schema checks. Use an explicitly updated runtime and retain the same profile. Published clients still need the manual stop fallback.
+Published 0.1.10 and the original sealed 0.1.11 candidate lack this capability. Use a matching source build/offline plugin and its existing profile; see [source installation](source-install.md) and [upgrade preparation](updating.md#before-updating). Source uses schema v10 and advertises `goal_wait_host_pause=true` / MCP `job_goal_wait` with `confirm_paused`. Earlier source builds' storage-only pause cannot acknowledge the live Desktop state; their unresolved waits close with `attention` and require manual host goal handling. Upgrading requires finishing old runs; current-source runtime entries then replace the selected older daemon automatically with pinned-peer shutdown and schema checks. Use an explicitly updated runtime and retain the same profile. A same-version source daemon needs an explicit same-profile restart; a version match alone does not prove this capability. Published clients still need the manual stop fallback.
 
 ## Submit from the actual chat
 
@@ -27,9 +27,17 @@ Pass **that exact binding** to the usual MCP tool:
 }
 ```
 
-Expected: `job_start` returns original Job/Run IDs and `goal_wait.status=waiting` after pause acknowledgement. Retain the IDs and end the turn. Local monitoring and commands continue independently. Do not repeatedly inspect the wait or use Agent goal completion/blocked status as a waiting mechanism. `attention`, `suppressed` or an unacknowledged phase requires reading the returned explanation; admitted jobs remain admitted even if goal control fails.
+Expected: `job_start` returns original Job/Run IDs, `goal_wait.status=sealed`, `host_pause_required=true` and the admission revision. Retain all IDs and finish other Agent work, then use **this chat's native `update_goal(status="paused")` tool**. After that tool acknowledges success, finish the handoff with:
 
-CLI fallback uses `start --wake --wait-goal --cwd <directory> -- <program> <args...>`; `start-spec` and `start-batch` accept the same two flags. Retain returned IDs. If the CLI response is lost, inspect existing jobs/waits before another submission; a new connection cannot automatically adopt the now-paused goal. For MCP response loss, retry the original binding and unchanged specifications/keys; never generate new keys for uncertain work.
+```json
+{"goal_wait_id":"<returned-wait-id>","confirm_paused":true,"expected_revision":2}
+```
+
+Call MCP `job_goal_wait` with the actual returned revision, replacing the example `2`. Expected: `status=waiting`, `host_pause_required=false`. End the turn immediately. A separate CLI/app-server write changes storage but does not notify Desktop's cached goal state, so it cannot replace the native host tool. If that tool is unavailable, rejected or uncertain, cancel the wait with the observed revision and report the limitation; jobs keep running. Unconfirmed admission expires after five minutes without changing the host goal. A lost confirmation response can be retried with its original revision while waiting; do not repeat the native pause or workload.
+
+Local monitoring and commands continue independently. Do not repeatedly inspect the wait or use Agent goal completion/blocked status as a waiting mechanism. `attention`, `suppressed` or an unacknowledged phase requires reading the returned explanation; admitted jobs remain admitted even if goal control fails.
+
+CLI fallback uses `start --wake --wait-goal --cwd <directory> -- <program> <args...>`; `start-spec` and `start-batch` accept the same two flags. It still requires the current chat's native goal pause, followed by `goal-wait <id> --confirm-paused --expected-revision <admission-revision>`. Retain returned IDs. If the CLI response is lost, inspect existing jobs/waits before another submission; a new connection cannot automatically adopt the now-paused goal. For MCP response loss, retry the original binding and unchanged specifications/keys; never generate new keys for uncertain work.
 
 ## Wait for several commands
 
@@ -51,11 +59,13 @@ MCP equivalents use `job_goal_wait` with `goal_wait_id`, optional `cancel=true` 
 | Situation | Relay behavior |
 |---|---|
 | All original members finish | Verify original binding/controller and paused goal, restore status only, then deliver one merged notification |
+| Native host pause is unavailable, fails or is not confirmed | Keep admitted commands; cancel explicitly or close with `attention` after five minutes; never claim automatic waiting |
 | Goal deleted while jobs run, or between read and activation | Suppress/stop continuation; never send an objective or recreate the goal; retain job results |
 | Goal observably replaced, paused again, resumed or otherwise modified | Suppress continuation; leave the current goal for explicit host control |
-| Daemon lost before admission sealing | Seal only committed members on restart; preserve IDs and never replay commands |
+| Daemon lost before admission sealing | Seal only committed members on restart and await explicit native-host pause confirmation; preserve IDs and never replay commands |
 | Daemon lost after acknowledged pause | Continue the durable wait on restart |
-| Pause/resume acknowledgement lost, or crash during mutation | Mark `attention`; never automatically repeat the mutation |
+| Native pause acknowledgement uncertain | Use explicit host controls; never repeat it through a storage-only controller |
+| Resume acknowledgement lost, or crash during mutation | Mark `attention`; never automatically repeat the mutation |
 | Same endpoint temporarily unavailable | Retry bounded observation/delivery; retain original IDs and expiry |
 | Host registration, endpoint, Codex profile or executable replaced | Refuse automatic continuation; use manual host controls and inspect results |
 | Backup restored | Cancel all restored control intents and goal notifications; do not touch the old host goal |
@@ -66,6 +76,8 @@ Goal groups remain pinned to their original registration. Direct target moves ar
 
 ## Host compatibility and remaining race
 
-The controller uses the documented [Codex goal RPCs](https://learn.chatgpt.com/docs/app-server#manage-a-thread-goal) through the actual Desktop-selected CLI and profile. It starts only bounded initialize/get/status-only-set exchanges, without loading a thread or invoking a model. Status changes omit `objective` and `tokenBudget`, preserving accounting and preventing deleted-goal recreation. Completion messages use the existing experimental private Desktop adapter, with its compatibility limitations.
+Desktop keeps an in-memory goal state driven by its owning runtime's notifications. A separate app-server can share the persisted goal but does not deliver its `thread/goal/updated` event to Desktop. Therefore pause must use the originating Agent's native goal tool. Relay verifies the original paused snapshot after the Agent explicitly confirms the native acknowledgement; it does not independently attest that tool call. The installed skill and MCP handoff instructions enforce this cooperative boundary.
+
+The controller uses the documented [Codex goal RPCs](https://learn.chatgpt.com/docs/app-server#manage-a-thread-goal) through the actual Desktop-selected CLI and profile for bounded reads and restoration only, without loading a thread or invoking a model. Restoration omits `objective` and `tokenBudget`, preserving accounting and preventing deleted-goal recreation. Completion messages use the existing experimental private Desktop adapter, with its compatibility limitations. Actual Desktop pause UI, restored goal UI/continuation and Windows acceptance require separate live qualification.
 
 Current goal RPCs expose no generation ID, revision or atomic conditional update; timestamps have second precision. Relay compares objective, budget, creation time, accounting, unknown fields and observable pause changes, then rereads immediately before mutation and before notification. This cannot distinguish identical same-second replacement/repeated pause, changes masked by final in-flight usage, or eliminate the check/write and final check/send races. These are host limitations, so strict replacement/cancellation fencing is **not guaranteed**. A host generation/CAS interface is needed to close them. Actual Desktop goal UI and Windows goal-controller acceptance remain unqualified; see [current evidence](live-e2e.md#goal-waiting-protocol-proof).

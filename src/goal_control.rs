@@ -21,6 +21,9 @@ pub struct Controller {
     pub executable_sha256: String,
     pub home: PathBuf,
     pub thread_id: String,
+    /// Old controllers only changed storage, without notifying the owning host.
+    #[serde(default)]
+    pub host_pause: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -162,6 +165,7 @@ impl Controller {
             executable_sha256: hash,
             home,
             thread_id,
+            host_pause: true,
         };
         let goal = process
             .goal(&controller.thread_id)
@@ -187,8 +191,8 @@ impl Controller {
         permit: impl std::future::Future<Output = Result<bool>>,
     ) -> Result<Option<Goal>> {
         ensure!(
-            matches!(status, "paused" | "active"),
-            "invalid goal control status"
+            status == "active" && self.host_pause,
+            "Relay only restores goals after an originating-host pause acknowledgement"
         );
         self.exchange(Some(status), Some(expected), permit).await
     }
@@ -392,6 +396,7 @@ mod tests {
             executable: super::canonical(&executable).unwrap(),
             home: super::canonical(temp.path()).unwrap(),
             thread_id: crate::core::id(),
+            host_pause: true,
         };
         controller.validate().unwrap();
         std::fs::write(&executable, "new").unwrap();

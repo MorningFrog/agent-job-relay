@@ -74,6 +74,7 @@ impl Fixture {
             executable,
             home,
             thread_id: thread.clone(),
+            host_pause: true,
         };
         let endpoint = dir.path().join("desktop.sock");
         let listener = tokio::net::UnixListener::bind(&endpoint).unwrap();
@@ -161,6 +162,13 @@ impl Fixture {
         }
     }
     async fn submit(&self, wait: &str, key: &str) -> Value {
+        let mut value = self.admit(wait, key).await;
+        if value["goal_wait"]["status"] == "sealed" {
+            value["goal_wait"] = self.pause_and_confirm(wait).await;
+        }
+        value
+    }
+    async fn admit(&self, wait: &str, key: &str) -> Value {
         ipc::dispatch(
             &self.store,
             Request::StartGoal {
@@ -170,6 +178,24 @@ impl Fixture {
         )
         .await
         .unwrap()
+    }
+    fn native_pause(&self) {
+        // Simulate the submitting Agent's native host tool, independently of
+        // the out-of-process controller's mutation log.
+        let mut goal: Goal =
+            serde_json::from_slice(&std::fs::read(self.controller.home.join("goal.json")).unwrap())
+                .unwrap();
+        goal.status = "paused".into();
+        goal.updated_at += 1;
+        self.write_goal(&goal);
+    }
+    async fn pause_and_confirm(&self, wait: &str) -> Value {
+        let revision = self.state(wait).await["revision"].as_i64();
+        self.native_pause();
+        self.store
+            .confirm_goal_pause(wait.into(), revision)
+            .await
+            .unwrap()
     }
     async fn finish(&self, response: &Value) {
         self.store
@@ -211,6 +237,192 @@ impl Drop for Fixture {
 }
 
 #[tokio::test]
+async fn storage_only_pause_never_acknowledges_the_host_and_confirmation_is_fenced() {
+    let f = Fixture::new().await;
+    let wait = f.prepare().await;
+    let result = f.admit(&wait, "needs-native-pause").await;
+    let revision = result["goal_wait"]["revision"].as_i64();
+    assert_eq!(result["goal_wait"]["status"], "sealed");
+    assert_eq!(result["goal_wait"]["host_pause_required"], true);
+    assert_eq!(f.controller.read().await.unwrap().unwrap().status, "active");
+    assert!(
+        f.store
+            .confirm_goal_pause(wait.clone(), revision)
+            .await
+            .is_err()
+    );
+    f.native_pause();
+    // Even if another process or a user changed storage, polling/restart cannot
+    // manufacture the submitting Agent's native-host acknowledgement.
+    goal_wait::progress(&f.store, &wait).await.unwrap();
+    assert_eq!(f.state(&wait).await["status"], "sealed");
+    assert!(f.store.claim().await.unwrap().is_none());
+    assert!(
+        f.store
+            .confirm_goal_pause(wait.clone(), None)
+            .await
+            .is_err()
+    );
+    assert!(
+        f.store
+            .confirm_goal_pause(wait.clone(), Some(0))
+            .await
+            .is_err()
+    );
+    let confirmed = f
+        .store
+        .confirm_goal_pause(wait.clone(), revision)
+        .await
+        .unwrap();
+    assert_eq!(confirmed["status"], "waiting");
+    assert_eq!(confirmed["host_pause_required"], false);
+    let retry = f
+        .store
+        .confirm_goal_pause(wait.clone(), revision)
+        .await
+        .unwrap();
+    assert_eq!(retry["revision"], confirmed["revision"]);
+    assert!(
+        ipc::dispatch(
+            &f.store,
+            Request::GoalWait {
+                goal_wait_id: wait.clone(),
+                cancel: true,
+                confirm_paused: true,
+                expected_revision: confirmed["revision"].as_i64()
+            }
+        )
+        .await
+        .is_err()
+    );
+    f.store
+        .goal_wait(wait.clone(), true, confirmed["revision"].as_i64())
+        .await
+        .unwrap();
+    assert!(
+        f.store
+            .confirm_goal_pause(wait.clone(), revision)
+            .await
+            .is_err()
+    );
+    assert!(f.mutations().is_empty());
+    assert_eq!(f.store.list(0, 100).await.unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn missing_pause_confirmation_expires_and_legacy_waits_cannot_restore_goals() {
+    for legacy in [false, true] {
+        let f = Fixture::new().await;
+        let wait = f.prepare().await;
+        let result = if legacy {
+            f.submit(&wait, "legacy").await
+        } else {
+            f.admit(&wait, "no-confirmation").await
+        };
+        f.finish(&result).await;
+        let key = wait.clone();
+        f.store
+            .call(move |db| {
+                if legacy {
+                    let raw: String = db.query_row(
+                        "SELECT controller FROM goal_waits WHERE id=?",
+                        [&key],
+                        |r| r.get(0),
+                    )?;
+                    let mut controller: Value = serde_json::from_str(&raw)?;
+                    controller.as_object_mut().unwrap().remove("host_pause");
+                    db.execute(
+                        "UPDATE goal_waits SET controller=?,next_at=0 WHERE id=?",
+                        rusqlite::params![controller.to_string(), key],
+                    )?;
+                } else {
+                    db.execute(
+                        "UPDATE goal_waits SET expires=0,next_at=0 WHERE id=?",
+                        [key],
+                    )?;
+                }
+                Ok(())
+            })
+            .await
+            .unwrap();
+        goal_wait::tick(&f.store).await.unwrap();
+        assert_eq!(f.state(&wait).await["status"], "attention");
+        assert!(
+            f.store
+                .confirm_goal_pause(wait.clone(), f.state(&wait).await["revision"].as_i64())
+                .await
+                .is_err()
+        );
+        assert!(f.mutations().is_empty());
+        assert!(f.store.claim().await.unwrap().is_none());
+        assert_eq!(
+            f.store
+                .status(result["job"]["job_id"].as_str().unwrap().into())
+                .await
+                .unwrap()
+                .status,
+            "completed"
+        );
+    }
+}
+
+#[tokio::test]
+async fn daemon_start_fences_legacy_restored_wait_before_pending_notification() {
+    let f = Fixture::new().await;
+    let wait = f.prepare().await;
+    let result = f.submit(&wait, "legacy-notification").await;
+    f.finish(&result).await;
+    goal_wait::progress(&f.store, &wait).await.unwrap();
+    assert_eq!(f.state(&wait).await["status"], "resumed");
+    let key = wait.clone();
+    f.store
+        .call(move |db| {
+            let raw: String = db.query_row(
+                "SELECT controller FROM goal_waits WHERE id=?",
+                [&key],
+                |r| r.get(0),
+            )?;
+            let mut controller: Value = serde_json::from_str(&raw)?;
+            controller.as_object_mut().unwrap().remove("host_pause");
+            db.execute(
+                "UPDATE goal_waits SET controller=? WHERE id=?",
+                rusqlite::params![controller.to_string(), key],
+            )?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+    let before = f.mutations().len();
+    let mut daemon = OwnedDaemon(
+        Command::new(env!("CARGO_BIN_EXE_agent-job-relay"))
+            .args([
+                "--state-dir",
+                f.store.config.root.to_str().unwrap(),
+                "daemon",
+            ])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+    );
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while ipc::call(&f.store.config, Request::Doctor).await.is_err() {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(f.state(&wait).await["status"], "attention");
+    assert!(f.store.claim().await.unwrap().is_none());
+    assert!(f.messages.lock().unwrap().is_empty());
+    assert_eq!(f.mutations().len(), before);
+    assert_eq!(f.store.list(0, 100).await.unwrap().len(), 1);
+    ipc::call(&f.store.config, Request::Shutdown).await.unwrap();
+    daemon.wait().unwrap();
+}
+
+#[tokio::test]
 async fn batch_freezes_partial_admission_waits_for_every_run_and_merges_notification() {
     let f = Fixture::new().await;
     let wait = f.prepare().await;
@@ -222,16 +434,21 @@ async fn batch_freezes_partial_admission_waits_for_every_run_and_merges_notifica
         specs: vec![a.clone(), bad.clone(), b.clone()],
         goal_wait_id: wait.clone(),
     };
-    let result = ipc::dispatch(&f.store, request()).await.unwrap();
+    let mut result = ipc::dispatch(&f.store, request()).await.unwrap();
     assert_eq!(result["accepted"], 2);
     assert_eq!(result["rejected"], 1);
+    assert_eq!(result["goal_wait"]["status"], "sealed");
+    result["goal_wait"] = f.pause_and_confirm(&wait).await;
     assert_eq!(result["goal_wait"]["status"], "waiting");
     let again = ipc::dispatch(&f.store, request()).await.unwrap();
     assert_eq!(
         again["results"][0]["result"]["job"]["job_id"],
         result["results"][0]["result"]["job"]["job_id"]
     );
-    assert_eq!(f.mutations().len(), 1, "retry must not pause twice");
+    assert!(
+        f.mutations().is_empty(),
+        "Relay must never issue a storage-only pause"
+    );
     let first = &result["results"][0]["result"];
     let second = &result["results"][2]["result"];
     f.finish(first).await;
@@ -350,18 +567,13 @@ async fn deleted_replaced_manually_paused_and_late_deleted_goals_never_wake() {
 
 #[tokio::test]
 async fn lost_mutation_acknowledgements_are_durable_and_not_replayed() {
-    for mode in ["drop_pause", "drop_resume"] {
+    {
         let f = Fixture::new().await;
         let wait = f.prepare().await;
-        if mode == "drop_pause" {
-            std::fs::write(f.controller.home.join("mode"), mode).unwrap();
-        }
         let result = f.submit(&wait, "one").await;
-        if mode == "drop_resume" {
-            std::fs::write(f.controller.home.join("mode"), mode).unwrap();
-            f.finish(&result).await;
-            goal_wait::progress(&f.store, &wait).await.unwrap();
-        }
+        std::fs::write(f.controller.home.join("mode"), "drop_resume").unwrap();
+        f.finish(&result).await;
+        goal_wait::progress(&f.store, &wait).await.unwrap();
         assert_eq!(f.state(&wait).await["status"], "attention");
         let before = f.mutations().len();
         let reopened = Store::new(f.store.config.clone());
@@ -424,7 +636,7 @@ async fn explicit_cancel_manual_stop_and_stale_revisions_leave_host_goal_and_oth
         assert_eq!(f.controller.read().await.unwrap().unwrap().status, "paused");
         assert_eq!(f.store.status(other.job_id).await.unwrap().status, "queued");
         assert!(f.store.claim().await.unwrap().is_none());
-        assert_eq!(f.mutations().len(), 1);
+        assert!(f.mutations().is_empty());
     }
     let f = Fixture::new().await;
     let wait = f.prepare().await;
@@ -452,7 +664,7 @@ async fn explicit_cancel_manual_stop_and_stale_revisions_leave_host_goal_and_oth
     assert_eq!(f.controller.read().await.unwrap().unwrap().status, "paused");
     assert_eq!(
         f.mutations().len(),
-        1,
+        0,
         "cancelled control must be rechecked immediately before sending"
     );
 }
@@ -526,7 +738,7 @@ async fn backup_restore_fences_waits_and_retains_member_audits_without_host_cont
         "cancelled"
     );
     goal_wait::tick(&restored).await.unwrap();
-    assert_eq!(f.mutations().len(), 1);
+    assert!(f.mutations().is_empty());
     assert!(restored.claim().await.unwrap().is_none());
     assert_eq!(
         restored
@@ -622,6 +834,30 @@ async fn real_cli_binding_and_runner_survive_daemon_loss_and_finish_one_wait() {
     )
     .await
     .unwrap();
+    assert_eq!(response["goal_wait"]["status"], "sealed");
+    f.native_pause();
+    let confirmed = tokio::process::Command::new(env!("CARGO_BIN_EXE_agent-job-relay"))
+        .args([
+            "--state-dir",
+            f.store.config.root.to_str().unwrap(),
+            "goal-wait",
+            &wait,
+            "--confirm-paused",
+            "--expected-revision",
+            &response["goal_wait"]["revision"].to_string(),
+        ])
+        .output()
+        .await
+        .unwrap();
+    assert!(
+        confirmed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&confirmed.stderr)
+    );
+    assert_eq!(
+        serde_json::from_slice::<Value>(&confirmed.stdout).unwrap()["status"],
+        "waiting"
+    );
     let job = response["job"]["job_id"].as_str().unwrap().to_string();
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
@@ -681,7 +917,7 @@ async fn real_cli_binding_and_runner_survive_daemon_loss_and_finish_one_wait() {
     .unwrap();
     assert_eq!(again["job"]["job_id"], job);
     assert_eq!(f.messages.lock().unwrap().len(), 1);
-    assert_eq!(f.mutations().len(), 2);
+    assert_eq!(f.mutations().len(), 1);
     ipc::call(&f.store.config, Request::Shutdown).await.unwrap();
     daemon.wait().unwrap();
 }
@@ -718,6 +954,15 @@ async fn interrupted_admission_recovers_committed_members_without_replaying_exec
             .unwrap(),
     );
     tokio::time::timeout(Duration::from_secs(10), async {
+        while f.state(&wait).await["status"] == "prepared" {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        assert_eq!(f.state(&wait).await["status"], "sealed");
+        assert!(
+            f.mutations().is_empty(),
+            "recovery cannot simulate the owning host's pause"
+        );
+        f.pause_and_confirm(&wait).await;
         while f.state(&wait).await["notification_accepted"] != true {
             tokio::time::sleep(Duration::from_millis(30)).await;
         }
@@ -736,7 +981,7 @@ async fn interrupted_admission_recovers_committed_members_without_replaying_exec
     assert_eq!(retry["job"]["job_id"], job.job_id);
     assert_eq!(retry["job"]["run_id"], job.run_id);
     assert_eq!(f.store.list(0, 100).await.unwrap().len(), 1);
-    assert_eq!(f.mutations().len(), 2);
+    assert_eq!(f.mutations().len(), 1);
     assert_eq!(f.messages.lock().unwrap().len(), 1);
     let state = f.state(&wait).await;
     assert!(state["audits"].as_array().unwrap().iter().any(|a| {
@@ -835,7 +1080,7 @@ async fn cold_archival_preserves_wait_members_audits_and_idempotent_admission() 
     let retry = f.submit(&wait, "archived").await;
     assert_eq!(retry["job"]["job_id"], result["job"]["job_id"]);
     assert_eq!(retry["goal_wait"]["status"], "cancelled");
-    assert_eq!(f.mutations().len(), 1);
+    assert!(f.mutations().is_empty());
 }
 
 #[tokio::test]
@@ -938,9 +1183,15 @@ async fn shared_mcp_uses_only_the_bound_wait_and_exposes_revision_fenced_cancell
     assert_ne!(started["result"]["isError"], true, "{started}");
     let result: Value =
         serde_json::from_str(started["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
-    assert_eq!(result["goal_wait"]["status"], "waiting");
+    assert_eq!(result["goal_wait"]["status"], "sealed");
+    f.native_pause();
+    let confirmed=rpc(&mut input,&mut lines,5,"tools/call",json!({"name":"job_goal_wait","arguments":{"goal_wait_id":wait,"confirm_paused":true,"expected_revision":result["goal_wait"]["revision"]}})).await;
+    assert_ne!(confirmed["result"]["isError"], true, "{confirmed}");
+    let confirmed: Value =
+        serde_json::from_str(confirmed["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    assert_eq!(confirmed["status"], "waiting");
     let job = result["job"]["job_id"].as_str().unwrap();
-    let cancelled=rpc(&mut input,&mut lines,5,"tools/call",json!({"name":"job_goal_wait","arguments":{"goal_wait_id":wait,"cancel":true,"expected_revision":result["goal_wait"]["revision"]}})).await;
+    let cancelled=rpc(&mut input,&mut lines,6,"tools/call",json!({"name":"job_goal_wait","arguments":{"goal_wait_id":wait,"cancel":true,"expected_revision":confirmed["revision"]}})).await;
     assert_ne!(cancelled["result"]["isError"], true);
     assert_eq!(f.controller.read().await.unwrap().unwrap().status, "paused");
     assert!(matches!(

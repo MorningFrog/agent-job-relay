@@ -72,7 +72,7 @@ Rules use one condition: `--no-output <duration>`, `--elapsed <duration>` or `--
 |---|---|
 | `connect [--cwd <absolute-project>]` | Obtain a fresh current-chat/workspace binding from its actual terminal |
 | `connect --wait-goal` (experimental source) | Prepare an explicitly authorized active-goal wait from the actual Desktop terminal; pass the returned binding to start/batch |
-| `goal-wait <id> [--cancel --expected-revision <n>]` (experimental source) | Inspect/cancel future automatic goal control and grouped notification; jobs keep running; [limits and interruption](goal-waiting.md) |
+| `goal-wait <id> [--confirm-paused\|--cancel] [--expected-revision <n>]` (experimental source) | Inspect, confirm this chat's successful native goal pause, or cancel future control/notification; mutations require the observed revision and jobs keep running; [handoff and interruption](goal-waiting.md) |
 | `connect --recover [--apply]` | Preview/apply same-chat recovery; `--after`, `--limit`, `--full` |
 | `session connect [--brief]` | Compatible current-terminal binding entry |
 | `session recover [--apply]` | Compatible same-chat recovery entry |

@@ -339,8 +339,8 @@ pub async fn recover(config: &Config, apply: bool, after: i64, limit: u32) -> Re
 pub async fn connect_with_goal(config: &Config, cwd: PathBuf) -> Result<Value> {
     let mut value = connect_context(config, cwd, None).await?;
     ensure!(
-        ipc::call(config, Request::Doctor).await?["goal_waiting"] == true,
-        "selected daemon does not support goal waiting; explicitly finish/stop/update this same profile first"
+        ipc::call(config, Request::Doctor).await?["goal_wait_host_pause"] == true,
+        "selected daemon lacks originating-host goal pause acknowledgement; explicitly update this same profile first"
     );
     let thread = desktop_registration()?.0.session_id;
     let (controller, expected) = crate::goal_control::Controller::capture(thread).await?;
@@ -560,18 +560,23 @@ pub async fn call(config: &Config, request: Request) -> Result<Value> {
         | Request::PrepareGoalWait { .. }) => {
             ensure_daemon(config).await?;
             ensure!(
-                ipc::call(config, Request::Doctor).await?["goal_waiting"] == true,
-                "selected daemon does not support goal waiting; no goal-aware work was submitted; finish/stop/update this same profile explicitly"
+                ipc::call(config, Request::Doctor).await?["goal_wait_host_pause"] == true,
+                "selected daemon lacks originating-host goal pause acknowledgement; no goal-aware work was submitted; update this same profile explicitly"
             );
             ipc::call(config, request).await
         }
-        request @ Request::GoalWait { cancel: true, .. } => {
+        request @ (Request::GoalWait { cancel: true, .. }
+        | Request::GoalWait {
+            confirm_paused: true,
+            ..
+        }) => {
             ensure_daemon(config).await?;
             ipc::call(config, request).await
         }
         Request::GoalWait {
             goal_wait_id,
             cancel: false,
+            confirm_paused: false,
             expected_revision,
         } => {
             match ipc::call(
@@ -579,6 +584,7 @@ pub async fn call(config: &Config, request: Request) -> Result<Value> {
                 Request::GoalWait {
                     goal_wait_id: goal_wait_id.clone(),
                     cancel: false,
+                    confirm_paused: false,
                     expected_revision,
                 },
             )

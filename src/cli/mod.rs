@@ -210,10 +210,12 @@ pub(super) async fn run() -> Result<()> {
         Commands::GoalWait {
             goal_wait_id,
             cancel,
+            confirm_paused,
             expected_revision,
         } => Request::GoalWait {
             goal_wait_id,
             cancel,
+            confirm_paused,
             expected_revision,
         },
         Commands::Plugin { command } => {

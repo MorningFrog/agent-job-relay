@@ -224,8 +224,21 @@ ws.addEventListener('close', () => process.exit());
             request = {"op": "start_goal", "goal_wait_id": wait_id, "spec": {"command": {"kind": "exec", "program": shutil.which("python3"), "args": ["-c", script, str(gate)]}, "cwd": str(work), "session": binding["session_key"], "idempotency_key": scenario}}
             started = await relay("request", json.dumps(request))
             job = started["job"]["job_id"]; owned.append(job); bindings[thread] = (job, started["job"]["run_id"])
-            if started["goal_wait"]["status"] != "waiting":
-                raise RuntimeError("source runtime did not acknowledge pause: " + json.dumps(started["goal_wait"]))
+            if started["goal_wait"]["status"] != "sealed" or not started["goal_wait"]["host_pause_required"]:
+                raise RuntimeError("admission did not require the owning host's pause: " + json.dumps(started["goal_wait"]))
+            if (await rpc.call("thread/goal/get", {"threadId": thread}))["goal"]["status"] != "active":
+                raise RuntimeError("Relay attempted a storage-only pause before the host handshake")
+            # Simulate the submitting Agent's native goal tool on the SAME
+            # app-server connection that owns this loaded thread. This emits
+            # the event Desktop uses to update its cached continuation state.
+            event_offset = len(rpc.events)
+            await rpc.call("thread/goal/set", {"threadId": thread, "status": "paused", "origin": "user"})
+            async def owner_pause_event():
+                return any(e.get("method") == "thread/goal/updated" and e.get("params", {}).get("threadId") == thread and e.get("params", {}).get("goal", {}).get("status") == "paused" for e in rpc.events[event_offset:])
+            await until(owner_pause_event, "the owning runtime did not emit its pause notification")
+            confirmed = await relay("goal-wait", wait_id, "--confirm-paused", "--expected-revision", started["goal_wait"]["revision"])
+            if confirmed["status"] != "waiting":
+                raise RuntimeError("source runtime did not confirm the owning-host pause")
             async def idle():
                 return (await rpc.call("thread/read", {"threadId": thread}))["thread"]["status"]["type"] == "idle"
             await until(idle, "submitting turn failed to become idle")
@@ -261,7 +274,7 @@ ws.addEventListener('close', () => process.exit());
             final = await relay("status", job)
             if final["status"] != "completed" or final["exit_code"] != 0:
                 raise RuntimeError("member did not complete successfully")
-            report["cases"].append({"scenario": scenario, "job_id": job, "run_id": final["run_id"], "thread_id": thread, "goal_wait": await relay("goal-wait", wait_id), "waiting_seconds": args.wait_seconds, "active_checks_observed_before_pause": True, "model_requests_during_wait": 0, "result_turn_observed": scenario == "resume"})
+            report["cases"].append({"scenario": scenario, "job_id": job, "run_id": final["run_id"], "thread_id": thread, "goal_wait": await relay("goal-wait", wait_id), "waiting_seconds": args.wait_seconds, "active_checks_observed_before_pause": True, "owning_runtime_pause_event_observed": True, "submitting_agent": "simulated native-goal action on owning connection", "model_requests_during_wait": 0, "result_turn_observed": scenario == "resume"})
             if goal is not None:
                 await rpc.call("thread/goal/clear", {"threadId": thread, "origin": "user"})
             print(json.dumps({"scenario": scenario, "result": "passed"}), flush=True)

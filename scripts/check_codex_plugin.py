@@ -127,6 +127,8 @@ async def run(binary, codex, marketplace=None, registry=None):
                 required |= {"job_start_batch", "job_goal_wait"}
             if not server or not required <= set(server["tools"]):
                 raise RuntimeError(f"installed plugin MCP tools unavailable: {server and server.get('toolsError')}")
+            if not marketplace and "confirm_paused" not in server["tools"]["job_goal_wait"]["inputSchema"]["properties"]:
+                raise RuntimeError("installed goal tool lacks originating-host pause confirmation")
             if state.exists():
                 raise RuntimeError("plugin discovery unexpectedly created daemon/workload state")
             report = {"result": "passed", "codex": version,

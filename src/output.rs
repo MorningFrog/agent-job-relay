@@ -118,6 +118,7 @@ pub fn compact(op: &str, value: Value) -> Value {
                     "remote_execution",
                     "github_actions_observation",
                     "goal_waiting",
+                    "goal_wait_host_pause",
                     "goal_waits",
                     "management",
                     "store",

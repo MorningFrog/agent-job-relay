@@ -61,12 +61,19 @@ pub(super) enum Commands {
         #[arg(long, conflicts_with = "recover")]
         wait_goal: bool,
     },
-    /// Inspect or cancel future automatic goal waiting; workloads keep running
+    /// Inspect, confirm an originating-host pause, or cancel future goal waiting
     GoalWait {
         goal_wait_id: String,
-        #[arg(long, requires = "expected_revision")]
+        #[arg(
+            long,
+            requires = "expected_revision",
+            conflicts_with = "confirm_paused"
+        )]
         cancel: bool,
-        #[arg(long, requires = "cancel")]
+        /// Confirm only after this chat's native goal tool acknowledged pause
+        #[arg(long, requires = "expected_revision")]
+        confirm_paused: bool,
+        #[arg(long)]
         expected_revision: Option<i64>,
     },
     /// Export, bootstrap or update a plugin runtime and explicitly refresh caches

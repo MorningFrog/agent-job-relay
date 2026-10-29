@@ -32,6 +32,7 @@ for line in sys.stdin:
     elif method == "thread/goal/set":
         assert set(params) == {"threadId", "status", "origin"}
         assert params["origin"] == "automatic"
+        assert params["status"] == "active", "storage-only pause cannot notify the owning Desktop"
         with (home / "mutations.jsonl").open("a") as log:
             log.write(json.dumps(params) + "\n")
         mode_file = home / "mode"
@@ -46,7 +47,7 @@ for line in sys.stdin:
         goal["status"] = params["status"]
         goal["updatedAt"] += 1
         goal_file.write_text(json.dumps(goal))
-        if mode == "drop_" + ("pause" if params["status"] == "paused" else "resume"):
+        if mode == "drop_resume":
             sys.exit(0)
         result = {"goal": goal}
     else:

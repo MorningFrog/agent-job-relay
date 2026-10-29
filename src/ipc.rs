@@ -43,6 +43,8 @@ pub enum Request {
         goal_wait_id: String,
         #[serde(default)]
         cancel: bool,
+        #[serde(default)]
+        confirm_paused: bool,
         expected_revision: Option<i64>,
     },
     Start {
@@ -249,8 +251,18 @@ pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
         Request::GoalWait {
             goal_wait_id,
             cancel,
+            confirm_paused,
             expected_revision,
         } => {
+            ensure!(
+                !(cancel && confirm_paused),
+                "cancel and confirm_paused are exclusive"
+            );
+            if confirm_paused {
+                return store
+                    .confirm_goal_pause(goal_wait_id, expected_revision)
+                    .await;
+            }
             store
                 .goal_wait(goal_wait_id, cancel, expected_revision)
                 .await
@@ -379,6 +391,7 @@ pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
             value["structured_progress_v1"] = json!(true);
             value["batch_submission"] = json!(true);
             value["goal_waiting"] = json!(true);
+            value["goal_wait_host_pause"] = json!(true);
             value["goal_waits"] = store.read(|db|Ok(json!({"pending":db.query_row("SELECT count(*) FROM goal_waits WHERE status IN ('prepared','sealed','pausing','waiting','resuming')",[],|r|r.get::<_,i64>(0))?,"attention":db.query_row("SELECT count(*) FROM goal_waits WHERE status='attention'",[],|r|r.get::<_,i64>(0))?}))).await?;
             value["remote_execution"] = json!(true);
             value["github_actions_observation"] = json!(true);
