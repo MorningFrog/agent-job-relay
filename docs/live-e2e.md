@@ -12,7 +12,7 @@ Use [published installation](installation.md#quick-install-the-latest-release) o
 
 ## Windows native runtime and MCP
 
-The latest applicable Windows 11 MSVC external-task source baseline passes all four native gates under SYSTEM, with frontend/static-CRT build. It predates goal/schema v11. Earlier ordinary-user native acceptance remains applicable to the published monitor/Web/maintenance baseline, without qualifying newer source features.
+Current 0.1.12 source passes GitHub Windows MSVC gates with 69 tests, frontend/static-CRT build and schema v11 storage/progress checks. Earlier Windows 11 VM external-task verification under SYSTEM and ordinary-user monitor/Web/maintenance acceptance remain applicable to their baselines; Windows goal/controller and native confirmation UI still require separate host evidence.
 
 Installed v0.1.8 with actual Codex 0.164.0 and `gpt-6.1-sol`/`low` passes cold-profile MCP submission under SYSTEM and an ordinary interactive user: no prestarted daemon, one completed native Job/Run, expected output and doctor reporting `windows_cim`. Installed npm/package/loader checks use isolated registries/profiles and a simulated OpenCode model; they remain separate from real provider/host acceptance.
 
@@ -36,7 +36,7 @@ The bundled React/Vite panel has isolated Linux browser verification for live in
 
 **Behavioral coverage:** Linux storage/CLI/MCP fixtures verify one answer for three separate original submissions, transactional limits/idempotent retries, scope/revision/expiry/deletion/revocation/restore fences, negotiated legacy forms, modern input-required responses and one Agent-question fallback. Retained-MCP tests cover current-image forwarding, a 91-second human wait and original profile/history preservation. Fake protocol clients are not real host form UI acceptance.
 
-Direct MCP form UI, complete three-round real-model restoration, Windows schema v11/controller, changed-host goal recovery and long-duration savings remain unqualified. The host lacks generation/CAS and uses second-resolution timestamps, so identical same-second replacement and final verification/write/send races remain. No real chats/goals are created or changed by these fixtures. See [operation and limits](goal-waiting.md) and [backlog](TODO.md).
+Direct MCP form UI, complete three-round real-model restoration, Windows goal/controller, changed-host goal recovery and long-duration savings remain unqualified. The host lacks generation/CAS and uses second-resolution timestamps, so identical same-second replacement and final verification/write/send races remain. No real chats/goals are created or changed by these fixtures. See [operation and limits](goal-waiting.md) and [backlog](TODO.md).
 
 ## External tasks (0.1.12 source)
 

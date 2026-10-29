@@ -666,8 +666,17 @@ mod tests {
                 .await
                 .unwrap();
         }
-        let result = store.maintain(true).await.unwrap();
-        assert_eq!(result["archive"]["archived"], 1);
+        let native_maintenance = cfg!(any(target_os = "linux", target_os = "windows"));
+        let result = store.maintain(true).await;
+        if native_maintenance {
+            assert_eq!(result.unwrap()["archive"]["archived"], 1);
+        } else {
+            // Archival is portable, but publishing the automatic backup is not.
+            assert!(result.unwrap_err().to_string().contains(
+                "atomic new data-directory publication is supported only on Linux and Windows"
+            ));
+            assert_eq!(store.data_status().await.unwrap()["archived_jobs"], 1);
+        }
         let archived = store.inspect(Some(id.clone()), None, 20).await.unwrap();
         assert_eq!(archived["observation"]["progress"]["alerts"], 2);
         assert_eq!(
@@ -680,7 +689,20 @@ mod tests {
                 .event_id,
             terminal.event_id
         );
-        let backup = store.backup().await.unwrap();
+        let backup = store.backup().await;
+        if !native_maintenance {
+            assert!(backup.unwrap_err().to_string().contains(
+                "atomic new data-directory publication is supported only on Linux and Windows"
+            ));
+            assert!(
+                store.data_status().await.unwrap()["backups"]
+                    .as_array()
+                    .unwrap()
+                    .is_empty()
+            );
+            return;
+        }
+        let backup = backup.unwrap();
         let destination = store.config.root.parent().unwrap().join("restored");
         crate::maintenance::restore(backup["path"].as_str().unwrap().into(), destination.clone())
             .await
