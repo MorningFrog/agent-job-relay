@@ -62,6 +62,8 @@ Use returned IDs and `next_cursor`; do not use PIDs as job IDs. Reusing a key wi
 | `monitor update <job-id> <rule-id> --revision <n>` | Replace the observed rule revision |
 | `monitor enable/disable/remove <job-id> <rule-id> --revision <n>` | Rearm, disable or remove a rule while retaining its audit |
 
+Source-only `--progress '{"source":"training","trigger":{"kind":"stage"},"cooldown_seconds":30}'` adds repeated structured feedback; see [progress/checker usage and limits](progress.md). The same option is accepted by start and monitor add/update, and the Web editor supports stage/step/metric rules.
+
 Rules use one condition: `--no-output <duration>`, `--elapsed <duration>` or `--contains <literal>`. Options include `--stream stdout/stderr/both`, `--action alert/stop`, `--grace <duration>` and `--notify-agent` for an already bound job. Start accepts one initial rule with the same flags. Durations accept seconds or `s`, `m`, `h`, `d`; stop grace is bounded to 0–300 seconds and wait to 0–30. See [monitoring procedures and expected results](runtime-monitoring.md).
 
 ## Bind sessions and recover notifications

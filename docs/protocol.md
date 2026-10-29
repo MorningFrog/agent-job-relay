@@ -20,6 +20,10 @@ Lists return at most 100 rows and `next_cursor`; pass it as `after`. Job/session
 
 `remote init` explicitly provisions a stable profile UUID. `remote serve` implements one bounded stdio JSON exchange with version/target/request echoes, native launch idempotency and run-fenced lookup/sample/stop. This protocol is separate from local length-prefixed IPC. Limits, schemas and adapter obligations are in [remote execution](remote-execution.md#adapter-contract-v1). Raw remote byte cursors use persisted local log lengths; original mappings, samples and event cursors live in existing archived/backed-up runtime observations. Restore still orphans execution intents and never replays them. The remote provisioning UUID is not part of a restored profile.
 
+## Structured progress (unreleased source)
+
+Doctor advertises `structured_progress_v1=true`. Native runner stdout/stderr accept bounded newline-delimited `AJR_PROGRESS` v1 samples as untrusted data; `monitor_rules.condition.kind=progress` adds a source, stage/step/metric trigger and cooldown_seconds. Existing inspect responses include durable source high-water marks, latest values, counters and milestones under `observation.progress`; bounded `progress` events and terminal `payload.progress` retain evidence. CLI/MCP/Web use the same structures, revisions and Outbox transaction. No new wire version, tool, execution callback or schema migration is introduced. Exact framing, deduplication, quotas and terminal behavior are in [the progress contract](progress.md).
+
 ## MCP
 
 Official rmcp 3.7 stdio server, pure stdout protocol and stderr diagnostics, 128 KiB bounded input lines. Legacy initialize/initialized + tools/list/call verified using protocol 2025-06-18; SDK negotiates supported versions. Tools derive their argument schemas from the same Request types as IPC:

@@ -551,6 +551,278 @@ mod native {
         }
     }
 
+    #[tokio::test]
+    async fn checker_sends_midrun_feedback_to_the_bound_fake_host_and_survives_daemon_loss() {
+        use agent_job_relay::{
+            progress::Trigger,
+            session::{Adapter, Registration},
+        };
+        let mut r = Runtime::new().await;
+        let store = Store::new(r.config.clone());
+        let endpoint = r.dir.path().join("host.sock");
+        let listener = tokio::net::UnixListener::bind(&endpoint).unwrap();
+        let (sent, mut received) = tokio::sync::mpsc::channel(8);
+        let host = tokio::spawn(async move {
+            loop {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let sent = sent.clone();
+                tokio::spawn(async move {
+                    let catalog = ipc::read_frame(&mut stream, 1048576).await.unwrap();
+                    ipc::write_frame(&mut stream,&json!({"jsonrpc":"2.0","id":catalog["id"],"result":{"tools":[{"namespace":"codex_app","name":"send_message_to_thread"}]}})).await.unwrap();
+                    let call = ipc::read_frame(&mut stream, 1048576).await.unwrap();
+                    sent.send(call.clone()).await.unwrap();
+                    ipc::write_frame(
+                        &mut stream,
+                        &json!({"jsonrpc":"2.0","id":call["id"],"result":{"success":true}}),
+                    )
+                    .await
+                    .unwrap();
+                });
+            }
+        });
+        let registration = |chat: &str| Registration {
+            agent_kind: "codex_desktop".into(),
+            session_id: chat.into(),
+            instance_id: "fake-instance".into(),
+            host_id: "fake-host".into(),
+            adapter: Adapter::DesktopExperimental,
+            endpoint: Some(endpoint.clone()),
+            caller_thread_id: Some("original-caller".into()),
+            lease_seconds: 3600,
+            experimental: true,
+            renew_on_delivery: false,
+        };
+        let session = store.register(registration("original-chat")).await.unwrap();
+        store
+            .register(registration("unrelated-chat"))
+            .await
+            .unwrap();
+        let checker =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/progress_checker.py");
+        let job = store
+            .start(StartSpec {
+                command: CommandSpec::Exec {
+                    program: "python3".into(),
+                    args: vec![
+                        checker.display().to_string(),
+                        "--status-file".into(),
+                        "status.json".into(),
+                        "--observed-run".into(),
+                        "target:job:run:attempt-1".into(),
+                        "--interval-seconds".into(),
+                        "0.05".into(),
+                        "--timeout-seconds".into(),
+                        "12".into(),
+                        "--marker-stage".into(),
+                        "checkpoint".into(),
+                    ],
+                },
+                cwd: r.dir.path().into(),
+                env: Default::default(),
+                timeout_seconds: Some(15),
+                session: Some(session.key),
+                idempotency_key: None,
+                monitor_rules: vec![
+                    rule(
+                        Condition::Contains {
+                            text: "AJR_MILESTONE ".into(),
+                            stream: Stream::Stdout,
+                        },
+                        Action::Alert,
+                    ),
+                    RuleSpec {
+                        condition: Condition::Progress {
+                            source: "checker".into(),
+                            trigger: Trigger::Stage { stage: None },
+                            cooldown_seconds: 1,
+                        },
+                        action: Action::Alert,
+                        notify_agent: true,
+                        grace_seconds: 0,
+                    },
+                ],
+            })
+            .await
+            .unwrap();
+        r.until(&job.job_id, |v| v["rules"][1]["applied_revision"] == 1)
+            .await;
+        let write = |seq: u64, stage: &str, observed: &str, terminal: bool| {
+            let data = json!({"seq":seq,"stage":stage,"step":seq*10,"total":100,"observed_run":observed,"terminal":terminal});
+            let temp = r.dir.path().join("status.tmp");
+            std::fs::write(&temp, data.to_string()).unwrap();
+            std::fs::rename(temp, r.dir.path().join("status.json")).unwrap();
+        };
+        // Identity mismatch must never emit progress or wake a different run/chat.
+        write(1, "checkpoint", "foreign-run", false);
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        assert!(received.try_recv().is_err());
+        write(1, "checkpoint", "target:job:run:attempt-1", false);
+        let call = tokio::time::timeout(Duration::from_secs(5), received.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(call["params"]["arguments"]["threadId"], "original-chat");
+        assert!(
+            !call["params"]["arguments"]["prompt"]
+                .as_str()
+                .unwrap()
+                .contains("checkpoint")
+        );
+        let first = r
+            .until(&job.job_id, |v| {
+                v["deliveries"]["deliveries"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|d| d["status"] == "accepted_by_host")
+            })
+            .await;
+        assert_eq!(first["job"]["status"], "running");
+        assert_eq!(
+            first["observation"]["progress"]["sources"]["checker"]["observed_run"],
+            "target:job:run:attempt-1"
+        );
+        assert_eq!(first["observation"]["progress"]["alerts"], 1);
+        r.crash();
+        tokio::time::sleep(Duration::from_millis(1100)).await;
+        // Continue with a new producer sequence. Runner owns parsing and outbox.
+        let temp = r.dir.path().join("status.tmp");
+        std::fs::write(&temp,json!({"seq":2,"stage":"validation","step":20,"total":100,"observed_run":"target:job:run:attempt-1"}).to_string()).unwrap();
+        std::fs::rename(temp, r.dir.path().join("status.json")).unwrap();
+        r.until(&job.job_id, |v| v["observation"]["progress"]["alerts"] == 2)
+            .await;
+        std::fs::write(r.dir.path().join("status.tmp"),json!({"seq":3,"stage":"validation","step":100,"total":100,"observed_run":"target:job:run:attempt-1","terminal":true}).to_string()).unwrap();
+        std::fs::rename(
+            r.dir.path().join("status.tmp"),
+            r.dir.path().join("status.json"),
+        )
+        .unwrap();
+        let done = r
+            .until(&job.job_id, |v| v["job"]["status"] == "completed")
+            .await;
+        assert_eq!(
+            done["events"][0]["payload"]["progress"]["milestones"]
+                .as_array()
+                .unwrap()
+                .len(),
+            2
+        );
+        assert!(
+            done["events"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|e| e["kind"] == "monitor_alert"
+                    && e["payload"]["rule"]["condition"]["kind"] == "contains")
+        );
+        assert!(
+            done["deliveries"]["deliveries"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|d| d["status"] == "cancelled")
+        );
+        host.abort();
+    }
+
+    #[tokio::test]
+    async fn progress_cli_threshold_stops_and_exposes_shared_web_snapshot() {
+        let r = Runtime::new().await;
+        let script = "printf 'AJR_PROGRESS {\"v\":1,\"source\":\"train\",\"seq\":1,\"step\":10,\"total\":20,\"metrics\":{\"loss\":0.05}}\\n'; sleep 20";
+        let output = Command::new(env!("CARGO_BIN_EXE_agent-job-relay")).args(["--state-dir"]).arg(&r.config.root).args(["start","--cwd"]).arg(r.dir.path()).args(["--progress",r#"{"source":"train","trigger":{"kind":"metric","name":"loss","comparison":"le","value":0.1},"cooldown_seconds":1}"#,"--action","stop","--grace","0","--shell",script]).output().unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let value: Value = serde_json::from_slice(&output.stdout).unwrap();
+        let id = value["job"]["job_id"].as_str().unwrap();
+        let done = r.until(id, |v| v["job"]["status"] == "cancelled").await;
+        assert_eq!(
+            done["observation"]["progress"]["sources"]["train"]["step"],
+            10
+        );
+        let info = ipc::call(&r.config, Request::UiInfo).await.unwrap();
+        let token = info["access_url"]
+            .as_str()
+            .unwrap()
+            .split("#token=")
+            .nth(1)
+            .unwrap();
+        let response = http(
+            info["url"].as_str().unwrap(),
+            "/api/request",
+            Some(token),
+            None,
+            Some(json!({"op":"inspect","job_id":id})),
+        )
+        .await;
+        assert!(response.starts_with("HTTP/1.1 200"));
+        assert!(response.contains("milestones") && response.contains("loss"));
+        // Exercise the actual shared stdio MCP path with the same condition.
+        use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+        let mut child = tokio::process::Command::new(env!("CARGO_BIN_EXE_agent-job-relay"))
+            .arg("--state-dir")
+            .arg(&r.config.root)
+            .args(["mcp", "--shared-host"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .kill_on_drop(true)
+            .spawn()
+            .unwrap();
+        let mut input = child.stdin.take().unwrap();
+        let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
+        let mut result = Value::Null;
+        for (id, method, params) in [
+            (
+                1,
+                "initialize",
+                json!({"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"progress-test","version":"1"}}),
+            ),
+            (
+                2,
+                "tools/call",
+                json!({"name":"job_start","arguments":{"spec":{"command":{"kind":"shell","interpreter":"/bin/sh","script":script},"cwd":r.dir.path(),"monitor_rules":[{"condition":{"kind":"progress","source":"train","trigger":{"kind":"metric","name":"loss","comparison":"le","value":0.1},"cooldown_seconds":1},"action":"stop","grace_seconds":0}]}}}),
+            ),
+        ] {
+            input
+                .write_all(
+                    format!(
+                        "{}\n",
+                        json!({"jsonrpc":"2.0","id":id,"method":method,"params":params})
+                    )
+                    .as_bytes(),
+                )
+                .await
+                .unwrap();
+            let line = tokio::time::timeout(Duration::from_secs(8), lines.next_line())
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap();
+            let reply: Value = serde_json::from_str(&line).unwrap();
+            assert!(reply.get("error").is_none(), "{reply}");
+            if id == 2 {
+                assert_ne!(reply["result"]["isError"], true, "{reply}");
+                result =
+                    serde_json::from_str(reply["result"]["content"][0]["text"].as_str().unwrap())
+                        .unwrap();
+            }
+        }
+        child.kill().await.unwrap();
+        child.wait().await.unwrap();
+        let done = r
+            .until(result["job"]["job_id"].as_str().unwrap(), |v| {
+                v["job"]["status"] == "cancelled"
+            })
+            .await;
+        assert_eq!(
+            done["events"][0]["payload"]["progress"]["milestones"][0]["sample"]["metrics"]["loss"],
+            0.05
+        );
+    }
+
     async fn http(
         url: &str,
         path: &str,

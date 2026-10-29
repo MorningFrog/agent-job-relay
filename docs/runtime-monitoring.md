@@ -28,7 +28,7 @@ agent-job-relay codex inspect <job-id> --json
 
 Expected: summaries identify the selected profile and runtime connection; a task view includes observation timestamps, output tails, rules, stop requests and recent events. Overview pages use descending `before`/`next_cursor`; active jobs are returned separately. JSON watch produces bounded newline-delimited snapshots; a human terminal redraws once per second. Ctrl-C ends the viewer only. Agent clients use `job_inspect` once when needed rather than running a watch loop.
 
-Inspection never starts a daemon, migrates a database or creates an empty profile. When the runtime is absent, compatible schema v9 history is read through a read-only connection and labelled `offline_snapshot`; process liveness is unverified. Unsupported older schemas require a matching runtime. Active observation ages exceeding five seconds require investigation; no output alone does not prove a hang.
+Inspection never starts a daemon, migrates a database or creates an empty profile. When the runtime is absent, compatible current-schema history is read through a read-only connection and labelled `offline_snapshot`; process liveness is unverified. Unsupported older schemas require a matching runtime. Active observation ages exceeding five seconds require investigation; no output alone does not prove a hang.
 
 Each stream retains a rolling 64 KiB tail and total-byte offset independently from its original 16 MiB log prefix. Detection continues after that prefix fills. Tail metadata identifies its retained range and truncation; binary/invalid text is displayed with replacements, while capped raw logs retain original bytes. Observations are sampled approximately once per second and flushed at completion; abrupt runner loss can leave the last snapshot stale.
 
@@ -52,6 +52,10 @@ Conditions are combined-stream silence, total elapsed runtime, or case-sensitive
 Each rule revision triggers once; enable it again to rearm. At most 16 rule identities, including removed rules, and 128 revisions per rule are retained per job. Removal disables rather than erases audit history. Trigger records contain the original rule version and bounded evidence. Prefix truncation, long lines, invalid UTF-8 and split chunks do not disable literal matching. This release provides no semantic model judgement or arbitrary callback execution.
 
 `--notify-agent` additionally enqueues an alert for the job's explicit bound session. It does not create or guess a binding; unsupported hosts remain inbox-only. Terminal results supersede unresolved alert deliveries and fence expired claims while retaining live per-chat exclusion, IDs, expiry and attempt history. Accepted or in-flight host effects cannot be recalled. Host acceptance remains separate from observed Agent execution. New running-alert continuation needs its own real-host qualification.
+
+## Mid-run feedback (unreleased source)
+
+Use existing flushed marker rules for a few known milestones, or source-only `AJR_PROGRESS` frames and repeated stage/step/metric conditions. CLI `--progress`, MCP and Web share the same durable rules and snapshots; terminal events retain bounded milestone summaries. The [progress guide](progress.md) includes the versioned protocol, limits, source capability check and pinned-run reference checker. Ordinary literal/time rules keep the once-per-revision policy. Real mid-run Agent execution remains a separate qualification.
 
 ## Stop and observe the result
 

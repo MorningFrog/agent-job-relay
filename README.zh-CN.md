@@ -19,6 +19,7 @@ Tasks run in the background. Agents pick up when needed.
 | Goal 等待（实验性源码） | 经授权后在任务运行期间暂停当前 Desktop goal，全部结束后恢复并通知原聊天；删除的 goal 不会重建。见[用法及宿主竞态边界](docs/goal-waiting.md) |
 | 批量提交（未发布源码） | 通过 CLI/MCP 一次提交 1–16 个独立命令，逐项返回结果并支持安全重试，见[使用指南](docs/usage.md#submit-independent-commands-together-unreleased-source) |
 | 远程任务（未发布源码） | 在固定身份的远端运行时启动或附加命令，或观察固定的 GitHub Actions attempt；见[配置与边界](docs/remote-execution.md) |
+| 中间反馈（未发布源码） | 结构化阶段、步数和指标，重复里程碑或阈值告警，以及有界 checker 示例；见[用法与边界](docs/progress.md) |
 | 结果与历史 | 保存有界的 stdout/stderr、退出结果、事件和任务历史 |
 | 绑定会话的通知 | 将结果投递到发起会话，在宿主支持时续接聊天 |
 | 本地任务面板 | 通过 CLI 或随包 Web UI 检查任务、设置输出/静默/时长规则并停止任务 |
@@ -136,6 +137,7 @@ agent-job-relay codex inspect <job-id>
 |---|---|
 | 了解功能和宿主支持范围 | [功能说明](docs/features.md)、[当前限制](docs/limitations.md) |
 | 安装或接入宿主 | [安装](docs/installation.md)、[Windows](docs/windows.md)、[宿主插件](docs/host-plugins.md) |
+| 试用功能测试提示词 | [简体中文](docs/test-prompts.zh-CN.md) · [English](docs/test-prompts.md) |
 | 执行任务或查找命令 | [使用指南](docs/usage.md)、[命令参考](docs/commands.md)、[监控](docs/runtime-monitoring.md) |
 | 更新、卸载、备份或修复安装 | [更新](docs/updating.md)、[卸载](docs/uninstalling.md)、[数据维护](docs/data-maintenance.md)、[排障](docs/troubleshooting.md) |
 | 查看进度和验证情况 | [实施状态](docs/IMPLEMENTATION_STATUS.md)、[实测记录](docs/live-e2e.md)、[路线图](docs/TODO.md)、[变更记录](CHANGELOG.md) |

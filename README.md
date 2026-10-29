@@ -19,6 +19,7 @@ Run long commands independently of the Agent connection, keep their results, and
 | Goal waiting (experimental source) | Pause an opted-in Desktop goal while accepted jobs run, then restore it and notify the original chat; deletion never recreates a goal. [Usage and host race limits](docs/goal-waiting.md) |
 | Batch submission (unreleased source) | Submit 1–16 independent commands through CLI/MCP, with per-item results and safe retries; [usage](docs/usage.md#submit-independent-commands-together-unreleased-source) |
 | Remote tasks (unreleased source) | Launch/attach on a pinned remote runtime and observe a fixed GitHub Actions attempt; [setup and boundaries](docs/remote-execution.md) |
+| Mid-run feedback (unreleased source) | Structured stages/steps/metrics, repeated milestone or threshold alerts and a bounded checker recipe; [usage and limits](docs/progress.md) |
 | Results and history | Bounded stdout/stderr, exit outcomes, events and retained task history |
 | Session-bound notifications | Deliver results to the initiating session; resume the chat when supported by its host |
 | Local task manager | Inspect tasks, configure persistent output/silence/elapsed rules and stop work through CLI or the bundled Web UI |
@@ -136,6 +137,7 @@ The **[documentation index / 文档导航](docs/README.md)** groups all guides b
 |---|---|
 | Understand capabilities and host support | [Features](docs/features.md), [limitations](docs/limitations.md) |
 | Install or connect a host | [Installation](docs/installation.md), [Windows](docs/windows.md), [host plugins](docs/host-plugins.md) |
+| Try feature test prompts | [English](docs/test-prompts.md) · [简体中文](docs/test-prompts.zh-CN.md) |
 | Run tasks or look up a command | [Usage](docs/usage.md), [command reference](docs/commands.md), [monitoring](docs/runtime-monitoring.md) |
 | Update, remove, back up or fix an installation | [Updates](docs/updating.md), [uninstallation](docs/uninstalling.md), [data maintenance](docs/data-maintenance.md), [troubleshooting](docs/troubleshooting.md) |
 | Check progress or verification | [Implementation status](docs/IMPLEMENTATION_STATUS.md), [live evidence](docs/live-e2e.md), [roadmap](docs/TODO.md), [changelog](CHANGELOG.md) |

@@ -56,6 +56,12 @@ The daemon shutdown regression holds a real SQLite writer while an owned queued 
 
 Run `cargo test --test daemon_upgrade --test legacy_upgrade --test plugin` for automatic update behavior. A real native fixture with changed package-version bytes exercises concurrent startup/UI handover, preserved running Job/Run/logs and launch count, newer-peer reuse and schema-migration refusal without stopping old work. Installed update checks cover preview/no-op, active-job refusal, the new daemon's loaded path and retained history/cache snapshots; legacy checks exercise actual pidfd/SIGINT handover. The IPC library regression proves a changed process identity receives no shutdown bytes. These checks use isolated Linux profiles; they do not qualify all historical releases, Windows handover or real host continuation.
 
+Run `cargo test --lib progress::` and `cargo test --test monitor` for source progress. Expected: bounded split-stream framing and invalid/flood handling; sequence/cooldown/revision/terminal fences; transactional rollback and archive/backup preservation; actual CLI threshold stopping/shared HTTP snapshots; and the reference checker delivering mid-run to its exact fake Desktop chat while remaining independent of daemon lifetime. Fake-host acknowledgement is not observed real Agent execution; no new Windows/real-provider acceptance is claimed.
+
+## Manual feature prompts
+
+Use [English prompts](test-prompts.md) or [中文提示词](test-prompts.zh-CN.md) for bounded Linux/Windows home-directory metadata scans, repeated progress, batch, Web/rules, exact stopping, experimental goal waiting, recovery, remote observation and maintenance previews. Each recipe states expected observations and capability boundaries; simulated delays and actual mid-run Agent execution must be recorded separately. These prompts are recipes, not completed acceptance evidence.
+
 ## Actual Codex plugin-loader check
 
 After the release build, with Codex CLI and Python available:

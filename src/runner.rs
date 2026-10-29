@@ -207,6 +207,8 @@ async fn execute(config: &Config, store: &Store, job: &Job, spec: &StartSpec) ->
             _=tick.tick()=>{
                 let (cancelled,grace,reason,rules)=store.control(job.job_id.clone()).await?;
                 live.lock().map_err(|_|anyhow::anyhow!("monitor state poisoned"))?.apply(rules);
+                let progress=live.lock().map_err(|_|anyhow::anyhow!("monitor state poisoned"))?.take_progress();
+                store.record_progress(job.job_id.clone(),progress,true).await?;
                 let pending=live.lock().map_err(|_|anyhow::anyhow!("monitor state poisoned"))?.pending();
                 for (rule,evidence) in pending {
                     store.trigger_rule(job.job_id.clone(),rule.clone(),evidence,true).await?;
@@ -252,6 +254,13 @@ async fn execute(config: &Config, store: &Store, job: &Job, spec: &StartSpec) ->
         }
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
+    let progress = live
+        .lock()
+        .map_err(|_| anyhow::anyhow!("monitor state poisoned"))?
+        .take_progress();
+    store
+        .record_progress(job.job_id.clone(), progress, false)
+        .await?;
     let pending = live
         .lock()
         .map_err(|_| anyhow::anyhow!("monitor state poisoned"))?

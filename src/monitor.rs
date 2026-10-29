@@ -33,6 +33,11 @@ pub enum Condition {
         #[serde(default)]
         stream: Stream,
     },
+    Progress {
+        source: String,
+        trigger: crate::progress::Trigger,
+        cooldown_seconds: u64,
+    },
 }
 #[derive(
     Clone, Copy, Debug, Default, Serialize, Deserialize, rmcp::schemars::JsonSchema, PartialEq,
@@ -67,6 +72,18 @@ pub struct RuleSpec {
 impl RuleSpec {
     pub fn validate(&self) -> Result<()> {
         match &self.condition {
+            Condition::Progress {
+                source,
+                trigger,
+                cooldown_seconds,
+            } => {
+                crate::progress::validate_name(source)?;
+                trigger.validate()?;
+                ensure!(
+                    (1..=604800).contains(cooldown_seconds),
+                    "progress cooldown must be 1..604800 seconds"
+                );
+            }
             Condition::NoOutput { seconds } | Condition::Elapsed { seconds } => ensure!(
                 (1..=604800).contains(seconds),
                 "monitor duration must be 1..604800 seconds"
@@ -231,7 +248,7 @@ impl Store {
                 tx.commit()?;Ok(())
             }).await?;
         }
-        self.read(move|db|{read_job(db,&job)?;Ok(json!({"job_id":job,"rules":rules(db,&job)?,"trigger_policy":"once per revision; enable again to rearm"}))}).await
+        self.read(move|db|{read_job(db,&job)?;Ok(json!({"job_id":job,"rules":rules(db,&job)?,"trigger_policy":"literal/time rules: once per revision; progress: new source sequences, cooldown and bounded repeated triggers"}))}).await
     }
     pub(crate) async fn trigger_rule(
         &self,
@@ -277,11 +294,14 @@ impl Store {
     pub(crate) async fn observe(
         &self,
         job: String,
-        value: Value,
+        mut value: Value,
         applied: Vec<(String, i64)>,
     ) -> Result<()> {
         self.call(move|db| {
             let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+            if let Some(progress) = crate::progress::read_state(&tx, &job)? {
+                value["progress"] = serde_json::to_value(progress)?;
+            }
             tx.execute("INSERT INTO runtime_observations(job_id,data) VALUES(?,?) ON CONFLICT(job_id) DO UPDATE SET data=excluded.data",params![job,value.to_string()])?;
             for (id,revision) in applied {tx.execute("UPDATE monitor_rules SET applied_revision=?,applied_at=? WHERE id=? AND revision=? AND applied_revision<>?",params![revision,now(),id,revision,revision])?;}
             tx.commit()?;Ok(())
@@ -352,6 +372,7 @@ pub(crate) struct Live {
     last_output: Instant,
     tails: [Tail; 2],
     rules: Vec<ActiveRule>,
+    progress: crate::progress::Parser,
 }
 pub(crate) type SharedLive = Arc<Mutex<Live>>;
 impl Live {
@@ -361,6 +382,7 @@ impl Live {
             last_output: Instant::now(),
             tails: Default::default(),
             rules: vec![],
+            progress: Default::default(),
         }))
     }
     pub fn apply(&mut self, rules: Vec<Rule>) {
@@ -388,6 +410,20 @@ impl Live {
         }
     }
     pub fn output(&mut self, stream: usize, bytes: &[u8]) {
+        self.progress.output(
+            stream,
+            bytes,
+            &self
+                .rules
+                .iter()
+                .filter(|a| {
+                    a.rule.enabled
+                        && !a.rule.deleted
+                        && matches!(a.rule.spec.condition, Condition::Progress { .. })
+                })
+                .map(|a| (a.rule.id.clone(), a.rule.revision))
+                .collect::<Vec<_>>(),
+        );
         self.last_output = Instant::now();
         let tail = &mut self.tails[stream];
         tail.bytes += bytes.len() as u64;
@@ -471,6 +507,9 @@ impl Live {
             }
         }
     }
+    pub(crate) fn take_progress(&mut self) -> crate::progress::Batch {
+        self.progress.take()
+    }
     pub fn snapshot(&self, phase: &str) -> (Value, Vec<(String, i64)>) {
         let outputs=self.tails.iter().map(|t|json!({"total_bytes":t.bytes,"retained_from":t.bytes-t.data.len() as u64,"text":String::from_utf8_lossy(&t.data.iter().copied().collect::<Vec<_>>()).chars().map(|c|if c.is_control() && !matches!(c,'\n'|'\r'|'\t'){'\u{fffd}'}else{c}).collect::<String>(),"last_output_at":t.last_output_at,"truncated":t.bytes>t.data.len() as u64})).collect::<Vec<_>>();
         (
@@ -547,6 +586,9 @@ pub fn human(value: &Value) -> String {
             job["cwd"].as_str().unwrap_or("")
         ));
         lines.push(format!("Stop: {}", value["stop"]));
+        if let Some(progress) = value["observation"].get("progress") {
+            lines.push(format!("Progress (untrusted workload data): {progress}"));
+        }
         for stream in ["stdout", "stderr"] {
             lines.push(format!(
                 "{stream} · {} bytes · last output {}\n{}",

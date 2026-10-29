@@ -416,7 +416,7 @@ pub fn finish_tx(
         j,
         &job.run_id,
         state,
-        serde_json::json!({"detail":detail,"exit_code":code,"signal":signal}),
+        serde_json::json!({"detail":detail,"exit_code":code,"signal":signal,"progress":crate::progress::final_summary(tx,j)?}),
     )?;
     Ok(())
 }

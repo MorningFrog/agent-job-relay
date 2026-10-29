@@ -6,6 +6,8 @@ Live-verified baseline: **AgentJobRelay v0.1.8**, verified on **2026-10-27 (Asia
 
 Unreleased batch submission has Linux native/CLI/MCP regressions and an actual OpenCode 1.19.4 loader/caller/session-loop check with a simulated model. These do not qualify real ChatGPT Desktop batch continuation, Windows batch execution or a real provider account; the live-verified baseline below remains unchanged.
 
+Unreleased mid-run feedback has Linux runner/checker, actual CLI/MCP/HTTP and fake-Desktop routing/persistence coverage. It adds no real ChatGPT Desktop/OpenCode mid-run execution or Windows native acceptance; published completion-continuation evidence below does not qualify this new path. See [progress limits](progress.md).
+
 ## Linux ChatGPT Desktop
 
 **v0.1.8 is verified with ChatGPT Desktop on Linux**, including the local plugin workflow and same-chat continuation after task completion. The user completed and confirmed this live acceptance.

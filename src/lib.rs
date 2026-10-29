@@ -19,6 +19,7 @@ pub mod output;
 pub mod platform;
 pub mod plugin;
 pub mod plugin_bridge;
+pub mod progress;
 pub mod recovery;
 pub mod remote;
 pub mod renewal;

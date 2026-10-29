@@ -114,6 +114,7 @@ pub fn compact(op: &str, value: Value) -> Value {
                     "daemon",
                     "web_ui",
                     "runtime_monitoring",
+                    "structured_progress_v1",
                     "remote_execution",
                     "github_actions_observation",
                     "goal_waiting",

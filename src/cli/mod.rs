@@ -599,6 +599,7 @@ pub(super) async fn run() -> Result<()> {
                 monitor_rules: if monitor.no_output.is_some()
                     || monitor.elapsed.is_some()
                     || monitor.contains.is_some()
+                    || monitor.progress.is_some()
                 {
                     vec![rule_spec(monitor)?]
                 } else {
@@ -607,7 +608,7 @@ pub(super) async fn run() -> Result<()> {
                             && !monitor.notify_agent
                             && monitor.grace == 5
                             && monitor.stream == "both",
-                        "monitor options require --no-output, --elapsed or --contains"
+                        "monitor options require --no-output, --elapsed, --contains or --progress"
                     );
                     vec![]
                 },
@@ -794,10 +795,20 @@ pub(super) async fn run() -> Result<()> {
 
 fn rule_spec(args: RuleArgs) -> Result<agent_job_relay::monitor::RuleSpec> {
     use agent_job_relay::monitor::*;
-    let condition = match (args.no_output, args.elapsed, args.contains) {
-        (Some(seconds), None, None) => Condition::NoOutput { seconds },
-        (None, Some(seconds), None) => Condition::Elapsed { seconds },
-        (None, None, Some(text)) => Condition::Contains {
+    let condition = match (args.no_output, args.elapsed, args.contains, args.progress) {
+        (None, None, None, Some(raw)) => {
+            let mut value: serde_json::Value =
+                serde_json::from_str(&raw).context("--progress requires a JSON object")?;
+            anyhow::ensure!(
+                value.is_object() && value.get("kind").is_none(),
+                "--progress takes source, trigger and cooldown_seconds; omit kind"
+            );
+            value["kind"] = serde_json::json!("progress");
+            serde_json::from_value(value)?
+        }
+        (Some(seconds), None, None, None) => Condition::NoOutput { seconds },
+        (None, Some(seconds), None, None) => Condition::Elapsed { seconds },
+        (None, None, Some(text), None) => Condition::Contains {
             text,
             stream: match args.stream.as_str() {
                 "stdout" => Stream::Stdout,
@@ -806,7 +817,9 @@ fn rule_spec(args: RuleArgs) -> Result<agent_job_relay::monitor::RuleSpec> {
                 _ => anyhow::bail!("stream must be stdout, stderr or both"),
             },
         },
-        _ => anyhow::bail!("provide exactly one of --no-output, --elapsed or --contains"),
+        _ => {
+            anyhow::bail!("provide exactly one of --no-output, --elapsed, --contains or --progress")
+        }
     };
     let rule = RuleSpec {
         condition,

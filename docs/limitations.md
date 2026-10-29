@@ -46,6 +46,8 @@ Automatic data maintenance runs only while the daemon is running; it is not a sy
 
 ## Inspection, monitoring and Web UI
 
+Unreleased structured progress adds bounded repeated stage/step/metric rules. It is a status channel with eight sources, 256 retained sample events, 128 progress alerts per job, per-rule cooldowns and one progress notification/second per job; suppressed matches are not delayed or replayed. Latest values and the last eight milestones persist, and terminal summaries may truncate with an explicit flag. Native Windows, installed entry and real mid-run host continuation still need qualification. Goal waiting permits only local progress rules. See [the progress contract and checker](progress.md).
+
 Runtime 0.1.10 and newer bundle a default-on authenticated loopback Web UI and runner-owned monitor rules. Linux/Windows native and installed-package checks pass; real mid-run host continuation is not yet qualified. Each rule revision triggers once and must be explicitly rearmed; 16 rule identities and 128 revisions each bound its retained configuration history. Conditions are literal output matches, silence and elapsed time. Browser closing removes live visual feedback while durable alerts/local stops continue. Persisted observation timestamps can be stale after abrupt runner loss or storage contention; silence alone is not a hang diagnosis. Database write failure can prevent durable monitoring/control, and no new disk-loss journal is promised. See [runtime monitoring](runtime-monitoring.md).
 
 

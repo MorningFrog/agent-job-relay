@@ -32,6 +32,8 @@ Choose the task you need below. Installation, everyday operation, maintenance an
 | Launch/attach remote commands or observe a workflow attempt / 远程命令和工作流观察 | [Remote execution](remote-execution.md) (unreleased source) |
 | Look up CLI commands, profiles or MCP equivalents / 查询命令、数据目录和 MCP 工具 | [Command reference](commands.md) |
 | Inspect/watch, add rules, use Web UI or stop work / 检查任务、监控、面板和停止 | [Runtime monitoring and Web UI](runtime-monitoring.md) |
+| Report stages, metrics or checkpoints during execution / 阶段、指标和检查点中间反馈 | [Progress and checker recipes](progress.md) (unreleased source) |
+| Copy prompts to test features / 复制提示词测试各项功能 | [English](test-prompts.md) · [简体中文](test-prompts.zh-CN.md) |
 
 ## Maintenance and troubleshooting / 维护与排障
 

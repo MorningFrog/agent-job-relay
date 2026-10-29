@@ -10,7 +10,7 @@ One package and executable; CLI, stdio MCP, daemon and runner modes.
 |---|---|
 | Process initialization | `src/main.rs` |
 | CLI syntax and dispatch | `src/cli/args.rs`, `src/cli/mod.rs` (binary-private) |
-| MCP tools and client convenience | `src/mcp.rs`, `src/client.rs`, `src/diagnostics.rs`, `src/output.rs`, `src/monitor.rs` |
+| MCP tools and client convenience | `src/mcp.rs`, `src/client.rs`, `src/diagnostics.rs`, `src/output.rs`, `src/monitor.rs`, `src/progress.rs` |
 | External execution and observation | `src/remote/` (pinned contract/stdio helper, bounded transport, native observer and read-only Actions adapter) |
 | Bounded batch admission | `src/batch.rs`, shared CLI/MCP client and IPC dispatch; existing per-item storage transactions |
 | Job intent, execution and persistence | `src/core.rs`, `src/daemon.rs`, `src/runner.rs`, `src/storage.rs` |
@@ -116,3 +116,7 @@ Schema v9 adds revision-fenced monitor rules/audits, stop requests and bounded r
 Runner capture checks literal output before prefix truncation, retaining bounded per-stream match windows and 64-KiB rolling tails. Silence uses a monotonic clock and a fresh application window; elapsed rules measure the run. One trigger per rule revision transactionally records evidence, optional same-target notification and local stop intent. Updates and trigger claims fence revisions; disabled/removed/terminal work cannot trigger. Queued/retry/expired alert claims are superseded/fenced at terminal completion; live claims retain per-chat exclusion and failures cannot retry obsolete alerts without erasing IDs/expiry/attempt history; in-flight or accepted host effects remain independent. CLI/MCP/Web share the same store/API behavior. See [runtime monitoring](runtime-monitoring.md) and [ADR 0015](adr/0015-runtime-monitoring-and-web-ui.md).
 
 The daemon serves embedded React/Vite assets and a small typed HTTP API on a random loopback port. Private IPC returns access URLs only on explicit ui_info; normal health omits credentials. Browsers use a fragment-supplied ephemeral bearer header, strict Host/Origin checks and CSP, plus bounded SSE snapshots. The listener defaults on; AJR_WEB_UI=off is an explicit startup opt-out. Browser/viewer/session lifetimes never control jobs. build.rs embeds prebuilt web/dist bytes; source/CI builds run locked npm preparation first, and native/offline/npm recipients receive those same embedded assets.
+
+## Structured progress (unreleased source)
+
+Runner capture frames bounded `AJR_PROGRESS` v1 lines separately per stream; source high-water marks, rule cooldown counters, bounded latest values and milestone evidence live in existing runtime observations. One IMMEDIATE transaction accepts a source sequence, checks the output-time applied revision against current enabled rules, records progress/alerts and creates optional stops/Outbox entries. Terminal transitions serialize against ingestion and retain a bounded summary before existing delivery supersession. Archive/restore already carries these tables; no schema migration or replay is added. CLI/MCP/Web use shared progress conditions and inspection. Literal/time rules retain one trigger per revision. Native remote snapshots retain their remote progress; origin progress notifications require a separately submitted pinned-run checker. See [protocol and limits](progress.md).

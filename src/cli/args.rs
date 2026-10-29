@@ -583,6 +583,9 @@ pub(super) struct RuleArgs {
     pub elapsed: Option<u64>,
     #[arg(long, group = "condition")]
     pub contains: Option<String>,
+    /// JSON object with source, trigger and cooldown_seconds (unreleased)
+    #[arg(long, group = "condition")]
+    pub progress: Option<String>,
     #[arg(long, default_value = "both")]
     pub stream: String,
     #[arg(long, default_value = "alert")]

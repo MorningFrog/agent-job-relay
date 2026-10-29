@@ -49,8 +49,11 @@ impl CommandSpec {
         use crate::monitor::Condition;
         match self {
             Self::Remote { .. } => ensure!(
-                !matches!(rule.condition, Condition::NoOutput { .. }),
-                "remote silence rules must run on the remote runner; put them in remote.intent.spec.monitor_rules"
+                !matches!(
+                    rule.condition,
+                    Condition::NoOutput { .. } | Condition::Progress { .. }
+                ),
+                "remote silence/progress rules must run on the remote runner; put them in remote.intent.spec.monitor_rules; use an explicit local checker for origin notifications"
             ),
             Self::GithubActions { .. } => ensure!(
                 matches!(rule.condition, Condition::Elapsed { .. }),
