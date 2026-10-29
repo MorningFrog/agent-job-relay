@@ -462,7 +462,7 @@ pub fn refresh_cache(root: PathBuf, cache: PathBuf, apply: bool) -> Result<Value
     drop((install_lock, cache_lock));
     Ok(
         json!({"mode":mode(apply),"path":cache,"changed":changed,"old_version":old.version,"version":new.version,"backup":backup,
-        "data":"preserved","next_step":"Reconnect/restart the host's MCP connection to load the updated program and skill. Host installation/enabled state is unchanged."}),
+        "data":"preserved","next_step":"Read instructions through the selected launcher. Managed MCP connections follow verified runtime updates; refresh/reconnect if the host has not loaded new tools or a historical entry. Host installation/enabled state is unchanged."}),
     )
 }
 
@@ -532,7 +532,7 @@ async fn deploy_bundle(
             .context("runtime update may have completed; cache refresh failed; inspect plugin status and retry cache refresh (no automatic rollback)")?);
     }
     let mut value = json!({"mode":mode(apply),"version":bundle.version,"management":{"program":root.join(if cfg!(windows){"relay.cmd"}else{"relay"}),"args":["ui"]},"install":installation,"caches":refreshed,
-        "data":"preserved","configuration":"unchanged","next_step":"Refresh/enable AgentJobRelay in the host, then reconnect MCP. Changed runtime updates restart an online daemon; an offline profile starts on demand."});
+        "data":"preserved","configuration":"unchanged","next_step":"Enable the plugin for a first installation. Existing managed MCP connections follow verified runtime updates; refresh/reconnect for new tools or historical entries when needed. Read the selected launcher's instructions. Applied updates restart an online daemon; offline profiles start on demand."});
     if let Some(registration) = registration {
         value["marketplace"] = registration;
         value["configuration"] = json!("managed marketplace entry");

@@ -421,7 +421,7 @@ pub fn repair(root: PathBuf, apply: bool) -> Result<Value> {
         op.finish()?;
     }
     Ok(
-        json!({"mode":if apply {"apply"} else {"dry_run"},"path":root,"changed":true,"phase":phase,"state_dir":op.state_dir,"backup":if op.before.is_some(){Some(op.backup())}else{None},"data":"preserved","next_step":"Retry the original bootstrap/update command to finish marketplace registration or other explicitly selected caches; reconnect MCP afterward."}),
+        json!({"mode":if apply {"apply"} else {"dry_run"},"path":root,"changed":true,"phase":phase,"state_dir":op.state_dir,"backup":if op.before.is_some(){Some(op.backup())}else{None},"data":"preserved","next_step":"Retry the original bootstrap/update command to finish marketplace registration or other explicitly selected caches. Read current launcher instructions; refresh/reconnect only for unloaded tools or historical entries."}),
     )
 }
 

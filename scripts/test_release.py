@@ -27,7 +27,7 @@ class ReleaseTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name) / "source"
         self.root.mkdir()
-        files = ["Cargo.toml", "Cargo.lock", "CHANGELOG.md", "plugins/chatgpt/plugin.json", "plugins/chatgpt/.codex-plugin/plugin.json", "plugins/agent-job-relay/plugin.json", "plugins/chatgpt/mcp.json", "plugins/chatgpt/.mcp.json", "plugins/chatgpt/relay", "plugins/chatgpt/relay.cmd", "plugins/chatgpt/skills/background-jobs/SKILL.md", "packages/runtime/package.json", "plugins/opencode-v1/package.json"]
+        files = ["Cargo.toml", "Cargo.lock", "CHANGELOG.md", "plugins/chatgpt/plugin.json", "plugins/chatgpt/.codex-plugin/plugin.json", "plugins/agent-job-relay/plugin.json", "plugins/chatgpt/mcp.json", "plugins/chatgpt/.mcp.json", "plugins/chatgpt/relay", "plugins/chatgpt/relay.cmd", "packages/runtime/package.json", "plugins/opencode-v1/package.json"]
         for name in files:
             target = self.root / name
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -80,6 +80,15 @@ class ReleaseTests(unittest.TestCase):
 
     def test_version_and_changelog_are_enforced_before_build(self):
         self.assertEqual(metadata.source_metadata(self.root)["version"], self.version)
+        # Validate the executable entry points; stable skill text carries no version pin.
+        for relative in ["plugins/chatgpt/.mcp.json", "plugins/chatgpt/mcp.json", "plugins/chatgpt/relay", "plugins/chatgpt/relay.cmd"]:
+            path = self.root / relative
+            original = path.read_text()
+            with self.subTest(entry=relative):
+                path.write_text(original.replace(f"agent-job-relay-runtime@{self.version}", "agent-job-relay-runtime@0.0.1"))
+                with self.assertRaisesRegex(ValueError, "runtime pin mismatch"):
+                    metadata.source_metadata(self.root)
+            path.write_text(original)
         path = self.root / "plugins/opencode-v1/package.json"
         doc = json.loads(path.read_text())
         doc["dependencies"][metadata.PACKAGES["runtime"]] = "0.0.1"

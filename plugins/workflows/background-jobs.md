@@ -19,7 +19,7 @@ Without an active goal, ordinary connect returns a normal binding and no pause q
 ## Submit
 
 1. From this chat's terminal, obtain the current binding through connect as described above. It verifies the actual inherited Desktop caller and returns a binding containing session_key and cwd; it sends no chat message. Obtain a fresh binding for each new submission.
-2. Call job_start with {"binding": <returned binding>, "spec": {"command": <explicit exec or shell command>}}. Omit wake_me. Supply spec.cwd only when intentionally selecting a different workload directory. The shared MCP process cannot infer the caller.
+2. Call job_start with {"binding": <returned binding>, "spec": {"command": <explicit exec or shell command>}}. Omit wake_me. For scoped goal requests, keep spec.cwd equal to the approved binding cwd; a different workspace needs a new request. Ordinary unscoped submissions may explicitly select another workload directory. The shared MCP process cannot infer the caller.
 3. Retain job_id and follow next_step. For long wake-bound jobs, end the turn.
 
 When the loaded tool catalog includes job_start_batch, submit 1–16 requested independent commands with {"binding": <returned binding>, "specs": [<start specs>]}. Give every item a distinct stable idempotency_key; retain each index/key and accepted result or error. Admission is partial under the eight-active-job quota; jobs notify and stop independently. After response loss, retry unchanged keys/specs so accepted work returns its original IDs and rejected items can be retried. Never assign new keys to uncertain work. CLI fallback: start-batch --file <JSON-array-file> --wake, with absolute cwd per item. Do not silently replace an old daemon to obtain batch support.

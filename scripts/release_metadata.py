@@ -53,7 +53,7 @@ def source_metadata(root=REPO):
     for relative in ["plugins/chatgpt/plugin.json", "plugins/chatgpt/.codex-plugin/plugin.json", "plugins/agent-job-relay/plugin.json"]:
         require(json.loads((root / relative).read_text())["version"] == selected, f"{relative} version mismatch")
     pin = f"agent-job-relay-runtime@{selected}"
-    for relative in ["plugins/chatgpt/.mcp.json", "plugins/chatgpt/mcp.json", "plugins/chatgpt/relay", "plugins/chatgpt/relay.cmd", "plugins/chatgpt/skills/background-jobs/SKILL.md"]:
+    for relative in ["plugins/chatgpt/.mcp.json", "plugins/chatgpt/mcp.json", "plugins/chatgpt/relay", "plugins/chatgpt/relay.cmd"]:
         pins = re.findall(r"agent-job-relay-runtime@[^\s\"']+", (root / relative).read_text())
         require(pins and all(p == pin for p in pins), f"{relative} runtime pin mismatch")
     require(json.loads((root / "plugins/chatgpt/.mcp.json").read_text())["mcpServers"] == json.loads((root / "plugins/chatgpt/mcp.json").read_text())["mcpServers"], "MCP declarations differ")
