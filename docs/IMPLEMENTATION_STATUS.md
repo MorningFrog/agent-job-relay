@@ -4,14 +4,14 @@
 
 ## Current baseline
 
-Current handoff: **2026-10-29 (Asia/Shanghai)**. Read [PROJECT_SPEC.md](../PROJECT_SPEC.md), [architecture](architecture.md) and [AGENTS.md](../AGENTS.md) before changing behavior. This page keeps current applicable evidence; historical runs remain in Git.
+Current handoff: **2026-10-30 (Asia/Shanghai)**. Read [PROJECT_SPEC.md](../PROJECT_SPEC.md), [architecture](architecture.md) and [AGENTS.md](../AGENTS.md) before changing behavior. This page keeps current applicable evidence; historical runs remain in Git.
 
 | Baseline | Current state |
 |---|---|
 | Published | npm/GitHub **0.1.11**, confirmed through public release and both npm latest metadata; full public-byte/install checker evidence remains at 0.1.10 |
 | Source | Cargo **0.1.12** with daemon upgrades, scoped goal consent/waiting, current-runtime forwarding, batch, external tasks and progress |
 | Storage/interfaces | One Rust package/executable, SQLite **v11**, IPC **v1**, **25 MCP tools**; published 0.1.11 baseline uses v9 and 22 tools |
-| Release candidate | 0.1.12 requires full revision CI and a new qualified manual candidate; published 0.1.11 candidate **40715744368** remains immutable and excluded from this release |
+| Release candidate | **0.1.12**, original Prepare Release **40908803482**, sealed on channel **latest** and unpublished; reuse these exact reviewed bytes |
 | Native platforms | Linux and Windows verified for the applicable baselines below; macOS native execution/IPC unimplemented |
 | Actual Desktop evidence | Completion continuation on Linux/Windows v0.1.8; user-confirmed current Linux goal pause after approval |
 
@@ -48,7 +48,8 @@ Submissions/register operations start the selected daemon on demand. Doctor/stat
 | User goal acceptance | User confirms local goal mode pauses automatically after approval. Direct MCP form UI and complete three-round real-host restoration remain separate acceptance |
 | Core Linux regressions | Native execution/process loss, SQLite transactions, IPC permissions, delivery/recovery, archives/restore, daemon upgrade, monitor/Web, batch and external-task suites. Release orchestration has 61 service-fixture checks; no public writes |
 | Windows native | Current 0.1.12 source passes all four MSVC gates on GitHub Windows, 69 tests plus frontend/static-CRT build, including schema v11 storage/progress checks. Windows goal/controller and native-form acceptance remain separate |
-| Installed packages/loaders | The 0.1.12 CI baseline passes installed Linux/Windows npm commands, Windows shim, Web resources, history/relocation/tamper and actual Codex/OpenCode loaders. OpenCode uses a simulated model; changed runtime bytes still require their revision gates |
+| Installed packages/loaders | Current 0.1.12 revision CI and candidate preparation pass installed Linux/Windows npm commands, Windows shim, Web resources, history/relocation/tamper and actual Codex/OpenCode loaders. OpenCode uses a simulated model; real-provider acceptance remains separate |
+| Release verification | [Revision CI](https://github.com/MorningFrog/agent-job-relay/actions/runs/40906662635), [Release All dry-run](https://github.com/MorningFrog/agent-job-relay/actions/runs/40908776616), [Prepare Release](https://github.com/MorningFrog/agent-job-relay/actions/runs/40908803482) and [actual publisher OIDC preview](https://github.com/MorningFrog/agent-job-relay/actions/runs/40911023219) pass; downloaded candidate checksums, inventory, source and notes verified. Publication/public checking were skipped |
 | Real host continuation | Linux/Windows Desktop v0.1.8 completion continuation and Windows cold-profile actual Codex MCP/model acceptance; current approval→pause is separately user-confirmed. Details and remaining host scenarios are in [live verification](live-e2e.md) |
 | Browser | Isolated Linux bundled-panel task/rule/stop/progress interaction; no new real mid-run Agent continuation |
 | External integration | Linux→Windows native execution through the authenticated VM channel with injected disconnect/observer loss, one launch and exact-run cancellation; one real Actions attempt read. SSH-specific deployment/provider-backed continuation remains unqualified |
@@ -57,6 +58,6 @@ Use [testing](testing.md) for reproduction/coverage. Fake-host, injected expiry 
 
 ## Release and support boundaries
 
-Version 0.1.12 has dated release notes and synchronized Cargo/npm/plugin pins. Its revision CI and new Release All dry-run remain required before publication. The published 0.1.11 candidate 40715744368 remains immutable and cannot qualify the changed payload. Packaging targets Linux glibc 2.34; local source binaries require the build machine's compatible libc. Hashes alone do not authenticate a publisher. See [release handoff](release.md#current-release-handoff).
+Version 0.1.12 has dated release notes, synchronized pins and reviewed original candidate **40908803482**. npm latest remains 0.1.11; no 0.1.12 publication occurred. Preserve the original candidate and use recover_candidate=true after this documentation-only handoff update; runtime/package/CHANGELOG changes cannot use that exception. Candidate Linux bytes require glibc 2.34; local source binaries require the build machine's compatible libc. Hashes alone do not authenticate a publisher. See [release handoff](release.md#current-release-handoff).
 
 Windows goal/controller, direct native confirmation UI, full real-model multi-round restoration, changed-host goal handling and long-duration savings need separate qualification. Host goal generation/CAS is unavailable. Actual results completed while Desktop is closed, receiver deduplication and multi-day renewal remain open. Claude account-backed loading, OpenCode real-provider/V2, stronger containment, disk-loss qualification and cross-file install recovery remain in [TODO](TODO.md). No adapter automatically records `confirmed_resumed`.
