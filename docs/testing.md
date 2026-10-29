@@ -60,7 +60,7 @@ Run `cargo test --lib progress::` and `cargo test --test monitor` for source pro
 
 ## Manual feature prompts
 
-Use [English prompts](test-prompts.md) or [中文提示词](test-prompts.zh-CN.md) for bounded Linux/Windows home-directory metadata scans, repeated progress, batch, Web/rules, exact stopping, experimental goal waiting, recovery, remote observation and maintenance previews. Each recipe states expected observations and capability boundaries; simulated delays and actual mid-run Agent execution must be recorded separately. These prompts are recipes, not completed acceptance evidence.
+Copy the short task requests in [English](test-prompts.md) or [中文](test-prompts.zh-CN.md) for directory scans, file searches, builds, progress updates and task management.
 
 ## Actual Codex plugin-loader check
 
