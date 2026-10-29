@@ -477,19 +477,22 @@ async fn remote_observer_recovers_process_loss_disconnect_and_pending_exact_run_
 async fn workflow_attempt_observation_never_cancels_and_rejects_retargeting() {
     let r = Rig::new().await;
     let data = r.dir.path().join("api.json");
+    let jobs = r.dir.path().join("jobs.json");
     let calls = r.dir.path().join("calls");
     let fail = r.dir.path().join("fail");
     let mock = script(
         &r.dir.path().join("gh"),
         &format!(
-            "printf '%s\\n' \"$*\" >> '{}'; if [ -f '{}' ]; then echo 'HTTP 403 token=private-test-secret' >&2; exit 1; fi; cat '{}'",
+            "printf '%s\\n' \"$*\" >> '{}'; if [ -f '{}' ]; then echo 'HTTP 403 token=private-test-secret' >&2; exit 1; fi; case \"$*\" in *'/jobs?'*) cat '{}' ;; *) cat '{}' ;; esac",
             calls.display(),
             fail.display(),
+            jobs.display(),
             data.display()
         ),
     );
     let response = |status: &str, conclusion: Value, attempt: u32| json!({"id":123,"run_attempt":attempt,"repository":{"full_name":"owner/repo"},"status":status,"conclusion":conclusion,"html_url":"https://github.com/owner/repo/actions/runs/123"});
     std::fs::write(&data, response("in_progress", Value::Null, 1).to_string()).unwrap();
+    std::fs::write(&jobs, json!({"total_count":21,"jobs":[{"id":456,"run_id":123,"run_attempt":1,"name":"Linux build","status":"in_progress","conclusion":null,"steps":[{"name":"Checkout","status":"completed"},{"name":"Compile","status":"in_progress"},{"name":"Test","status":"queued"}]}]}).to_string()).unwrap();
     let command = CommandSpec::GithubActions {
         workflow: ActionsSpec {
             repository: "owner/repo".into(),
@@ -500,10 +503,20 @@ async fn workflow_attempt_observation_never_cancels_and_rejects_retargeting() {
         },
     };
     let watcher = r.start(r.spec(command.clone())).await;
-    r.wait(&watcher.job_id, |v| {
-        v["observation"]["external"]["workflow"]["status"] == "in_progress"
-    })
-    .await;
+    let observed = r
+        .wait(&watcher.job_id, |v| {
+            v["observation"]["external"]["workflow"]["jobs"]["items"][0]["current_step"]
+                == "Compile"
+        })
+        .await;
+    let workflow = &observed["observation"]["external"]["workflow"];
+    assert_eq!(
+        workflow["url"],
+        "https://github.com/owner/repo/actions/runs/123/attempts/1"
+    );
+    assert_eq!(workflow["jobs"]["items"][0]["completed_steps"], 1);
+    assert_eq!(workflow["jobs"]["items"][0]["total_steps"], 3);
+    assert_eq!(workflow["jobs"]["truncated"], true);
     r.store.stop(watcher.job_id.clone()).await.unwrap();
     r.wait(&watcher.job_id, |v| v["job"]["status"] == "cancelled")
         .await;
@@ -516,6 +529,8 @@ async fn workflow_attempt_observation_never_cancels_and_rejects_retargeting() {
         response("completed", json!("failure"), 1).to_string(),
     )
     .unwrap();
+    // Missing optional detail must not hide an exact-attempt terminal result.
+    std::fs::write(&jobs, "{}").unwrap();
     let observer = r.start(r.spec(command.clone())).await;
     let final_state = r
         .wait(&observer.job_id, |v| v["job"]["status"] == "failed")
@@ -523,6 +538,10 @@ async fn workflow_attempt_observation_never_cancels_and_rejects_retargeting() {
     assert_eq!(
         final_state["observation"]["external"]["workflow"]["conclusion"],
         "failure"
+    );
+    assert_eq!(
+        final_state["observation"]["external"]["workflow"]["jobs_error"],
+        "missing workflow jobs"
     );
     std::fs::write(&fail, "").unwrap();
     let mut spec = r.spec(command.clone());
@@ -548,7 +567,8 @@ async fn workflow_attempt_observation_never_cancels_and_rejects_retargeting() {
     assert!(wrong.to_string().contains("attempt identity mismatch"));
     let calls = std::fs::read_to_string(calls).unwrap();
     assert!(calls.lines().all(|line| line.contains("--method GET")
-        && line.ends_with("repos/owner/repo/actions/runs/123/attempts/1")));
+        && (line.ends_with("repos/owner/repo/actions/runs/123/attempts/1")
+            || line.ends_with("repos/owner/repo/actions/runs/123/attempts/1/jobs?per_page=20"))));
 }
 
 #[cfg(target_os = "linux")]

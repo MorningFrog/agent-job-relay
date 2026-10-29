@@ -12,7 +12,7 @@ Use [published installation](installation.md#quick-install-the-latest-release) o
 
 ## Windows native runtime and MCP
 
-Current 0.1.12 source passes GitHub Windows MSVC gates with 69 tests, frontend/static-CRT build and schema v11 storage/progress checks. Earlier Windows 11 VM external-task verification under SYSTEM and ordinary-user monitor/Web/maintenance acceptance remain applicable to their baselines; Windows goal/controller and native confirmation UI still require separate host evidence.
+The sealed 0.1.12 baseline passes GitHub Windows MSVC gates with 69 tests, frontend/static-CRT build and schema v11 storage/progress checks. Subsequent Actions detail changes are verified on Linux only. Earlier Windows 11 VM external-task verification under SYSTEM and ordinary-user monitor/Web/maintenance acceptance remain applicable to their baselines; Windows goal/controller and native confirmation UI still require separate host evidence.
 
 Installed v0.1.8 with actual Codex 0.164.0 and `gpt-6.1-sol`/`low` passes cold-profile MCP submission under SYSTEM and an ordinary interactive user: no prestarted daemon, one completed native Job/Run, expected output and doctor reporting `windows_cim`. Installed npm/package/loader checks use isolated registries/profiles and a simulated OpenCode model; they remain separate from real provider/host acceptance.
 
@@ -40,4 +40,4 @@ Direct MCP form UI, complete three-round real-model restoration, Windows goal/co
 
 ## External tasks (0.1.12 source)
 
-Linux→Windows native execution through the existing authenticated VM channel under SYSTEM verifies one launch, cwd/env/output, injected transport and local observer/daemon loss, stable local/remote IDs after reconnect and observed exact-run cancellation. This is not SSH-server, ordinary-user, machine-restart or real Desktop acceptance. A completed real GitHub Actions attempt is observed read-only with matching conclusion/URL; status/auth/attempt transitions use fixtures. External-task same-chat continuation and prolonged reliability remain unqualified.
+Linux→Windows native execution through the existing authenticated VM channel under SYSTEM verifies one launch, cwd/env/output, injected transport and local observer/daemon loss, stable local/remote IDs after reconnect and observed exact-run cancellation. This is not SSH-server, ordinary-user, machine-restart or real Desktop acceptance. Current Linux source observes a completed real GitHub Actions attempt read-only with matching conclusion, all five jobs, step counts and an attempt-specific URL; the embedded browser shows its details and opens that exact GitHub page on click. Long-name/current-step/partial-matrix cards pass 360/1280-pixel checks without horizontal overflow. In-progress/auth/attempt/detail-failure transitions use fixtures. External-task same-chat continuation and prolonged reliability remain unqualified.

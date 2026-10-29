@@ -9,6 +9,17 @@ pub(crate) async fn sample(spec: &ActionsSpec, cwd: &std::path::Path) -> Result<
         "repos/{}/actions/runs/{}/attempts/{}",
         spec.repository, spec.run_id, spec.attempt
     );
+    let value = api(spec, cwd, path).await?;
+    let mut sample = workflow(spec, &value)?;
+    // Optional detail must never hide authoritative run completion or imply failure.
+    match jobs(spec, cwd).await {
+        Ok(progress) => sample["jobs"] = progress,
+        Err(error) => sample["jobs_error"] = json!(format!("{error:#}")),
+    }
+    Ok(sample)
+}
+
+async fn api(spec: &ActionsSpec, cwd: &std::path::Path, path: String) -> Result<Value> {
     let args = vec![
         "api".into(),
         "--hostname".into(),
@@ -33,9 +44,12 @@ pub(crate) async fn sample(spec: &ActionsSpec, cwd: &std::path::Path) -> Result<
         } else {
             "transport_unavailable"
         };
-        anyhow::bail!("GitHub observation unavailable: {kind}; workflow result remains unknown");
+        anyhow::bail!("GitHub observation unavailable: {kind}");
     }
-    let value: Value = serde_json::from_slice(&output).context("invalid GitHub API response")?;
+    serde_json::from_slice(&output).context("invalid GitHub API response")
+}
+
+fn workflow(spec: &ActionsSpec, value: &Value) -> Result<Value> {
     ensure!(
         value["id"].as_u64() == Some(spec.run_id)
             && value["run_attempt"].as_u64() == Some(spec.attempt as u64),
@@ -90,9 +104,63 @@ pub(crate) async fn sample(spec: &ActionsSpec, cwd: &std::path::Path) -> Result<
             "missing/unsupported final workflow conclusion"
         );
     }
+    let url = format!("{expected_url}/attempts/{}", spec.attempt);
     Ok(
         json!({"repository":repo,"run_id":spec.run_id,"attempt":spec.attempt,"hostname":spec.hostname,"status":status,"conclusion":conclusion,"url":url,"sampled_at":crate::core::now(),"can_cancel":false,"mode":"observe_only"}),
     )
+}
+
+async fn jobs(spec: &ActionsSpec, cwd: &std::path::Path) -> Result<Value> {
+    // One bounded page; large matrices remain accessible through the attempt link.
+    let value = api(
+        spec,
+        cwd,
+        format!(
+            "repos/{}/actions/runs/{}/attempts/{}/jobs?per_page=20",
+            spec.repository, spec.run_id, spec.attempt
+        ),
+    )
+    .await?;
+    summarize_jobs(spec, &value)
+}
+
+fn summarize_jobs(spec: &ActionsSpec, value: &Value) -> Result<Value> {
+    let jobs = value["jobs"].as_array().context("missing workflow jobs")?;
+    ensure!(jobs.len() <= 20, "workflow jobs page exceeds limit");
+    let total = value["total_count"]
+        .as_u64()
+        .context("missing workflow jobs count")?;
+    ensure!(total >= jobs.len() as u64, "invalid workflow jobs count");
+    let mut items = Vec::new();
+    for job in jobs {
+        ensure!(
+            job["run_id"].as_u64() == Some(spec.run_id)
+                && job["run_attempt"].as_u64() == Some(spec.attempt as u64),
+            "workflow job run/attempt identity mismatch"
+        );
+        let steps = job["steps"]
+            .as_array()
+            .context("missing workflow job steps")?;
+        let current = steps.iter().find(|step| step["status"] == "in_progress");
+        let bounded = |value: &Value| {
+            value
+                .as_str()
+                .unwrap_or("")
+                .chars()
+                .take(160)
+                .collect::<String>()
+        };
+        items.push(json!({
+            "id":job["id"].as_u64().context("missing workflow job identity")?,
+            "name":bounded(&job["name"]),
+            "status":bounded(&job["status"]),
+            "conclusion":job["conclusion"].as_str().map(|_| bounded(&job["conclusion"])),
+            "completed_steps":steps.iter().filter(|step| step["status"] == "completed").count(),
+            "total_steps":steps.len(),
+            "current_step":current.map(|step| bounded(&step["name"]))
+        }));
+    }
+    Ok(json!({"items":items,"total_count":total,"truncated":total > jobs.len() as u64}))
 }
 
 pub(crate) fn terminal_state(value: &Value) -> Option<&'static str> {
@@ -105,4 +173,61 @@ pub(crate) fn terminal_state(value: &Value) -> Option<&'static str> {
         "timed_out" => "timeout",
         _ => "failed",
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn job_details_fence_attempt_identity_and_bound_retained_names_and_pages() {
+        let spec = ActionsSpec {
+            repository: "owner/repo".into(),
+            run_id: 123,
+            attempt: 2,
+            hostname: "github.com".into(),
+            gh_program: "gh".into(),
+        };
+        let job = json!({"id":456,"run_id":123,"run_attempt":2,"name":"步".repeat(200),"status":"in_progress","conclusion":null,"steps":[{"name":"编".repeat(200),"status":"in_progress"}]});
+        let mut page = json!({"total_count":21,"jobs":vec![job;20]});
+        let result = summarize_jobs(&spec, &page).unwrap();
+        assert_eq!(result["items"].as_array().unwrap().len(), 20);
+        assert_eq!(
+            result["items"][0]["name"].as_str().unwrap().chars().count(),
+            160
+        );
+        assert_eq!(
+            result["items"][0]["current_step"]
+                .as_str()
+                .unwrap()
+                .chars()
+                .count(),
+            160
+        );
+        assert_eq!(result["truncated"], true);
+        page["jobs"][0]["run_attempt"] = json!(3);
+        assert!(
+            summarize_jobs(&spec, &page)
+                .unwrap_err()
+                .to_string()
+                .contains("identity mismatch")
+        );
+        page["jobs"][0]["run_attempt"] = json!(2);
+        page["jobs"][0]["run_id"] = json!(124);
+        assert!(
+            summarize_jobs(&spec, &page)
+                .unwrap_err()
+                .to_string()
+                .contains("identity mismatch")
+        );
+        page["jobs"][0]["run_id"] = json!(123);
+        let extra = page["jobs"][0].clone();
+        page["jobs"].as_array_mut().unwrap().push(extra);
+        assert!(
+            summarize_jobs(&spec, &page)
+                .unwrap_err()
+                .to_string()
+                .contains("page exceeds limit")
+        );
+    }
 }

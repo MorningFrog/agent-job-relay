@@ -18,7 +18,7 @@ Run long commands independently of the Agent connection, keep their results, and
 | Durable background jobs | Builds, tests, training and data processing that continue after a chat or viewer closes |
 | Goal waiting (experimental source) | One short native or Agent question when pause permission is missing; durable approval covers this request’s bounded rounds. Original-goal handoff, restoration and deletion safeguards remain. [Usage and host limits](docs/goal-waiting.md) |
 | Batch submission (0.1.12 source) | Submit 1–16 independent commands through CLI/MCP, with per-item results and safe retries; [usage](docs/usage.md#submit-independent-commands-together-0112-source) |
-| Remote tasks (0.1.12 source) | Launch/attach on a pinned remote runtime and observe a fixed GitHub Actions attempt; [setup and boundaries](docs/remote-execution.md) |
+| Remote tasks (0.1.12 source) | Launch/attach on a pinned remote runtime; observe a fixed GitHub Actions attempt with job/step status and a direct run link; [setup and boundaries](docs/remote-execution.md) |
 | Mid-run feedback (0.1.12 source) | Structured stages/steps/metrics, repeated milestone or threshold alerts and a bounded checker recipe; [usage and limits](docs/progress.md) |
 | Results and history | Bounded stdout/stderr, exit outcomes, events and retained task history |
 | Session-bound notifications | Deliver results to the initiating session; resume the chat when supported by its host |

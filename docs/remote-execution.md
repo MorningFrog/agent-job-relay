@@ -97,7 +97,18 @@ Install/configure `gh` on the observing machine through your normal authenticati
 }
 ```
 
-Submit with `start-spec --file workflow.json`, or use the same spec with MCP `job_start`. Expected: `observation.external.workflow` retains repository/run/attempt, status, final conclusion and URL. The adapter uses `gh api --method GET repos/<owner>/<repo>/actions/runs/<id>/attempts/<attempt>` with a 15-second request deadline and bounded output. Healthy reads are five seconds apart; failures back off to 60 seconds. Authentication/permission/rate-limit/404 diagnostics do not become workflow results. Optional `hostname` selects GitHub Enterprise; optional `gh_program` selects an explicit executable. Reruns cannot silently move observation to a different attempt.
+Submit with `start-spec --file workflow.json`, or use the same spec with MCP `job_start`. Expected: `observation.external.workflow` retains repository/run/attempt, status, final conclusion and an attempt-specific URL. The adapter uses `gh api --method GET repos/<owner>/<repo>/actions/runs/<id>/attempts/<attempt>`, followed by one optional `/jobs?per_page=20` read. Each request has a 15-second deadline and bounded output. Healthy samples are five seconds apart; run-query failures back off to 60 seconds. Authentication/permission/rate-limit/404 diagnostics do not become workflow results. Optional `hostname` selects GitHub Enterprise; optional `gh_program` selects an explicit executable. Reruns cannot silently move observation to a different attempt.
+
+The Web detail panel shows each returned job's state/conclusion, current step and ended/known step counts, plus a link to the exact attempt even before the first successful query. CLI/MCP inspection shares the same `workflow.jobs` snapshot. At most 20 jobs are retained per sample, with 160-character names and explicit partial-list indication; open GitHub for the full matrix. Step counts can grow during execution and are not a time percentage. A failed detail query produces `jobs_error` without hiding a verified workflow result; a failed run query retains the previous snapshot as stale evidence. Workflow credentials stay in local `gh` authentication and are never added to outbound links.
+
+For manual queries, GitHub CLI also provides:
+
+```bash
+gh run view <run-id> --repo owner/repository --attempt <attempt> --json status,conclusion,jobs,url
+gh run view <run-id> --repo owner/repository --attempt <attempt> --verbose
+```
+
+Expected: run/job/step states, without an overall completion percentage. `gh run watch <run-id> --repo owner/repository` refreshes terminal output until completion, but has no attempt selector; the adapter keeps using fixed-attempt API reads. See the [CLI manual](https://cli.github.com/manual/gh_run_view) and [attempt-jobs API](https://docs.github.com/en/rest/actions/workflow-jobs#list-jobs-for-a-workflow-run-attempt).
 
 A successful, neutral or skipped final conclusion maps to local completed; failure/action-required/stale/startup-failure to failed; cancelled and timed-out conclusions retain their corresponding states. The exact conclusion remains evidence. Stopping or timing out the local observer leaves GitHub unchanged. Workflow log download, dispatch and cancellation are unsupported. Only local elapsed rules are available because this adapter has no workload output stream.
 

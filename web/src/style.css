@@ -36,3 +36,5 @@ nav button .nav-label{background:none;margin:0;min-width:0;font:inherit;text-ali
 .recent-alerts{padding:16px 22px;border-top:1px solid #eef0f5}.recent-alerts h3{font-size:12px;margin-bottom:12px;color:#737b8b}.recent-alerts button{display:flex;align-items:center;gap:12px;padding:13px 0;width:100%;border:0;border-bottom:1px solid #f0f1f5;background:none;text-align:left;color:#c69e65}.recent-alerts button span{flex:1;min-width:0}.recent-alerts button strong{font-size:11px;color:#737a8b;display:block;overflow-wrap:anywhere}.recent-alerts button small{display:block;color:#a0a5b1;font-size:9px;margin-top:4px}
 
 .job-summary progress{width:100%;height:8px;accent-color:#7060dd}
+.actions-link{margin-top:12px;color:#6955bd}.actions-link:hover{background:#f3f0ff}.actions-link:focus-visible{outline:2px solid #8072d9;outline-offset:3px}
+.actions-jobs{list-style:none;padding:0;margin:14px 0 0;max-height:320px;overflow:auto}.actions-jobs li{border-top:1px solid #eef0f5;padding:10px 0;font-size:11px;overflow-wrap:anywhere}.actions-jobs strong{display:block;color:#626a7d;margin-bottom:5px}.actions-jobs span,.actions-jobs p{color:#8b91a2;font-size:10px;line-height:1.7}
