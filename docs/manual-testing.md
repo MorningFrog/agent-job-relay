@@ -95,6 +95,16 @@ Expected: the original state path is retained; the same unmodified bundle report
 
 Use pass/fail/not tested for each item. Record host/app version, OS, actual submission route and job/delivery IDs privately; do not publish endpoints, credentials, databases or raw private logs. Keep the runtime delivery state separate from your observation of continuation. Use the restart/rebind procedure below only when explicitly testing that scenario. Real multi-day renewal remains a separate check.
 
+## Optional: real-Agent mid-run feedback
+
+Use this check for a relevant feedback change or a new host/runtime combination. The [user-confirmed staged acceptance](live-e2e.md#real-agent-mid-run-feedback) is complete for its reported scope; do not repeat it merely to collect evidence. Open an ordinary chat without an active goal, since goal-wait members reject intermediate Agent notifications.
+
+1. Privately record OS, host/runtime versions, model and actual MCP/CLI route. Use the staged prompt in [English](test-prompts.md#verify-real-agent-mid-run-feedback) or [简体中文](test-prompts.zh-CN.md#验证真实-agent-中途反馈闭环). Only this explicit controlled test uses delays to leave time for intermediate turns.
+2. Observe the submitting turn end, then two automatic same-chat stage reports with the original Job/Run still running. The Agent yields after each report; no human continuation, Agent polling or auxiliary Agent timer is needed. Correlate the original Job/Run and delivery IDs privately.
+3. After that original process exits, observe final continuation and a matching exit result. Confirm one workload launch and retain unverifiable items as not tested. A final summary reconstructing earlier milestones, a panel update or `accepted_by_host` alone does not pass intermediate Agent execution.
+
+Record this separately from completion-only acceptance. It does not establish goal-wait intermediate notifications, periodic summaries, another host/version, restart recovery or prolonged reliability; the runtime does not automatically upgrade deliveries to `confirmed_resumed` from this human observation.
+
 ## ChatGPT Desktop restart and same-chat rebinding
 
 This separate acceptance checks a changed real host endpoint and an existing job target. It does not repeat the passed ordinary MCP continuation test. Native ChatGPT Desktop UI/restart needs a human operator when computer tools expose browsers only; record that limit instead of claiming an observed UI action.
