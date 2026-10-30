@@ -35,6 +35,12 @@ Apply verifies the exact target tarball and schema/job compatibility, then insta
 
 Only the official Git marketplace at an unmodified matching release tag is managed automatically. Local/ZIP/native, foreign, modified and untagged sources are preserved and refused; use their original route or `--cli-only`. An outdated disabled plugin needs host management because the public Codex CLI cannot reinstall it while preserving disabled state. Avoid concurrent manual changes to host registrations. Windows self-update and actual Desktop refresh remain separately unqualified; see [implementation status](IMPLEMENTATION_STATUS.md).
 
+### Marketplace reports local changes
+
+Use `codex plugin marketplace list --json` to find the registered marketplace's exact `root`, then inspect `git -C <marketplace-root> status --short --untracked-files=all`. Preserve and review actual edits before retrying. Published 0.1.14 also rejects Codex's own untracked `.codex-marketplace-install.json`; do not delete that provenance record to bypass the check. Until a fixed release is available, `ajr update --cli-only` updates the terminal runtime while leaving the plugin unchanged.
+
+The source fix validates that record against the official source, matching release tag and HEAD revision, accepts only a full checkout and continues refusing all other changes. Refusals identify the checkout and up to ten changed paths with staged/working-tree/untracked/conflict status and rename origins; larger inventories show the remaining count. Record failures identify the file and invalid fields with expected values, malformed JSON, unsupported fields, file size or symlink reason without exposing record contents. See [current verification](IMPLEMENTATION_STATUS.md).
+
 ## Before updating
 
 Use the same launcher and profile to check `--version`, `doctor` and `list`. Finish active jobs before native offline replacement, Windows package replacement or an incompatible schema migration. `daemon stop` stops dispatch while runners continue, so it cannot substitute for finishing jobs.

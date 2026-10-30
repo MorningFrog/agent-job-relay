@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Recognize Codex's untracked `.codex-marketplace-install.json` during online update/removal after validating its official source, release tag, revision and full-checkout provenance. Continue refusing user edits, additional untracked files and invalid or symlinked records.
+- Explain marketplace refusals with the registered checkout, changed paths and Git status, or the installation-record validation failure and expected fields. Bound change lists and preserve all files during inspection.
+
 ## [0.1.14] - 2026-10-30
 
 ### Added

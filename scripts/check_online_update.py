@@ -40,6 +40,12 @@ def check_online_update(root, prefix, env, meta, registry, command, job_id):
         command(["git", "-C", checkout, "add", "."], "update-git-add-" + version)
         command(["git", "-C", checkout, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false", "commit", "-m", "fixture"], "update-git-commit-" + version)
         command(["git", "-C", checkout, "-c", "tag.gpgsign=false", "tag", "v" + version], "update-git-tag-" + version)
+        revision = command(["git", "-C", checkout, "rev-parse", "HEAD"], "update-git-revision-" + version).strip()
+        # The actual Codex Git loader leaves this untracked provenance record.
+        (checkout / ".codex-marketplace-install.json").write_text(json.dumps({
+            "source_type": "git", "source": "https://github.com/MorningFrog/agent-job-relay.git",
+            "ref_name": "v" + version, "sparse_paths": [], "revision": revision,
+        }))
         roots[version] = str(checkout)
     fixture.write_text(json.dumps({"market": "0.0.1", "plugin": "0.0.1", "failAdd": True, "roots": roots, "calls": []}))
     fake = prefix / "bin/codex"

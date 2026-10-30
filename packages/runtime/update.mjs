@@ -12,6 +12,7 @@ import { resolveExecutable, defaultStateDir } from "./index.mjs";
 const packageRoot = dirname(fileURLToPath(import.meta.url));
 const registry = "https://registry.npmjs.org";
 const repository = "https://github.com/MorningFrog/agent-job-relay.git";
+const marketplaceRecord = ".codex-marketplace-install.json";
 const selector = "agent-job-relay@agent-job-relay";
 const packageName = "agent-job-relay-runtime";
 const versionPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
@@ -49,7 +50,7 @@ function command(program, args, options = {}) {
   return spawn(program, args, options);
 }
 
-async function run(program, args) {
+async function run(program, args, { raw = false } = {}) {
   if (interrupted) throw new Error("Update interrupted");
   const child = command(program, args, { stdio: ["ignore", "pipe", "pipe"] });
   running.add(child);
@@ -61,7 +62,7 @@ async function run(program, args) {
   try {
     const code = await new Promise((accept, reject) => { child.once("error", reject); child.once("close", accept); });
     if (code !== 0) throw new Error(`${args.slice(0, 3).join(" ")} failed (${code}): ${stderr.slice(-2000)}`);
-    return stdout.trim();
+    return raw ? stdout : stdout.trim();
   } finally { clearTimeout(timer); running.delete(child); }
 }
 
@@ -79,6 +80,27 @@ function canonical(path) {
   return process.platform === "win32" ? value.toLowerCase() : value;
 }
 
+function marketplaceChanges(output) {
+  const entries = output.split("\0").filter(Boolean), changes = [];
+  for (let i = 0; i < entries.length; i++) {
+    const status = entries[i].slice(0, 2), path = entries[i].slice(3);
+    const from = /[RC]/.test(status) ? entries[++i] : undefined;
+    changes.push({ status, path, from });
+  }
+  return changes;
+}
+
+function describeMarketplaceChanges(changes) {
+  const labels = { M: "modified", A: "added", D: "deleted", R: "renamed", C: "copied", T: "type changed", U: "unmerged" };
+  return changes.slice(0, 10).map(({ status, path, from }) => {
+    const label = status === "??" ? "untracked" : ["DD", "AU", "UD", "UA", "DU", "AA", "UU"].includes(status) ? "merge conflict" : [
+      status[0] !== " " && `${labels[status[0]] ?? status[0]} in index`,
+      status[1] !== " " && `${labels[status[1]] ?? status[1]} in working tree`,
+    ].filter(Boolean).join(", ");
+    return `  - ${label}: ${from === undefined ? "" : `${JSON.stringify(from)} -> `}${JSON.stringify(path)}`;
+  }).join("\n") + (changes.length > 10 ? `\n  - … ${changes.length - 10} more changed paths` : "");
+}
+
 export async function inspectMarketplace(codex, runCommand = run) {
   const data = JSON.parse(await runCommand(codex, ["plugin", "marketplace", "list", "--json"]));
   if (!Array.isArray(data.marketplaces)) throw new Error("Codex returned an unsupported marketplace list; no changes applied");
@@ -87,14 +109,40 @@ export async function inspectMarketplace(codex, runCommand = run) {
   const market = matches[0];
   if (!market) return null;
   if (market.marketplaceSource?.sourceType !== "git" || market.marketplaceSource.source !== repository) {
-    throw new Error("The existing agent-job-relay marketplace is local or foreign. Keep its native update route, or use ajr update --cli-only");
+    throw new Error(`The existing agent-job-relay marketplace at ${JSON.stringify(market.root)} is local or foreign; automatic maintenance requires Git source ${repository}. Keep its native maintenance route, or use --cli-only to leave the host plugin unchanged`);
   }
   const git = executable("git");
-  if (await runCommand(git, ["-C", market.root, "status", "--porcelain", "--untracked-files=all"])) throw new Error("Marketplace has local changes; preserve/review them before updating");
+  const changes = marketplaceChanges(await runCommand(git, ["-C", market.root, "status", "--porcelain=v1", "-z", "--untracked-files=all"], { raw: true }));
+  // Codex adds its own untracked provenance record after cloning a marketplace.
+  // Accept only that exact entry, never a tracked edit or another untracked path.
+  const isHostRecord = change => change.status === "??" && change.path === marketplaceRecord;
+  const hostRecord = changes.some(isHostRecord), localChanges = changes.filter(change => !isHostRecord(change));
+  if (localChanges.length) throw new Error(`Marketplace has local changes at ${JSON.stringify(market.root)}:\n${describeMarketplaceChanges(localChanges)}\nPreserve/review these paths before retrying, or use --cli-only to leave the host plugin unchanged.`);
   const descriptor = JSON.parse(await runCommand(git, ["-C", market.root, "show", "HEAD:plugins/chatgpt/.codex-plugin/plugin.json"]));
   compareVersions(descriptor.version, descriptor.version);
   const tags = await runCommand(git, ["-C", market.root, "tag", "--points-at", "HEAD"]);
-  if (!tags.split(/\r?\n/).includes(`v${descriptor.version}`)) throw new Error("Marketplace checkout is not at its matching release tag; preserve this development/custom source or use --cli-only");
+  if (!tags.split(/\r?\n/).includes(`v${descriptor.version}`)) throw new Error(`Marketplace checkout at ${JSON.stringify(market.root)} is not at its matching release tag: expected v${descriptor.version} on HEAD; preserve this development/custom source or use --cli-only`);
+  if (hostRecord) {
+    try {
+      const path = join(market.root, marketplaceRecord);
+      const stat = lstatSync(path);
+      if (stat.isSymbolicLink()) throw new Error("symbolic links are not accepted");
+      if (!stat.isFile()) throw new Error("expected a regular file");
+      if (stat.size > 65536) throw new Error("file exceeds the 65536-byte limit");
+      let record;
+      try { record = JSON.parse(readFileSync(path, "utf8")); }
+      catch (error) { if (error instanceof SyntaxError) throw new Error("file is not valid JSON"); throw error; }
+      const revision = await runCommand(git, ["-C", market.root, "rev-parse", "HEAD"]);
+      const expected = { source_type: "git", source: repository, ref_name: `v${descriptor.version}`, sparse_paths: [], revision };
+      if (!record || Array.isArray(record) || typeof record !== "object") throw new Error("expected a JSON object");
+      const mismatched = Object.keys(expected).filter(key => !isDeepStrictEqual(record[key], expected[key]));
+      if (mismatched.length) throw new Error(`fields do not match the official release checkout: ${mismatched.map(key => `${key} (expected ${JSON.stringify(expected[key])})`).join(", ")}`);
+      const unrecognized = Object.keys(record).filter(key => !Object.hasOwn(expected, key));
+      if (unrecognized.length) throw new Error(`unrecognized fields would be lost during replacement: ${unrecognized.slice(0, 10).map(key => JSON.stringify(key.slice(0, 128))).join(", ")}`);
+    } catch (error) {
+      throw new Error(`Marketplace installation record ${JSON.stringify(join(market.root, marketplaceRecord))} is invalid or mismatched: ${error.message}; preserve/review it before retrying, or use --cli-only to leave the host plugin unchanged.`, { cause: error });
+    }
+  }
   return { version: descriptor.version, root: market.root };
 }
 

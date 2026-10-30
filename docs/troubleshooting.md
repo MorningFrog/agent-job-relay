@@ -17,6 +17,7 @@ Use the same launcher and state profile as the affected plugin or task. Keep the
 | Windows startup/binding fails | Follow [Windows startup](windows.md#automatic-startup) and [binding permissions](windows.md#current-chat-binding-permissions); use only the reported same-profile fallback. |
 | Update reports an active runtime | Finish jobs and retry the reviewed [update](updating.md); native apply restarts an online daemon automatically; online updates allow compatible active Linux runners only. With older update executables, stop that same daemon manually first. |
 | `update` is an unknown command | [Update an older global CLI through npm](updating.md#update-the-terminal-command), then retry `ajr update`. |
+| `Marketplace has local changes` | Inspect the exact registered checkout; published 0.1.14 also misclassifies Codex's generated installation record. See [marketplace checks and workaround](updating.md#marketplace-reports-local-changes). |
 | Partial online update/removal | Retry with the original profile/options; preserve the recorded journal. See [online update retry](updating.md#online-update-retry) or [uninstall recovery](uninstalling.md#recover-a-partial-online-uninstall). |
 | Interrupted install/cache replacement | Use the new trusted bundle to inspect and [repair the exact recorded destination](updating.md#compatibility-and-interrupted-operations). |
 | Ownership check refuses changes | Preserve the files and inspect the reported changes/backup. Never remove a parent directory containing foreign content. |
