@@ -6,11 +6,11 @@
 
 ## Current release handoff
 
-Source **0.1.14** adds unified online installation/update and has no sealed release candidate yet. npm/GitHub latest remains **0.1.12**. Complete current-source native and installed-package checks, push only after maintainer authorization, then run new revision CI, manual Prepare Release and publisher preview before reviewing the new candidate. Publication remains a separate final confirmation.
+Source **0.1.14** includes unified online maintenance, task-panel reuse, inspection sampling, runner reliability and scoped-consent fixes. npm/GitHub latest is **0.1.13**. After local delivery gates and the authorized push, require successful CI for that exact revision, then run **Release All** with `dry_run=true`, `channel=latest` and an empty candidate ID. Review its new sealed candidate and publisher preview before a separate publication approval.
 
-The previously sealed 0.1.13 candidate is unchanged and must not be rebuilt or repurposed for 0.1.14. Runtime/package/version/CHANGELOG changes do not qualify for the documentation-only `recover_candidate` exception. New Linux/Windows candidate bytes and source identity must be verified together; local developer binaries have a different glibc minimum and must not replace release payloads.
+The published 0.1.13 candidate is immutable and cannot be repurposed for 0.1.14. Runtime/package/version/CHANGELOG changes do not qualify for the documentation-only `recover_candidate` exception. New Linux/Windows candidate bytes and source identity must be verified together; local developer binaries have a different glibc minimum and must not replace release payloads.
 
-Published 0.1.12 and source 0.1.14 use schema v11; this feature adds no migration. Before upgrading older profiles, finish their jobs and retain their original profiles/backups. `ajr update` requires a released 0.1.14+ global npm CLI; native offline updates keep their existing checked route. See [updates](updating.md).
+Published 0.1.13 and source 0.1.14 use schema v11; this feature adds no migration. Before upgrading older profiles, finish their jobs and retain their original profiles/backups. `ajr update` requires a released 0.1.14+ global npm CLI; native offline updates keep their existing checked route. See [updates](updating.md).
 
 ## Choose an entry point
 

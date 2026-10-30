@@ -18,11 +18,11 @@ Retain the original profile. Finish active jobs before native offline replacemen
 
 External-task command variants are unreadable by older binaries; 0.1.12 scoped goal waiting additionally migrates the profile to schema v11. Before first use, finish active jobs and use the updated runtime for that same profile. Automatic handover refuses migration while old runs remain active. Preserve the matching runtime on both hosts and the remote target profile; do not downgrade a profile containing external-task records. See [remote task requirements](remote-execution.md).
 
-Published 0.1.12 and source 0.1.14 use schema v11; 0.1.11 uses v9 and 0.1.9 uses v6. No schema migration is needed from 0.1.12 to 0.1.14. Migration refuses an old daemon lock or launching/running jobs, and older executables refuse newer schemas. Preserve backups and never downgrade a used database. See [data maintenance](data-maintenance.md) for backup and restore.
+Published 0.1.13 and source 0.1.14 use schema v11; 0.1.11 uses v9 and 0.1.9 uses v6. No schema migration is needed from 0.1.12 to 0.1.14. Migration refuses an old daemon lock or launching/running jobs, and older executables refuse newer schemas. Preserve backups and never downgrade a used database. See [data maintenance](data-maintenance.md) for backup and restore.
 
 ## One-command online update (0.1.14+)
 
-Source 0.1.14 adds the unified online route. It is not yet published; npm/GitHub latest remains 0.1.12. After installing a released runtime containing this command, the initial plugin installation and later updates use the same entry:
+Source 0.1.14 adds the unified online route. It is not yet published; npm/GitHub latest remains 0.1.13. After installing a released runtime containing this command, the initial plugin installation and later updates use the same entry:
 
 ```bash
 ajr update --dry-run
@@ -48,7 +48,7 @@ npm install --global --ignore-scripts --registry=https://registry.npmjs.org agen
 agent-job-relay codex --version
 ```
 
-Expected: the CLI reports npm's latest published version. Before 0.1.14 is published this remains 0.1.12 and the manual marketplace procedure below still applies. npm's global command directory must be on PATH; use a user-writable npm installation. PowerShell can use `npm.cmd` and `agent-job-relay.cmd`. Current runtimes replace an older same-profile daemon on runtime-starting use; incompatible migration still requires completed jobs.
+Expected: the CLI reports npm's latest published version. Before 0.1.14 is published this remains 0.1.13 and the manual marketplace procedure below still applies. npm's global command directory must be on PATH; use a user-writable npm installation. PowerShell can use `npm.cmd` and `agent-job-relay.cmd`. Current runtimes replace an older same-profile daemon on runtime-starting use; incompatible migration still requires completed jobs.
 
 ## Update the online marketplace
 

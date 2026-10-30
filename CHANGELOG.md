@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [0.1.14] - 2026-10-30
+
+### Added
+
+- Add `ajr update` for one-command global npm CLI and matching ChatGPT Desktop/Codex marketplace/plugin installation and updates, with `--dry-run`, `--to` and `--cli-only`.
+- Add `ajr uninstall` to remove the online plugin, unshared marketplace and global CLI in one command. Stop idle daemons by default, refuse active tasks unless `--force` first stops their exact runs, and retain history/logs/backups with preview and forward retry.
+- Stage and verify the exact update tarball before replacement, preserve compatible active Linux runners, and upgrade older online daemons even when CLI/plugin files are already current. Refuse active incompatible-schema/Windows package replacement.
+- Require the global CLI for new online plugin entries. Keep exact-version npm plugin runtimes, native offline installation and OpenCode's host-managed dependency route.
+
 ### Changed
 
 - Decode one validated cold snapshot per task inspection and read hot detail sections in one transaction. Preserve bounded event/delivery pages, cursors and current goal-wait summaries.
@@ -18,19 +27,10 @@
 - Reap a live Linux runner's adopted session-escaped descendants using parent-verified pidfds; cleanup failure cannot report success. Runner SIGKILL/power-loss limits remain.
 - Fence late rule responses to their original selected task and show independent connection errors; runtime health shows its own sample time.
 
-## [0.1.14] - 2026-10-30
-
-### Added
-
-- Add `ajr update` for one-command global npm CLI and matching ChatGPT Desktop/Codex marketplace/plugin installation and updates, with `--dry-run`, `--to` and `--cli-only`.
-- Add `ajr uninstall` to remove the online plugin, unshared marketplace and global CLI in one command. Stop idle daemons by default, refuse active tasks unless `--force` first stops their exact runs, and retain history/logs/backups with preview and forward retry.
-- Stage and verify the exact update tarball before replacement, preserve compatible active Linux runners, and upgrade older online daemons even when CLI/plugin files are already current. Refuse active incompatible-schema/Windows package replacement.
-- Require the global CLI for new online plugin entries. Keep exact-version npm plugin runtimes, native offline installation and OpenCode's host-managed dependency route.
-
 ### Safety and compatibility
 
 - Preserve profiles/history, refuse downgrades, active work and modified/foreign marketplaces, fence idle daemon shutdown and restart, and record partial operations for forward retry through public host commands. Reconnect the host after updating; no automatic installation hook or cache scan is used.
-- Keep schema v11, IPC v1 and 25 MCP tools. This source needs a new release candidate; the sealed 0.1.13 candidate cannot carry these runtime/package changes.
+- Keep schema v11, IPC v1 and 25 MCP tools unchanged from published 0.1.13. Windows self-update/self-removal, actual Desktop refresh and real-model multi-round goal restoration retain their documented verification limits.
 
 ## [0.1.13] - 2026-10-30
 

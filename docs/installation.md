@@ -45,7 +45,7 @@ Install the global CLI once using the npm command above; keep npm's command dire
 ajr update
 ```
 
-Expected with a released 0.1.14+ CLI: register/install the matching online marketplace and plugin in one operation; subsequent updates use the same command. Restart/reconnect the host, then select the plugin in a local chat. Use `ajr update --dry-run` to preview and `ajr.cmd` in PowerShell. No automatic host installation hook is assumed. The current published 0.1.12 CLI does not yet include this command; until 0.1.14 is released, use the manual registration below after installing the CLI.
+Expected with a released 0.1.14+ CLI: register/install the matching online marketplace and plugin in one operation; subsequent updates use the same command. Restart/reconnect the host, then select the plugin in a local chat. Use `ajr update --dry-run` to preview and `ajr.cmd` in PowerShell. No automatic host installation hook is assumed. The current published 0.1.13 CLI does not yet include this command; until 0.1.14 is released, use the manual registration below after installing the CLI.
 
 Use a ChatGPT Desktop local executor. Query npm's latest runtime and register its matching GitHub release tag, so installation follows published versions rather than development main. Without Git, use the [Release ZIP](#install-from-a-github-release-zip).
 

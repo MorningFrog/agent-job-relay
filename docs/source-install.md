@@ -89,7 +89,7 @@ Expected: the preview retains the original state directory; apply retains histor
 "$AJR_INSTALL_ROOT/relay" doctor --client plugin --check-mcp
 ```
 
-Expected: the installed version matches the build, the owned marketplace entry matches, and `stdio_self_check.status` is `passed` with 25 tools for current source and published 0.1.12. A stopped daemon before the first submission is normal. This check submits no job and establishes local stdio discovery, not ChatGPT Desktop tool connectivity or chat continuation.
+Expected: the installed version matches the build, the owned marketplace entry matches, and `stdio_self_check.status` is `passed` with 25 tools for current source and published 0.1.13. A stopped daemon before the first submission is normal. This check submits no job and establishes local stdio discovery, not ChatGPT Desktop tool connectivity or chat continuation.
 
 Keep AJR_INSTALL_ROOT present: cached MCP and terminal launchers use its native executable. Rebuilding `target/release` alone does not update this installation. Task state/history stays separate; [installation profiles](installation.md#custom-directories-and-stored-data), [updates](updating.md) and [uninstallation](uninstalling.md) cover later maintenance.
 

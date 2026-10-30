@@ -18,7 +18,7 @@ Run long commands independently of the Agent connection, keep their results, and
 | Durable background jobs | Builds, tests, training and data processing that continue after a chat or viewer closes |
 | Goal waiting (experimental) | One short native or Agent question when pause permission is missing; durable approval covers this request’s bounded rounds. Original-goal handoff, restoration and deletion safeguards remain. [Usage and host limits](docs/goal-waiting.md) |
 | Batch submission (0.1.12+) | Submit 1–16 independent commands through CLI/MCP, with per-item results and safe retries; [usage](docs/usage.md#submit-independent-commands-together-0112) |
-| Remote tasks (0.1.12+) | Launch/attach on a pinned remote runtime or observe a fixed GitHub Actions attempt. Source 0.1.13 adds job/step status and an attempt link; [setup and boundaries](docs/remote-execution.md) |
+| Remote tasks (0.1.12+) | Launch/attach on a pinned remote runtime or observe a fixed GitHub Actions attempt. Version 0.1.13 adds job/step status and an attempt link; [setup and boundaries](docs/remote-execution.md) |
 | Mid-run feedback (0.1.12+) | Structured stages/steps/metrics, repeated milestone or threshold alerts and a bounded checker recipe; [usage and limits](docs/progress.md) |
 | Results and history | Bounded stdout/stderr, exit outcomes, events and retained task history |
 | Session-bound notifications | Deliver results to the initiating session; resume the chat when supported by its host |
@@ -43,7 +43,7 @@ Install the CLI once, with npm's global command directory on PATH:
 npm install --global --ignore-scripts --registry=https://registry.npmjs.org agent-job-relay-runtime@latest
 ```
 
-After 0.1.14+ is published and installed, run `ajr update` for both initial ChatGPT Desktop/Codex plugin installation and later CLI/plugin updates. `ajr update --dry-run` previews changes; `--cli-only` leaves the plugin untouched. New online plugin entries require the installed CLI. Reconnect/restart the host afterward; data/history stay in their original profiles. This command is currently source-only: published 0.1.12 still uses the manual host steps below. See [unified updates and limits](docs/updating.md#one-command-online-update-0114).
+After 0.1.14+ is published and installed, run `ajr update` for both initial ChatGPT Desktop/Codex plugin installation and later CLI/plugin updates. `ajr update --dry-run` previews changes; `--cli-only` leaves the plugin untouched. New online plugin entries require the installed CLI. Reconnect/restart the host afterward; data/history stay in their original profiles. This command is currently source-only: published 0.1.13 still uses the manual host steps below. See [unified updates and limits](docs/updating.md#one-command-online-update-0114).
 
 Use `ajr uninstall` for online removal: stop idle daemons, remove the plugin, its unshared marketplace and the global CLI, and retain history/logs/backups. Active tasks block removal; `ajr uninstall --force` stops them through the existing control path first. Use `--dry-run` to preview. `ajr update` automatically replaces older daemons; compatible active Linux runners continue under their original Job/Run without replay. Incompatible migration and active Windows package replacement remain blocked. See [uninstallation](docs/uninstalling.md).
 

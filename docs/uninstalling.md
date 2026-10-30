@@ -2,7 +2,7 @@
 
 [Documentation index](README.md) · [Updating](updating.md) · [Troubleshooting](troubleshooting.md)
 
-Source 0.1.14 adds unified online removal; it is unpublished and current npm/GitHub latest 0.1.12 still uses the manual routes below. All removal routes retain task history, logs and backups. OpenCode, native offline installations and standalone MCP configuration keep their original maintenance routes.
+Source 0.1.14 adds unified online removal; it is unpublished and current npm/GitHub latest 0.1.13 still uses the manual routes below. All removal routes retain task history, logs and backups. OpenCode, native offline installations and standalone MCP configuration keep their original maintenance routes.
 
 ## One-command online uninstall (0.1.14+)
 
