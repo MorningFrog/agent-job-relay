@@ -37,9 +37,9 @@ Only the official Git marketplace at an unmodified matching release tag is manag
 
 ### Marketplace reports local changes
 
-Use `codex plugin marketplace list --json` to find the registered marketplace's exact `root`, then inspect `git -C <marketplace-root> status --short --untracked-files=all`. Preserve and review actual edits before retrying. Published 0.1.14 also rejects Codex's own untracked `.codex-marketplace-install.json`; do not delete that provenance record to bypass the check. Until a fixed release is available, `ajr update --cli-only` updates the terminal runtime while leaving the plugin unchanged.
+Use `codex plugin marketplace list --json` to find the registered marketplace's exact `root`, then inspect `git -C <marketplace-root> status --short --untracked-files=all`. Preserve and review actual edits before retrying. CLI 0.1.14 also rejects Codex's own untracked `.codex-marketplace-install.json`; do not delete that provenance record to bypass the check. Update the terminal CLI to 0.1.15 or newer with `ajr update --cli-only`, then retry the full update.
 
-The source fix validates that record against the official source, matching release tag and HEAD revision, accepts only a full checkout and continues refusing all other changes. Refusals identify the checkout and up to ten changed paths with staged/working-tree/untracked/conflict status and rename origins; larger inventories show the remaining count. Record failures identify the file and invalid fields with expected values, malformed JSON, unsupported fields, file size or symlink reason without exposing record contents. See [current verification](IMPLEMENTATION_STATUS.md).
+Runtime 0.1.15 validates that record against the official source, matching release tag and HEAD revision, accepts only a full checkout and continues refusing all other changes. Refusals identify the checkout and up to ten changed paths with staged/working-tree/untracked/conflict status and rename origins; larger inventories show the remaining count. Record failures identify the file and invalid fields with expected values, malformed JSON, unsupported fields, file size or symlink reason without exposing record contents. See [current verification](IMPLEMENTATION_STATUS.md).
 
 ## Before updating
 

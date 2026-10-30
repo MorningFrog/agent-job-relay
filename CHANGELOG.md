@@ -2,20 +2,18 @@
 
 ## [Unreleased]
 
-### Added
-
-- Add optional recognizable task names through CLI `start --title` and MCP/JSON `spec.title`, including batch items. Show names in Web list/detail headings and search, guide Agents to name new work and provide bounded command/project hints for unnamed history while preserving complete commands in details.
-- Preserve supplied titles through compact results, inspection and archival without changing schema v12, IPC v1 or the 25-tool catalog. Omitted titles retain previous idempotency bytes; retries must keep the original title.
-
 ## [0.1.17] - 2026-10-30
 
 ### Added
 
+- Add optional recognizable task names through CLI `start --title` and MCP/JSON `spec.title`, including batch items. Show names in Web list/detail headings and search, guide Agents to name new work and provide bounded command/project hints for unnamed history while preserving complete commands in details.
+- Include bounded read-only feedback receipts in single/batch admission and task inspection, with persisted rules, application/source evidence and recorded notification capabilities. Guide requested mid-run feedback configuration and bounded reporting before yielding again.
 - Support requested goal feedback by temporarily restoring the original goal, delivering a bounded intermediate event, then requiring the originating Agent's native re-pause and revision-fenced confirmation on the same wait.
 - Add schema v12 feedback identities/counters, a 32-cycle group budget, 60-second minimum interval, five-minute re-pause deadline and durable cycle audits. Keep intermediate acceptance separate from final notification state.
 
 ### Safety and compatibility
 
+- Preserve supplied titles through compact results, inspection and archival without an additional migration. Omitted titles retain previous idempotency bytes; retries must keep the original title.
 - Prioritize all-member completion before intermediate transmission; if completion occurs during a report, finish native re-pause before the final restoration. Preserve original Job/Run/request IDs, accounting, delivery attempts and uncertain-mutation non-replay.
 - Migrate supported backups forward and fence restored controls. Finish older active runs before schema migration. IPC v1 and 25 MCP tools remain; actual Desktop UI/model and Windows goal-feedback acceptance remain separate from native fixtures and simulated-model Codex integration.
 
@@ -28,7 +26,7 @@
 ### Changed
 
 - Guide Agents to configure requested stage or exception feedback before submission, distinguish intermediate alerts from process completion and yield again after reporting a still-running task. Keep completion-only requests, explicit stop authorization and goal-wait notification restrictions effective.
-- Keep schema v11, IPC v1 and the 25-tool catalog unchanged. The sealed 0.1.15 candidate does not include these runtime changes; 0.1.16 needs its own platform/package and release qualification.
+- Keep schema v11, IPC v1 and the 25-tool catalog unchanged.
 
 ## [0.1.15] - 2026-10-30
 
