@@ -2,11 +2,22 @@
 
 ## [Unreleased]
 
+## [0.1.13] - 2026-10-30
+
 ### Changed
 
 - Show bounded GitHub Actions job/current-step status and ended/known step counts, with a direct link to the pinned attempt. Keep verified run outcomes available when optional step queries fail.
 - Adapt the Web task manager to narrow chat panels with expandable icon navigation, inline details directly below the selected task and matching disclosure arrows. Preserve adjacent columns on wide screens.
 - Open accepted background tasks automatically beside their originating chat through the host Agent workflow, using exact-profile job URLs before yielding or native goal handoff. Keep batch viewing to one panel and report unavailable embedded browsers without altering accepted work.
+
+### Fixed
+
+- Refresh runtime guidance and upgrade documentation for the published 0.1.12 baseline; require capability checks instead of treating structured progress as unavailable in released runtimes.
+- Verify the declared Rust 1.89 minimum and keep an all-target compilation check in CI.
+
+### Compatibility
+
+- Keep SQLite schema v11, IPC v1 and the 25-tool MCP surface unchanged from 0.1.12. Existing 0.1.12 profiles need no new schema migration. Real host continuation and Windows browser/goal-controller acceptance retain their documented limits.
 
 ## [0.1.12] - 2026-10-29
 

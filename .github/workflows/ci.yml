@@ -13,6 +13,22 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  msrv:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+      - name: Build bundled React and Vite UI
+        run: |
+          npm ci --prefix web --ignore-scripts --no-audit --no-fund
+          npm run build --prefix web
+      - uses: dtolnay/rust-toolchain@1.89.0
+      - uses: Swatinem/rust-cache@v2.9.3
+      - name: Check all targets at the declared minimum Rust version
+        run: cargo check --all-targets --locked
   verify:
     strategy:
       fail-fast: false
