@@ -51,7 +51,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2.9.3
       - run: cargo fmt --check
       - name: Check online updater public-host command behavior
-        run: node --test scripts/test_online_update.mjs
+        run: node --test scripts/test_online_update.mjs scripts/test_online_uninstall.mjs
       - run: cargo clippy --all-targets --locked -- -D warnings
       - name: Linux and Windows native behavior tests
         if: runner.os != 'macOS'

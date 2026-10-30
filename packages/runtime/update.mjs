@@ -6,6 +6,7 @@ import { dirname, join, delimiter, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { createInterface } from "node:readline";
+import { isDeepStrictEqual } from "node:util";
 import { resolveExecutable, defaultStateDir } from "./index.mjs";
 
 const packageRoot = dirname(fileURLToPath(import.meta.url));
@@ -127,8 +128,12 @@ export async function updateMarketplace(codex, target, before, enabled, record, 
   record("plugin_verified");
 }
 
-async function guard(executablePath, profiles, target, apply) {
+async function guard(executablePath, profiles, target, apply, removal = false, force = false, allowActive = false, originalVersion = target) {
   const args = ["update-guard", "--installation", packageRoot, "--target-version", target];
+  args.push("--original-version", originalVersion);
+  if (removal) args.push("--remove");
+  if (force) args.push("--force");
+  if (allowActive) args.push("--allow-active");
   for (const profile of profiles) args.push("--profile", profile);
   if (!apply) return { report: JSON.parse(await run(executablePath, args)) };
   args.push("--apply");
@@ -145,34 +150,39 @@ async function guard(executablePath, profiles, target, apply) {
   if (first.done) { await closed; throw new Error("Update guard returned no readiness"); }
   const report = JSON.parse(first.value);
   let finishing;
+  const finishRequest = request => {
+    // Repeated observers share the original acknowledgement without replay.
+    if (!finishing) finishing = (async () => {
+      child.stdin.write(JSON.stringify(request) + "\n");
+      const next = await Promise.race([iterator.next(), closed.then(() => { throw new Error("Maintenance guard exited before acknowledgement"); })]);
+      if (next.done || JSON.parse(next.value).finished !== true) throw new Error("Maintenance guard did not confirm completion");
+    })();
+    return finishing;
+  };
   return {
     report,
-    finish(image, version) {
-      // Repeated observers share the original acknowledgement without replay.
-      if (!finishing) finishing = (async () => {
-        child.stdin.write(JSON.stringify({ executable: image, version }) + "\n");
-        const next = await Promise.race([iterator.next(), closed.then(() => { throw new Error("Update guard exited before restart acknowledgement"); })]);
-        if (next.done || JSON.parse(next.value).finished !== true) throw new Error("Update guard did not confirm restart");
-      })();
-      return finishing;
-    },
+    finish(image, version) { return finishRequest({ executable: image, version }); },
+    releaseOnly() { return finishRequest({ release_only: true }); },
     async release() { child.stdin.end("release\n"); await closed; lines.close(); },
     async abort() { child.stdin.destroy(); await closed.catch(() => {}); lines.close(); },
   };
 }
 
-export async function update(request) {
+async function withSignals(callback) {
   interrupted = false;
   const signals = ["SIGINT", "SIGTERM", "SIGHUP"].map(signal => {
     const cancel = () => { interrupted = true; for (const child of running) child.kill(signal); };
     process.on(signal, cancel);
     return [signal, cancel];
   });
-  try { return await updateInner(request); }
+  try { return await callback(); }
   finally { for (const [signal, cancel] of signals) process.off(signal, cancel); }
 }
 
-async function updateInner(request) {
+export function update(request) { return withSignals(() => updateInner(request)); }
+export function uninstall(request) { return withSignals(() => uninstallInner(request)); }
+
+async function globalInstallation() {
   const npm = npmEntry();
   const npmRun = args => run(process.execPath, [npm, ...args]);
   const globalRoot = await npmRun(["root", "--global"]);
@@ -184,23 +194,58 @@ async function updateInner(request) {
   const expectedEntry = process.platform === "win32" ? join(prefix, "ajr.cmd") : join(packageRoot, "ajr.mjs");
   if (canonical(shortEntry) !== canonical(expectedEntry)) throw new Error("PATH selects another ajr installation; put this npm prefix's command directory on PATH before updating");
   const originalVersion = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8")).version;
-  const codex = request.cli_only ? null : executable("codex");
+  return { npmRun, prefix, originalVersion };
+}
+
+function hostSelection(cliOnly) {
+  const codex = cliOnly ? null : executable("codex");
   let hostTarget = null;
   if (codex) {
     executable("git");
     const home = process.env.CODEX_HOME || join(process.platform === "win32" ? process.env.USERPROFILE : process.env.HOME, ".codex");
     hostTarget = { executable: realpathSync(codex), home: resolve(home) };
   }
-  const state = request.state_dir;
-  const journal = join(state, "online-update.json");
-  let previous;
+  return { codex, hostTarget };
+}
+
+function readJournal(path) {
   try {
-    const stat = lstatSync(journal);
-    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 65536) throw new Error("Update journal must be a bounded regular private file");
-    previous = JSON.parse(readFileSync(journal, "utf8"));
+    const stat = lstatSync(path);
+    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 65536) throw new Error("Maintenance journal must be a bounded regular private file");
+    return JSON.parse(readFileSync(path, "utf8"));
+  } catch (error) { if (error.code !== "ENOENT") throw error; }
+}
+
+function writeJournal(path, data) {
+  const temporary = path + ".new";
+  const encoded = JSON.stringify(data) + "\n";
+  if (Buffer.byteLength(encoded) > 65536) throw new Error("Maintenance journal exceeds its size limit; nothing was recorded");
+  writeFileSync(temporary, encoded, { mode: 0o600, flag: "wx" });
+  const file = openSync(temporary, "r+");
+  try { fsyncSync(file); } finally { closeSync(file); }
+  renameSync(temporary, path);
+  if (process.platform !== "win32") {
+    const directory = openSync(dirname(path), "r");
+    try { fsyncSync(directory); } finally { closeSync(directory); }
+  }
+}
+
+function requireFinished(path, operation) {
+  const journal = readJournal(path);
+  if (journal && journal.stage !== "complete") throw new Error(`An unfinished ${operation} exists at ${path}; finish it with the original options before changing maintenance operations`);
+}
+
+async function updateInner(request) {
+  const { npmRun, prefix, originalVersion } = await globalInstallation();
+  const { codex, hostTarget } = hostSelection(request.cli_only);
+  const state = request.state_dir;
+  requireFinished(join(state, "online-uninstall.json"), "uninstall");
+  const journal = join(state, "online-update.json");
+  const previous = readJournal(journal);
+  if (previous) {
     if (previous.format !== 1 || previous.packageRoot !== packageRoot || previous.prefix !== prefix) throw new Error("Update journal belongs to another npm installation; inspect it before retrying");
     if (!["runtime_pending", "runtime_verified", "removing_marketplace", "marketplace_removed", "adding_marketplace", "marketplace_added", "installing_plugin", "plugin_verified", "complete"].includes(previous.stage)) throw new Error("Unknown update journal stage; inspect it before retrying");
-  } catch (error) { if (error.code !== "ENOENT") throw error; }
+  }
   const pending = previous && previous.stage !== "complete";
   if (pending && JSON.stringify(previous.hostTarget) !== JSON.stringify(hostTarget)) throw new Error("The unfinished update belongs to a different Codex executable or CODEX_HOME; restore the original host selection before retrying");
   if (pending && (previous.cliOnly !== request.cli_only || request.to && request.to !== previous.target)) throw new Error("An unfinished update exists. Repeat the original options to finish forward");
@@ -217,35 +262,52 @@ async function updateInner(request) {
   const profiles = [...new Set([state, defaultStateDir("codex", null), defaultStateDir("opencode", null)])];
   const originalImage = resolveExecutable();
   const unchanged = target === originalVersion && (!codex || before?.version === target && plugin?.version === target) && !pending;
-  const plan = { version: target, cli: target !== originalVersion ? "update" : "current", plugin: codex ? "install/refresh matching ChatGPT Desktop/Codex plugin" : "unchanged", profiles, data: "preserved", resumed_update: Boolean(pending), changed: !unchanged };
-  if (unchanged) { console.log(JSON.stringify({ mode: request.dry_run ? "dry_run" : "applied", ...plan }, null, 2)); return; }
-  await guard(originalImage, profiles, target, false);
-  if (request.dry_run) { console.log(JSON.stringify({ mode: "dry_run", ...plan }, null, 2)); return; }
+  let daemonUpgrade = false;
+  if (unchanged) {
+    for (const profile of profiles.filter(exists)) {
+      const health = JSON.parse(await run(originalImage, ["--state-dir", profile, "doctor"]));
+      if (health.daemon === "stopped") continue;
+      if (compareVersions(health.version, target) > 0) throw new Error("Running daemon is newer than the selected runtime; downgrade refused");
+      daemonUpgrade ||= health.version !== target;
+    }
+  }
+  const plan = { version: target, cli: target !== originalVersion ? "update" : "current", plugin: codex ? "install/refresh matching ChatGPT Desktop/Codex plugin" : "unchanged", profiles, data: "preserved", daemon: daemonUpgrade ? "upgrade older online daemon" : "restart online daemon when applying changes", resumed_update: Boolean(pending), changed: !unchanged || daemonUpgrade };
+  if (unchanged && !daemonUpgrade) { console.log(JSON.stringify({ mode: request.dry_run ? "dry_run" : "applied", ...plan }, null, 2)); return; }
   const temp = mkdtempSync(join(tmpdir(), "ajr-update-"));
   const helper = join(temp, process.platform === "win32" ? "agent-job-relay.exe" : "agent-job-relay");
-  copyFileSync(originalImage, helper); accessSync(helper, constants.X_OK);
+  let tarball;
+  const allowActive = process.platform === "linux";
   let fencing, installedImage = originalImage, installedVersion = originalVersion;
   const record = stage => {
     const data = { format: 1, packageRoot, prefix, hostTarget, target, cliOnly: request.cli_only, enabled, beforeMarketplace: pending ? previous.beforeMarketplace : before, stage };
-    const temporary = journal + ".new";
-    writeFileSync(temporary, JSON.stringify(data) + "\n", { mode: 0o600, flag: "wx" });
-    const file = openSync(temporary, "r+");
-    try { fsyncSync(file); } finally { closeSync(file); }
-    renameSync(temporary, journal);
-    if (process.platform !== "win32") {
-      const directory = openSync(state, "r");
-      try { fsyncSync(directory); } finally { closeSync(directory); }
-    }
+    writeJournal(journal, data);
   };
   try {
+    let guardImage = originalImage;
+    if (target !== originalVersion) {
+      const packed = JSON.parse(await npmRun(["pack", `${packageName}@${target}`, "--ignore-scripts", "--json", "--pack-destination", temp, `--registry=${registry}`]));
+      if (packed.length !== 1 || packed[0].filename !== `${packageName}-${target}.tgz`) throw new Error("npm returned an unexpected runtime tarball identity");
+      tarball = join(temp, packed[0].filename);
+      const staging = join(temp, "staged");
+      await npmRun(["install", "--prefix", staging, "--ignore-scripts", "--no-audit", "--no-fund", `--registry=${registry}`, tarball]);
+      guardImage = resolveExecutable(join(staging, "node_modules", packageName));
+      if (await run(guardImage, ["--version"]) !== `agent-job-relay ${target}`) throw new Error("Staged native version did not match the selected package");
+    }
+    const preview = await guard(guardImage, profiles, target, false, false, false, allowActive, originalVersion);
+    plan.active_jobs = preview.report.active_jobs;
+    plan.runner_continuation = allowActive ? "compatible active runners continue without replay" : "finish active tasks before package replacement on this platform";
+    if (request.dry_run) { console.log(JSON.stringify({ mode: "dry_run", ...plan }, null, 2)); return; }
+    copyFileSync(guardImage, helper); accessSync(helper, constants.X_OK);
     // The native guard creates private profiles only for an applied operation.
-    fencing = await guard(helper, profiles, target, true);
+    fencing = await guard(helper, profiles, target, true, false, false, allowActive, originalVersion);
     if (interrupted) throw new Error("Update interrupted before replacement");
+    requireFinished(join(state, "online-uninstall.json"), "uninstall");
+    if ((await globalInstallation()).originalVersion !== originalVersion) throw new Error("Installed runtime changed during preflight; retry from the observed installation");
     if (codex && JSON.stringify(await inspectMarketplace(codex)) !== JSON.stringify(before)) throw new Error("Marketplace changed during preflight; inspect it before retrying");
     record("runtime_pending");
     if (target !== originalVersion) {
       console.error(`Updating AgentJobRelay to ${target}…`);
-      await npmRun(["install", "--global", "--prefix", prefix, "--ignore-scripts", "--no-audit", "--no-fund", `--registry=${registry}`, `${packageName}@${target}`]);
+      await npmRun(["install", "--global", "--prefix", prefix, "--ignore-scripts", "--no-audit", "--no-fund", `--registry=${registry}`, tarball]);
       installedImage = resolveExecutable();
       installedVersion = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8")).version;
       if (installedVersion !== target || await run(installedImage, ["--version"]) !== `agent-job-relay ${target}`) throw new Error("New runtime did not verify as the exact requested version");
@@ -271,5 +333,88 @@ async function updateInner(request) {
       } catch (restart) { error.message += `; daemon recovery: ${restart.message}`; }
     }
     throw new Error(`${error.message}. Completed steps remain recorded at ${journal}; inspect the same profile and repeat ajr update with the original options. No rollback was attempted`);
+  } finally { if (fencing) await fencing.abort(); rmSync(temp, { recursive: true, force: true }); }
+}
+
+async function removalState(codex, runCommand = run) {
+  const marketplace = await inspectMarketplace(codex, runCommand);
+  const data = JSON.parse(await runCommand(codex, ["plugin", "list", "--json"]));
+  if (!Array.isArray(data.installed)) throw new Error("Codex returned an unsupported plugin list");
+  const plugin = data.installed.find(item => item.pluginId === selector);
+  if (plugin && (plugin.marketplaceSource?.sourceType !== "git" || plugin.marketplaceSource.source !== repository)) throw new Error("Installed plugin has an unknown/local/foreign source; remove it through its original host route or use --cli-only");
+  const shared = data.installed.some(item => item.pluginId !== selector && (item.marketplaceName === "agent-job-relay" || item.pluginId?.endsWith("@agent-job-relay")));
+  return { marketplace, plugin, shared };
+}
+
+export async function removeOnlinePlugin(codex, expected, record, runCommand = run) {
+  let current = await removalState(codex, runCommand);
+  if (!isDeepStrictEqual(current, expected)) throw new Error("Plugin/marketplace changed during removal preflight; inspect the original host before retrying");
+  if (current.plugin) {
+    record("removing_plugin");
+    await runCommand(codex, ["plugin", "remove", selector, "--json"]);
+    current = await removalState(codex, runCommand);
+    if (current.plugin) throw new Error("Codex still reports the installed plugin; CLI retained for recovery");
+    record("plugin_removed");
+  }
+  if (!isDeepStrictEqual(current.marketplace, expected.marketplace)) throw new Error("Marketplace changed during plugin removal; CLI retained for recovery");
+  if (current.marketplace && !current.shared) {
+    record("removing_marketplace");
+    await runCommand(codex, ["plugin", "marketplace", "remove", "agent-job-relay"]);
+    current = await removalState(codex, runCommand);
+    if (current.plugin || current.marketplace) throw new Error("Host removal did not verify; CLI retained for recovery");
+  }
+  record("host_removed");
+  return { marketplace_retained: Boolean(current.marketplace), shared: current.shared };
+}
+
+function exists(path) {
+  try { lstatSync(path); return true; } catch (error) { if (error.code !== "ENOENT") throw error; return false; }
+}
+
+function commandPaths(prefix) {
+  return ["ajr", "agent-job-relay"].flatMap(name => process.platform === "win32" ? [name, name + ".cmd", name + ".ps1"].map(file => join(prefix, file)) : [join(prefix, "bin", name)]);
+}
+
+async function uninstallInner(request) {
+  const { npmRun, prefix, originalVersion } = await globalInstallation();
+  const { codex, hostTarget } = hostSelection(request.cli_only);
+  const state = request.state_dir;
+  requireFinished(join(state, "online-update.json"), "update");
+  const journal = join(state, "online-uninstall.json");
+  const previous = readJournal(journal);
+  if (previous && (previous.format !== 1 || previous.packageRoot !== packageRoot || previous.prefix !== prefix || !["prepared", "removing_plugin", "plugin_removed", "removing_marketplace", "host_removed", "removing_cli", "complete"].includes(previous.stage))) throw new Error("Uninstall journal belongs to another installation or has an unknown stage; inspect it before retrying");
+  const pending = previous && previous.stage !== "complete";
+  if (pending && (previous.version !== originalVersion || previous.cliOnly !== request.cli_only || previous.force !== request.force || JSON.stringify(previous.hostTarget) !== JSON.stringify(hostTarget))) throw new Error("An unfinished uninstall exists; restore the original npm version, Codex selection and command options before retrying");
+  const before = codex ? await removalState(codex) : null;
+  const profiles = [...new Set([state, defaultStateDir("codex", null), defaultStateDir("opencode", null)])];
+  const originalImage = resolveExecutable();
+  const preview = await guard(originalImage, profiles, originalVersion, false, true, request.force);
+  const plan = { mode: request.dry_run ? "dry_run" : "applied", cli: "remove global package and command registrations", plugin: codex ? "remove ChatGPT Desktop/Codex plugin" : "unchanged (requires CLI for future use)", marketplace: codex ? before.shared ? "retain for other installed plugins" : "remove official registration if present" : "unchanged", profiles, data: "history/logs/backups preserved", stop_daemon: true, force: request.force, active_jobs: preview.report.active_jobs, resumed_uninstall: Boolean(pending) };
+  if (request.dry_run) { console.log(JSON.stringify(plan, null, 2)); return; }
+  const temp = mkdtempSync(join(tmpdir(), "ajr-uninstall-"));
+  const helper = join(temp, process.platform === "win32" ? "agent-job-relay.exe" : "agent-job-relay");
+  copyFileSync(originalImage, helper); accessSync(helper, constants.X_OK);
+  let fencing;
+  const record = stage => writeJournal(journal, { format: 1, packageRoot, prefix, hostTarget, version: originalVersion, cliOnly: request.cli_only, force: request.force, before: pending ? previous.before : before, stage });
+  try {
+    fencing = await guard(helper, profiles, originalVersion, true, true, request.force);
+    if (interrupted) throw new Error("Uninstall interrupted before removal");
+    requireFinished(join(state, "online-update.json"), "update");
+    if ((await globalInstallation()).originalVersion !== originalVersion) throw new Error("Installed runtime changed during preflight; inspect it before removing");
+    record("prepared");
+    if (codex) await removeOnlinePlugin(codex, before, record);
+    record("removing_cli");
+    let npmError;
+    try { await npmRun(["uninstall", "--global", "--prefix", prefix, "--ignore-scripts", "--no-audit", "--no-fund", packageName]); } catch (error) { npmError = error; }
+    if (exists(packageRoot) || commandPaths(prefix).some(exists)) throw npmError || new Error("npm removal left package files/commands; inspect them without deleting unrelated content");
+    await fencing.releaseOnly();
+    record("complete");
+    await fencing.release(); fencing = null;
+    console.log(JSON.stringify({ ...plan, next_step: "Restart/reconnect ChatGPT Desktop or Codex to discard loaded plugin connections. Task data and npm download caches were retained." }, null, 2));
+  } catch (error) {
+    if (fencing) {
+      try { await fencing.releaseOnly(); await fencing.release(); fencing = null; } catch (release) { error.message += `; guard release: ${release.message}`; }
+    }
+    throw new Error(`${error.message}. Inspect the same profile and any progress written at ${journal}; repeat ajr uninstall with the original options. If npm already removed the CLI, reinstall ${packageName}@${originalVersion} in the same prefix first. No data was purged and stopped daemons were not restarted`);
   } finally { if (fencing) await fencing.abort(); rmSync(temp, { recursive: true, force: true }); }
 }

@@ -2,7 +2,31 @@
 
 [Documentation index](README.md) · [Updating](updating.md) · [Troubleshooting](troubleshooting.md)
 
-Choose the route matching your installation. Removing the CLI, a host plugin, a marketplace entry and native installation files are separate operations. Task history, logs and backups remain in the external profile. Normal removal does not purge data or stop running daemons automatically.
+Source 0.1.14 adds unified online removal; it is unpublished and current npm/GitHub latest 0.1.12 still uses the manual routes below. All removal routes retain task history, logs and backups. OpenCode, native offline installations and standalone MCP configuration keep their original maintenance routes.
+
+## One-command online uninstall (0.1.14+)
+
+```bash
+ajr uninstall --dry-run
+ajr uninstall
+```
+
+Expected: remove `agent-job-relay@agent-job-relay` through the public Codex CLI, remove its official marketplace registration when no other installed plugin needs it, and finally remove the selected global npm package and both command registrations. The command stops the selected/default profiles' idle daemons by default and leaves them stopped. A shared marketplace is retained. Restart/reconnect Desktop or Codex afterward to discard loaded plugin connections; existing MCP processes are not killed by name.
+
+Active queued/launching/running tasks block ordinary removal before any daemon stop or host/package change. To stop them first:
+
+```bash
+ajr uninstall --dry-run --force
+ajr uninstall --force
+```
+
+Expected: the preview lists the affected profiles/task count without cancellation. Apply uses the existing durable stop API, keeps original Job/Run IDs and manual-stop history, waits for terminal state and the same local runner's exit/lock release, then removes the plugin/CLI. An unconfirmed stop retains the runtime for diagnosis/recovery; `--force` never skips process identity, schema or ownership checks. Read-only external observation stops only that observer; no remote completion or cancellation is inferred. History, logs, backups and npm download caches are always retained; there is no purge flag.
+
+`--cli-only` leaves host plugin/catalog registrations untouched and needs no Codex/Git. Those online entries require the CLI on their next use. Native `uninstall --root <root>` retains its original preview/`--apply` semantics; `--force` is only for the online global npm entry.
+
+The selected global prefix/PATH entry, original Codex executable/configuration home and removal options are pinned. Local/foreign/modified or untagged marketplace sources and unknown cached plugin origins are refused. Only public host commands remove its exact plugin/cache; no host-cache scan or enclosing-directory deletion occurs. Other installed plugins and their marketplace registrations remain intact. Additional custom profiles are not discovered: select one explicitly with `--state-dir` and finish other custom runs before removing their global entry.
+
+Private `online-uninstall.json` records completed stages. On failure the CLI stays installed until host removal verifies; repeat the original options to finish forward. A lost host acknowledgement is reconciled by public reads before any repeated mutation. If npm removed the CLI but final recording failed, reinstall the recorded version in the original prefix and repeat the uninstall. Stopped daemons/tasks stay stopped on failure. An unfinished update and uninstall cannot run over each other; finish the recorded operation before switching. A partial journal `.new` file requires explicit inspection. Cross-service operations are not one atomic transaction. Native Windows self-removal/held-image behavior and actual Desktop refresh need separate qualification.
 
 ## Remove the global npm CLI
 
@@ -12,7 +36,7 @@ npm uninstall --global --ignore-scripts agent-job-relay-runtime
 
 Expected: npm removes the global command registration. This does not remove a host plugin or stop existing jobs/daemons. In PowerShell use `npm.cmd` if needed.
 
-New 0.1.14+ online ChatGPT Desktop/Codex entries require this CLI. Remove/disable those plugins first if removing the CLI permanently; otherwise their next launch will report the missing prerequisite. Native offline plugins retain their own launcher and OpenCode retains its host-managed dependency.
+With 0.1.14+, prefer `ajr uninstall` above for coordinated removal. Raw npm removal only removes the CLI; retained online plugin entries report the missing prerequisite. Native offline plugins retain their own launcher and OpenCode retains its host-managed dependency.
 
 ## Remove an online host plugin
 

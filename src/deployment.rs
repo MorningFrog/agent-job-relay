@@ -392,10 +392,17 @@ pub(crate) fn idle_guards(state: &Path, install_root: &Path) -> Result<Vec<File>
     Ok(locks)
 }
 pub(crate) fn require_idle_jobs(state: &Path) -> Result<()> {
+    ensure!(
+        active_job_count(state)? == 0,
+        "active jobs exist; wait for completion or explicitly cancel them before replacing/removing binaries"
+    );
+    Ok(())
+}
+pub(crate) fn active_job_count(state: &Path) -> Result<i64> {
     let db = state.join("relay.sqlite3");
     let metadata = match std::fs::symlink_metadata(&db) {
         Ok(metadata) => metadata,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(0),
         Err(error) => return Err(error.into()),
     };
     ensure!(
@@ -410,12 +417,8 @@ pub(crate) fn require_idle_jobs(state: &Path) -> Result<()> {
             [],
             |r| r.get(0),
         )?;
-        ensure!(
-            active == 0,
-            "active jobs exist; wait for completion or explicitly cancel them before replacing/removing binaries"
-        );
+        Ok(active)
     }
-    Ok(())
 }
 pub(crate) fn write_artifact(path: &Path, file: &Artifact) -> Result<()> {
     #[cfg(windows)]

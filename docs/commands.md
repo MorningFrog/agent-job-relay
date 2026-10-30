@@ -108,7 +108,7 @@ Recovery preserves original expiry and excludes accepted/expired events and live
 
 ## Install, update and remove integrations
 
-Native configuration and directory changes preview by default; `--apply` writes the reviewed change. Pack export follows the same pattern. Online npm `update` applies by default; `--dry-run` selects its preview.
+Native configuration and directory changes preview by default; `--apply` writes the reviewed change. Pack export follows the same pattern. Online npm `update` and `uninstall` apply by default; `--dry-run` selects its preview.
 
 | Command after the prefix | Purpose and guide |
 |---|---|
@@ -123,7 +123,8 @@ Native configuration and directory changes preview by default; `--apply` writes 
 | `install [--root <root>]` | Low-level native development install; [alternative routes](installation.md#install-directly-from-a-source-build) |
 | `setup plugin/codex/json [--config <file>]` | Configure an owned marketplace or MCP entry; [standalone MCP](installation.md#configure-standalone-mcp) |
 | `integration remove plugin/codex/json [--config <file>]` | Remove unchanged owned configuration; [uninstallation](uninstalling.md) |
-| `uninstall [--root <root>]` | Remove unchanged owned native installation files and retain state; [uninstallation](uninstalling.md) |
+| `uninstall [--dry-run] [--force] [--cli-only]` | npm 0.1.14+: remove online plugin/unshared marketplace/global CLI, stop idle daemons by default; force uses normal task stops, always retain data; [online removal](uninstalling.md#one-command-online-uninstall-0114) |
+| `uninstall --root <root>` | Remove unchanged owned native installation files with preview/`--apply` and retain state; [uninstallation](uninstalling.md) |
 
 Online npm installation and host catalog commands are documented in [installation](installation.md) and [updating](updating.md); they are separate from native offline management commands.
 

@@ -16,10 +16,10 @@ try {
   // request back to npm after the native child releases its executable image.
   let first = 0;
   while (args[first]?.startsWith("--state-dir=") || args[first] === "--state-dir") first += args[first] === "--state-dir" ? 2 : 1;
-  const updating = args[first] === "update";
-  const child = spawn(resolveExecutable(), args, { stdio: ["inherit", updating ? "pipe" : "inherit", "inherit"], env });
+  const maintenance = ["update", "uninstall"].includes(args[first]);
+  const child = spawn(resolveExecutable(), args, { stdio: ["inherit", maintenance ? "pipe" : "inherit", "inherit"], env });
   let output = "";
-  if (updating) child.stdout.on("data", data => { output += data; if (output.length > 65536) child.kill(); });
+  if (maintenance) child.stdout.on("data", data => { output += data; if (output.length > 65536) child.kill(); });
   const signals = ["SIGINT", "SIGTERM", "SIGHUP"].map(signal => {
     const forward = () => child.kill(signal);
     process.on(signal, forward);
@@ -29,16 +29,16 @@ try {
   child.once("close", async (code, signal) => {
     for (const [name, forward] of signals) process.off(name, forward);
     process.exitCode = code ?? 128 + (constants.signals[signal] ?? 1);
-    if (!updating) return;
+    if (!maintenance) return;
     try {
       let request;
       try { request = JSON.parse(output); } catch { /* Native help remains plain text. */ }
-      if (code === 0 && request?.operation === "online_update") {
-        const { update } = await import("./update.mjs");
-        await update(request);
+      if (code === 0 && ["online_update", "online_uninstall"].includes(request?.operation)) {
+        const { update, uninstall } = await import("./update.mjs");
+        await (request.operation === "online_update" ? update(request) : uninstall(request));
       } else process.stdout.write(output);
     } catch (error) {
-      console.error(`AgentJobRelay update: ${error.message}`);
+      console.error(`AgentJobRelay ${args[first]}: ${error.message}`);
       process.exitCode = 1;
     }
   });

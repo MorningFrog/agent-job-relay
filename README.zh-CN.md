@@ -31,7 +31,7 @@ Tasks run in the background. Agents pick up when needed.
 
 在线安装需要 Node.js 20+/npm 和网络。ChatGPT Desktop/Codex 还需要 PATH 中可用的 Codex CLI 和获取目录所需的 Git，Desktop 需要本地执行环境，无需 Rust 编译器。以下命令使用 Bash；另有 [PowerShell 和 Release ZIP 安装方式](docs/installation.md#chatgpt-desktop--codex)。
 
-更新时保留原数据目录。当前源码会在新版运行入口首次使用时自动接替旧 daemon，本地运行时更新也会自动重启在线 daemon；替换文件或迁移 schema 前须完成活动任务。0.1.12 之前的版本仍需手动停止同一数据目录的 daemon，见[更新前的准备](docs/updating.md#before-updating)。
+更新时保留原数据目录。当前源码会在新版运行入口首次使用时自动接替旧 daemon，本地运行时更新也会自动重启在线 daemon；原生离线替换、不兼容 schema 迁移和 Windows 在线包替换前须完成活动任务；Linux 在线更新可保留兼容 runner。0.1.12 之前的版本仍需手动停止同一数据目录的 daemon，见[更新前的准备](docs/updating.md#before-updating)。
 
 本地／源码插件通过稳定的指引入口和经过校验的 MCP 运行时转发跟随更新。旧入口需[一次迁移和重连](docs/updating.md#cache-inspection-and-refresh)；以后同版本本地更新也会使用当前流程，无需清理插件缓存。
 
@@ -44,6 +44,8 @@ npm install --global --ignore-scripts --registry=https://registry.npmjs.org agen
 ```
 
 0.1.14+ 发布并安装后，首次安装 ChatGPT Desktop/Codex 插件和后续 CLI／插件更新都使用 `ajr update`。`ajr update --dry-run` 可预览，`--cli-only` 仅更新 CLI；新版在线插件要求已安装 CLI。完成后重连或重启宿主，原数据目录和历史保持不变。此命令目前仅在源码中实现，已发布的 0.1.12 仍按下方手动宿主步骤操作，见[统一更新与限制](docs/updating.md#one-command-online-update-0114)。
+
+在线卸载使用 `ajr uninstall`：默认停止空闲 daemon，移除插件、未被其他插件使用的 marketplace 和全局 CLI，保留历史、日志及备份。有活动任务时拒绝；`ajr uninstall --force` 先按现有流程停止任务再卸载，`--dry-run` 可预览。`ajr update` 自动接替旧 daemon，Linux 上兼容的活动 runner 保持原 Job/Run 继续执行，不重跑命令；不兼容迁移和 Windows 活动任务仍会阻止包替换。见[卸载说明](docs/uninstalling.md)。
 
 ### ChatGPT Desktop
 

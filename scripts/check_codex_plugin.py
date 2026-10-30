@@ -150,11 +150,18 @@ async def run(binary, codex, marketplace=None, registry=None):
                 raise RuntimeError("installed goal tool lacks originating-host pause confirmation")
             if state.exists():
                 raise RuntimeError("plugin discovery unexpectedly created daemon/workload state")
+            removal = False
+            if marketplace:
+                command([codex, "plugin", "remove", "agent-job-relay@agent-job-relay", "--json"], "public-plugin-remove")
+                installed = json.loads(command([codex, "plugin", "list", "--json"], "public-plugin-list-after-remove"))
+                if any(item["pluginId"] == "agent-job-relay@agent-job-relay" for item in installed["installed"]) or cache.exists():
+                    raise RuntimeError("public Codex removal did not remove the exact installed plugin/cache")
+                removal = True
             report = {"result": "passed", "codex": version,
                       "binary_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(),
                       "tools": sorted(server["tools"]), "model_turn_started": False,
                       "distribution": "self-hosted archive and loopback npm fixture" if marketplace else "offline bootstrap", "cache_status": cache_report,
-                      "real_host_contacted": False, "real_configuration_changed": False}
+                      "public_plugin_removal": removal, "real_host_contacted": False, "real_configuration_changed": False}
             (root / "report.json").write_text(json.dumps(report, indent=2) + "\n")
             print(json.dumps({"result": "passed", "tools": len(server["tools"]), "report": str(root / "report.json")}))
         finally:

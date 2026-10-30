@@ -193,3 +193,154 @@ async fn controller_loss_leaves_profiles_stopped_and_preview_creates_no_profile(
     let preview: Value = serde_json::from_slice(&r.guard().output().await.unwrap().stdout).unwrap();
     assert_eq!(preview["online_profiles"], json!([]));
 }
+
+#[tokio::test]
+async fn uninstall_defaults_to_idle_shutdown_and_force_cancels_exact_runs_without_purge() {
+    let r = Rig::new();
+    let job = r
+        .cli(&[
+            "start",
+            "--cwd",
+            r.dir.path().to_str().unwrap(),
+            "--shell",
+            "echo ready; while [ ! -f finish ]; do sleep 0.05; done",
+        ])
+        .await;
+    let id = job["job"]["job_id"].as_str().unwrap();
+    let run = job["job"]["run_id"].as_str().unwrap();
+    let refused = r
+        .guard()
+        .args(["--remove", "--apply"])
+        .output()
+        .await
+        .unwrap();
+    assert!(!refused.status.success());
+    assert_ne!(r.cli(&["doctor"]).await["daemon"], "stopped");
+    let preview: Value = serde_json::from_slice(
+        &r.guard()
+            .args(["--remove", "--force"])
+            .output()
+            .await
+            .unwrap()
+            .stdout,
+    )
+    .unwrap();
+    assert_eq!(preview["active_jobs"], 1);
+    assert_eq!(r.cli(&["status", id]).await["cancel_requested"], false);
+    let mut child = r
+        .guard()
+        .args(["--remove", "--force", "--apply"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
+    let ready: Value = serde_json::from_str(
+        &tokio::time::timeout(Duration::from_secs(10), lines.next_line())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(ready["stopped_runs"], json!([run]));
+    assert_eq!(r.cli(&["doctor"]).await["daemon"], "stopped");
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(b"{\"release_only\":true}\nrelease\n")
+        .await
+        .unwrap();
+    assert!(child.wait().await.unwrap().success());
+    let store = agent_job_relay::storage::Store::readonly(agent_job_relay::config::Config {
+        root: r.state.clone(),
+    });
+    assert_eq!(store.status(id.into()).await.unwrap().status, "cancelled");
+    assert!(r.state.join("relay.sqlite3").exists());
+    r.cli(&["daemon", "start"]).await;
+    let mut child = r
+        .guard()
+        .args(["--remove", "--apply"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
+    assert!(lines.next_line().await.unwrap().is_some());
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(b"{\"release_only\":true}\nrelease\n")
+        .await
+        .unwrap();
+    assert!(child.wait().await.unwrap().success());
+    assert_eq!(r.cli(&["doctor"]).await["daemon"], "stopped");
+}
+
+#[tokio::test]
+async fn compatible_daemon_handover_preserves_active_run_and_refuses_schema_mismatch() {
+    let r = Rig::new();
+    let job = r
+        .cli(&[
+            "start",
+            "--cwd",
+            r.dir.path().to_str().unwrap(),
+            "--shell",
+            "echo once >> launches; echo ready; while [ ! -f finish ]; do sleep 0.05; done",
+        ])
+        .await;
+    let id = job["job"]["job_id"].as_str().unwrap();
+    let database = rusqlite::Connection::open(r.state.join("relay.sqlite3")).unwrap();
+    database.busy_timeout(Duration::from_secs(5)).unwrap();
+    database.pragma_update(None, "user_version", 10).unwrap();
+    let refused = r
+        .guard()
+        .args(["--allow-active", "--apply"])
+        .output()
+        .await
+        .unwrap();
+    database.pragma_update(None, "user_version", 11).unwrap();
+    assert!(!refused.status.success());
+    assert!(String::from_utf8_lossy(&refused.stderr).contains("schema"));
+    assert_ne!(r.cli(&["doctor"]).await["daemon"], "stopped");
+    let mut child = r
+        .guard()
+        .args(["--allow-active", "--apply"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
+    let ready: Value = serde_json::from_str(&lines.next_line().await.unwrap().unwrap()).unwrap();
+    assert_eq!(ready["active_jobs"], 1);
+    let store = agent_job_relay::storage::Store::readonly(agent_job_relay::config::Config {
+        root: r.state.clone(),
+    });
+    assert_eq!(
+        store.status(id.into()).await.unwrap().run_id,
+        job["job"]["run_id"]
+    );
+    child.stdin.take().unwrap().write_all(format!("{}\nrelease\n", json!({"executable":env!("CARGO_BIN_EXE_agent-job-relay"),"version":env!("CARGO_PKG_VERSION")})).as_bytes()).await.unwrap();
+    let output = child.wait_with_output().await.unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    std::fs::write(r.dir.path().join("finish"), b"").unwrap();
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while r.cli(&["status", id]).await["status"] != "completed" {
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(
+        std::fs::read_to_string(r.dir.path().join("launches")).unwrap(),
+        "once\n"
+    );
+}

@@ -10,8 +10,8 @@ This is the sole project backlog. Current functionality, completed acceptance an
 
 ## Host integration and distribution
 
-- [x] Implement source 0.1.14 `ajr update` for global CLI and matching online ChatGPT Desktop/Codex plugin installation/update, mandatory CLI prerequisite, exact-version/preview/CLI-only options, idle profile fencing, original-peer daemon restart and recorded forward retry through public host commands. Keep offline/OpenCode routes separate.
-- [ ] **P1:** natively qualify Windows self-update with loaded global CLI/daemon/MCP images and verify actual Desktop refresh/reconnection. Public-host fixtures and Linux package replacement do not establish these outcomes.
+- [x] Implement source 0.1.14 `ajr update` for global CLI and matching online ChatGPT Desktop/Codex plugin installation/update, mandatory CLI prerequisite, exact-version/preview/CLI-only options, profile/schema fencing, original-peer daemon restart and recorded forward retry through public host commands. Add coordinated `ajr uninstall`, default idle daemon shutdown, forced shared task stops, retained data and recorded removal recovery; preserve compatible active Linux runners during updates and replace older daemons even when package files are current. Keep offline/OpenCode routes separate.
+- [ ] **P1:** natively qualify Windows self-update/self-removal with loaded global CLI/daemon/MCP images, qualify active-run package replacement separately, and verify actual Desktop refresh/reconnection. Public-host fixtures and Linux package replacement do not establish these outcomes.
 - [ ] **P1, maintainer:** prepare a new 0.1.14 candidate, pass revision CI/Linux/Windows/package/actual-loader gates and publisher preview, then review before requesting publication approval. The sealed 0.1.13 candidate cannot carry these runtime/package changes; do not rebuild or replace its bytes. Run the independent public checker after authorized publication and revoke the unused bootstrap token.
 
 - [x] Use standard npm global command registration for terminal/Web access; add `ajr` with the online Codex profile by default, explicit profile overrides and plugin task-manager guidance, without installation hooks or custom setup.
@@ -38,7 +38,7 @@ This is the sole project backlog. Current functionality, completed acceptance an
 - [x] Implement automatic age/count/log-budget archiving, transparent cold reads, consistent rolling backups/restore, recorded interruption recovery, migration fencing and live-session quota accounting. See [data maintenance](data-maintenance.md).
 - [x] Natively qualify schema v9 data maintenance on Windows under SYSTEM and a non-elevated ordinary user.
 - [ ] **P1:** qualify maintenance under longer disk-pressure/soak tests. Independent-storage backup automation and destructive history purge need separate designs; uninstall remains data-preserving.
-- [ ] **P1:** extend interrupted-operation handling to setup/marketplace cross-file writes, uninstall and pre-journal/legacy remnants. Existing per-directory install/cache repair finishes recorded replacements forward and preserves backups/history.
+- [ ] **P1:** extend interrupted-operation handling to setup/marketplace cross-file writes, native offline uninstall and pre-journal/legacy remnants. Existing per-directory install/cache repair finishes recorded replacements forward and preserves backups/history.
 - [x] Verify the declared Rust 1.89 minimum with Linux all-target compilation and add its CI check; stable native behavior gates remain separate.
 - [ ] **P2:** negotiated standard MCP Tasks and optional public Codex writer integration for explicitly owned sessions. Tasks alone do not wake chats; progress work is tracked under [runtime inspection and monitoring](#runtime-inspection-and-monitoring).
 

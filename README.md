@@ -31,7 +31,7 @@ Run long commands independently of the Agent connection, keep their results, and
 
 Online installation needs Node.js 20+/npm and network access. ChatGPT Desktop/Codex also needs Codex CLI on PATH and Git for catalog fetching; Desktop requires a local executor. No Rust compiler is needed. Commands below use Bash; [PowerShell and Release ZIP alternatives](docs/installation.md#chatgpt-desktop--codex) are available.
 
-Retain the original profile when updating. Current source automatically replaces an older daemon on first runtime use and restarts an online daemon after a local runtime update; finish active jobs before file replacement or schema migration. Versions before 0.1.12 require a manual same-profile stop. See [upgrade preparation](docs/updating.md#before-updating).
+Retain the original profile when updating. Current source automatically replaces an older daemon on first runtime use and restarts an online daemon after a local runtime update; finish active jobs before native offline replacement, incompatible schema migration or Windows online package replacement. Compatible Linux runners can continue during online updates. Versions before 0.1.12 require a manual same-profile stop. See [upgrade preparation](docs/updating.md#before-updating).
 
 Native/source plugins use stable instruction entries and verified current-runtime MCP forwarding. Historical entries need [one migration and reconnection](docs/updating.md#cache-inspection-and-refresh); later same-version native updates follow the current workflow without clearing plugin caches.
 
@@ -44,6 +44,8 @@ npm install --global --ignore-scripts --registry=https://registry.npmjs.org agen
 ```
 
 After 0.1.14+ is published and installed, run `ajr update` for both initial ChatGPT Desktop/Codex plugin installation and later CLI/plugin updates. `ajr update --dry-run` previews changes; `--cli-only` leaves the plugin untouched. New online plugin entries require the installed CLI. Reconnect/restart the host afterward; data/history stay in their original profiles. This command is currently source-only: published 0.1.12 still uses the manual host steps below. See [unified updates and limits](docs/updating.md#one-command-online-update-0114).
+
+Use `ajr uninstall` for online removal: stop idle daemons, remove the plugin, its unshared marketplace and the global CLI, and retain history/logs/backups. Active tasks block removal; `ajr uninstall --force` stops them through the existing control path first. Use `--dry-run` to preview. `ajr update` automatically replaces older daemons; compatible active Linux runners continue under their original Job/Run without replay. Incompatible migration and active Windows package replacement remain blocked. See [uninstallation](docs/uninstalling.md).
 
 ### ChatGPT Desktop
 

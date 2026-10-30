@@ -44,6 +44,14 @@ pub(super) enum Commands {
         target_version: String,
         #[arg(long)]
         apply: bool,
+        #[arg(long)]
+        remove: bool,
+        #[arg(long, requires = "remove")]
+        force: bool,
+        #[arg(long, conflicts_with = "remove")]
+        allow_active: bool,
+        #[arg(long)]
+        original_version: Option<String>,
     },
     /// Read the current plugin workflow without starting a daemon or job
     Instructions,
@@ -152,7 +160,7 @@ pub(super) enum Commands {
         #[arg(long)]
         apply: bool,
     },
-    /// Preview/remove unchanged owned install files; preserve all task data
+    /// Remove the online npm CLI/plugin, or preview/remove an owned native root
     Uninstall {
         #[arg(long)]
         root: Option<PathBuf>,
@@ -160,6 +168,12 @@ pub(super) enum Commands {
         dry_run: bool,
         #[arg(long)]
         apply: bool,
+        /// Remove only the global npm CLI, retaining host plugin registrations
+        #[arg(long, conflicts_with = "root")]
+        cli_only: bool,
+        /// Stop active tasks before removing the online CLI/plugin; preserve data
+        #[arg(long, conflicts_with = "root")]
+        force: bool,
     },
     /// Register, refresh, probe or invalidate an exact Agent session
     Session {

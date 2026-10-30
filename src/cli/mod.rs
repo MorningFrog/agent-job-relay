@@ -14,6 +14,8 @@ use std::{collections::BTreeMap, path::PathBuf};
 
 pub(super) async fn run() -> Result<()> {
     let cli = Cli::parse();
+    let online_remove = matches!(&cli.command, Commands::Uninstall { root: None, .. })
+        && std::env::var_os("AJR_NPM_LAUNCHER").is_some();
     let remove_install = matches!(&cli.command, Commands::Uninstall { .. });
     let mut state = cli.state_dir;
     if let Commands::Plugin {
@@ -46,6 +48,7 @@ pub(super) async fn run() -> Result<()> {
             .context("no owned installation at --install-root; use an existing installation or an explicit --state-dir")?);
     }
     if state.is_none()
+        && !online_remove
         && let Commands::Install { root, .. } | Commands::Uninstall { root, .. } = &cli.command
     {
         let root = root
@@ -65,6 +68,15 @@ pub(super) async fn run() -> Result<()> {
         );
     }
     let config = Config::new(state)?;
+    if let Commands::Uninstall {
+        cli_only, force, ..
+    } = &cli.command
+    {
+        anyhow::ensure!(
+            online_remove || (!cli_only && !force),
+            "--cli-only/--force require the global npm entry without --root"
+        );
+    }
     let req = match cli.command {
         Commands::Update {
             dry_run,
@@ -89,14 +101,37 @@ pub(super) async fn run() -> Result<()> {
             profile,
             target_version,
             apply,
+            remove,
+            force,
+            allow_active,
+            original_version,
         } => {
             return agent_job_relay::online_update::guard(
                 installation,
                 profile,
                 &target_version,
                 apply,
+                if remove {
+                    agent_job_relay::online_update::GuardMode::Remove { force }
+                } else {
+                    agent_job_relay::online_update::GuardMode::Update { allow_active }
+                },
+                original_version.as_deref(),
             )
             .await;
+        }
+        Commands::Uninstall {
+            root: None,
+            dry_run,
+            cli_only,
+            force,
+            ..
+        } if online_remove => {
+            println!(
+                "{}",
+                serde_json::json!({"operation":"online_uninstall","dry_run":dry_run,"cli_only":cli_only,"force":force,"state_dir":config.root})
+            );
+            return Ok(());
         }
         Commands::Instructions => {
             println!(

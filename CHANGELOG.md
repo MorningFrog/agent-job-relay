@@ -7,6 +7,8 @@
 ### Added
 
 - Add `ajr update` for one-command global npm CLI and matching ChatGPT Desktop/Codex marketplace/plugin installation and updates, with `--dry-run`, `--to` and `--cli-only`.
+- Add `ajr uninstall` to remove the online plugin, unshared marketplace and global CLI in one command. Stop idle daemons by default, refuse active tasks unless `--force` first stops their exact runs, and retain history/logs/backups with preview and forward retry.
+- Stage and verify the exact update tarball before replacement, preserve compatible active Linux runners, and upgrade older online daemons even when CLI/plugin files are already current. Refuse active incompatible-schema/Windows package replacement.
 - Require the global CLI for new online plugin entries. Keep exact-version npm plugin runtimes, native offline installation and OpenCode's host-managed dependency route.
 
 ### Safety and compatibility
