@@ -36,7 +36,7 @@ Use a candidate directory containing only the reviewed version's two tarballs an
 }
 ```
 
-Published packages default to their bundled runtime and persistent opencode profile; the tuple above demonstrates explicit development overrides. Normal installation uses `agent-job-relay-opencode-v1@latest`. The plugin configures only its `agent_job_relay` MCP name and refuses an existing entry with that name. It requires native >=0.1.6 on Linux and >=0.1.7 on Windows; current source automatically replaces an older running daemon during new-runtime binding/submission for the same profile, with pinned-peer shutdown and schema checks; versions before 0.1.12 retain the explicit stop fallback. A long socket path fails clearly; it does not switch profiles or use a shared temporary directory. Keep state outside plugin/cache directories.
+Published packages default to their bundled runtime and persistent opencode profile; the tuple above demonstrates explicit development overrides. Normal installation uses `agent-job-relay-opencode-v1@latest`. The plugin configures only its `agent_job_relay` MCP name and refuses an existing entry with that name. It requires native >=0.1.6 on Linux and >=0.1.7 on Windows; runtime 0.1.12+ automatically replaces an older running daemon during new-runtime binding/submission for the same profile, with pinned-peer shutdown and schema checks; versions before 0.1.12 retain the explicit stop fallback. A long socket path fails clearly; it does not switch profiles or use a shared temporary directory. Keep state outside plugin/cache directories.
 
 On Windows, use the bundled `.exe` and a persistent Windows path (JSON requires escaped backslashes). The native helper pins the Node/Bun pipe's server process and secures its owner/DACL before registration. For Windows candidate checks and Windows automatic-startup/fallback behavior, see [Windows operation](windows.md).
 
@@ -87,7 +87,7 @@ The local account-free scaffold check is:
 python3 scripts/check_claude_scaffold.py --binary "$PWD/target/release/agent-job-relay"
 ```
 
-Expected: synthetic callers produce distinct bindings, an unexpanded session placeholder fails without starting state, and the actual launcher exposes 20 MCP tools and accepts an explicitly bound command. The report explicitly says `claude_host_tested=false`. This is not `claude plugin validate`, actual plugin loading, skill expansion, model execution or wake verification.
+Expected: synthetic callers produce distinct bindings, an unexpanded session placeholder fails without starting state, and the actual launcher exposes 25 MCP tools and accepts an explicitly bound command. The report explicitly says `claude_host_tested=false`. This is not `claude plugin validate`, actual plugin loading, skill expansion, model execution or wake verification.
 
 ## OpenCode V2 migration map
 

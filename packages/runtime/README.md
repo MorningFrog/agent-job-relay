@@ -1,40 +1,72 @@
 # AgentJobRelay runtime
 
-Shared native Rust/MCP executable for the AgentJobRelay OpenCode V1 and ChatGPT Desktop/Codex plugins. Linux x86_64/glibc or Windows x86_64 with Node.js 20+; no Rust compiler, install script, separate binary download, global PATH change or system service is required. The package includes the native executable and a platform-specific SHA-256 manifest. The manifest records the Linux build's minimum glibc version; incompatible platforms fail explicitly. Windows uses a statically linked MSVC runtime. Hashes check integrity, not publisher authenticity. Use the official npm registry and verify the publisher/provenance when available.
+Shared native Rust/MCP executable for AgentJobRelay's ChatGPT Desktop/Codex and OpenCode V1 plugins. Supports Linux x86_64/glibc and Windows x86_64 with Node.js 20+/npm. The package includes its native executable, bundled React/Vite task manager and a platform/SHA-256/minimum-glibc manifest. No Rust compiler, install script, secondary binary download or system service is required. Windows uses a static MSVC runtime; incompatible platforms fail explicitly. Hashes check integrity, not publisher authenticity; use the official registry and reviewed publisher/provenance.
 
-To check the latest published runtime, run `npx --yes --ignore-scripts --registry=https://registry.npmjs.org --package=agent-job-relay-runtime@latest agent-job-relay --version`. This is an experimental package. See the [repository](https://github.com/MorningFrog/agent-job-relay) for release availability, supported hosts and known limits. An npm version being downloadable is separate from official plugin-directory approval.
+## Install
 
-## Terminal and Web UI
-
-Install once with npm's standard command registration:
+For terminal and Web UI use:
 
 ```bash
 npm install --global --ignore-scripts --registry=https://registry.npmjs.org agent-job-relay-runtime@latest
-agent-job-relay codex list
-agent-job-relay codex start --shell 'echo hello'
-agent-job-relay codex ui
+ajr --version
+ajr ui
 ```
 
-npm 0.1.11 and newer also register `ajr`, defaulting to the same persistent `codex` profile as the online ChatGPT/Codex plugin. `ajr opencode <arguments>` selects OpenCode. npm's global command directory must be on PATH; use a user-writable npm installation. Windows also provides `ajr.cmd` for PowerShell script-policy restrictions. New 0.1.14+ online ChatGPT/Codex plugin entries require this globally registered CLI. The host has no automatic global installation hook. Use `ajr uninstall` for coordinated online removal; raw `npm uninstall --global --ignore-scripts agent-job-relay-runtime` remains a CLI-only fallback.
+For the matching ChatGPT Desktop/Codex plugin, also run:
 
-## Unified online updates (0.1.14+)
+```bash
+ajr update
+```
 
-After installing this version globally, run `ajr update` to install or update the CLI and its matching ChatGPT Desktop/Codex marketplace/plugin together. Use `ajr update --dry-run` to preview, `--to <x.y.z>` for an exact published version, or `--cli-only` to leave host plugins unchanged. Codex CLI and Git must be on PATH for plugin updates. Reconnect/restart the host afterward. OpenCode packages and native offline bundles keep their original maintenance routes.
+Requires Codex CLI and Git on PATH for plugin installation. Restart/reconnect the host and select AgentJobRelay afterward. Use a user-writable npm installation with its global command directory on PATH; PowerShell can use `npm.cmd` and `ajr.cmd` when script policy blocks `.ps1` wrappers. Online plugin entries require this global CLI; the host does not install it automatically. For OpenCode, install `agent-job-relay-opencode-v1@latest` through that host instead; it resolves its own matching runtime dependency.
 
-The updater pins the selected global npm prefix and version, refuses downgrades/foreign or modified catalogs, verifies target schema compatibility before allowing active Linux runners, and restarts previously online daemons under profile/installation fences. Windows package replacement and incompatible migration require idle profiles. A private copied native helper remains outside the package during replacement. Partial steps are recorded in the selected profile's `online-update.json` for forward retry; no rollback, cache scanning or automatic PATH editing occurs. Outdated disabled plugins need host management or `--cli-only`. Windows self-update and actual Desktop refresh require their own native evidence; see the [updating guide](https://github.com/MorningFrog/agent-job-relay/blob/main/docs/updating.md).
+For a version/integrity check without global registration:
 
-`ajr uninstall` removes the online ChatGPT Desktop/Codex plugin, its unshared official marketplace and this selected global CLI. It stops idle selected/default daemons by default. `--force` first uses normal durable task stops and confirms local runner exit; `--dry-run` previews, and `--cli-only` retains host registrations. History/logs/backups always remain. Partial removal is recorded in `online-uninstall.json` for forward retry; unfinished update/removal operations cannot overlap. Local/foreign/modified sources are preserved. Reconnect the host afterward; no process-name kills, host-cache scanning or data purge occurs. See [uninstallation](https://github.com/MorningFrog/agent-job-relay/blob/main/docs/uninstalling.md).
+```bash
+npx --yes --ignore-scripts --registry=https://registry.npmjs.org --package=agent-job-relay-runtime@latest agent-job-relay --version
+```
 
-The full `agent-job-relay` entry retains its original default profile; `agent-job-relay codex ui` is equivalent to `ajr ui`. Explicit `--state-dir` takes priority over `AJR_STATE_DIR` and host defaults. Offline native installations retain their separate recorded profile and installed launcher.
+## Update and uninstall
 
-`agent-job-relay codex <arguments>` and `agent-job-relay opencode <arguments>` select persistent host profiles under `$XDG_STATE_HOME/agent-job-relay/<host>`, or `$HOME/.local/state/agent-job-relay/<host>`. Windows uses `%LOCALAPPDATA%\AgentJobRelay\profiles\<host>`. An explicit absolute `AJR_STATE_DIR` overrides that choice. Ordinary arguments pass to the same native CLI. These profiles are outside npm/host caches and stable across version updates; they contain no guessed caller identity. New profiles do not migrate a prior offline installation. Review its recorded state path before deliberately selecting it.
+These commands require a global CLI 0.1.14 or newer. For older CLIs, run the npm installation command above first.
 
-Installation runs no code. Invoking the CLI or plugin validates the packaged executable, then runs it with your OS permissions. First submission/explicit session binding starts the per-profile daemon. Online `ajr uninstall` stops idle daemons by default and refuses active jobs unless `--force` first stops their exact runs; history/logs/backups remain. Raw npm removal does not stop daemons. Current source automatically replaces an older daemon on runtime-starting use, preserving compatible independent runners. Finish old runs before incompatible schema migration; versions before 0.1.12 require a manual same-profile stop. No database rollback or workload replay is performed.
+| Task | Preview | Apply |
+|---|---|---|
+| Update CLI and matching online plugin | `ajr update --dry-run` | `ajr update` |
+| Update only the CLI | `ajr update --cli-only --dry-run` | `ajr update --cli-only` |
+| Remove CLI and online plugin | `ajr uninstall --dry-run` | `ajr uninstall` |
+| Remove only the CLI | `ajr uninstall --cli-only --dry-run` | `ajr uninstall --cli-only` |
 
-Development: this source directory intentionally has no native payload. Build and pack from the repository with `python3 scripts/prepare_release.py --binary target/release/agent-job-relay --output .tmp/release-candidate`.
+`update --to <x.y.z>` selects an exact published version. Update verifies target bytes/schema compatibility and restarts previously online daemons. Compatible Linux runners retain original Job/Run IDs without replay; Windows package replacement and incompatible migration require completed jobs. Uninstall stops idle selected/default daemons and refuses active work; explicitly adding `--force` stops exact runs and confirms local runner exit before removal. All routes retain history/logs/backups. CLI-only maintenance leaves online plugin entries requiring a CLI on their next use.
 
-Windows starts its daemon on demand, including host cleanup jobs, through verified same-user local CIM when native startup is denied. No login task/service is installed. Built-in Windows PowerShell/CIM must be permitted; diagnostics provide a copyable same-profile outside-terminal fallback when policy blocks it. `AJR_WINDOWS_STARTUP=direct` disables CIM.
+Only the official unmodified Git marketplace is managed automatically. Local/ZIP/foreign/modified sources, OpenCode and native offline installations keep their own routes. Outdated disabled plugins need host management or `--cli-only`. Recorded `online-update.json` / `online-uninstall.json` stages support forward retry with the same profile/options; no rollback, cache scan or automatic PATH editing occurs. Native Windows self-update/self-removal and actual Desktop refresh remain separate qualifications. Follow the [update guide](https://github.com/MorningFrog/agent-job-relay/blob/main/docs/updating.md) or [uninstall guide](https://github.com/MorningFrog/agent-job-relay/blob/main/docs/uninstalling.md) for recovery and ownership limits.
 
-The runtime embeds its React + Vite task manager in the native executable. Use `agent-job-relay codex ui` (or `ajr ui` with npm 0.1.11 and newer) to open the matching profile; `--no-open` prints its local access URL. Daemons enable the authenticated loopback listener by default, without a separate frontend installation. `inspect`, persistent `monitor` and configurable `stop` work without a live Agent. Access URLs contain local credentials; ordinary diagnostics omit them. Current source automatically replaces an older running daemon on UI access. Versions before 0.1.12 still report an upgrade instruction and require a manual same-profile stop after jobs finish. Source builds generate assets with Node.js 24 before Cargo, while recipients use the packaged bytes.
+Raw npm removal is also available:
 
-Use the [documentation index](https://github.com/MorningFrog/agent-job-relay/blob/main/docs/README.md) for task guides, the [command reference](https://github.com/MorningFrog/agent-job-relay/blob/main/docs/commands.md) for CLI/MCP lookup, and [updating](https://github.com/MorningFrog/agent-job-relay/blob/main/docs/updating.md) for profile-preserving maintenance.
+```bash
+npm uninstall --global --ignore-scripts agent-job-relay-runtime
+```
+
+It removes only the package/commands and does not stop daemons/jobs or remove host registrations. Use coordinated removal above when retiring the online installation. No route purges task data.
+
+## Profiles and everyday use
+
+```bash
+ajr start --shell 'echo hello'
+ajr list
+ajr ui
+```
+
+`ajr` defaults to the online `codex` profile; `ajr opencode <command>` selects OpenCode. The full entry retains its original native default: use `agent-job-relay codex <command>` for the online plugin profile. Explicit `--state-dir` takes priority over AJR_STATE_DIR and host defaults. Native offline installations use their separate recorded profile/launcher.
+
+Online profiles live under `$XDG_STATE_HOME/agent-job-relay/<host>`, falling back to `$HOME/.local/state/agent-job-relay/<host>`; Windows uses `%LOCALAPPDATA%\AgentJobRelay\profiles\<host>`. They stay outside npm/host caches across updates. No prior offline history is migrated or caller identity guessed. Other custom profiles are not discovered automatically; select them deliberately before shared-runtime maintenance.
+
+Invoking the CLI/plugin validates the executable, then runs it with your OS permissions. First submission/session binding starts its daemon on demand. Runtime 0.1.12+ replaces an older same-profile daemon during runtime-starting use, preserving compatible runners. Read-only diagnosis does not start it; no command is replayed after uncertainty. Windows can use verified same-user local CIM for daemon startup when host cleanup blocks native creation; it installs no task/service. `AJR_WINDOWS_STARTUP=direct` disables that fallback.
+
+The bundled UI uses authenticated loopback access without a separate frontend install. `ui --no-open` prints its credentialed access URL; keep that URL private. `inspect`, runner-owned `monitor` rules and bounded `stop` work without a live Agent. Job completion, host acceptance and observed Agent continuation remain separate results.
+
+For workflows and support limits, use the [documentation index](https://github.com/MorningFrog/agent-job-relay/blob/main/docs/README.md), [command reference](https://github.com/MorningFrog/agent-job-relay/blob/main/docs/commands.md) and [current evidence](https://github.com/MorningFrog/agent-job-relay/blob/main/docs/IMPLEMENTATION_STATUS.md). Self-hosted marketplace publication is separate from official-directory approval.
+
+## Development
+
+This source directory has no native payload. Build frontend assets before Cargo, then prepare a repository-local candidate with `python3 scripts/prepare_release.py --binary target/release/agent-job-relay --output .tmp/release-candidate`. See the repository's [source walkthrough](https://github.com/MorningFrog/agent-job-relay/blob/main/docs/source-install.md) and [release guide](https://github.com/MorningFrog/agent-job-relay/blob/main/docs/release.md).

@@ -17,18 +17,17 @@ AJR_INSTALL_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/agent-job-relay"
 Keep the original root/profile if you previously chose a custom one. For an existing installation, finish active jobs and use the new bundle's launcher:
 
 ```bash
-"$AJR_BUNDLE/relay" plugin update --root "$AJR_INSTALL_ROOT" --from "$AJR_BUNDLE" --dry-run
-"$AJR_BUNDLE/relay" daemon stop --install-root "$AJR_INSTALL_ROOT"
-"$AJR_BUNDLE/relay" plugin update --root "$AJR_INSTALL_ROOT" --from "$AJR_BUNDLE" --apply
+"$AJR_BUNDLE/relay" plugin install --root "$AJR_INSTALL_ROOT" --from "$AJR_BUNDLE" --dry-run
+"$AJR_BUNDLE/relay" plugin install --root "$AJR_INSTALL_ROOT" --from "$AJR_BUNDLE" --apply
 ```
 
-Expected: preview reports the intended original installation/state; apply preserves that state and history, reports any backup, and installs the new bundle's version. Use the new launcher even if the old installation predates `plugin update`. An active-job/ownership error is a stop-and-diagnose result, not a reason to choose a fresh state directory.
+Expected: preview reports the intended original installation/state; apply preserves that state and history, reports any backup, and installs the new bundle's version. Use the new launcher; apply automatically restarts a previously online daemon from the updated installation, while an offline profile stays offline. An active-job/ownership error is a stop-and-diagnose result, not a reason to choose a fresh state directory.
 
 For a first installation only, replace the update sequence with:
 
 ```bash
-"$AJR_BUNDLE/relay" plugin bootstrap --root "$AJR_INSTALL_ROOT" --dry-run
-"$AJR_BUNDLE/relay" plugin bootstrap --root "$AJR_INSTALL_ROOT" --apply
+"$AJR_BUNDLE/relay" plugin install --root "$AJR_INSTALL_ROOT" --dry-run
+"$AJR_BUNDLE/relay" plugin install --root "$AJR_INSTALL_ROOT" --apply
 ```
 
 Then check:
@@ -38,7 +37,7 @@ Then check:
 "$AJR_INSTALL_ROOT/relay" doctor --client plugin --check-mcp
 ```
 
-Expected: version matches the bundle, owned marketplace entry matches, and `stdio_self_check.status=passed` with 25 tools for current source (22 for published 0.1.11). `daemon=stopped` is normal before a submission; the check must not start a workload. This result establishes local installation/configuration/stdio only. For a source build, follow the [local installation walkthrough](source-install.md) ([简体中文](source-install.zh-CN.md)) first.
+Expected: version matches the bundle, owned marketplace entry matches, and `stdio_self_check.status=passed` with 25 tools for the current version. `daemon=stopped` is normal before a submission; the check must not start a workload. This result establishes local installation/configuration/stdio only. For a source build, follow the [local installation walkthrough](source-install.md) ([简体中文](source-install.zh-CN.md)) first.
 
 ## 2. Refresh the plugin in ChatGPT Desktop
 
@@ -77,7 +76,7 @@ After a submission has started the daemon, inspect a known pre-upgrade job if on
 
 ```bash
 "$AJR_INSTALL_ROOT/relay" plugin status
-"$AJR_INSTALL_ROOT/relay" plugin update --from "$AJR_BUNDLE" --dry-run
+"$AJR_INSTALL_ROOT/relay" plugin install --from "$AJR_BUNDLE" --dry-run
 ```
 
 Expected: the original state path is retained; the same unmodified bundle reports `install.changed=false`. This preview does not stop the runtime, alter configuration or resubmit work.
@@ -87,7 +86,7 @@ Expected: the original state path is retained; the same unmodified bundle report
 | Item | Passing evidence |
 |---|---|
 | Runtime installation/update | Bundle version and original state/profile retained |
-| Local MCP | Owned configuration match and 20-tool stdio self-check |
+| Local MCP | Owned configuration match and 25-tool stdio self-check |
 | Host UI | Plugin visibly discovered and installed/refreshed |
 | Host MCP connection | Actual `job_doctor` tool response |
 | Submission | Actual MCP `job_start` with fresh current-chat binding |
@@ -115,15 +114,15 @@ This checks the new local file-management workflow without writing personal sett
 ```bash
 mkdir -p .tmp
 AJR_CHECK="$(mktemp -d "$PWD/.tmp/manual-plugin.XXXXXX")"
-"$AJR_BUNDLE/relay" --state-dir "$AJR_CHECK/state" plugin bootstrap --root "$AJR_CHECK/plugin" --config "$AJR_CHECK/.agents/plugins/marketplace.json" --dry-run
-"$AJR_BUNDLE/relay" --state-dir "$AJR_CHECK/state" plugin bootstrap --root "$AJR_CHECK/plugin" --config "$AJR_CHECK/.agents/plugins/marketplace.json" --apply
+"$AJR_BUNDLE/relay" --state-dir "$AJR_CHECK/state" plugin install --root "$AJR_CHECK/plugin" --config "$AJR_CHECK/.agents/plugins/marketplace.json" --dry-run
+"$AJR_BUNDLE/relay" --state-dir "$AJR_CHECK/state" plugin install --root "$AJR_CHECK/plugin" --config "$AJR_CHECK/.agents/plugins/marketplace.json" --apply
 "$AJR_CHECK/plugin/relay" doctor --client plugin --config "$AJR_CHECK/.agents/plugins/marketplace.json" --check-mcp
 cp -a "$AJR_CHECK/plugin" "$AJR_CHECK/cache"
 "$AJR_CHECK/plugin/relay" plugin status --cache "$AJR_CHECK/cache"
 "$AJR_CHECK/plugin/relay" plugin cache refresh --path "$AJR_CHECK/cache" --dry-run
 ```
 
-Expected: bootstrap/self-check pass, status points to `$AJR_CHECK/state`, and the fresh cache matches the installation with `changed=false`. No daemon/workload, personal marketplace or real host is involved. To check modified-file protection, change only this disposable cache copy:
+Expected: installation/self-check pass, status points to `$AJR_CHECK/state`, and the fresh cache matches the installation with `changed=false`. No daemon/workload, personal marketplace or real host is involved. To check modified-file protection, change only this disposable cache copy:
 
 ```bash
 printf '\nmanual cache edit\n' >> "$AJR_CHECK/cache/skills/background-jobs/SKILL.md"
@@ -136,10 +135,10 @@ Expected: the last command fails with a modified-file error, leaving your edit a
 
 The two npm packages and GitHub Release are public. Candidate and clean public-registry installation checks pass; a loopback-registry pass alone is not online ChatGPT Desktop UI acceptance. To qualify the latest published runtime and its matching marketplace, use a clean supported Linux ChatGPT Desktop profile:
 
-1. Confirm Node.js 20+/npm and Codex CLI are on PATH. Follow [latest published installation](installation.md#chatgpt-desktop--codex) to resolve npm latest and register its matching Git tag. Restart ChatGPT Desktop and choose the **AgentJobRelay** marketplace. Expected: one AgentJobRelay entry matching the resolved published version, with an explicit experimental Linux/Windows support description.
+1. Confirm Node.js 20+/npm, Codex CLI and Git are on PATH. Follow [latest published installation](installation.md#chatgpt-desktop--codex): install the global CLI, then run `ajr update`. Restart ChatGPT Desktop and choose the **AgentJobRelay** marketplace. Expected: one AgentJobRelay entry matching the resolved published version, with an explicit experimental Linux/Windows support description.
 2. Install/enable it in a new local chat and invoke `job_doctor`. Expected: actual MCP connectivity and the reviewed packaged version; no developer executable path is requested. CLI loader discovery alone is insufficient.
 3. Ask for a harmless short background command and completion in that chat. Expected: a fresh current-terminal binding, one job/run, correct result and correlated completion/continuation. Distinguish admission from observed execution. An unrelated chat must receive nothing.
-4. Inspect the selected persistent profile before and after host refresh/removal. Expected: state stays outside caches and history is retained; no daemon is stopped implicitly. If migrating an offline installation, explicitly review its recorded state rather than accepting a new profile as a repair.
+4. Inspect the selected persistent profile before and after host refresh/removal. Expected: state stays outside caches and history is retained. `ajr uninstall` stops idle daemons by default and refuses active work unless explicitly stopped with `--force`; manual host removal does not stop daemons. If migrating an offline installation, explicitly review its recorded state rather than accepting a new profile as a repair.
 
 Clean public-registry installation is verified separately from online ChatGPT Desktop UI acceptance. Version-specific Linux/Windows live evidence is in [live verification](live-e2e.md); Windows uses Full access. OpenCode real-provider/restart and Claude account-backed checks remain in [host plugins](host-plugins.md).
 

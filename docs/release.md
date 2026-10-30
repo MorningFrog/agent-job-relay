@@ -6,11 +6,11 @@
 
 ## Current release handoff
 
-Source **0.1.14** includes unified online maintenance, task-panel reuse, inspection sampling, runner reliability, concurrent startup handover and scoped-consent fixes. npm/GitHub latest is **0.1.13**. After local delivery gates and the authorized push, require successful CI for that exact revision, then run **Release All** with `dry_run=true`, `channel=latest` and an empty candidate ID. Review its new sealed candidate and publisher preview before a separate publication approval.
+**0.1.14 is published** on npm and GitHub, with both npm latest tags and GitHub latest matching. Its [sealed candidate](https://github.com/MorningFrog/agent-job-relay/actions/runs/41035041323), [Release All](https://github.com/MorningFrog/agent-job-relay/actions/runs/41039827099) and [independent Check Release](https://github.com/MorningFrog/agent-job-relay/actions/runs/41040159441) passed. Preserve those payloads, checksums and acceptance receipts; do not prepare or publish that version again.
 
-The published 0.1.13 candidate is immutable and cannot be repurposed for 0.1.14. Runtime/package/version/CHANGELOG changes do not qualify for the documentation-only `recover_candidate` exception. New Linux/Windows candidate bytes and source identity must be verified together; local developer binaries have a different glibc minimum and must not replace release payloads.
+A future runtime/package change requires a new Cargo version, synchronized pins/CHANGELOG, passing delivery gates and exact-revision CI, then a new reviewed candidate. Documentation-only changes do not replace published payloads. Linux release payloads require glibc 2.34 or newer; local developer builds may require a newer glibc and must not be substituted.
 
-Published 0.1.13 and source 0.1.14 use schema v11; this feature adds no migration. Before upgrading older profiles, finish their jobs and retain their original profiles/backups. `ajr update` requires a released 0.1.14+ global npm CLI; native offline updates keep their existing checked route. See [updates](updating.md).
+Consumer CLI/plugin installation and updates use `ajr update`; native offline and OpenCode routes remain separate. Schema v11 is unchanged since 0.1.12. See [updates](updating.md) and [current support/evidence](IMPLEMENTATION_STATUS.md).
 
 ## Choose an entry point
 

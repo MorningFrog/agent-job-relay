@@ -10,12 +10,14 @@ Use the same launcher and state profile as the affected plugin or task. Keep the
 |---|---|
 | Plugin or MCP tools missing | Refresh/reinstall the selected plugin and reconnect MCP; check [tool connectivity](#plugin-visible-but-tools-missing). |
 | Terminal command missing | Install the [global npm CLI](installation.md#terminal-and-web-ui) and ensure npm's global command directory is on PATH. Plugin installation alone does not register it. |
-| `ajr` missing | The shortcut requires npm runtime 0.1.11 or newer installed globally. Use `agent-job-relay codex <command>`; check [current version status](IMPLEMENTATION_STATUS.md). |
+| `ajr` missing | Install/update the global CLI using the [npm command](updating.md#update-the-terminal-command) and check its command directory on PATH. |
 | `npm E404` / `ETARGET` | Check the selected version, registry and network. Use the latest published runtime and matching release catalog rather than an unpublished source pin. |
-| Web UI reports an older daemon | Use the new runtime; current source replaces older daemons on `ui`. Versions before 0.1.12 require finished jobs and a manual same-profile stop; see [updating](updating.md#before-updating). |
+| Web UI reports an older daemon | Use the new runtime; runtime 0.1.12+ replaces older daemons on `ui`. Versions before 0.1.12 require finished jobs and a manual same-profile stop; see [updating](updating.md#before-updating). |
 | UI no longer authenticates | Reopen `ui` after daemon replacement; its access credential changes. See [Web access](runtime-monitoring.md#open-the-bundled-web-ui). |
 | Windows startup/binding fails | Follow [Windows startup](windows.md#automatic-startup) and [binding permissions](windows.md#current-chat-binding-permissions); use only the reported same-profile fallback. |
-| Update reports an active runtime | Finish jobs and retry the reviewed [update](updating.md); current-source apply restarts an online daemon automatically. With older update executables, stop that same daemon manually first. |
+| Update reports an active runtime | Finish jobs and retry the reviewed [update](updating.md); native apply restarts an online daemon automatically; online updates allow compatible active Linux runners only. With older update executables, stop that same daemon manually first. |
+| `update` is an unknown command | [Update an older global CLI through npm](updating.md#update-the-terminal-command), then retry `ajr update`. |
+| Partial online update/removal | Retry with the original profile/options; preserve the recorded journal. See [online update retry](updating.md#online-update-retry) or [uninstall recovery](uninstalling.md#recover-a-partial-online-uninstall). |
 | Interrupted install/cache replacement | Use the new trusted bundle to inspect and [repair the exact recorded destination](updating.md#compatibility-and-interrupted-operations). |
 | Ownership check refuses changes | Preserve the files and inspect the reported changes/backup. Never remove a parent directory containing foreign content. |
 | History appears missing | Compare explicit state arguments, AJR_STATE_DIR and the launcher's [recorded/default profile](commands.md#choose-the-entry-point-and-profile). |

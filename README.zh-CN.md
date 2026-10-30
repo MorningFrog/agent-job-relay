@@ -17,9 +17,9 @@ Tasks run in the background. Agents pick up when needed.
 |---|---|
 | 持久后台任务 | 运行构建、测试、训练和数据处理，关闭聊天或查看器后仍可继续 |
 | Goal 等待（实验性） | 活动 goal 缺少暂停许可时，仅通过原生确认或 Agent 简短询问一次；持久批准覆盖同一请求的有界轮次，保留原 goal 交接、恢复和删除保护。见[用法及宿主限制](docs/goal-waiting.md) |
-| 批量提交（0.1.12+） | 通过 CLI/MCP 一次提交 1–16 个独立命令，逐项返回结果并支持安全重试，见[使用指南](docs/usage.md#submit-independent-commands-together-0112) |
-| 远程任务（0.1.12+） | 在固定身份的远端运行时启动或附加命令，或观察固定的 GitHub Actions attempt；0.1.13 版本增加作业／步骤状态和 attempt 直达链接，见[配置与边界](docs/remote-execution.md) |
-| 中间反馈（0.1.12+） | 结构化阶段、步数和指标，重复里程碑或阈值告警，以及有界 checker 示例；见[用法与边界](docs/progress.md) |
+| 批量提交 | 通过 CLI/MCP 一次提交 1–16 个独立命令，逐项返回结果并支持安全重试，见[使用指南](docs/usage.md#submit-independent-commands-together-0112) |
+| 远程任务 | 在固定身份的远端运行时启动或附加命令，或观察固定的 GitHub Actions attempt，包含作业／步骤状态和 attempt 直达链接，见[配置与边界](docs/remote-execution.md) |
+| 中间反馈 | 结构化阶段、步数和指标，重复里程碑或阈值告警，以及有界 checker 示例；见[用法与边界](docs/progress.md) |
 | 结果与历史 | 保存有界的 stdout/stderr、退出结果、事件和任务历史 |
 | 绑定会话的通知 | 将结果投递到发起会话，在宿主支持时续接聊天 |
 | 本地任务面板 | 通过 CLI 或随包 Web UI 检查任务、设置输出/静默/时长规则并停止任务 |
@@ -27,77 +27,31 @@ Tasks run in the background. Agents pick up when needed.
 
 **运行时支持 Linux x86_64/glibc 和 Windows x86_64。** ChatGPT Desktop 同聊天续接已在两者上通过实验性私有接口验证，Windows 验证使用 Full access 权限。Codex CLI 和 Claude Code 开发框架提供收件箱，不会自动继续聊天。OpenCode V1 属于实验性支持，实际加载器已配合模拟模型验证。macOS/ARM 运行时暂不支持。能力说明见[功能与支持范围](docs/features.md)，已验证版本见[真实验证记录](docs/live-e2e.md)。
 
-## 安装与更新
+## 安装
 
-在线安装需要 Node.js 20+/npm 和网络。ChatGPT Desktop/Codex 还需要 PATH 中可用的 Codex CLI 和获取目录所需的 Git，Desktop 需要本地执行环境，无需 Rust 编译器。以下命令使用 Bash；另有 [PowerShell 和 Release ZIP 安装方式](docs/installation.md#chatgpt-desktop--codex)。
+在线安装需要 **Node.js 20+/npm**、网络，以及 PATH 中可用的 npm 全局命令目录。ChatGPT Desktop/Codex 还需要 **Codex CLI 和 Git**；Desktop 需要本地执行环境。无需 Rust 编译器，请使用当前用户可写的 npm 安装。[PowerShell 命令及其他安装方式](docs/installation.md)。
 
-更新时保留原数据目录。当前源码会在新版运行入口首次使用时自动接替旧 daemon，本地运行时更新也会自动重启在线 daemon；原生离线替换、不兼容 schema 迁移和 Windows 在线包替换前须完成活动任务；Linux 在线更新可保留兼容 runner。0.1.12 之前的版本仍需手动停止同一数据目录的 daemon，见[更新前的准备](docs/updating.md#before-updating)。
-
-本地／源码插件通过稳定的指引入口和经过校验的 MCP 运行时转发跟随更新。旧入口需[一次迁移和重连](docs/updating.md#cache-inspection-and-refresh)；以后同版本本地更新也会使用当前流程，无需清理插件缓存。
-
-### 统一在线安装与更新（源码 0.1.14）
-
-先安装一次 CLI，并确保 npm 的全局命令目录在 PATH 中：
+### ChatGPT Desktop / Codex
 
 ```bash
 npm install --global --ignore-scripts --registry=https://registry.npmjs.org agent-job-relay-runtime@latest
+ajr update
 ```
 
-0.1.14+ 发布并安装后，首次安装 ChatGPT Desktop/Codex 插件和后续 CLI／插件更新都使用 `ajr update`。`ajr update --dry-run` 可预览，`--cli-only` 仅更新 CLI；新版在线插件要求已安装 CLI。完成后重连或重启宿主，原数据目录和历史保持不变。此命令目前仅在源码中实现，已发布的 0.1.13 仍按下方手动宿主步骤操作，见[统一更新与限制](docs/updating.md#one-command-online-update-0114)。
+这两条命令安装全局 CLI 和匹配的市场／插件。随后重启或重连 Desktop/Codex，在 Plugins 中启用 **AgentJobRelay**，并在本地聊天中选择 `agent-job-relay@agent-job-relay`。先让它调用 `job_doctor` 确认 MCP 连通。预期结果及宿主要求见[安装指南](docs/installation.md#chatgpt-desktop--codex)。
 
-在线卸载使用 `ajr uninstall`：默认停止空闲 daemon，移除插件、未被其他插件使用的 marketplace 和全局 CLI，保留历史、日志及备份。有活动任务时拒绝；`ajr uninstall --force` 先按现有流程停止任务再卸载，`--dry-run` 可预览。`ajr update` 自动接替旧 daemon，Linux 上兼容的活动 runner 保持原 Job/Run 继续执行，不重跑命令；不兼容迁移和 Windows 活动任务仍会阻止包替换。见[卸载说明](docs/uninstalling.md)。
-
-### ChatGPT Desktop
-
-**在线安装：** 注册与最新已发布运行时匹配的 marketplace：
+### 仅使用终端和 Web UI
 
 ```bash
-AJR_VERSION="$(npm view agent-job-relay-runtime@latest version --registry=https://registry.npmjs.org)" &&
-codex plugin marketplace add MorningFrog/agent-job-relay --ref "v$AJR_VERSION"
+npm install --global --ignore-scripts --registry=https://registry.npmjs.org agent-job-relay-runtime@latest
+ajr ui
 ```
 
-重启 ChatGPT Desktop，打开 **Plugins → AgentJobRelay**，安装并启用插件，在新的本地聊天中选择 `agent-job-relay@agent-job-relay`。
+`ajr` 使用在线 ChatGPT/Codex 的数据目录；`ajr opencode` 选择 OpenCode。原生离线安装使用其记录的启动器和数据目录。
 
-**在线更新：** 将 marketplace 注册替换为最新发布的版本标签：
+### OpenCode V1
 
-```bash
-AJR_VERSION="$(npm view agent-job-relay-runtime@latest version --registry=https://registry.npmjs.org)" &&
-codex plugin marketplace remove agent-job-relay &&
-codex plugin marketplace add MorningFrog/agent-job-relay --ref "v$AJR_VERSION"
-```
-
-随后在 Desktop 中刷新或重新安装 AgentJobRelay，并重连 MCP，见[完整在线更新步骤](docs/updating.md#update-the-online-marketplace)。
-
-**本地编译：** [编译并安装本地插件](docs/source-install.zh-CN.md)（[English](docs/source-install.md)）；已有安装按[保留历史的更新步骤](docs/updating.md#unified-install-and-update)操作。
-
-### Codex
-
-**在线安装：** 注册已发布的 marketplace，再安装插件条目：
-
-```bash
-AJR_VERSION="$(npm view agent-job-relay-runtime@latest version --registry=https://registry.npmjs.org)" &&
-codex plugin marketplace add MorningFrog/agent-job-relay --ref "v$AJR_VERSION" &&
-codex plugin add agent-job-relay@agent-job-relay
-```
-
-若已注册匹配的 marketplace，仅运行最后一条命令即可。安装后重启或重连 Codex。
-
-**在线更新：** 查询最新发布版本、替换目录注册，再重新安装插件条目：
-
-```bash
-AJR_VERSION="$(npm view agent-job-relay-runtime@latest version --registry=https://registry.npmjs.org)" &&
-codex plugin marketplace remove agent-job-relay &&
-codex plugin marketplace add MorningFrog/agent-job-relay --ref "v$AJR_VERSION" &&
-codex plugin add agent-job-relay@agent-job-relay
-```
-
-随后重启或重连 Codex。CLI 集成提供工具和收件箱，不会自动继续模型回合，见[完整在线更新步骤](docs/updating.md#update-the-online-marketplace)。
-
-**本地编译：** 按[源码教程](docs/source-install.zh-CN.md)编译安装，并使用其中的[本地 Codex 插件入口](docs/source-install.zh-CN.md#6-在-chatgpt-desktop-中安装并选择正确的插件)；[保留历史的更新](docs/updating.md#unified-install-and-update)继续使用原安装及其记录的数据目录。
-
-### OpenCode
-
-**在线安装（V1）：** 在 `opencode.json` 中添加已发布的插件，保留其他已有条目，然后重启 OpenCode：
+在 `opencode.json` 中添加以下条目，保留其他已有插件，然后重启 OpenCode：
 
 ```json
 {
@@ -105,11 +59,22 @@ codex plugin add agent-job-relay@agent-job-relay
 }
 ```
 
-匹配的原生运行时会自动安装。不要重复启用另一个 `agent_job_relay` MCP 条目。
+插件包含匹配的原生运行时。不要重复启用另一个 `agent_job_relay` MCP 条目。见 [OpenCode 配置与支持边界](docs/installation.md#opencode-v1)。
 
-**在线更新：** 保留 `@latest` 条目，完成活动任务后，按 OpenCode 支持的方式刷新包缓存并重启，见 [OpenCode 更新步骤](docs/updating.md#update-opencode-v1)。V1 属于实验性支持，V2 暂不支持。
+原生本地插件请按[源码教程](docs/source-install.zh-CN.md)（[English](docs/source-install.md)）或[离线包安装步骤](docs/installation.md#quick-install-from-an-offline-bundle)操作。
 
-**本地编译：** 参照 [OpenCode 开发接入](docs/host-plugins.md#opencode-v1-development-setup)及[本地构建和更新说明](docs/host-plugins.md#local-build-and-updates)。该宿主使用独立的插件包和共用原生运行时。
+## 更新或卸载
+
+在线 ChatGPT Desktop/Codex 安装使用以下命令：
+
+| 操作 | 预览 | 执行 |
+|---|---|---|
+| 更新 CLI 和插件 | `ajr update --dry-run` | `ajr update` |
+| 卸载 CLI 和插件 | `ajr uninstall --dry-run` | `ajr uninstall` |
+
+完成后重启或重连宿主。卸载保留历史、日志及备份；有活动任务时拒绝卸载，除非显式使用 `--force` 先停止任务。这些维护命令需要 CLI 0.1.14 或更新版本；[旧版 CLI](docs/updating.md#update-the-terminal-command) 需先运行上方的 npm 安装命令。
+
+按原安装方式维护：[在线及原生更新](docs/updating.md)、[OpenCode 更新](docs/updating.md#update-opencode-v1)、[卸载和配置移除](docs/uninstalling.md)。更新保留原数据目录；原生离线替换、Windows 包替换或不兼容 schema 迁移前，须先完成活动任务。兼容的 Linux runner 可在在线更新期间继续运行。
 
 ## 日常使用
 
@@ -125,27 +90,22 @@ codex plugin add agent-job-relay@agent-job-relay
 
 > 打开 AgentJobRelay 的任务面板，让我查看正在运行的任务。
 
-插件可以打开随包 Web UI；新版在线安装要求全局 CLI，原生离线插件使用其自带启动器。当前源码流程会自动将已接受的后台任务显示在聊天旁，并在宿主支持内嵌标签页发现和导航时，为同一聊天及配置复用一个面板；面板支持窄侧栏布局，展开时导航按钮保持原位，并提供悬停与焦点反馈。MCP 提交和同聊天通知恢复见[使用指南](docs/usage.md)，持久规则与停止任务见[监控和 Web UI](docs/runtime-monitoring.md)。
-
-当前源码的查看器共享最多一秒内的任务采样和最多十秒内的运行时健康信息。显式检查、诊断和控制请求直接读取运行时。
+宿主支持时，插件会在聊天旁打开随包任务面板。MCP 提交和同聊天通知恢复见[使用指南](docs/usage.md)，持久规则与停止任务见[监控和 Web UI](docs/runtime-monitoring.md)。
 
 ### 命令行与 Web UI
 
 安装 CLI 后，使用在线 ChatGPT/Codex 插件的数据目录打开面板或提交任务：
 
 ```bash
-npm install --global --ignore-scripts --registry=https://registry.npmjs.org agent-job-relay-runtime@latest
-agent-job-relay codex ui
-agent-job-relay codex start --timeout 60 -- cargo check
-agent-job-relay codex list
-agent-job-relay codex inspect <job-id>
+ajr ui
+ajr start --timeout 60 -- cargo check
+ajr list
+ajr inspect <job-id>
 ```
 
-最后一条命令使用提交后返回的任务 ID；首次提交会自动启动 daemon。OpenCode 使用 `agent-job-relay opencode`，原生离线安装使用其记录的启动器及数据目录。npm 0.1.11 及以上版本也提供 `ajr` 短命令，具体见[命令参考](docs/commands.md)和 [CLI 更新步骤](docs/updating.md#update-the-terminal-command)。
+最后一条命令使用提交后返回的任务 ID；首次提交会自动启动 daemon。OpenCode 使用 `ajr opencode`，原生离线安装使用其记录的启动器及数据目录，具体见[命令参考](docs/commands.md)。
 
 命令以当前用户的系统权限执行。任务完成、宿主接收（`accepted_by_host`）和实际观察到 Agent 继续执行是三项独立结果。卸载默认保留任务历史和日志，具体见[卸载指南](docs/uninstalling.md)及[故障排查](docs/troubleshooting.md)。
-
-当前源码会明确报告日志写入、刷新及同步失败。如果数据库无法提交结果，恢复时保留原 Job/Run 并报告结果未知，不会重新执行命令；见[执行边界](docs/limitations.md#execution-lifetime-and-containment)。
 
 ## 按需要查找文档
 

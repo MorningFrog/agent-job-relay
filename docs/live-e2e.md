@@ -12,7 +12,7 @@ Use [published installation](installation.md#quick-install-the-latest-release) o
 
 ## Windows native runtime and MCP
 
-The sealed 0.1.12 baseline passes GitHub Windows MSVC gates with 69 tests, frontend/static-CRT build and schema v11 storage/progress checks. Subsequent Actions detail changes are verified on Linux only. Earlier Windows 11 VM external-task verification under SYSTEM and ordinary-user monitor/Web/maintenance acceptance remain applicable to their baselines; Windows goal/controller and native confirmation UI still require separate host evidence.
+Published 0.1.14 passes GitHub Windows MSVC gates, frontend/static-CRT build and installed-package/loader checks. These automated gates do not qualify Windows self-update/self-removal with held images, browser interaction or goal/controller behavior. Earlier Windows 11 VM external-task verification under SYSTEM and ordinary-user monitor/Web/maintenance acceptance remain applicable to their baselines; Windows goal/controller and native confirmation UI still require separate host evidence.
 
 Installed v0.1.8 with actual Codex 0.164.0 and `gpt-6.1-sol`/`low` passes cold-profile MCP submission under SYSTEM and an ordinary interactive user: no prestarted daemon, one completed native Job/Run, expected output and doctor reporting `windows_cim`. Installed npm/package/loader checks use isolated registries/profiles and a simulated OpenCode model; they remain separate from real provider/host acceptance.
 
@@ -22,7 +22,7 @@ The user verified v0.1.8 with official Desktop 26.1021.3705.0, bundled Codex 0.1
 
 ## Distribution
 
-npm/GitHub 0.1.13 is public and both npm latest tags resolve to it. Its [Release All](https://github.com/MorningFrog/agent-job-relay/actions/runs/40995903301) and [independent Check Release](https://github.com/MorningFrog/agent-job-relay/actions/runs/40996179053) passed, including public-byte/channel/clean-install/GitHub verification. Source 0.1.14 requires its own revision CI, candidate and publisher preview. See [implementation status](IMPLEMENTATION_STATUS.md) and [release preparation](release.md). No official-directory submission occurred.
+npm/GitHub 0.1.14 is public and both npm latest tags resolve to it, rechecked on 2026-10-30. Its [Release All](https://github.com/MorningFrog/agent-job-relay/actions/runs/41039827099) and [independent Check Release](https://github.com/MorningFrog/agent-job-relay/actions/runs/41040159441) passed, including public-byte/channel/clean-install/GitHub verification. See [implementation status](IMPLEMENTATION_STATUS.md) and [release preparation](release.md). No official-directory submission occurred.
 
 The local 0.1.14 npm check performs actual staged-tarball replacement in an isolated global prefix while the original Linux runner continues with one workload launch and unchanged Job/Run. It verifies daemon-only upgrades with current package files, partial-update recovery, active-task uninstall refusal and forced self-removal with retained history. Host mutations in that check use a public-CLI model. A separate actual Codex loader verifies packaged tool discovery, missing-CLI refusal and public removal of the exact plugin/cache. This does not qualify Windows self-update/self-removal or actual Desktop refresh/reconnection.
 

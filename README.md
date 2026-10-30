@@ -17,9 +17,9 @@ Run long commands independently of the Agent connection, keep their results, and
 |---|---|
 | Durable background jobs | Builds, tests, training and data processing that continue after a chat or viewer closes |
 | Goal waiting (experimental) | One short native or Agent question when pause permission is missing; durable approval covers this request’s bounded rounds. Original-goal handoff, restoration and deletion safeguards remain. [Usage and host limits](docs/goal-waiting.md) |
-| Batch submission (0.1.12+) | Submit 1–16 independent commands through CLI/MCP, with per-item results and safe retries; [usage](docs/usage.md#submit-independent-commands-together-0112) |
-| Remote tasks (0.1.12+) | Launch/attach on a pinned remote runtime or observe a fixed GitHub Actions attempt. Version 0.1.13 adds job/step status and an attempt link; [setup and boundaries](docs/remote-execution.md) |
-| Mid-run feedback (0.1.12+) | Structured stages/steps/metrics, repeated milestone or threshold alerts and a bounded checker recipe; [usage and limits](docs/progress.md) |
+| Batch submission | Submit 1–16 independent commands through CLI/MCP, with per-item results and safe retries; [usage](docs/usage.md#submit-independent-commands-together-0112) |
+| Remote tasks | Launch/attach on a pinned remote runtime or observe a fixed GitHub Actions attempt, including job/step status and an attempt link; [setup and boundaries](docs/remote-execution.md) |
+| Mid-run feedback | Structured stages/steps/metrics, repeated milestone or threshold alerts and a bounded checker recipe; [usage and limits](docs/progress.md) |
 | Results and history | Bounded stdout/stderr, exit outcomes, events and retained task history |
 | Session-bound notifications | Deliver results to the initiating session; resume the chat when supported by its host |
 | Local task manager | Inspect tasks, configure persistent output/silence/elapsed rules and stop work through CLI or the bundled Web UI |
@@ -27,77 +27,31 @@ Run long commands independently of the Agent connection, keep their results, and
 
 **Runtime: Linux x86_64/glibc and Windows x86_64.** ChatGPT Desktop same-chat continuation is verified on both through an experimental private interface; Windows verification uses Full access. Codex CLI and the Claude Code scaffold provide an inbox without automatic continuation. OpenCode V1 is experimental and has actual-loader checks with a simulated model. macOS/ARM runtime is unsupported. See [features and support](docs/features.md) for capabilities and [live evidence](docs/live-e2e.md) for verified versions.
 
-## Installation and updates
+## Install
 
-Online installation needs Node.js 20+/npm and network access. ChatGPT Desktop/Codex also needs Codex CLI on PATH and Git for catalog fetching; Desktop requires a local executor. No Rust compiler is needed. Commands below use Bash; [PowerShell and Release ZIP alternatives](docs/installation.md#chatgpt-desktop--codex) are available.
+Online installation needs **Node.js 20+/npm**, network access and npm's global command directory on PATH. ChatGPT Desktop/Codex also needs **Codex CLI and Git**; Desktop needs a local executor. No Rust compiler is needed. Use a user-writable npm installation. [PowerShell commands and other installation routes](docs/installation.md).
 
-Retain the original profile when updating. Current source automatically replaces an older daemon on first runtime use and restarts an online daemon after a local runtime update; finish active jobs before native offline replacement, incompatible schema migration or Windows online package replacement. Compatible Linux runners can continue during online updates. Versions before 0.1.12 require a manual same-profile stop. See [upgrade preparation](docs/updating.md#before-updating).
-
-Native/source plugins use stable instruction entries and verified current-runtime MCP forwarding. Historical entries need [one migration and reconnection](docs/updating.md#cache-inspection-and-refresh); later same-version native updates follow the current workflow without clearing plugin caches.
-
-### Unified online installation/update (source 0.1.14)
-
-Install the CLI once, with npm's global command directory on PATH:
+### ChatGPT Desktop / Codex
 
 ```bash
 npm install --global --ignore-scripts --registry=https://registry.npmjs.org agent-job-relay-runtime@latest
+ajr update
 ```
 
-After 0.1.14+ is published and installed, run `ajr update` for both initial ChatGPT Desktop/Codex plugin installation and later CLI/plugin updates. `ajr update --dry-run` previews changes; `--cli-only` leaves the plugin untouched. New online plugin entries require the installed CLI. Reconnect/restart the host afterward; data/history stay in their original profiles. This command is currently source-only: published 0.1.13 still uses the manual host steps below. See [unified updates and limits](docs/updating.md#one-command-online-update-0114).
+This installs the global CLI and matching marketplace/plugin. Restart or reconnect Desktop/Codex, enable **AgentJobRelay** in Plugins and select `agent-job-relay@agent-job-relay` in a local chat. Ask it to call `job_doctor` to check MCP connectivity. See [installation](docs/installation.md#chatgpt-desktop--codex) for expected results and host requirements.
 
-Use `ajr uninstall` for online removal: stop idle daemons, remove the plugin, its unshared marketplace and the global CLI, and retain history/logs/backups. Active tasks block removal; `ajr uninstall --force` stops them through the existing control path first. Use `--dry-run` to preview. `ajr update` automatically replaces older daemons; compatible active Linux runners continue under their original Job/Run without replay. Incompatible migration and active Windows package replacement remain blocked. See [uninstallation](docs/uninstalling.md).
-
-### ChatGPT Desktop
-
-**Online installation:** register the marketplace matching the latest published runtime:
+### Terminal and Web UI only
 
 ```bash
-AJR_VERSION="$(npm view agent-job-relay-runtime@latest version --registry=https://registry.npmjs.org)" &&
-codex plugin marketplace add MorningFrog/agent-job-relay --ref "v$AJR_VERSION"
+npm install --global --ignore-scripts --registry=https://registry.npmjs.org agent-job-relay-runtime@latest
+ajr ui
 ```
 
-Restart ChatGPT Desktop, open **Plugins → AgentJobRelay**, install/enable the plugin, and select `agent-job-relay@agent-job-relay` in a new local chat.
+`ajr` uses the online ChatGPT/Codex profile; `ajr opencode` selects OpenCode. Native offline installations use their recorded launcher and profile.
 
-**Online update:** replace the marketplace registration with the latest released tag:
+### OpenCode V1
 
-```bash
-AJR_VERSION="$(npm view agent-job-relay-runtime@latest version --registry=https://registry.npmjs.org)" &&
-codex plugin marketplace remove agent-job-relay &&
-codex plugin marketplace add MorningFrog/agent-job-relay --ref "v$AJR_VERSION"
-```
-
-Refresh/reinstall AgentJobRelay in Desktop and reconnect MCP. [Complete online update procedure](docs/updating.md#update-the-online-marketplace).
-
-**Local compilation:** [build and install the local plugin](docs/source-install.md) ([简体中文](docs/source-install.zh-CN.md)); [update it while preserving history](docs/updating.md#unified-install-and-update).
-
-### Codex
-
-**Online installation:** register the released marketplace and install its plugin entry:
-
-```bash
-AJR_VERSION="$(npm view agent-job-relay-runtime@latest version --registry=https://registry.npmjs.org)" &&
-codex plugin marketplace add MorningFrog/agent-job-relay --ref "v$AJR_VERSION" &&
-codex plugin add agent-job-relay@agent-job-relay
-```
-
-If the matching marketplace is already registered, run only the last command. Restart/reconnect Codex after installation.
-
-**Online update:** resolve the latest release, replace the catalog registration and reinstall the entry:
-
-```bash
-AJR_VERSION="$(npm view agent-job-relay-runtime@latest version --registry=https://registry.npmjs.org)" &&
-codex plugin marketplace remove agent-job-relay &&
-codex plugin marketplace add MorningFrog/agent-job-relay --ref "v$AJR_VERSION" &&
-codex plugin add agent-job-relay@agent-job-relay
-```
-
-Restart/reconnect Codex afterward. CLI integration provides tools and an inbox without automatic model continuation. [Complete online update procedure](docs/updating.md#update-the-online-marketplace).
-
-**Local compilation:** [build/install the native plugin](docs/source-install.md) and use its [local Codex plugin entry](docs/source-install.md#6-install-and-select-the-correct-plugin-in-chatgpt-desktop); [preserve-history updates](docs/updating.md#unified-install-and-update) use the same recorded installation.
-
-### OpenCode
-
-**Online installation (V1):** add the published plugin to `opencode.json`, preserving any other entries, then restart OpenCode:
+Add this entry to `opencode.json`, preserving existing plugins, then restart OpenCode:
 
 ```json
 {
@@ -105,11 +59,22 @@ Restart/reconnect Codex afterward. CLI integration provides tools and an inbox w
 }
 ```
 
-Its matching native runtime is installed automatically. Do not enable a second `agent_job_relay` MCP entry.
+The matching native runtime is included. Do not enable a second `agent_job_relay` MCP entry. [OpenCode setup and support limits](docs/installation.md#opencode-v1).
 
-**Online update:** keep the `@latest` entry, refresh the package cache using OpenCode's supported mechanism and restart after finishing jobs. See [OpenCode updates](docs/updating.md#update-opencode-v1). V1 is experimental; V2 is unsupported.
+For a native local plugin, follow the [source walkthrough](docs/source-install.md) ([简体中文](docs/source-install.zh-CN.md)) or [offline bundle steps](docs/installation.md#quick-install-from-an-offline-bundle).
 
-**Local compilation:** follow [OpenCode development setup](docs/host-plugins.md#opencode-v1-development-setup) and [local build/update instructions](docs/host-plugins.md#local-build-and-updates). This host uses its own plugin package with the shared native runtime.
+## Update or uninstall
+
+For the online ChatGPT Desktop/Codex installation:
+
+| Task | Preview | Apply |
+|---|---|---|
+| Update CLI and plugin | `ajr update --dry-run` | `ajr update` |
+| Remove CLI and plugin | `ajr uninstall --dry-run` | `ajr uninstall` |
+
+Restart or reconnect the host afterward. Uninstall retains history, logs and backups; active tasks block removal unless you explicitly use `--force` to stop them first. These maintenance commands require CLI 0.1.14 or newer; [older CLIs](docs/updating.md#update-the-terminal-command) first need the npm installation command above.
+
+Use the route matching your installation: [online and native updates](docs/updating.md), [OpenCode updates](docs/updating.md#update-opencode-v1), [uninstallation and configuration removal](docs/uninstalling.md). Updates keep the original profile; finish jobs before native offline/Windows package replacement or incompatible schema migration. Compatible Linux runners can continue during online updates.
 
 ## Everyday use
 
@@ -125,27 +90,22 @@ You can also ask:
 
 > Open AgentJobRelay's task manager so I can inspect the running tasks.
 
-The plugin can open the bundled Web UI; new online installations require the global CLI, while native offline plugins use their own launcher. The current source workflow automatically shows an accepted background task beside the chat and reuses one panel for that chat/profile when the host supports embedded-tab discovery and navigation; the panel supports narrow sidebars with stable navigation targets during expansion and hover/focus feedback. Follow [daily usage](docs/usage.md) for MCP submission and same-chat recovery, or [monitoring and Web UI](docs/runtime-monitoring.md) for persistent rules and stopping.
-
-Current-source viewers share task samples for up to one second and runtime health for up to ten seconds. Explicit inspection, diagnosis and control requests read the runtime directly.
+The plugin opens the bundled task manager beside the chat when the host supports it. Follow [daily usage](docs/usage.md) for MCP submission and same-chat recovery, or [monitoring and Web UI](docs/runtime-monitoring.md) for persistent rules and stopping.
 
 ### Command line and Web UI
 
 With the CLI installed, open the task manager or submit work using the online ChatGPT/Codex profile:
 
 ```bash
-npm install --global --ignore-scripts --registry=https://registry.npmjs.org agent-job-relay-runtime@latest
-agent-job-relay codex ui
-agent-job-relay codex start --timeout 60 -- cargo check
-agent-job-relay codex list
-agent-job-relay codex inspect <job-id>
+ajr ui
+ajr start --timeout 60 -- cargo check
+ajr list
+ajr inspect <job-id>
 ```
 
-Use the returned job ID in the last command; the first submission starts the daemon automatically. OpenCode uses `agent-job-relay opencode`; native offline installations use their recorded launcher/profile. npm 0.1.11 and newer also register the `ajr` shortcut. See [command reference](docs/commands.md) and [CLI updates](docs/updating.md#update-the-terminal-command).
+Use the returned job ID in the last command; the first submission starts the daemon automatically. OpenCode uses `ajr opencode`; native offline installations use their recorded launcher/profile. See the [command reference](docs/commands.md).
 
 Commands run with your OS permissions. Job completion, host acknowledgement (`accepted_by_host`) and observed Agent continuation are separate results. Removal retains task history and logs; see [uninstallation](docs/uninstalling.md) and [troubleshooting](docs/troubleshooting.md).
-
-Current source reports log write/flush/sync failures explicitly. If the database cannot commit a result, recovery preserves the original job/run as unknown rather than replaying its command; see [execution limits](docs/limitations.md#execution-lifetime-and-containment).
 
 ## Find documentation
 

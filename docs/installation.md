@@ -6,8 +6,8 @@ Install the latest published npm packages and matching [GitHub Release](https://
 
 | Installation route | Start here |
 |---|---|
-| Published global CLI and task manager | [Terminal and Web UI](#terminal-and-web-ui) |
 | Published ChatGPT Desktop/Codex plugin | [Marketplace installation](#chatgpt-desktop--codex) |
+| Published global CLI and task manager | [Terminal and Web UI](#terminal-and-web-ui) |
 | Published OpenCode V1 plugin | [OpenCode V1](#opencode-v1) |
 | Native offline bundle | [Local plugin installation](#quick-install-from-an-offline-bundle) |
 | Build locally or configure standalone MCP | [Alternative routes](#alternative-installation-routes) |
@@ -16,63 +16,52 @@ Already installed? Follow [updating and repair](updating.md) or [uninstallation]
 
 ## Quick install the latest release
 
-### Terminal and Web UI
-
-Use npm's standard global command registration:
-
-```bash
-npm install --global --ignore-scripts --registry=https://registry.npmjs.org agent-job-relay-runtime@latest
-agent-job-relay codex ui
-```
-
-Expected: npm registers `agent-job-relay`; `ui` opens the embedded task manager for the online ChatGPT/Codex profile. No shell function, source checkout or separate frontend installation is needed. Node.js 20+/npm and npm's global command directory must be on PATH; use a user-writable npm installation. In PowerShell, use `npm.cmd` and `agent-job-relay.cmd` if script policy blocks npm's `.ps1` wrappers.
-
-npm 0.1.11 and newer also register `ajr`. With that version installed:
-
-```bash
-ajr list
-ajr start --shell 'echo hello'
-ajr ui
-```
-
-`ajr` defaults to the same `codex` profile as the online plugin; `ajr opencode <command>` selects OpenCode. `AJR_STATE_DIR` overrides the host default, and explicit `--state-dir` takes priority. The full command retains its existing default: use `agent-job-relay codex <command>` to select the plugin profile. A previous offline installation keeps its own recorded profile; use its installed launcher rather than assuming `ajr` selects it. Beginning with source 0.1.14, the online ChatGPT/Codex plugin requires the global CLI and supports unified installation/update. The host does not install global commands itself. Offline native bundles keep their recorded launcher and need no global npm CLI.
-
 ### ChatGPT Desktop / Codex
 
-Install the global CLI once using the npm command above; keep npm's command directory on PATH along with Codex CLI and Git. Source 0.1.14 requires this CLI for online plugin entries and adds:
-
-```bash
-ajr update
-```
-
-Expected with a released 0.1.14+ CLI: register/install the matching online marketplace and plugin in one operation; subsequent updates use the same command. Restart/reconnect the host, then select the plugin in a local chat. Use `ajr update --dry-run` to preview and `ajr.cmd` in PowerShell. No automatic host installation hook is assumed. The current published 0.1.13 CLI does not yet include this command; until 0.1.14 is released, use the manual registration below after installing the CLI.
-
-Use a ChatGPT Desktop local executor. Query npm's latest runtime and register its matching GitHub release tag, so installation follows published versions rather than development main. Without Git, use the [Release ZIP](#install-from-a-github-release-zip).
+Requires Node.js 20+/npm, Codex CLI and Git on PATH. Use a user-writable npm installation; Desktop also needs a local executor.
 
 Bash:
 
 ```bash
-AJR_VERSION="$(npm view agent-job-relay-runtime@latest version --registry=https://registry.npmjs.org)" &&
-codex plugin marketplace add MorningFrog/agent-job-relay --ref "v$AJR_VERSION"
+npm install --global --ignore-scripts --registry=https://registry.npmjs.org agent-job-relay-runtime@latest
+ajr update
 ```
 
 PowerShell with npm-installed CLIs:
 
 ```powershell
-$AjrVersion = npm.cmd view agent-job-relay-runtime@latest version --registry=https://registry.npmjs.org
-if ($LASTEXITCODE -ne 0) { throw "Could not resolve the latest published runtime" }
-codex.cmd plugin marketplace add MorningFrog/agent-job-relay --ref "v$($AjrVersion.Trim())"
+npm.cmd install --global --ignore-scripts --registry=https://registry.npmjs.org agent-job-relay-runtime@latest
+if ($LASTEXITCODE -ne 0) { throw "CLI installation failed" }
+ajr.cmd update
+if ($LASTEXITCODE -ne 0) { throw "Plugin installation failed" }
 ```
 
-Expected: Codex reports the AgentJobRelay marketplace registration at the selected release tag. Stop if version lookup or registration fails. An already registered source with a different tag needs the [online update steps](updating.md#update-the-online-marketplace). If Codex was installed as a standalone executable, use that installed executable instead of `codex.cmd`.
+Expected: npm registers `ajr` and `agent-job-relay`; `ajr update` installs the matching released marketplace and `agent-job-relay@agent-job-relay` plugin. It also serves as the [later update command](updating.md#one-command-online-update-0114). Use `ajr update --dry-run` for a preview. Unified maintenance requires CLI 0.1.14 or newer; the npm command installs the latest release. Existing local/ZIP/modified marketplaces use their original route and are preserved, not replaced by the online updater.
 
-Restart ChatGPT Desktop, open **Plugins**, select the **AgentJobRelay** marketplace, install/enable **AgentJobRelay**, then select `agent-job-relay@agent-job-relay` in a new local chat. Codex CLI users can install the catalog entry with `codex plugin add agent-job-relay@agent-job-relay`; CLI tools/inbox do not imply automatic CLI model continuation.
+1. Restart or reconnect ChatGPT Desktop/Codex.
+2. In Desktop, open **Plugins**, enable **AgentJobRelay** and select `agent-job-relay@agent-job-relay` in a local chat. UI availability depends on the host/account.
+3. Ask the selected plugin to call `job_doctor` without submitting a task. Expected: the actual MCP call succeeds; an initially unbound chat is normal in shared-host mode.
+4. Try a harmless background command using [manual acceptance](manual-testing.md). Tool connectivity, host acceptance and observed same-chat continuation are separate results; Codex CLI provides tools/inbox without automatic model continuation.
 
-Ask the selected plugin to call `job_doctor` without submitting a task. Expected: an actual MCP call succeeds. Shared-host mode can report no bound chat before the first terminal binding; that is normal. Then submit a harmless background command and verify its matching result using [manual acceptance](manual-testing.md). Marketplace discovery, tool connectivity and observed same-chat continuation remain separate checks.
+The host does not install global commands automatically. Keep npm's global command directory on PATH. In PowerShell, `.cmd` wrappers avoid script-policy restrictions; a standalone Codex executable can be used in place of `codex.cmd` for manual host commands.
+
+### Terminal and Web UI
+
+For CLI/UI use without a host plugin:
+
+```bash
+npm install --global --ignore-scripts --registry=https://registry.npmjs.org agent-job-relay-runtime@latest
+ajr --version
+ajr ui
+```
+
+Expected: the CLI prints the installed version and opens the bundled task manager. No source checkout or separate frontend installation is needed. In PowerShell, use `npm.cmd` and `ajr.cmd` if needed.
+
+`ajr` defaults to the online `codex` profile; `ajr opencode <command>` selects OpenCode. The full command uses `agent-job-relay codex <command>` for the same profile. Native offline installations use their recorded launcher/profile. See [profiles](#profiles-and-existing-installations) before selecting existing data.
 
 ### OpenCode V1
 
-Add the latest published plugin to `opencode.json` and restart OpenCode:
+Add the published plugin to `opencode.json`, preserving any existing plugin entries:
 
 ```json
 {
@@ -80,31 +69,32 @@ Add the latest published plugin to `opencode.json` and restart OpenCode:
 }
 ```
 
-Expected: the host loads the plugin and its exact matching native runtime dependency. Do not enable another `agent_job_relay` MCP entry alongside it. For later maintenance, follow [OpenCode updates](updating.md#update-opencode-v1). OpenCode V1 is experimental; real-provider/V2/restart-recovery evidence is separate from simulated-model loader checks.
+Restart OpenCode. Expected: the host loads the plugin and its exact matching native runtime dependency. Do not enable another `agent_job_relay` MCP entry alongside it. `ajr update` does not manage this host package; use [OpenCode updates](updating.md#update-opencode-v1). V1 is experimental; real-provider/V2/restart-recovery evidence remains separate from simulated-model loader checks.
 
 ### Install from a GitHub Release ZIP
 
-If using a downloaded marketplace instead of a Git fetch, open [the latest GitHub Release](https://github.com/MorningFrog/agent-job-relay/releases/latest), download its `agent-job-relay-marketplace-*.zip` and `SHA256SUMS`, verify the ZIP's SHA-256, and extract it to a stable directory. Register that directory:
+Use this alternative when Git is unavailable. Install the global CLI using the npm command above, then download `agent-job-relay-marketplace-*.zip` and `SHA256SUMS` from [the latest GitHub Release](https://github.com/MorningFrog/agent-job-relay/releases/latest). Verify the ZIP's SHA-256 and extract it to a stable directory. Register the directory containing `.agents/plugins/marketplace.json`:
 
 ```bash
 codex plugin marketplace add <absolute-extracted-marketplace-directory>
+codex plugin add agent-job-relay@agent-job-relay
 ```
 
-Use the directory containing `.agents/plugins/marketplace.json`, then follow the host installation/enablement steps above. Keep this directory for future marketplace refreshes. The marketplace ZIP uses npm on first invocation; new 0.1.14+ entries also require the global CLI. It is not a native offline bundle. Each npm runtime tarball in the same Release includes its native executables; no recipient Rust build or secondary binary downloader is needed.
+Expected: the host installs the plugin from that local marketplace. Restart/reconnect and verify `job_doctor` as above. Keep the extracted directory for [later ZIP updates](updating.md#update-a-release-zip-marketplace); `ajr update` does not replace a local marketplace. This online catalog uses npm/network on first invocation and requires the global CLI; it is distinct from the native offline bundle below.
 
-### Check the npm runtime
-
-For a standalone version/integrity smoke check without starting a task:
+### Check the npm runtime without installing globally
 
 ```bash
 npx --yes --ignore-scripts --registry=https://registry.npmjs.org --package=agent-job-relay-runtime@latest agent-job-relay --version
 ```
 
-Expected: the latest published runtime version is printed. The host plugin's installed snapshot pins its corresponding runtime version; this check does not upgrade that snapshot.
+Expected: the latest published runtime version is printed without starting a task. This does not install the host plugin or satisfy its global CLI prerequisite.
 
 ## Profiles and existing installations
 
-The new persistent host profiles are `$XDG_STATE_HOME/agent-job-relay/codex` and `.../opencode`, falling back to `$HOME/.local/state/...`; Windows uses `%LOCALAPPDATA%\AgentJobRelay\profiles\<host>`. AJR_STATE_DIR may explicitly select a reviewed existing profile. They live outside npm/host caches and do not migrate old offline history automatically. Do not enable old and new MCP integrations together or switch profiles to hide a failure. Finish jobs before native offline/Windows package replacement or incompatible schema migration; compatible Linux runners can continue through `ajr update`. Current source replaces older daemons on new runtime use and restarts online daemons during applied local updates; versions before 0.1.12 still require a manual same-profile stop. Online `ajr uninstall` preserves data, stops idle daemons by default and rejects active tasks unless `--force` stops them first. Native/manual removal retains its separate stop procedure.
+Persistent online profiles use `$XDG_STATE_HOME/agent-job-relay/codex` and `.../opencode`, falling back to `$HOME/.local/state/...`; Windows uses `%LOCALAPPDATA%\AgentJobRelay\profiles\<host>`. They stay outside npm/host caches. `--state-dir` takes priority over AJR_STATE_DIR and the default. Native offline installations retain their recorded profiles; online installation does not migrate that history automatically.
+
+Keep the same launcher/profile for installation checks and later maintenance. Do not enable duplicate MCP integrations or switch data directories to hide a failure. See [update requirements](updating.md#before-updating) for active-job and schema boundaries, and [uninstallation](uninstalling.md) for daemon shutdown and retained data.
 
 ## Quick install from an offline bundle
 
@@ -115,7 +105,7 @@ Open a terminal in the received bundle directory:
 ./relay plugin install --apply
 ```
 
-Current bundles use `plugin install`; older bundles retain the compatible `plugin bootstrap --dry-run` / `--apply` entry. The preview shows the native installation and local marketplace entry. Apply installs the runtime and registers that entry. It preserves other marketplace entries and refuses modified or unowned content. The bundle directory can be moved before installation and is no longer needed afterward.
+The preview shows the native installation and local marketplace entry. Apply installs the runtime and registers that entry. It preserves other marketplace entries and refuses modified or unowned content. The bundle directory can be moved before installation and is no longer needed afterward.
 
 Restart ChatGPT Desktop, open Plugins, select the local marketplace and install/enable AgentJobRelay. A new marketplace is named `agent-job-relay-local`, displayed as **AgentJobRelay Local**; an existing one retains its name/label. Open a new local chat and select `agent-job-relay@agent-job-relay-local` (substitute an existing catalog's name when different). The repository catalog's `agent-job-relay@agent-job-relay` entry uses the published npm runtime and a separate profile; selecting it does not test this native local installation. Availability and UI behavior depend on the host version/account; use the [manual acceptance procedure](manual-testing.md) to verify them.
 
@@ -152,16 +142,17 @@ Follow [Install the local plugin from source](source-install.md) ([简体中文]
 
 ### Install directly from a source build
 
-After building, the native development entry remains available:
+After building, choose a stable installation directory and use the native development entry. For a first Linux installation:
 
 ```bash
+AJR_INSTALL_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/agent-job-relay"
 ./target/release/agent-job-relay install --root "$AJR_INSTALL_ROOT" --dry-run
 ./target/release/agent-job-relay install --root "$AJR_INSTALL_ROOT" --apply
 "$AJR_INSTALL_ROOT/relay" setup plugin --dry-run
 "$AJR_INSTALL_ROOT/relay" setup plugin --apply
 ```
 
-Direct `install` preserves an existing profile only when no explicit state override is supplied; unset unrelated AJR_STATE_DIR values first. Use the [profile-preserving native update route](updating.md#unified-install-and-update) for an existing installation. `cargo install --path . --root ...` is CLI development tooling and does not generate the plugin bundle/profile.
+Direct `install` preserves an existing profile only when no explicit state override is supplied; unset unrelated AJR_STATE_DIR values first. Use the [profile-preserving native update route](updating.md#update-a-native-local-or-offline-plugin) for an existing installation. `cargo install --path . --root ...` is CLI development tooling and does not generate the plugin bundle/profile.
 
 ### Configure standalone MCP
 

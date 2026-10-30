@@ -9,7 +9,7 @@ npm install --global --ignore-scripts --registry=https://registry.npmjs.org agen
 ajr update
 ```
 
-Source 0.1.14 implements this command; until it is published, released older versions use the [manual installation route](https://github.com/MorningFrog/agent-job-relay/blob/main/docs/installation.md). New plugin entries refuse to start without a global CLI supporting `update`; they never install global software through a host hook. `ajr update --dry-run` previews changes and `--cli-only` leaves plugins alone. Restart/reconnect Desktop or Codex after installation, then select AgentJobRelay in a local chat. Host/account availability and automatic continuation remain separate from CLI installation.
+For a CLI older than 0.1.14, run the npm command above first. New plugin entries refuse to start without a global CLI supporting `update`; they never install global software through a host hook. `ajr update --dry-run` previews changes and `--cli-only` leaves plugins alone. Restart/reconnect Desktop or Codex after installation, then select AgentJobRelay in a local chat. Host/account availability and automatic continuation remain separate from CLI installation.
 
 The MCP server and packaged `relay` terminal launcher use the same runtime version and persistent `codex` profile. Default state on Linux is `$XDG_STATE_HOME/agent-job-relay/codex`, else `$HOME/.local/state/agent-job-relay/codex`; Windows uses `%LOCALAPPDATA%\AgentJobRelay\profiles\codex` and the `relay.cmd` terminal launcher. An absolute `AJR_STATE_DIR` overrides it and must match in the ChatGPT Desktop process and terminal. Keep history outside npm/plugin caches. A previous offline installation has a different recorded profile: do not enable both or switch profiles as a repair. Review and explicitly select the original state if migrating.
 
@@ -19,4 +19,13 @@ Windows normally needs no manual daemon preparation. When Codex's MCP cleanup Jo
 
 The workflow obtains a fresh binding from the initiating chat's terminal, never from the shared MCP process. Background commands run with your OS permissions. ChatGPT Desktop completion uses an experimental private interface, not a public stability guarantee. Host acceptance does not establish that an Agent resumed; CLI integration provides an inbox only. No telemetry service is added, but npm/GitHub handle package/repository downloads, and the host/model can receive results you explicitly inspect.
 
-For upgrades, finish active jobs and run `ajr update`; see [updates and limits](https://github.com/MorningFrog/agent-job-relay/blob/main/docs/updating.md#one-command-online-update-0114). It selects the exact published runtime and matching release tag, preserves the original profile/history, refuses modified/foreign catalogs and records partial steps for forward retry. Reconnect the host afterward. OpenCode and native offline installations keep their original routes. Use `ajr uninstall` for coordinated plugin/marketplace/CLI removal; it stops idle daemons and refuses active tasks unless `--force` first stops them. External history/logs/backups remain. See [uninstallation](https://github.com/MorningFrog/agent-job-relay/blob/main/docs/uninstalling.md) and the [documentation index](https://github.com/MorningFrog/agent-job-relay/blob/main/docs/README.md).
+## Update and uninstall
+
+| Task | Preview | Apply |
+|---|---|---|
+| Update CLI and plugin | `ajr update --dry-run` | `ajr update` |
+| Remove CLI and plugin | `ajr uninstall --dry-run` | `ajr uninstall` |
+
+Updates preserve the original profile/history; compatible Linux runners can continue. Finish jobs before Windows package replacement or incompatible schema migration. Uninstall stops idle daemons and refuses active work unless explicitly stopped with `--force`; history/logs/backups remain. Reconnect/restart the host afterward. Partial steps are recorded for forward retry; modified/foreign catalogs are preserved. OpenCode and native offline installations use their original routes.
+
+See [updates and limits](https://github.com/MorningFrog/agent-job-relay/blob/main/docs/updating.md), [uninstallation](https://github.com/MorningFrog/agent-job-relay/blob/main/docs/uninstalling.md) and the [documentation index](https://github.com/MorningFrog/agent-job-relay/blob/main/docs/README.md). Windows self-update/self-removal and actual Desktop refresh remain separately unqualified.

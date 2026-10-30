@@ -2,17 +2,11 @@
 
 [English home](../README.md) · [中文首页](../README.zh-CN.md)
 
+Start with **[Install / 安装](installation.md)** · **[Update / 更新](updating.md)** · **[Uninstall / 卸载](uninstalling.md)**.
+
 Choose the task you need below. Installation, everyday operation, maintenance and developer references have separate guides. Version progress and test results live in the status documents linked under [progress and evidence](#progress-and-evidence--进度与验证).
 
 按要完成的任务选择文档。首次使用从安装开始；已有安装按原安装方式更新；版本进度、测试结果和待办分别在下方的状态、实测和路线图中维护。
-
-## Capabilities and support / 功能与支持
-
-| Question / 需要了解 | Guide / 文档 |
-|---|---|
-| What can it do? / 有哪些功能、支持哪些宿主？ | [Features and support](features.md) |
-| What is unsupported or unqualified? / 有哪些限制？ | [Current limitations](limitations.md) |
-| What permissions and private data are involved? / 权限、数据和安全边界是什么？ | [Security and data ownership](security.md) |
 
 ## Installation and connection / 安装与接入
 
@@ -22,6 +16,14 @@ Choose the task you need below. Installation, everyday operation, maintenance an
 | Build and install a native local plugin / 从源码安装本地插件 | [Source walkthrough](source-install.md) · [中文教程](source-install.zh-CN.md) |
 | Use Windows, check startup or binding permissions / Windows 安装、启动和权限 | [Windows guide](windows.md) |
 | Develop or qualify OpenCode/Claude adapters / 接入和验证其他宿主 | [Host plugins](host-plugins.md) |
+
+## Capabilities and support / 功能与支持
+
+| Question / 需要了解 | Guide / 文档 |
+|---|---|
+| What can it do? / 有哪些功能、支持哪些宿主？ | [Features and support](features.md) |
+| What is unsupported or unqualified? / 有哪些限制？ | [Current limitations](limitations.md) |
+| What permissions and private data are involved? / 权限、数据和安全边界是什么？ | [Security and data ownership](security.md) |
 
 ## Everyday operation / 日常使用
 

@@ -6,9 +6,7 @@
 
 本教程将 Linux x86_64/glibc 原生程序安装到稳定的用户目录，并登记个人 **AgentJobRelay Local** 市场。新建市场时，在 ChatGPT Desktop 中应选择 **`agent-job-relay@agent-job-relay-local`**。仅完成编译不会安装或启用插件。
 
-仓库自带的 `.agents/plugins/marketplace.json` 对应另一个在线候选入口 `agent-job-relay@agent-job-relay`。它的 MCP 启动器固定源码对应的 npm 运行时，该版本可能尚未发布；在线安装应使用已发布的 Release 对应目录，并使用独立状态配置。本地安装教程不需要把这个源码仓库添加为 marketplace，源码构建需要 Node.js 24/npm 生成 React + Vite 资源；已构建原生包的接收者不需要这些工具。
-
-Windows 请使用 [Windows 指南](windows.md)中的构建和 bootstrap 命令。macOS 和 ARM 尚不支持原生运行。
+源码构建需要 Node.js 24/npm 生成 React + Vite 资源；已构建原生包的接收者不需要这些工具。在线安装请使用[已发布版本](installation.md)，不要将源码仓库添加为本地安装的市场。Windows 使用 [Windows 指南](windows.md)；macOS 和 ARM 尚不支持原生运行。
 
 ## 1. 检查准备条件
 
@@ -80,7 +78,7 @@ AJR_INSTALL_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/agent-job-relay"
 "$AJR_BUNDLE/relay" plugin install --root "$AJR_INSTALL_ROOT" --from "$AJR_BUNDLE" --apply
 ```
 
-预期：预览保留原状态目录，apply 保留历史并报告生成的备份。apply 会在检查活动任务后自动停止在线 daemon，并用更新后的安装启动新版；原本离线的 profile 保持离线。遇到活动任务、所有权或降级错误时，应停止并诊断，不要换用新状态目录绕过错误。这一步更新的是受管理运行时；ChatGPT Desktop 插件及缓存仍需执行第 6 步。
+预期：预览保留原状态目录，apply 保留历史并报告生成的备份。apply 会在检查活动任务后自动停止在线 daemon，并用更新后的安装启动新版；原本离线的 profile 保持离线。遇到活动任务、所有权或降级错误时，应停止并诊断，不要换用新状态目录绕过错误。后续 MCP／缓存处理见第 6 步。
 
 ## 5. 检查已安装入口
 
@@ -89,22 +87,13 @@ AJR_INSTALL_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/agent-job-relay"
 "$AJR_INSTALL_ROOT/relay" doctor --client plugin --check-mcp
 ```
 
-预期：已安装版本与构建版本一致，受管理的 marketplace 条目匹配，`stdio_self_check.status` 为 `passed`，当前源码和已发布 0.1.12 的工具数均为 25。首次提交任务前 daemon 处于 stopped 状态是正常的。该检查不提交任务，只验证本机 stdio 工具发现，不能证明 ChatGPT Desktop 已连接或聊天能自动续接。
+预期：已安装版本与构建版本一致，受管理的 marketplace 条目匹配，`stdio_self_check.status` 为 `passed`，当前版本有 25 个工具。首次提交任务前 daemon 处于 stopped 状态是正常的。该检查不提交任务，只验证本机 stdio 工具发现，不能证明 ChatGPT Desktop 已连接或聊天能自动续接。
 
 请保留 AJR_INSTALL_ROOT：缓存中的 MCP 和终端启动器都使用该目录中的原生程序。仅重新编译 `target/release` 不会更新已安装运行时。任务状态和历史另行保存；[状态配置](installation.md#custom-directories-and-stored-data)、[更新](updating.md)和[卸载](uninstalling.md)分别见对应指南。
 
 ## 6. 在 ChatGPT Desktop 中安装并选择正确的插件
 
-已有插件若仍缓存完整旧技能，需要使用宿主／插件安装返回的**准确缓存目录**执行一次迁移，再按下文重连。不要传入缓存父目录，也不要搜索或删除其他插件：
-
-```bash
-AJR_CACHE="<宿主返回的缓存绝对目录>"
-"$AJR_INSTALL_ROOT/relay" plugin cache refresh --path "$AJR_CACHE" --dry-run
-"$AJR_INSTALL_ROOT/relay" plugin cache refresh --path "$AJR_CACHE" --apply
-"$AJR_INSTALL_ROOT/relay" plugin status --cache "$AJR_CACHE"
-```
-
-预期：`matches_installed=true`，并保留备份。新缓存技能每次调用都会通过 `relay instructions` 读取当前流程，受管 MCP 长连接会核对安装后使用后续更新的运行时。完成这次迁移和重连后，同版本本地源码更新也不必再手动刷新这些入口。在线固定版本 npm 包仍按其发行更新路线处理。
+首次安装按下方步骤启用插件。已有受管 MCP 连接会核对并跟随后续运行时更新，包括同版本构建；历史完整技能／旧 MCP 入口仅需一次[缓存迁移及重连](updating.md#cache-inspection-and-refresh)。
 
 1. 重启 ChatGPT Desktop，打开 **Plugins**。
 2. 选择个人市场 **AgentJobRelay Local**，安装并启用其中的 **AgentJobRelay**。若个人市场原来有其他名称，按 `$HOME/.agents/plugins/marketplace.json` 中的实际名称选择。
@@ -133,7 +122,7 @@ codex plugin add agent-job-relay@agent-job-relay-local
 
 预期：Agent 从当前聊天终端取得新的绑定，通过 AgentJobRelay MCP `job_start` 提交，报告任务 ID，然后结束本轮。实际观察到同聊天续接是另一项验收结果，宿主接收本身不能证明续接成功。验证边界见[人工验收](manual-testing.md)。
 
-Desktop goal 暂停仅在缺少许可时询问一次。源码预检查返回 `needs_confirmation`，`job_goal_consent` 使用原生确认或一次 Agent 提问，再通过 `connect --request-id` 在后续轮次沿用批准范围。用户已确认本地批准后自动暂停有效；新的直接 MCP 确认界面和完整多轮恢复分别验收。见 [goal 等待](goal-waiting.md)。
+Desktop goal 暂停仅在缺少许可时询问一次。预检查返回 `needs_confirmation`，`job_goal_consent` 使用原生确认或一次 Agent 提问，再通过 `connect --request-id` 在后续轮次沿用批准范围。用户已确认本地批准后自动暂停有效；新的直接 MCP 确认界面和完整多轮恢复分别验收。见 [goal 等待](goal-waiting.md)。
 
 ## 能看到技能，但没有 job_start 时
 

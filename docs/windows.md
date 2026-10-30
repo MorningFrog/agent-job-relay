@@ -2,15 +2,22 @@
 
 [Documentation index](README.md) · [Install](installation.md) · [Updating](updating.md) · [Uninstalling](uninstalling.md)
 
-The native x86_64 runtime supports durable background execution, bounded logs, cancellation/timeouts, daemon/runner recovery, MCP, inbox notifications and offline plugin maintenance. Runtime 0.1.10 and newer also support independent runner monitoring, inspect and the bundled default-on React/Vite UI; see [runtime monitoring](runtime-monitoring.md). Windows 11 VM gates pass under SYSTEM and a non-elevated ordinary user; current counts and package evidence are in [implementation status](IMPLEMENTATION_STATUS.md). v0.1.8 is verified with ChatGPT Desktop for actual MCP submission and same-chat continuation using Full access. Named-pipe recovery/renewal tests use simulated hosts. Ordinary Codex CLI integration has an inbox and does not automatically resume a chat.
+The native x86_64 runtime supports durable background execution, bounded logs, cancellation/timeouts, daemon/runner recovery, MCP, inbox notifications and offline plugin maintenance. The runtime also supports independent runner monitoring, inspect and the bundled default-on React/Vite UI; see [runtime monitoring](runtime-monitoring.md). Windows 11 VM gates pass under SYSTEM and a non-elevated ordinary user; current counts and package evidence are in [implementation status](IMPLEMENTATION_STATUS.md). v0.1.8 is verified with ChatGPT Desktop for actual MCP submission and same-chat continuation using Full access. Named-pipe recovery/renewal tests use simulated hosts. Ordinary Codex CLI integration has an inbox and does not automatically resume a chat.
 
 ## Install the latest published package
 
-Use the [PowerShell quick-install steps](installation.md#chatgpt-desktop--codex) to resolve npm latest and register its matching released marketplace. OpenCode uses `agent-job-relay-opencode-v1@latest`. Both routes include the Windows x86_64 native payload with a static MSVC runtime; recipient machines need Node.js 20+/npm, without Rust or Visual Studio. The catalog MCP launcher uses Node plus the system command processor to invoke pinned npx arguments; terminal use has a `relay.cmd` entry point.
+Use PowerShell with Node.js 20+/npm, Codex CLI and Git on PATH:
 
-Default npm state lives in `%LOCALAPPDATA%\AgentJobRelay\profiles\codex` or `opencode`, outside host/npm caches. `AJR_STATE_DIR` may explicitly select an existing profile; no automatic profile migration or upgrade-driven daemon replacement occurs. OpenCode V1 targets 1.19.4. Its Node/Bun pipe is checked against the exact server process and restricted to a private DACL before sessions register.
+```powershell
+npm.cmd install --global --ignore-scripts --registry=https://registry.npmjs.org agent-job-relay-runtime@latest
+if ($LASTEXITCODE -ne 0) { throw "CLI installation failed" }
+ajr.cmd update
+if ($LASTEXITCODE -ne 0) { throw "Plugin installation failed" }
+```
 
-`scripts/check_windows_packages.mjs` checks actual npm installation/native execution, history after relocation and corrupt-payload refusal. The 0.1.10 candidate additionally passes bundled JS/CSS loading, authenticated inspection, CLI monitoring/stop and offline inspection under SYSTEM and a non-elevated ordinary user. Codex 0.164.0 discovers 22 tools; OpenCode 1.19.4 passes actual package loading, MCP submission and matching-session continuation using a local simulated model. These checks do not establish Windows browser interaction or real ChatGPT Desktop continuation; live evidence remains version-specific.
+Expected: install the global CLI and matching ChatGPT Desktop/Codex marketplace/plugin. Restart/reconnect the host, select the plugin and verify `job_doctor` as in [installation](installation.md#chatgpt-desktop--codex). For CLI/UI only, omit `update` and run `ajr.cmd ui`. OpenCode instead uses `agent-job-relay-opencode-v1@latest` in its host configuration. Both npm routes include the Windows x86_64 native payload with a static MSVC runtime; recipient machines need no Rust or Visual Studio.
+
+Default npm state lives in `%LOCALAPPDATA%\AgentJobRelay\profiles\codex` or `opencode`, outside host/npm caches. AJR_STATE_DIR may explicitly select an existing profile; no automatic profile migration occurs. Runtime 0.1.12+ replaces an older same-profile daemon on runtime-starting use. Windows package replacement requires completed jobs; loaded-image self-update/self-removal remains separately unqualified. See [current native/package evidence](IMPLEMENTATION_STATUS.md), which is distinct from real Desktop continuation or browser interaction.
 
 ## Alternative: a trusted Windows offline bundle
 
@@ -24,7 +31,7 @@ $ajrInstall = Join-Path $env:LOCALAPPDATA 'AgentJobRelay\plugin'
 & "$ajrInstall\relay.cmd" doctor --client plugin --check-mcp
 ```
 
-Expected: the preview identifies the chosen installation/state and marketplace entry; apply installs the native executable and `.cmd` launcher. Doctor reports a successful stdio tool check (25 tools for current source and published 0.1.13). A stopped daemon before the first submission is expected. The bundle needs no recipient Rust, Python or Node. Restart the host, install/enable the local plugin and separately verify host MCP connectivity.
+Expected: the preview identifies the chosen installation/state and marketplace entry; apply installs the native executable and `.cmd` launcher. Doctor reports a successful stdio tool check (25 tools for the current version). A stopped daemon before the first submission is expected. The bundle needs no recipient Rust, Python or Node. Restart the host, install/enable the local plugin and separately verify host MCP connectivity.
 
 The default native installation is `%LOCALAPPDATA%\AgentJobRelay\plugin`; state is `%LOCALAPPDATA%\AgentJobRelay\state`. Explicit `--state-dir`/AJR_STATE_DIR and existing installation profiles retain their recorded selection. Configuration/removal preserves other entries and task history. Do not move state into a plugin/npm cache.
 
@@ -80,11 +87,11 @@ Native tests cover nested host jobs, direct-only refusal before state/workload e
 
 ## Update, recover and remove
 
-Follow [native updates and repair](updating.md#unified-install-and-update), [same-chat recovery](usage.md#recover-notifications) or [uninstallation](uninstalling.md) for the complete procedure. The Windows-specific file-lock boundaries below also apply.
+Follow [native updates and repair](updating.md#update-a-native-local-or-offline-plugin), [same-chat recovery](usage.md#recover-notifications) or [uninstallation](uninstalling.md) for the complete procedure. The Windows-specific file-lock boundaries below also apply.
 
-Use the new bundle's launcher, finish active jobs and preview/apply `plugin update --root <original-install> --from <new-bundle>`. Keep the recorded state. Close host MCP processes when replacing their Windows executable/cache files; Windows may retain an executable image lock. An interrupted operation retains its journal/backups; run `plugin repair --path <exact-directory>` from the new bundle to preview and finish forward after releasing the lock. Never delete a cache or switch state to hide an update failure.
+For a native offline update, use the new bundle's launcher, finish active jobs and preview/apply `plugin install --root <original-install> --from <new-bundle>`. Keep the recorded state. Close host MCP processes when replacing their Windows executable/cache files; Windows may retain an executable image lock. An interrupted operation retains its journal/backups; run `plugin repair --path <exact-directory>` from the new bundle to preview and finish forward after releasing the lock. Never delete a cache or switch state to hide an update failure.
 
-`daemon stop --install-root <original-install>` leaves runners independent. Current-source applied runtime updates restart an online daemon from the new installation; cache/configuration/repair operations remain separate and do not stop it. Versions before 0.1.12 require a manual same-profile stop. Automatic upgrade behavior has Linux regression coverage; this change has no new Windows native qualification. Normal removal keeps SQLite history/logs; independent Windows installers and WinGet distribution are not planned.
+`daemon stop --install-root <original-install>` leaves runners independent. Applied native runtime updates restart an online daemon from the new installation; cache/configuration/repair operations remain separate and do not stop it. Versions before 0.1.12 require a manual same-profile stop. Automatic upgrade behavior has Linux regression coverage; this change has no new Windows native qualification. Normal removal keeps SQLite history/logs; independent Windows installers and WinGet distribution are not planned.
 
 ## Execution boundaries
 

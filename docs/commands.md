@@ -62,7 +62,7 @@ Use returned IDs and `next_cursor`; do not use PIDs as job IDs. Reusing a key wi
 | `monitor update <job-id> <rule-id> --revision <n>` | Replace the observed rule revision |
 | `monitor enable/disable/remove <job-id> <rule-id> --revision <n>` | Rearm, disable or remove a rule while retaining its audit |
 
-Source-only `--progress '{"source":"training","trigger":{"kind":"stage"},"cooldown_seconds":30}'` adds repeated structured feedback; see [progress/checker usage and limits](progress.md). The same option is accepted by start and monitor add/update, and the Web editor supports stage/step/metric rules.
+`--progress '{"source":"training","trigger":{"kind":"stage"},"cooldown_seconds":30}'` adds repeated structured feedback; see [progress/checker usage and limits](progress.md). The same option is accepted by start and monitor add/update, and the Web editor supports stage/step/metric rules.
 
 Rules use one condition: `--no-output <duration>`, `--elapsed <duration>` or `--contains <literal>`. Options include `--stream stdout/stderr/both`, `--action alert/stop`, `--grace <duration>` and `--notify-agent` for an already bound job. Start accepts one initial rule with the same flags. Durations accept seconds or `s`, `m`, `h`, `d`; stop grace is bounded to 0–300 seconds and wait to 0–30. See [monitoring procedures and expected results](runtime-monitoring.md).
 
@@ -88,7 +88,7 @@ Rules use one condition: `--no-output <duration>`, `--elapsed <duration>` or `--
 | `target add <job-id> <session-key> [--replay]` | Advanced exact-session target, optionally replaying eligible existing terminal events |
 | `target rebind <target-id> <session-key>` | Advanced explicit target replacement |
 
-Source `connect` and wake-enabled start routes return successful `needs_confirmation` before wait/job creation for an active goal without recorded permission. Use `job_goal_consent` for one native form or Agent-question fallback, then `connect --request-id <id>` for this request’s remaining rounds. `--request-label` and `--job-count` fix the scope; `--wait-goal` may assert actual permission already present in the initial user request. Doctor separates scoped consent/native handoff from unavailable consent-free pause. See [goal waiting](goal-waiting.md).
+`connect` and wake-enabled start routes return successful `needs_confirmation` before wait/job creation for an active goal without recorded permission. Use `job_goal_consent` for one native form or Agent-question fallback, then `connect --request-id <id>` for this request’s remaining rounds. `--request-label` and `--job-count` fix the scope; `--wait-goal` may assert actual permission already present in the initial user request. Doctor separates scoped consent/native handoff from unavailable consent-free pause. See [goal waiting](goal-waiting.md).
 
 Recovery preserves original expiry and excludes accepted/expired events and live claims. Explicit delivery retry has different TTL semantics. Never guess caller IDs or reuse a binding from another chat. See [MCP submission](usage.md#submit-through-mcp-with-same-chat-notification), [recovery](usage.md#recover-notifications) and [protocol](protocol.md) before advanced target operations.
 
@@ -113,9 +113,9 @@ Native configuration and directory changes preview by default; `--apply` writes 
 | Command after the prefix | Purpose and guide |
 |---|---|
 | `update [--dry-run] [--to <x.y.z>] [--cli-only]` | npm 0.1.14+: coordinate global CLI and matching online ChatGPT Desktop/Codex plugin installation/update; [procedure and limits](updating.md#one-command-online-update-0114) |
-| `plugin install [--root <root>] [--from <bundle>]` | Native bundle installation/update and marketplace registration; `--config`, repeated `--cache`, `--full`; [install](installation.md#quick-install-from-an-offline-bundle), [update](updating.md#unified-install-and-update) |
+| `plugin install [--root <root>] [--from <bundle>]` | Native bundle installation/update and marketplace registration; `--config`, repeated `--cache`, `--full`; [install](installation.md#quick-install-from-an-offline-bundle), [update](updating.md#update-a-native-local-or-offline-plugin) |
 | `plugin bootstrap [--root <root>] [--config <file>]` | Compatible first-install entry from a bundle; [installation](installation.md) |
-| `plugin update --from <bundle> [--root <root>] [--cache <path>]` | Compatible profile-preserving native update; [updating](updating.md#updating-an-existing-installation) |
+| `plugin update --from <bundle> [--root <root>] [--cache <path>]` | Compatible profile-preserving native update; [updating](updating.md#update-a-native-local-or-offline-plugin) |
 | `plugin pack --output <unused-directory>` | Export a native bundle; [source installation](source-install.md#3-build-and-export-a-local-bundle) |
 | `plugin status [--root <root>] [--cache <path>]` | Inspect installation and explicitly selected caches |
 | `plugin cache refresh --path <cache> [--root <root>]` | Replace a verified known cache; [cache maintenance](updating.md#cache-inspection-and-refresh) |
@@ -146,7 +146,7 @@ Policy flags are `--hot-jobs`, `--archive-after-days`, `--hot-log-mib`, `--backu
 | Purpose | Tools |
 |---|---|
 | Execution and results | `job_start`, `job_status`, `job_list`, `job_logs`, `job_events`, `job_wait`, `job_stop` |
-| Experimental source | `job_start_batch`, `job_goal_consent`, `job_goal_wait`; scoped consent and native handoff use the actual terminal binding |
+| Batch and experimental goal control | `job_start_batch`, `job_goal_consent`, `job_goal_wait`; scoped consent and native handoff use the actual terminal binding |
 | Inspection and rules | `job_inspect`, `job_monitor` |
 | Health | `job_doctor` |
 | Session binding and inbox | `job_connect_session`, `job_register_session`, `job_sessions`, `job_probe_session`, `job_recover_session`, `job_invalidate_session`, `job_inbox` |

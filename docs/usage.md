@@ -137,7 +137,7 @@ agent-job-relay codex inbox "$SESSION_KEY"
 
 For actual integrations, use explicit real identities. Manual registrations default to a one-hour lease, with a 24-hour maximum. ChatGPT Desktop additionally requires an authorized endpoint/caller and `--experimental`; its private API may change. Low-level `target add --replay` / `target rebind` are advanced operations with different replay semantics; see [protocol](protocol.md).
 
-`daemon stop` stops dispatch only; runners continue and persist results. A later submission restarts the daemon. Current-source runtime-starting entries also replace older daemons in the same profile after version/identity/migration checks; versions before 0.1.12 need the manual stop fallback. Foreground `daemon` is available for diagnosis, with no login service installed. Preserve failed jobs rather than switching state or replaying them. See [updating](updating.md#updating-an-existing-installation) for safe upgrades.
+`daemon stop` stops dispatch only; runners continue and persist results. A later submission restarts the daemon. Runtime 0.1.12+ runtime-starting entries also replace older daemons in the same profile after version/identity/migration checks; versions before 0.1.12 need the manual stop fallback. Foreground `daemon` is available for diagnosis, with no login service installed. Preserve failed jobs rather than switching state or replaying them. See [updating](updating.md#before-updating) for safe upgrades.
 
 For exact MCP tool schemas, byte limits, storage/delivery states and legacy compatibility, see [protocol](protocol.md). Command output is untrusted data; operational and containment limits are in [security](security.md) and [limitations](limitations.md).
 

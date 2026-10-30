@@ -6,9 +6,7 @@ English | [简体中文](source-install.zh-CN.md)
 
 This walkthrough installs the native Linux x86_64/glibc build into a stable user directory and registers the personal **AgentJobRelay Local** marketplace. With a newly created marketplace, select **`agent-job-relay@agent-job-relay-local`** in ChatGPT Desktop. Building alone does not install or enable the plugin.
 
-The repository's `.agents/plugins/marketplace.json` exposes the separate `agent-job-relay@agent-job-relay` online candidate. Its MCP launcher pins the source-matching npm runtime, which may be unpublished, and uses a separate profile; online consumers should use the published Release catalog. Adding the repository as a marketplace is not a step in this local installation. Source builds require Node.js 24/npm for React + Vite assets; recipients of a built native bundle need neither.
-
-For Windows, use the build and bootstrap commands in the [Windows guide](windows.md). macOS and ARM runtime execution are unsupported.
+Source builds require Node.js 24/npm for React + Vite assets; recipients of a built native bundle need neither. For online installation, use the [published release](installation.md) rather than adding the source checkout as the local marketplace. For Windows, use the [Windows guide](windows.md); macOS and ARM runtime execution are unsupported.
 
 ## 1. Check prerequisites
 
@@ -80,7 +78,7 @@ Use the same plugin install entry for an existing runtime, selecting its origina
 "$AJR_BUNDLE/relay" plugin install --root "$AJR_INSTALL_ROOT" --from "$AJR_BUNDLE" --apply
 ```
 
-Expected: the preview retains the original state directory; apply retains history and reports any backup. Apply automatically restarts an online daemon from the updated installation after active-job checks; an offline profile stays offline. Stop and diagnose active-job, ownership or downgrade errors; do not switch to a fresh profile to bypass them. This changes the managed runtime; the ChatGPT Desktop plugin/cache still needs step 6.
+Expected: the preview retains the original state directory; apply retains history and reports any backup. Apply automatically restarts an online daemon from the updated installation after active-job checks; an offline profile stays offline. Stop and diagnose active-job, ownership or downgrade errors; do not switch to a fresh profile to bypass them. See step 6 for subsequent MCP/cache handling.
 
 ## 5. Check the installed entry point
 
@@ -89,22 +87,13 @@ Expected: the preview retains the original state directory; apply retains histor
 "$AJR_INSTALL_ROOT/relay" doctor --client plugin --check-mcp
 ```
 
-Expected: the installed version matches the build, the owned marketplace entry matches, and `stdio_self_check.status` is `passed` with 25 tools for current source and published 0.1.13. A stopped daemon before the first submission is normal. This check submits no job and establishes local stdio discovery, not ChatGPT Desktop tool connectivity or chat continuation.
+Expected: the installed version matches the build, the owned marketplace entry matches, and `stdio_self_check.status` is `passed` with 25 tools for the current version. A stopped daemon before the first submission is normal. This check submits no job and establishes local stdio discovery, not ChatGPT Desktop tool connectivity or chat continuation.
 
 Keep AJR_INSTALL_ROOT present: cached MCP and terminal launchers use its native executable. Rebuilding `target/release` alone does not update this installation. Task state/history stays separate; [installation profiles](installation.md#custom-directories-and-stored-data), [updates](updating.md) and [uninstallation](uninstalling.md) cover later maintenance.
 
 ## 6. Install and select the correct plugin in ChatGPT Desktop
 
-For an existing plugin with a historical full cached skill, perform this one-time migration using the exact cache directory reported by the host/plugin installation, then reconnect below. Never pass a cache parent or search/delete other plugins:
-
-```bash
-AJR_CACHE="<absolute-cache-directory-reported-by-host>"
-"$AJR_INSTALL_ROOT/relay" plugin cache refresh --path "$AJR_CACHE" --dry-run
-"$AJR_INSTALL_ROOT/relay" plugin cache refresh --path "$AJR_CACHE" --apply
-"$AJR_INSTALL_ROOT/relay" plugin status --cache "$AJR_CACHE"
-```
-
-Expected: `matches_installed=true`, with a retained backup. New cached skills load `relay instructions` for each invocation, and managed MCP connections verify/follow later runtime updates. After this initial migration/reconnection, same-version native source updates do not require manually refreshing those entry points. Online pinned-package updates remain separate.
+For first installation, enable the plugin below. Existing managed MCP connections verify/follow later runtime updates, including same-version builds; historical full-skill/pre-forwarder entries need one [cache migration and reconnection](updating.md#cache-inspection-and-refresh).
 
 1. Restart ChatGPT Desktop and open **Plugins**.
 2. Choose the personal **AgentJobRelay Local** marketplace, then install/enable **AgentJobRelay**. If the personal catalog already had another name, use that name from `$HOME/.agents/plugins/marketplace.json`.
@@ -133,7 +122,7 @@ Only after that succeeds, use your next real long task:
 
 Expected: the Agent obtains a fresh terminal binding, submits through AgentJobRelay MCP `job_start`, reports the job ID and ends its turn. Observed same-chat continuation is a separate acceptance result; host acceptance alone does not prove it. See [manual acceptance](manual-testing.md) for evidence boundaries.
 
-Desktop goal pause asks once when permission is absent. Source preflight returns `needs_confirmation`; `job_goal_consent` uses native input or one Agent question, then `connect --request-id` reuses the approved scope for later rounds. The user has confirmed automatic pause after approval locally. Direct MCP form UI/full multi-round restoration remain separate acceptance. See [goal waiting](goal-waiting.md).
+Desktop goal pause asks once when permission is absent. Preflight returns `needs_confirmation`; `job_goal_consent` uses native input or one Agent question, then `connect --request-id` reuses the approved scope for later rounds. The user has confirmed automatic pause after approval locally. Direct MCP form UI/full multi-round restoration remain separate acceptance. See [goal waiting](goal-waiting.md).
 
 ## If the skill appears but job_start is missing
 
