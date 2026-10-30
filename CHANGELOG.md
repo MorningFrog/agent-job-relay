@@ -6,11 +6,16 @@
 
 - Decode one validated cold snapshot per task inspection and read hot detail sections in one transaction. Preserve bounded event/delivery pages, cursors and current goal-wait summaries.
 - Share demand-driven Web overview and same-task response samples for one second, with ten-second timestamped health samples and at most eight cached selections. Keep explicit reads/controls direct and report expired-query errors without stale fallback.
+- Use typed Job/Run execution states while preserving SQL/JSON vocabulary, schema v11 and IPC v1; reject unknown persisted states and nonterminal finish requests explicitly.
+- Separate runner capture/supervision and Web components/connection handling, bound SSE frames and test rendering, reconnects, visibility, credential expiry and rule revision conflicts.
 
 ### Fixed
 
 - Find and reuse the originating chat's existing same-profile task-manager tab before opening a panel, including repeated submissions and reopen requests. Navigate/show its verified tab ID and reconcile uncertain opens instead of creating duplicates.
 - Handle fresh task/credential fragments in an existing Web panel, reset hidden-task filters and reconnect the selected task without a reload. Keep credentials out of the visible URL.
+- Flush asynchronous output writes before synchronization so a delayed ENOSPC cannot become a successful job. Always clean up spawned native work on supervision errors and scope capture tasks to their owner.
+- Reap a live Linux runner's adopted session-escaped descendants using parent-verified pidfds; cleanup failure cannot report success. Runner SIGKILL/power-loss limits remain.
+- Fence late rule responses to their original selected task and show independent connection errors; runtime health shows its own sample time.
 
 ## [0.1.14] - 2026-10-30
 
