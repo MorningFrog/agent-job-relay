@@ -96,6 +96,7 @@ impl Fixture {
         let j = self
             .store
             .start(StartSpec {
+                title: None,
                 command: CommandSpec::Exec {
                     program: "true".into(),
                     args: vec![],

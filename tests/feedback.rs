@@ -17,6 +17,7 @@ async fn fixture() -> (tempfile::TempDir, Store, StartSpec) {
     let store = Store::new(config);
     store.init().await.unwrap();
     let spec = StartSpec {
+        title: None,
         command: CommandSpec::Exec {
             program: "must-never-execute".into(),
             args: vec![],

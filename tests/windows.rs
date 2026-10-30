@@ -170,6 +170,7 @@ impl Rig {
     }
     fn spec(&self, args: &[&str]) -> StartSpec {
         StartSpec {
+            title: None,
             command: CommandSpec::Exec {
                 program: fixture().to_str().unwrap().into(),
                 args: args.iter().map(|s| (*s).into()).collect(),
@@ -780,6 +781,7 @@ async fn named_pipe_desktop_routing_recovery_and_renewal_are_fenced() {
         .await
         .unwrap();
     let spec = StartSpec {
+        title: None,
         command: CommandSpec::Exec {
             program: fixture().to_str().unwrap().into(),
             args: vec!["echo".into()],
@@ -904,6 +906,7 @@ async fn offline_install_update_cache_and_removal_keep_state() {
     store.init().await.unwrap();
     let saved = store
         .start(StartSpec {
+            title: None,
             command: CommandSpec::Exec {
                 program: fixture().to_str().unwrap().into(),
                 args: vec![],

@@ -16,6 +16,7 @@ fn job(value: &Value) -> Value {
         value,
         &[
             "job_id",
+            "title",
             "run_id",
             "status",
             "exit_code",

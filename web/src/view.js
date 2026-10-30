@@ -51,6 +51,37 @@ export const command = (job) =>
             .filter(Boolean)
             .join(" "));
 
+const basename = (path) => path?.replace(/[\\/]+$/, "").split(/[\\/]/).pop();
+const shorten = (text, limit) => {
+  const chars = Array.from(text);
+  return chars.length > limit ? `${chars.slice(0, limit - 1).join("")}…` : text;
+};
+export const taskTitle = (job) => {
+  if (job?.title?.trim()) return job.title.trim();
+  // Legacy jobs have no purpose label. This is only a command hint for display.
+  const preview = command(job)?.trim() || "";
+  const first = preview.split(/\r?\n/, 1)[0];
+  const [program = "", ...args] = first.split(/\s+/);
+  const name = basename(program);
+  let hint = [name, ...args].join(" ");
+  if (
+    /^(?:python[\d.]*|node|ruby|perl|[a-z]*sh|pwsh|powershell)(?:\.exe)?$/i.test(name) &&
+    (args.some((a) => /^-(?:[a-z]*c|e|Command|EncodedCommand)$/i.test(a)) ||
+      args[0] === "-" || first.includes("<<"))
+  ) {
+    hint = `${name} 脚本`;
+  } else if (
+    /^(?:set|export|cd|printf|echo|for|while|if|trap)\b/.test(first) ||
+    first.startsWith("#!")
+  ) {
+    hint = "Shell 脚本";
+  } else {
+    hint = hint.split(/\s*(?:&&|\|\||[;|]|<<)\s*/, 1)[0];
+  }
+  const project = basename(job?.cwd);
+  return `${shorten(hint || "后台任务", 48)}${project ? ` · ${shorten(project, 24)}` : ""}`;
+};
+
 export const ruleSummary = (r) =>
   r.condition.kind === "progress"
     ? `${r.condition.source} · ${r.condition.trigger.kind === "stage" ? `阶段变化 ${r.condition.trigger.stage || ""}` : r.condition.trigger.kind === "step" ? `每 ${r.condition.trigger.every} 步` : `${r.condition.trigger.name} ${r.condition.trigger.comparison} ${r.condition.trigger.value}`} · 间隔 ${r.condition.cooldown_seconds} 秒`

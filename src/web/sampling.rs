@@ -84,6 +84,7 @@ mod tests {
         let store = Store::new(config);
         store.init().await.unwrap();
         let spec = StartSpec {
+            title: None,
             command: CommandSpec::Exec {
                 program: "never-execute".into(),
                 args: vec![],

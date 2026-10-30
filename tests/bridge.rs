@@ -41,6 +41,7 @@ fn registration(endpoint: PathBuf, session: &str, instance: &str) -> Registratio
 async fn claim(store: &Store, key: String, cwd: PathBuf) -> agent_job_relay::delivery::Claim {
     let job = store
         .start(StartSpec {
+            title: None,
             command: CommandSpec::Exec {
                 program: "true".into(),
                 args: vec![],

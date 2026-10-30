@@ -31,7 +31,7 @@ agent-job-relay codex monitor add --help
 
 | Command after the prefix | Purpose and useful options |
 |---|---|
-| `start -- <program> <args...>` | Submit explicit argv; `--cwd`, `--timeout <seconds>`, `--idempotency-key`, `--session` or current-terminal `--wake` |
+| `start -- <program> <args...>` | Submit explicit argv; unreleased source adds `--title <purpose>`; `--cwd`, `--timeout <seconds>`, `--idempotency-key`, `--session` or current-terminal `--wake` |
 | `start --shell '<script>'` | Explicit shell execution; `--interpreter` selects the shell |
 | `start-batch --file <json-file>` (0.1.12+) | Submit a JSON array of 1–16 specs with distinct stable keys; `--file -` reads stdin, `--wake` binds every item to the actual caller; [partial-admission/retry semantics](usage.md#submit-independent-commands-together-0112) |
 | `start-spec --file <json-file>` (0.1.12+) | Submit one bounded JSON StartSpec, including remote launch/attach or GitHub Actions observation; `--file -` for stdin and `--wake` for the current caller |

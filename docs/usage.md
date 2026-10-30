@@ -43,6 +43,10 @@ The first submission starts the daemon. Eight active jobs are allowed. Identical
 
 Lists/events/deliveries return `next_cursor`; use `--after` for the next page. Log cursors are byte offsets. Text reads use lossy UTF-8, while raw bytes are retained up to 16 MiB per stream; further output is drained/discarded. Human viewers can use `logs "$JOB_ID" --follow`; Ctrl-C stops only the viewer. Wait is bounded and may return a `started` event before completion. Agents should not loop on waits/log follow for long jobs.
 
+## Name tasks (unreleased source)
+
+Use `target/release/agent-job-relay start --title "Run project tests" -- cargo test` after building the current source, or set `spec.title` in MCP / JSON single or batch submissions. Give each task a short purpose in the user’s language. Titles accept 1–80 Unicode characters without surrounding whitespace or control characters; omit the field for unnamed work. The Web list/detail heading and compact MCP results retain the title, while details keep the original command and IDs. Titles are part of the immutable submission: retries must preserve the original title and specification. There is no rename operation. Existing unnamed history remains readable and its unchanged-key retries retain their original IDs, including after archival.
+
 ## Submit independent commands together (0.1.12+)
 
 Runtime 0.1.12+ supports `start-batch --file <json-file>` and MCP `job_start_batch`; use matching runtime/plugin versions. An older loaded daemon fails the batch capability preflight; finish active work and explicitly update/stop only that same profile before retrying.

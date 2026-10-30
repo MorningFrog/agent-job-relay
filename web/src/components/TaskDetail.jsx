@@ -10,6 +10,7 @@ import {
   age,
   elapsed,
   command,
+  taskTitle,
   ruleSummary,
 } from "../view.js";
 export function TaskDetail({
@@ -40,7 +41,7 @@ export function TaskDetail({
         <div className="section-heading">
           <div>
             <span className="eyebrow">任务详情</span>
-            <h2>{job?.job_id?.slice(0, 8) || "加载中…"}</h2>
+            <h2>{job ? taskTitle(job) : "加载中…"}</h2>
           </div>
           <button
             className="icon-button"
@@ -55,6 +56,7 @@ export function TaskDetail({
             <div className="job-summary">
               <Badge status={job.status} />
               <span className="muted">{elapsed(job)}</span>
+              <div className="mono small muted">{job.job_id}</div>
               <pre>{command(job)}</pre>
               <div className="mono small muted">{job.cwd}</div>
               <div className="small muted">

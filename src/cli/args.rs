@@ -217,6 +217,9 @@ pub(super) enum Commands {
     Request { json: String },
     /// Execute explicit argv, or opt into a shell with --shell
     Start {
+        /// Short task purpose shown in the task manager (1..80 characters)
+        #[arg(long)]
+        title: Option<String>,
         #[arg(long, conflicts_with = "command")]
         shell: Option<String>,
         #[arg(long, default_value = agent_job_relay::platform::DEFAULT_SHELL)]

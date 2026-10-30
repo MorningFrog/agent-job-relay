@@ -189,6 +189,7 @@ impl Fixture {
     }
     fn spec(&self, key: &str) -> StartSpec {
         StartSpec {
+            title: None,
             command: CommandSpec::Exec {
                 program: "true".into(),
                 args: vec![],

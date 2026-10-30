@@ -36,6 +36,7 @@ fn registration(endpoint: PathBuf, session: &str, instance: &str) -> Registratio
 async fn claim(s: &Store, key: String, cwd: PathBuf) -> agent_job_relay::delivery::Claim {
     let j = s
         .start(StartSpec {
+            title: None,
             command: CommandSpec::Exec {
                 program: "true".into(),
                 args: vec![],
@@ -74,6 +75,7 @@ async fn dispatcher_runs_four_chats_concurrently_without_overlapping_one_chat() 
             .unwrap();
         let job = store
             .start(StartSpec {
+                title: None,
                 command: CommandSpec::Exec {
                     program: "true".into(),
                     args: vec![],

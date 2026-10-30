@@ -22,6 +22,7 @@ async fn fixture() -> (tempfile::TempDir, Store, StartSpec) {
     let store = Store::new(config);
     store.init().await.unwrap();
     let spec = StartSpec {
+        title: None,
         command: CommandSpec::Exec {
             program: "must-never-execute".into(),
             args: vec![],
@@ -216,6 +217,7 @@ mod native {
         }
         async fn start(&self, script: &str, rules: Vec<RuleSpec>) -> String {
             let spec = StartSpec {
+                title: None,
                 command: CommandSpec::Shell {
                     interpreter: "/bin/sh".into(),
                     script: script.into(),
@@ -444,6 +446,7 @@ mod native {
             );
             policy.notify_agent = true;
             let spec = StartSpec {
+                title: None,
                 command: CommandSpec::Shell {
                     interpreter: "/bin/sh".into(),
                     script: "while [ ! -f release ]; do sleep .02; done; printf READY; sleep 20"
@@ -606,6 +609,7 @@ mod native {
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/progress_checker.py");
         let job = store
             .start(StartSpec {
+                title: None,
                 command: CommandSpec::Exec {
                     program: "python3".into(),
                     args: vec![
@@ -742,13 +746,14 @@ mod native {
     async fn progress_cli_threshold_stops_and_exposes_shared_web_snapshot() {
         let r = Runtime::new().await;
         let script = "printf 'AJR_PROGRESS {\"v\":1,\"source\":\"train\",\"seq\":1,\"step\":10,\"total\":20,\"metrics\":{\"loss\":0.05}}\\n'; sleep 20";
-        let output = Command::new(env!("CARGO_BIN_EXE_agent-job-relay")).args(["--state-dir"]).arg(&r.config.root).args(["start","--cwd"]).arg(r.dir.path()).args(["--progress",r#"{"source":"train","trigger":{"kind":"metric","name":"loss","comparison":"le","value":0.1},"cooldown_seconds":1}"#,"--action","stop","--grace","0","--shell",script]).output().unwrap();
+        let output = Command::new(env!("CARGO_BIN_EXE_agent-job-relay")).args(["--state-dir"]).arg(&r.config.root).args(["start","--title","检查训练阈值","--cwd"]).arg(r.dir.path()).args(["--progress",r#"{"source":"train","trigger":{"kind":"metric","name":"loss","comparison":"le","value":0.1},"cooldown_seconds":1}"#,"--action","stop","--grace","0","--shell",script]).output().unwrap();
         assert!(
             output.status.success(),
             "{}",
             String::from_utf8_lossy(&output.stderr)
         );
         let value: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(value["job"]["title"], "检查训练阈值");
         assert_eq!(value["feedback"]["configured_rules"], 1);
         assert_eq!(value["feedback"]["rules"][0]["notify_agent"], false);
         let id = value["job"]["job_id"].as_str().unwrap();
@@ -774,6 +779,7 @@ mod native {
         .await;
         assert!(response.starts_with("HTTP/1.1 200"));
         assert!(response.contains("milestones") && response.contains("loss"));
+        assert!(response.contains("检查训练阈值"));
         assert!(response.contains("\"feedback\":") && response.contains("\"status\":\"terminal\""));
         // Exercise the actual shared stdio MCP path with the same condition.
         use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -799,7 +805,7 @@ mod native {
             (
                 2,
                 "tools/call",
-                json!({"name":"job_start","arguments":{"spec":{"command":{"kind":"shell","interpreter":"/bin/sh","script":script},"cwd":r.dir.path(),"monitor_rules":[{"condition":{"kind":"progress","source":"train","trigger":{"kind":"metric","name":"loss","comparison":"le","value":0.1},"cooldown_seconds":1},"action":"stop","grace_seconds":0}]}}}),
+                json!({"name":"job_start","arguments":{"spec":{"title":"检查训练阈值","command":{"kind":"shell","interpreter":"/bin/sh","script":script},"cwd":r.dir.path(),"monitor_rules":[{"condition":{"kind":"progress","source":"train","trigger":{"kind":"metric","name":"loss","comparison":"le","value":0.1},"cooldown_seconds":1},"action":"stop","grace_seconds":0}]}}}),
             ),
         ] {
             input
@@ -828,6 +834,7 @@ mod native {
         }
         child.kill().await.unwrap();
         child.wait().await.unwrap();
+        assert_eq!(result["job"]["title"], "检查训练阈值");
         assert_eq!(result["feedback"]["configured_rules"], 1);
         assert_eq!(
             result["feedback"]["rules"][0]["condition"]["source"],

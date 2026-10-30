@@ -78,6 +78,10 @@ pub struct StartSpec {
     pub idempotency_key: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub monitor_rules: Vec<crate::monitor::RuleSpec>,
+    /// Short task purpose for people reading the task manager (1..80 characters).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(length(min = 1, max = 80))]
+    pub title: Option<String>,
 }
 impl StartSpec {
     pub fn validate(&mut self) -> Result<()> {
@@ -91,6 +95,15 @@ impl StartSpec {
     }
     /// Validate a remote intent without resolving its cwd on the observing host.
     pub(crate) fn validate_options(&self) -> Result<()> {
+        if let Some(title) = &self.title {
+            ensure!(
+                !title.is_empty()
+                    && title.trim() == title
+                    && title.chars().count() <= 80
+                    && !title.chars().any(char::is_control),
+                "title must be 1..80 characters, without surrounding whitespace or control characters"
+            );
+        }
         ensure!(self.monitor_rules.len() <= 16, "at most 16 monitor rules");
         for rule in &self.monitor_rules {
             rule.validate()?;
@@ -188,6 +201,8 @@ pub struct Run {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Job {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
     pub run: Run,
     pub sequence: i64,
     pub job_id: String,

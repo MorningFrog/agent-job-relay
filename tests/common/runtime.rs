@@ -67,6 +67,7 @@ impl Rig {
     }
     pub fn spec(&self, script: &str) -> StartSpec {
         StartSpec {
+            title: None,
             command: CommandSpec::Shell {
                 interpreter: "/bin/sh".into(),
                 script: script.into(),

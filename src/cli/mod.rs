@@ -655,6 +655,7 @@ pub(super) async fn run() -> Result<()> {
             return agent_job_relay::runner::run(config, job_id, nonce).await;
         }
         Commands::Start {
+            title,
             shell,
             interpreter,
             cwd,
@@ -684,6 +685,7 @@ pub(super) async fn run() -> Result<()> {
                 std::env::current_dir()?.join(cwd)
             };
             let spec = StartSpec {
+                title,
                 command,
                 cwd,
                 env: BTreeMap::new(),

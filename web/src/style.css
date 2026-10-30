@@ -46,3 +46,5 @@ nav button .nav-label{background:none;margin:0;min-width:0;font:inherit;text-ali
 .job-summary progress{width:100%;height:8px;accent-color:#7060dd}
 .actions-link{margin-top:12px;color:#6955bd}.actions-link:hover{background:#f3f0ff}.actions-link:focus-visible{outline:2px solid #8072d9;outline-offset:3px}
 .actions-jobs{list-style:none;padding:0;margin:14px 0 0;max-height:320px;overflow:auto}.actions-jobs li{border-top:1px solid #eef0f5;padding:10px 0;font-size:11px;overflow-wrap:anywhere}.actions-jobs strong{display:block;color:#626a7d;margin-bottom:5px}.actions-jobs span,.actions-jobs p{color:#8b91a2;font-size:10px;line-height:1.7}
+
+.detail .section-heading>div{min-width:0}.detail .section-heading h2{overflow-wrap:anywhere}.detail .section-heading>.icon-button{flex-shrink:0}

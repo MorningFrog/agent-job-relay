@@ -27,6 +27,7 @@ impl Fixture {
     }
     fn spec(&self, key: &str, session: Option<String>) -> StartSpec {
         StartSpec {
+            title: None,
             command: CommandSpec::Exec {
                 program: "must-never-execute".into(),
                 args: vec![],
@@ -101,6 +102,107 @@ impl Fixture {
             .await
             .unwrap()
     }
+}
+
+#[tokio::test]
+async fn task_titles_validate_and_preserve_named_and_legacy_idempotency_after_archive() {
+    let f = Fixture::new().await;
+    let mut spec = f.spec("named", None);
+    for title in [
+        "".into(),
+        " ".into(),
+        " padded".into(),
+        "line\nbreak".into(),
+        "nul\0".into(),
+        "项".repeat(81),
+    ] {
+        spec.title = Some(title);
+        assert!(
+            f.store
+                .start(spec.clone())
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("title")
+        );
+    }
+    assert!(f.store.list(0, 100).await.unwrap().is_empty());
+    spec.title = Some("项".repeat(80));
+    spec.validate().unwrap();
+    spec.title = Some("运行项目测试".into());
+    let named = f.store.start(spec.clone()).await.unwrap();
+    let legacy_spec = f.spec("legacy", None);
+    // These are the pre-title serialized bytes used by existing hot keys and cold hashes.
+    let legacy_raw = format!(
+        r#"{{"command":{{"kind":"exec","program":"must-never-execute","args":[]}},"cwd":{},"env":{{}},"timeout_seconds":null,"session":null,"idempotency_key":"legacy"}}"#,
+        serde_json::to_string(&legacy_spec.cwd).unwrap()
+    );
+    assert_eq!(serde_json::to_string(&legacy_spec).unwrap(), legacy_raw);
+    let legacy = f
+        .store
+        .start(serde_json::from_str(&legacy_raw).unwrap())
+        .await
+        .unwrap();
+    for archived in [false, true] {
+        if archived {
+            for job in [&named, &legacy] {
+                f.store
+                    .finish(
+                        job.job_id.clone(),
+                        "completed",
+                        Some(0),
+                        None,
+                        "done".into(),
+                    )
+                    .await
+                    .unwrap();
+            }
+            f.immediate().await;
+            assert_eq!(
+                f.store.maintain(true).await.unwrap()["archive"]["archived"],
+                2
+            );
+        }
+        assert_eq!(
+            f.store.start(spec.clone()).await.unwrap().run_id,
+            named.run_id
+        );
+        assert_eq!(
+            f.store.start(legacy_spec.clone()).await.unwrap().run_id,
+            legacy.run_id
+        );
+        let detail = f
+            .store
+            .inspect(Some(named.job_id.clone()), None, 20)
+            .await
+            .unwrap();
+        assert_eq!(detail["job"]["title"], "运行项目测试");
+        let overview = f.store.inspect(None, None, 20).await.unwrap();
+        assert!(
+            overview["jobs"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|j| j["title"] == "运行项目测试")
+        );
+        assert_eq!(
+            f.store.status(legacy.job_id.clone()).await.unwrap().title,
+            None
+        );
+        let compact = agent_job_relay::output::compact("status", detail["job"].clone());
+        assert_eq!(compact["title"], "运行项目测试");
+        let mut changed = spec.clone();
+        changed.title = Some("不同任务".into());
+        assert!(
+            f.store
+                .start(changed)
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("different specification")
+        );
+    }
+    assert_eq!(f.count("jobs").await, 0);
 }
 
 #[tokio::test]

@@ -16,6 +16,7 @@ import {
   date,
   elapsed,
   command,
+  taskTitle,
   ruleSummary,
 } from "./view.js";
 import { Icon, Badge } from "./components/Icons.jsx";
@@ -102,7 +103,7 @@ export default function App() {
         (status === "active"
           ? !terminal.has(j.status)
           : j.status === status)) &&
-      `${command(j)} ${j.cwd} ${j.job_id}`
+      `${taskTitle(j)} ${command(j)} ${j.cwd} ${j.job_id}`
         .toLowerCase()
         .includes(filter.toLowerCase()),
   );
@@ -379,7 +380,7 @@ export default function App() {
                     <Icon name="search" />
                     <input
                       aria-label="搜索任务"
-                      placeholder="搜索命令、目录或任务 ID…"
+                      placeholder="搜索名称、命令、目录或任务 ID…"
                       value={filter}
                       onChange={(e) => setFilter(e.target.value)}
                     />
@@ -440,7 +441,7 @@ export default function App() {
                         aria-controls={
                           selected === j.job_id ? "task-detail" : undefined
                         }
-                        aria-label={`${command(j)} · ${names[j.status] || j.status}`}
+                        aria-label={`${taskTitle(j)} · ${names[j.status] || j.status}`}
                         onClick={() =>
                           compact && selected === j.job_id
                             ? closeDetail()
@@ -452,7 +453,7 @@ export default function App() {
                             <Icon name="terminal" />
                           </span>
                           <span>
-                            <strong title={command(j)}>{command(j)}</strong>
+                            <strong title={taskTitle(j)}>{taskTitle(j)}</strong>
                             <small title={j.cwd}>{j.cwd}</small>
                             <code>{j.job_id.slice(0, 8)}</code>
                           </span>

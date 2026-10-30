@@ -462,6 +462,7 @@ mod tests {
             .unwrap();
         let job = store
             .start(StartSpec {
+                title: None,
                 command: CommandSpec::Exec {
                     program: "must-not-run".into(),
                     args: vec![],

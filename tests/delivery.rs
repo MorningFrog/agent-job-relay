@@ -42,6 +42,7 @@ impl Fixture {
     async fn job(&self, key: &str) -> Job {
         self.store
             .start(StartSpec {
+                title: None,
                 command: CommandSpec::Exec {
                     program: "true".into(),
                     args: vec![],
@@ -499,6 +500,7 @@ impl Fixture {
     async fn job_result_missing(&self) -> anyhow::Result<Job> {
         self.store
             .start(StartSpec {
+                title: None,
                 command: CommandSpec::Exec {
                     program: "true".into(),
                     args: vec![],
@@ -555,6 +557,7 @@ async fn version_one_database_upgrades_without_losing_job_or_run() {
     let j = id();
     let r = id();
     let spec = StartSpec {
+        title: None,
         command: CommandSpec::Exec {
             program: "true".into(),
             args: vec![],
@@ -642,6 +645,7 @@ async fn status_has_reserved_capacity_when_all_writer_workers_are_busy() {
     let job = f
         .store
         .start(StartSpec {
+            title: None,
             command: CommandSpec::Exec {
                 program: "true".into(),
                 args: vec![],

@@ -375,6 +375,7 @@ pub fn read_job(db: &Connection, j: &str) -> Result<Job> {
         signal,
     };
     Ok(Job {
+        title: spec.title,
         run,
         sequence,
         job_id,

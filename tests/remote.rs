@@ -75,6 +75,7 @@ impl Rig {
     }
     fn spec(&self, command: CommandSpec) -> StartSpec {
         StartSpec {
+            title: None,
             command,
             cwd: self.dir.path().to_path_buf(),
             env: BTreeMap::new(),
@@ -860,6 +861,7 @@ async fn observer_storage_failure_does_not_become_an_external_execution_failure(
     let store = Store::new(config.clone());
     store.init().await.unwrap();
     let spec = StartSpec {
+        title: None,
         command: CommandSpec::Remote {
             remote: Box::new(RemoteSpec {
                 target_id: id(),
@@ -927,6 +929,7 @@ async fn observer_recovery_does_not_reopen_a_racing_terminal_run() {
     let store = Store::new(config.clone());
     store.init().await.unwrap();
     let spec = StartSpec {
+        title: None,
         command: CommandSpec::Remote {
             remote: Box::new(RemoteSpec {
                 target_id: id(),

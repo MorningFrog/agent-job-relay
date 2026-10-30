@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createServer } from "vite";
+import { taskTitle } from "./view.js";
 
 const server = await createServer({
   root: fileURLToPath(new URL("../", import.meta.url)),
@@ -85,4 +86,40 @@ test("runtime component shows health sampling time separately from newer task sa
   );
   assert.ok(html.includes(new Date(healthAt).toLocaleString()));
   assert.ok(!html.includes(new Date(taskAt).toLocaleString()));
+});
+
+test("named task details retain the purpose, original ID and complete escaped command", () => {
+  const script = "printf '<script>untrusted</script>'; " + "echo detail; ".repeat(100);
+  const job = {
+    job_id: "original-job-id",
+    title: "检查训练进度 <实验 A>",
+    status: "completed",
+    command: { kind: "shell", script },
+    cwd: "project",
+    created_at: 1,
+  };
+  const html = renderToStaticMarkup(React.createElement(TaskDetail, {
+    selected: job.job_id, detail: { job }, tab: "output", streamName: "stdout",
+  }));
+  assert.ok(html.includes("<h2>检查训练进度 &lt;实验 A&gt;</h2>"));
+  assert.ok(html.includes("original-job-id"));
+  assert.ok(html.includes(script.replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll("'", "&#x27;")));
+  assert.ok(!html.includes("<script>"));
+  assert.equal(taskTitle(job), job.title);
+});
+
+test("unnamed legacy jobs have bounded project hints without inline script bodies", () => {
+  for (const preview of [
+    "/usr/bin/python3 -c " + "large_payload".repeat(50),
+    "python3 - <<'PY'\nprint('large payload')\nPY",
+  ]) {
+    assert.equal(taskTitle({ command_preview: preview, cwd: "/work/project" }), "python3 脚本 · project");
+  }
+  const exec = { command: { kind: "exec", program: "C:\\tools\\cargo.exe", args: ["test", "--all-targets"] }, cwd: "C:\\work\\项目\\" };
+  assert.equal(taskTitle(exec), "cargo.exe test --all-targets · 项目");
+  assert.equal(taskTitle({ command_preview: "set -eu\necho payload", cwd: "/work/project" }), "Shell 脚本 · project");
+  const long = taskTitle({ command_preview: "测".repeat(1000), cwd: "/" + "项".repeat(100) });
+  assert.ok(Array.from(long).length <= 75);
+  assert.ok(long.includes("…"));
+  assert.equal(taskTitle({}), "后台任务");
 });

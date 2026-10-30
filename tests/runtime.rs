@@ -29,6 +29,7 @@ async fn batch_partial_admission_preserves_options_and_independent_lifecycles() 
         spec.cwd = cwd;
         spec.timeout_seconds = Some(8);
         spec.idempotency_key = Some(name.into());
+        spec.title = Some(format!("检查任务 {name}"));
         spec.env
             .insert("BATCH_LABEL".into(), format!("output-{name}"));
         specs.push(spec);
@@ -48,6 +49,8 @@ async fn batch_partial_admission_preserves_options_and_independent_lifecycles() 
     specs.push(stop);
     let value = r.call(Request::StartBatch { specs }).await;
     assert_eq!(value["accepted"], 3);
+    assert_eq!(value["results"][0]["result"]["job"]["title"], "检查任务 a");
+    assert_eq!(value["results"][2]["result"]["job"]["title"], "检查任务 b");
     assert_eq!(value["rejected"], 2);
     assert_eq!(value["results"][3]["accepted"], false);
     assert!(

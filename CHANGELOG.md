@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Added
+
+- Add optional recognizable task names through CLI `start --title` and MCP/JSON `spec.title`, including batch items. Show names in Web list/detail headings and search, guide Agents to name new work and provide bounded command/project hints for unnamed history while preserving complete commands in details.
+- Preserve supplied titles through compact results, inspection and archival without changing schema v12, IPC v1 or the 25-tool catalog. Omitted titles retain previous idempotency bytes; retries must keep the original title.
+
 ## [0.1.17] - 2026-10-30
 
 ### Added
