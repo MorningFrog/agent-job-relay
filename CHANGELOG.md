@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [0.1.16] - 2026-10-30
+
+### Added
+
+- Return bounded read-only feedback receipts from single/batch submission and task inspection, including configured triggers, runner application revisions, observed progress sources, active recorded targets and notification limitations. Preserve original Job/Run IDs if receipt diagnostics fail after admission.
+
+### Changed
+
+- Guide Agents to configure requested stage or exception feedback before submission, distinguish intermediate alerts from process completion and yield again after reporting a still-running task. Keep completion-only requests, explicit stop authorization and goal-wait notification restrictions effective.
+- Keep schema v11, IPC v1 and the 25-tool catalog unchanged. The sealed 0.1.15 candidate does not include these runtime changes; 0.1.16 needs its own platform/package and release qualification.
+
 ## [0.1.15] - 2026-10-30
 
 ### Fixed

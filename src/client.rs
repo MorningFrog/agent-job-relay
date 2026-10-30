@@ -494,7 +494,7 @@ pub fn brief_binding(value: Value) -> Value {
         return result;
     }
     let mut brief = json!({"session_key":value["session"]["key"],"binding":value["binding"],"goal_wait_policy":value["goal_wait_policy"],"automatic_goal_pause_supported":value["automatic_goal_pause_supported"],"goal_state_verified":value["goal_state_verified"],"probe":"passed","can_resume":true,"can_confirm_resume":false,
-        "next_step":"Call job_start with binding and spec.command; end this turn after submission."});
+        "next_step":"Call job_start with binding and spec.command. For requested mid-run feedback, select a real producer and initial spec.monitor_rules before submission; read returned feedback configuration, then end this turn without polling."});
     if let Some(wait) = value.get("goal_wait") {
         brief["goal_wait"] = wait.clone();
         brief["next_step"] = json!(

@@ -72,6 +72,8 @@ Run `cargo test --lib interrupted_doctor_probe` for the deterministic concurrent
 
 Run `cargo test --lib progress::` and `cargo test --test monitor` for source progress. Expected: bounded split-stream framing and invalid/flood handling; sequence/cooldown/revision/terminal fences; transactional rollback and archive/backup preservation; actual CLI threshold stopping/shared HTTP snapshots; and the reference checker delivering mid-run to its exact fake Desktop chat while remaining independent of daemon lifetime. Fake-host acknowledgement is not observed real Agent execution; no new Windows/real-provider acceptance is claimed.
 
+For feedback receipts, run `cargo test --test feedback`, the existing monitor/goal-wait suites and `cargo test --test data archived_inspection`. Expected: current persisted rule changes survive unchanged-key retries, receipt diagnostics cannot turn admitted work into an apparent submission failure, inbox/source/application evidence never claims Agent execution, explicit target rebind/lease state is followed without host probes, one-shot/progress exhaustion and goal restrictions remain visible, CLI/shared MCP/HTTP carry the receipt, and hot/cold detail remains equivalent without rehydration. These tests qualify receipts and protocol behavior; natural-language adoption of changed guidance needs real-Agent acceptance.
+
 ## Manual feature prompts
 
 Copy the short task requests in [English](test-prompts.md) or [中文](test-prompts.zh-CN.md) for directory scans, file searches, builds, progress updates and task management.

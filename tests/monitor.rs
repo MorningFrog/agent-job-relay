@@ -683,6 +683,14 @@ mod native {
             })
             .await;
         assert_eq!(first["job"]["status"], "running");
+        assert_eq!(first["feedback"]["status"], "configured");
+        assert_eq!(first["feedback"]["rules"][1]["sample_observed"], true);
+        assert_eq!(first["feedback"]["rules"][1]["application"], "applied");
+        let compact = agent_job_relay::output::compact(
+            "start",
+            json!({"job":first["job"],"feedback":first["feedback"]}),
+        );
+        assert_eq!(compact["feedback"], first["feedback"]);
         assert_eq!(
             first["observation"]["progress"]["sources"]["checker"]["observed_run"],
             "target:job:run:attempt-1"
@@ -741,6 +749,8 @@ mod native {
             String::from_utf8_lossy(&output.stderr)
         );
         let value: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(value["feedback"]["configured_rules"], 1);
+        assert_eq!(value["feedback"]["rules"][0]["notify_agent"], false);
         let id = value["job"]["job_id"].as_str().unwrap();
         let done = r.until(id, |v| v["job"]["status"] == "cancelled").await;
         assert_eq!(
@@ -764,6 +774,7 @@ mod native {
         .await;
         assert!(response.starts_with("HTTP/1.1 200"));
         assert!(response.contains("milestones") && response.contains("loss"));
+        assert!(response.contains("\"feedback\":") && response.contains("\"status\":\"terminal\""));
         // Exercise the actual shared stdio MCP path with the same condition.
         use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
         let mut child = tokio::process::Command::new(env!("CARGO_BIN_EXE_agent-job-relay"))
@@ -817,6 +828,11 @@ mod native {
         }
         child.kill().await.unwrap();
         child.wait().await.unwrap();
+        assert_eq!(result["feedback"]["configured_rules"], 1);
+        assert_eq!(
+            result["feedback"]["rules"][0]["condition"]["source"],
+            "train"
+        );
         let done = r
             .until(result["job"]["job_id"].as_str().unwrap(), |v| {
                 v["job"]["status"] == "cancelled"

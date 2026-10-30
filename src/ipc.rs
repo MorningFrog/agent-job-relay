@@ -502,7 +502,10 @@ pub(crate) async fn start_result(store: &Store, job: Job) -> Value {
     } else {
         json!({"can_resume":false,"warning":"No wake target registered; use bounded job_wait for short jobs or inspect later. Do not poll in a loop."})
     };
-    json!({"job":job,"wake":wake})
+    let feedback = store.feedback(job.job_id.clone()).await.unwrap_or_else(|error| {
+        json!({"status":"unknown","reason":format!("job admitted; feedback diagnostics unavailable: {error:#}")})
+    });
+    json!({"job":job,"wake":wake,"feedback":feedback})
 }
 pub async fn call(config: &Config, request: Request) -> Result<Value> {
     Ok(exchange(config, request, None).await?.0)

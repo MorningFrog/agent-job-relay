@@ -105,6 +105,8 @@ Use this check for a relevant feedback change or a new host/runtime combination.
 
 Record this separately from completion-only acceptance. It does not establish goal-wait intermediate notifications, periodic summaries, another host/version, restart recovery or prolonged reliability; the runtime does not automatically upgrade deliveries to `confirmed_resumed` from this human observation.
 
+For changed source 0.1.16 guidance, qualify autonomous configuration separately using natural-language requests without naming MCP tools or rule parameters. A completion-only request should add no notifying rule; a stage-feedback request should select a real producer and initial stage rules; a request to report a distinctive known failure marker should configure an alert without unauthorized stopping; a silent command with no progress source should produce an honest limitation instead of invented percentages or periodic-report promises. Read the returned `feedback` receipt and observe the actual Agent turns; fixture model scripts and tool descriptions alone do not establish this adoption result.
+
 ## ChatGPT Desktop restart and same-chat rebinding
 
 This separate acceptance checks a changed real host endpoint and an existing job target. It does not repeat the passed ordinary MCP continuation test. Native ChatGPT Desktop UI/restart needs a human operator when computer tools expose browsers only; record that limit instead of claiming an observed UI action.

@@ -283,6 +283,17 @@ async fn storage_only_pause_never_acknowledges_the_host_and_confirmation_is_fenc
     let result = f.admit(&wait, "needs-native-pause").await;
     let revision = result["goal_wait"]["revision"].as_i64();
     assert_eq!(result["goal_wait"]["status"], "sealed");
+    assert_eq!(result["feedback"]["status"], "goal_completion_only");
+    let detail = f
+        .store
+        .inspect(
+            Some(result["job"]["job_id"].as_str().unwrap().into()),
+            None,
+            20,
+        )
+        .await
+        .unwrap();
+    assert_eq!(detail["feedback"], result["feedback"]);
     assert_eq!(result["goal_wait"]["host_pause_required"], true);
     assert_eq!(
         f.controller.read().await.unwrap().unwrap().status.as_str(),

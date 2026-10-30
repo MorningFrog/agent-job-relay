@@ -8,6 +8,7 @@ pub mod daemon;
 pub mod delivery;
 pub mod deployment;
 pub mod diagnostics;
+mod feedback;
 pub mod goal_consent;
 pub mod goal_control;
 mod goal_question;

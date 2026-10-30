@@ -203,6 +203,7 @@ async fn archived_inspection_preserves_bounded_detail_pages_and_rehydration() {
         "rules",
         "observation",
         "goal_wait",
+        "feedback",
         "profile",
     ] {
         assert_eq!(before[field], cold[field], "{field}");
@@ -225,6 +226,7 @@ async fn archived_inspection_preserves_bounded_detail_pages_and_rehydration() {
         "rules",
         "observation",
         "stop",
+        "feedback",
     ] {
         assert_eq!(before[field], hot[field], "{field}");
     }

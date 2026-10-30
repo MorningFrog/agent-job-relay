@@ -94,7 +94,9 @@ Copy `binding` from the current terminal result; do not reconstruct identities o
 
 The compatible alternative is `session connect --brief` from the same terminal, then passing its `session_key` as `spec.session` together with explicit command and absolute `spec.cwd`.
 
-MCP start/status/list/wait/stop/doctor/recovery responses are compact by default; use `full=true` for complete diagnostic records, including the original Run/process fields or recovery audit. Job IDs, status, exit outcome, cursors and actionable failure details remain available. Raw IPC and existing CLI output stay unchanged.
+MCP start/status/list/wait/stop/doctor/recovery responses are compact by default; use `full=true` for complete diagnostic records, including the original Run/process fields or recovery audit. Job IDs, status, exit outcome, cursors and actionable failure details remain available; existing raw IPC and CLI fields are preserved.
+
+Source 0.1.16 additionally returns a `feedback` receipt on submission and detailed inspection, including compact MCP results and accepted batch items. For requested mid-run updates, configure the actual producer and initial rules before submitting, then report the receipt's effective source/trigger and notification limitation before yielding. A `configured` receipt is configuration evidence only; check applied revisions and observed samples separately. Match/deduplicate intermediate notifications, inspect bounded evidence once and yield again while the original run continues. See [feedback receipts](progress.md#choose-and-verify-feedback-before-yielding); goal-wait members remain completion-only for Agent notifications.
 
 Shared-host MCP rejects `wake_me=true` and `job_connect_session`; its environment cannot establish the caller. Advanced dedicated per-session MCP can use inherited-context wake, as described in [protocol](protocol.md#client-convenience-no-wire-version-change). Ordinary background execution without continuation uses no session/wake option.
 

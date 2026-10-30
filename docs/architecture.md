@@ -10,7 +10,7 @@ One package and executable; CLI, stdio MCP, daemon and runner modes.
 |---|---|
 | Process initialization | `src/main.rs` |
 | CLI syntax and dispatch | `src/cli/args.rs`, `src/cli/mod.rs` (binary-private) |
-| MCP tools and client convenience | `src/mcp.rs`, `src/mcp_runtime.rs`, `src/client.rs`, `src/diagnostics.rs`, `src/output.rs`, `src/monitor.rs`, `src/progress.rs` |
+| MCP tools and client convenience | `src/mcp.rs`, `src/mcp_runtime.rs`, `src/client.rs`, `src/diagnostics.rs`, `src/output.rs`, `src/feedback.rs`, `src/monitor.rs`, `src/progress.rs` |
 | External execution and observation | `src/remote/` (pinned contract/stdio helper, bounded transport, native observer and read-only Actions adapter) |
 | Bounded batch admission | `src/batch.rs`, shared CLI/MCP client and IPC dispatch; existing per-item storage transactions |
 | Job intent, execution and persistence | `src/core.rs`, `src/core/state.rs`, `src/daemon.rs`, `src/runner.rs`, `src/runner/{supervisor,output}.rs`, `src/storage.rs` |
@@ -60,6 +60,8 @@ Schema v9 separates hot relational history from compressed cold snapshots in the
 SQLite online backups pin a read snapshot; exact-path staging journals, manifest-last publication and checksum/inventory validation support bounded forward recovery and safe rolling rotation. Restore publishes only a new profile after orphaning old active intents, invalidating registrations and fencing outstanding claims. Migration to v9 requires daemon exclusivity and no old launching/running jobs. See [data maintenance](data-maintenance.md) and [ADR 0014](adr/0014-automatic-data-maintenance.md).
 
 Task-detail inspection reads all sections in one short database read transaction. A cold task loads and validates its compressed snapshot once, then derives bounded events, deliveries, rules and observations from that same snapshot; goal-wait summaries still read current relational state. No cross-request archive cache or schema migration is introduced.
+
+Read-only feedback receipts share `feedback.rs` across single/batch admission and detailed CLI/MCP/Web inspection. They derive rules, application revisions, source observations and active recorded targets in a short read transaction, without host probes or delivery mutations. Recovery/rebind targets take precedence over the original job session; terminal cold records need no target lookup or rehydration. Admission remains successful with original IDs when later receipt diagnostics fail. Configuration, observed samples, delivery and actual Agent execution remain separate.
 
 ## Sessions and delivery
 

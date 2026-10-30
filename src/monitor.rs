@@ -323,6 +323,7 @@ impl Store {
                     let mut value = snapshot.inspection()?;
                     value["goal_wait"] = json!(crate::goal_wait::summary_for_job(&tx, &id)?);
                     value["sampled_at"] = json!(now());
+                    value["feedback"] = crate::feedback::summarize(&tx, &value)?;
                     return Ok(value);
                 }
                 let j=read_job(&tx,&id)?;
@@ -331,7 +332,9 @@ impl Store {
                 let stop=tx.query_row("SELECT grace_seconds,reason,at FROM stop_requests WHERE job_id=?",[&id],|r|Ok(json!({"grace_seconds":r.get::<_,u32>(0)?,"reason":r.get::<_,String>(1)?,"at":r.get::<_,i64>(2)?}))).optional()?.unwrap_or(Value::Null);
                 let mut q=tx.prepare("SELECT seq,id,job_id,run_id,kind,at,payload FROM events WHERE job_id=? ORDER BY seq DESC LIMIT 30")?;
                 let events=q.query_map([&id],|r|Ok(Event{seq:r.get(0)?,event_id:r.get(1)?,job_id:r.get(2)?,run_id:r.get(3)?,kind:r.get(4)?,at:r.get(5)?,payload:serde_json::from_str(&r.get::<_,String>(6)?).map_err(|e|rusqlite::Error::FromSqlConversionFailure(6,rusqlite::types::Type::Text,Box::new(e)))?}))?.collect::<rusqlite::Result<Vec<_>>>()?;
-                Ok(json!({"job":j,"goal_wait":crate::goal_wait::summary_for_job(&tx,&id)?,"observation":observation,"rules":rules(&tx,&id)?,"stop":stop,"events":events,"deliveries":crate::delivery::page(&tx,Some(&id),0,20)?,"sampled_at":now()}))
+                let mut value = json!({"job":j,"goal_wait":crate::goal_wait::summary_for_job(&tx,&id)?,"observation":observation,"rules":rules(&tx,&id)?,"stop":stop,"events":events,"deliveries":crate::delivery::page(&tx,Some(&id),0,20)?,"sampled_at":now()});
+                value["feedback"] = crate::feedback::summarize(&tx, &value)?;
+                Ok(value)
             }).await?;
             value["profile"] = json!(self.config.root);
             return Ok(value);
@@ -584,6 +587,12 @@ pub fn human(value: &Value) -> String {
             job["cwd"].as_str().unwrap_or("")
         ));
         lines.push(format!("Stop: {}", value["stop"]));
+        if let Some(status) = value["feedback"]["status"].as_str() {
+            lines.push(format!(
+                "Feedback: {status} · {}",
+                value["feedback"]["reason"].as_str().unwrap_or("")
+            ));
+        }
         if let Some(progress) = value["observation"].get("progress") {
             lines.push(format!("Progress (untrusted workload data): {progress}"));
         }

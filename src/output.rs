@@ -53,8 +53,13 @@ pub fn compact(op: &str, value: Value) -> Value {
             );
             wake["can_resume"] = json!(resume);
             wake["can_confirm_resume"] = json!(false);
-            let mut result = json!({"job":job(&value["job"]),"wake":wake,"next_step":if resume {
-                "End this turn; inspect job_status when the completion notification arrives."
+            let feedback_status = value["feedback"]["status"].as_str().unwrap_or("unknown");
+            let mut result = json!({"job":job(&value["job"]),"wake":wake,"feedback":value["feedback"],"next_step":if feedback_status == "terminal" {
+                "The original run has ended; inspect bounded results without replaying the command."
+            } else if feedback_status == "configured" {
+                "End this turn. On a mid-run or completion notification, match Job/Run and deduplicate delivery_id, inspect bounded evidence once, report only authorized feedback and yield again if still running. Do not poll or replay the command."
+            } else if resume {
+                "End this turn; inspect job_status on completion. Check feedback for mid-run configuration and limitations."
             } else {
                 "Use job_wait once for a short job, or inspect job_status later; no automatic continuation is bound."
             }});

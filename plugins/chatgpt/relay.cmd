@@ -2,7 +2,7 @@
 setlocal DisableDelayedExpansion
 call ajr.cmd update --help >nul 2>nul
 if errorlevel 1 (
-  echo Install the CLI first: npm install --global --ignore-scripts --registry=https://registry.npmjs.org agent-job-relay-runtime@0.1.15 (then run ajr update) 1>&2
+  echo Install the CLI first: npm install --global --ignore-scripts --registry=https://registry.npmjs.org agent-job-relay-runtime@0.1.16 (then run ajr update) 1>&2
   exit /b 1
 )
-npx --yes --ignore-scripts --registry=https://registry.npmjs.org --package=agent-job-relay-runtime@0.1.15 agent-job-relay codex %*
+npx --yes --ignore-scripts --registry=https://registry.npmjs.org --package=agent-job-relay-runtime@0.1.16 agent-job-relay codex %*

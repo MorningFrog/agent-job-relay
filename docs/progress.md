@@ -6,6 +6,26 @@ Use a flushed marker for a small set of predefined milestones, or structured pro
 
 For copyable whole-feature test requests, use [English prompts](test-prompts.md) or [中文提示词](test-prompts.zh-CN.md), including bounded Linux/Windows home scans and repeated feedback.
 
+## Choose and verify feedback before yielding
+
+Current source 0.1.16 adds a `feedback` receipt to CLI/MCP single submission, each accepted batch item and detailed inspection, including Web snapshots. Completion-only requests need no notifying rules. For requested stage/step/metric feedback, select a real producer; for a known checkpoint or exception, select a specific output marker. Install initial rules before the first output, and use `notify_agent` only for requested feedback to the existing bound session. Missing progress sources cannot support a promised percentage or periodic report; no-output alone does not establish a hang.
+
+The receipt describes current persisted rules, including changes made after initial submission, rather than echoing the original start specification. It lists bounded conditions, actions, revisions, `application` (pending/applied/disabled/terminal), trigger policy and whether a progress sample for that source has been observed. `can_trigger_again` accounts for one-shot revisions and the job-wide progress budget; future matches, cooldown and notification rate limits still apply. Targets follow explicit recorded recovery/rebinding and expose IDs/capabilities/lease state without endpoint paths, credentials or host probes. `configured` means a notifying rule and a registered resumable target exist; it does not prove producer output, successful delivery or Agent execution.
+
+| `feedback.status` | Meaning |
+|---|---|
+| `not_configured` | No enabled rule; completion notification is independent |
+| `local_only` | Enabled rules record local evidence without mid-run Agent notification |
+| `inbox_only` | Notification rules exist, but eligible targets cannot automatically resume an Agent |
+| `configured` | Notification rules and an eligible registered host target exist; check rule application/source evidence |
+| `unbound` / `binding_unavailable` | No active target, or its registration is invalidated/expired; verified renewal or explicit recovery may be needed |
+| `exhausted` | Notifying one-shot revisions or the job-wide progress budget cannot produce another alert |
+| `goal_completion_only` | Goal-wait membership permits local rules and merged completion continuation |
+| `terminal` | The original run has ended; inspect retained events/results |
+| `unknown` | Submission was admitted but feedback diagnostics failed; retain its IDs and do not resubmit with new keys |
+
+After a notification, match the original Job/Run and deduplicate its delivery ID. Inspect bounded evidence once, report the requested stage or exception, and yield again if execution continues. Only actual terminal state permits a final outcome summary. This source change has automated receipt coverage; autonomous adoption of the updated guidance in additional real hosts remains separate from the already user-confirmed feedback loop.
+
 ## Reuse a marker rule
 
 Install initial rules before the workload/checker can print the marker. In an actual caller-bound MCP start, include:

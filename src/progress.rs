@@ -16,6 +16,7 @@ pub const PREFIX: &[u8] = b"AJR_PROGRESS ";
 const SAFE_INTEGER: u64 = 9_007_199_254_740_991;
 const MAX_FRAMES: usize = 64;
 const MAX_LINE: usize = 4096;
+pub(crate) const MAX_ALERTS: u32 = 128;
 
 pub(crate) fn validate_name(s: &str) -> Result<()> {
     ensure!(
@@ -337,7 +338,7 @@ impl Store {
                     if source != &sample.source || !rule.enabled || rule.deleted || !frame.applied.contains(&(rule.id.clone(),rule.revision)) || !trigger.matches(&sample, previous.as_ref()) { continue; }
                     let counter = state.rules.entry(rule.id.clone()).or_default();
                     if counter.revision != rule.revision { *counter = Counter { revision: rule.revision, ..Default::default() }; }
-                    if state.alerts >= 128 || counter.count >= 128 || (counter.count > 0 && at.saturating_sub(counter.last_at) < (*cooldown_seconds as i64)*1000) {
+                    if state.alerts >= MAX_ALERTS || counter.count >= MAX_ALERTS || (counter.count > 0 && at.saturating_sub(counter.last_at) < (*cooldown_seconds as i64)*1000) {
                         state.suppressed = state.suppressed.saturating_add(1); continue;
                     }
                     counter.count += 1; counter.last_at = at; state.alerts += 1;
