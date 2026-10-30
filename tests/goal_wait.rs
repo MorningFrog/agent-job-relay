@@ -1721,6 +1721,190 @@ async fn scoped_consent_fences_question_claims_callers_changes_expiry_and_restor
 }
 
 #[tokio::test]
+async fn unavailable_controller_preserves_approved_consent_and_acknowledged_wait() {
+    let f = Fixture::new().await;
+    let pending = f.consent(2).await;
+    let approved = f.approve_consent(&pending).await;
+    let request = approved["request_id"].as_str().unwrap().to_owned();
+    let wait = f
+        .store
+        .prepare_goal_wait_scoped(
+            f.session.clone(),
+            f.controller.clone(),
+            f.goal.clone(),
+            Some(request.clone()),
+        )
+        .await
+        .unwrap();
+    let wait = wait["goal_wait_id"].as_str().unwrap();
+    let started = f.submit(wait, "read-failure-member").await;
+    let before = f.state(wait).await;
+    std::fs::write(f.controller.home.join("mode"), "disconnect_read").unwrap();
+    assert!(
+        f.store
+            .goal_consent_record(request.clone(), f.session.clone())
+            .await
+            .is_err()
+    );
+    assert!(
+        f.store
+            .clear_obsolete_goal_consents(f.session.clone())
+            .await
+            .is_err()
+    );
+    assert_eq!(f.state(wait).await, before);
+    let key = request.clone();
+    assert_eq!(
+        f.store
+            .read(move |db| Ok(db.query_row(
+                "SELECT status,revision,used FROM goal_consents WHERE id=?",
+                [key],
+                |r| Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, i64>(1)?,
+                    r.get::<_, i64>(2)?
+                )),
+            )?))
+            .await
+            .unwrap(),
+        ("approved".into(), approved["revision"].as_i64().unwrap(), 1)
+    );
+    assert!(f.mutations().is_empty());
+    std::fs::remove_file(f.controller.home.join("mode")).unwrap();
+    let restored = f
+        .store
+        .goal_consent_view(request, f.session.clone())
+        .await
+        .unwrap();
+    assert_eq!(restored["status"], "approved");
+    assert_eq!(restored["jobs_admitted"], 1);
+    f.finish(&started).await;
+    goal_wait::progress(&f.store, wait).await.unwrap();
+    assert_eq!(f.state(wait).await["status"], "resumed");
+    assert_eq!(f.mutations().len(), 1);
+    std::fs::write(f.controller.home.join("mode"), "disconnect_read").unwrap();
+    let revoked = f
+        .store
+        .decide_goal_consent(
+            approved["request_id"].as_str().unwrap().into(),
+            f.session.clone(),
+            approved["revision"].as_i64().unwrap(),
+            agent_job_relay::goal_consent::Decision::Revoke,
+            "user revocation while host unavailable",
+        )
+        .await
+        .unwrap();
+    assert_eq!(revoked["status"], "revoked");
+    assert_eq!(f.state(wait).await["status"], "cancelled");
+    assert_eq!(f.mutations().len(), 1);
+}
+
+#[tokio::test]
+async fn stale_goal_observation_cannot_overwrite_a_concurrent_revocation() {
+    let f = Fixture::new().await;
+    let pending = f.consent(1).await;
+    let approved = f.approve_consent(&pending).await;
+    let request = approved["request_id"].as_str().unwrap().to_owned();
+    let mut replacement = f.goal.clone();
+    replacement.objective = "a different goal".into();
+    f.write_goal(&replacement);
+    std::fs::write(f.controller.home.join("mode"), "hold_first_read").unwrap();
+    let store = f.store.clone();
+    let (key, session) = (request.clone(), f.session.clone());
+    let stale = tokio::spawn(async move { store.goal_consent_view(key, session).await });
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while !f.controller.home.join("blocked").exists() {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+    let revoked = f
+        .store
+        .decide_goal_consent(
+            request.clone(),
+            f.session.clone(),
+            approved["revision"].as_i64().unwrap(),
+            agent_job_relay::goal_consent::Decision::Revoke,
+            "user revocation during observation",
+        )
+        .await
+        .unwrap();
+    std::fs::write(f.controller.home.join("release"), "").unwrap();
+    assert_eq!(stale.await.unwrap().unwrap(), revoked);
+    let statuses = f
+        .store
+        .read(move |db| {
+            let mut q = db.prepare(
+                "SELECT status FROM goal_consent_audits WHERE request_id=? ORDER BY sequence",
+            )?;
+            Ok(q.query_map([request], |r| r.get::<_, String>(0))?
+                .collect::<rusqlite::Result<Vec<_>>>()?)
+        })
+        .await
+        .unwrap();
+    assert_eq!(statuses, ["pending", "approved", "revoked"]);
+    assert!(f.mutations().is_empty());
+}
+
+#[tokio::test]
+async fn inactive_original_goal_retains_pending_consent_without_a_new_question() {
+    for status in [
+        "blocked",
+        "paused",
+        "budget_limited",
+        "usage_limited",
+        "unknown_status",
+    ] {
+        let f = Fixture::new().await;
+        let pending = f.consent(1).await;
+        let request = pending["request_id"].as_str().unwrap().to_owned();
+        let mut goal = f.goal.clone();
+        goal.status = status.into();
+        goal.updated_at += 1;
+        f.write_goal(&goal);
+        let current = f
+            .store
+            .goal_consent_view(request.clone(), f.session.clone())
+            .await
+            .unwrap();
+        assert_eq!(current["status"], "pending");
+        assert_eq!(current["revision"], pending["revision"]);
+        assert_eq!(current["goal_status"], status);
+        assert!(
+            f.store
+                .claim_goal_question(request.clone(), f.session.clone(), 1, false)
+                .await
+                .is_err()
+        );
+        assert!(
+            f.store
+                .decide_goal_consent(
+                    request.clone(),
+                    f.session.clone(),
+                    1,
+                    agent_job_relay::goal_consent::Decision::Allow,
+                    "no active goal"
+                )
+                .await
+                .is_err()
+        );
+        assert!(f.store.list(0, 100).await.unwrap().is_empty());
+        assert!(f.mutations().is_empty());
+        goal.status = "active".into();
+        goal.updated_at += 1;
+        f.write_goal(&goal);
+        assert_eq!(
+            f.store
+                .goal_consent_view(request, f.session.clone())
+                .await
+                .unwrap(),
+            pending
+        );
+    }
+}
+
+#[tokio::test]
 async fn native_answers_cannot_grant_after_expiry_or_goal_deletion_and_do_not_reprompt() {
     for removed in [false, true] {
         let f = Fixture::new().await;
@@ -2004,6 +2188,45 @@ async fn scoped_terminal_request_reuses_one_answer_for_three_real_background_sub
     .await
     .unwrap();
     for round in 0..3 {
+        if round == 1 {
+            // Reproduce a host blocker after the first result was delivered.
+            // It gates the next round without revoking the original approval.
+            let mut current = f.controller.read().await.unwrap().unwrap();
+            current.status = "blocked".into();
+            current.updated_at += 1;
+            f.write_goal(&current);
+            let batch = f.dir.path().join("blocked-batch.json");
+            let mut spec = f.spec("blocked-batch");
+            spec.session = None;
+            std::fs::write(&batch, serde_json::to_vec(&vec![spec]).unwrap()).unwrap();
+            for args in [
+                vec!["connect", "--request-id", request.as_str()],
+                vec!["connect"],
+                vec!["start", "--wake", "--", "/bin/true"],
+                vec!["start-batch", "--wake", "--file", batch.to_str().unwrap()],
+            ] {
+                let out = f.cli().args(args).output().await.unwrap();
+                assert!(
+                    out.status.success(),
+                    "{}",
+                    String::from_utf8_lossy(&out.stderr)
+                );
+                let gated: Value = serde_json::from_slice(&out.stdout).unwrap();
+                assert_eq!(gated["status"], "goal_not_active");
+                assert_eq!(gated["goal_status"], "blocked");
+                assert!(gated.get("binding").is_none());
+                if let Some(consent) = gated.get("consent") {
+                    assert_eq!(consent["status"], "approved");
+                    assert_eq!(consent["jobs_admitted"], 1);
+                    assert_eq!(consent["jobs"].as_array().unwrap().len(), 1);
+                }
+            }
+            assert_eq!(f.store.list(0, 100).await.unwrap().len(), 1);
+            // Simulate the user's host Resume control, preserving accounting.
+            current.status = "active".into();
+            current.updated_at += 1;
+            f.write_goal(&current);
+        }
         let out = f
             .cli()
             .args(["connect", "--request-id", &request])
@@ -2070,6 +2293,32 @@ async fn scoped_terminal_request_reuses_one_answer_for_three_real_background_sub
         std::fs::read_to_string(f.dir.path().join("scoped-executions")).unwrap(),
         "once\nonce\nonce\n"
     );
+    ipc::call(&f.store.config, Request::Shutdown).await.unwrap();
+    daemon.wait().unwrap();
+}
+
+#[tokio::test]
+async fn native_mcp_does_not_prompt_for_an_inactive_original_goal() {
+    let f = Fixture::new().await;
+    let mut daemon = f.daemon().await;
+    let c = f.consent(1).await;
+    let mut current = f.goal.clone();
+    current.status = "blocked".into();
+    current.updated_at += 1;
+    f.write_goal(&current);
+    let mut mcp = ConsentMcp::start(&f, "2025-06-18", true).await;
+    mcp.call(2, json!({"request_id":c["request_id"],"session_key":f.session,"expected_revision":c["revision"]})).await;
+    // A tool result must arrive directly, without elicitation/create.
+    let reply = mcp.receive().await;
+    assert_eq!(reply["id"], 2);
+    let retained = consent_result(&reply);
+    assert_eq!(retained["status"], "pending");
+    assert_eq!(retained["goal_status"], "blocked");
+    assert_eq!(retained["revision"], c["revision"]);
+    assert!(retained.get("ask_user_now").is_none());
+    assert!(f.store.list(0, 100).await.unwrap().is_empty());
+    assert!(f.mutations().is_empty());
+    mcp.close().await;
     ipc::call(&f.store.config, Request::Shutdown).await.unwrap();
     daemon.wait().unwrap();
 }

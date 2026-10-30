@@ -14,7 +14,7 @@ Use the selected plugin launcher's absolute path as `AJR_RELAY`. From the actual
 "$AJR_RELAY" connect --cwd "<absolute-project>" --request-label "Three separate scans" --job-count 3
 ```
 
-Without an active goal, use the returned ordinary binding and submit normally. With an active goal and missing permission, the command succeeds with `status=needs_confirmation`, `session_key` and a `consent` record containing `request_id`, `revision`, scope, expiry and remaining job count. There is no submission binding, wait group, workload or goal mutation yet. This is pending user input, not a tool failure or a blocked goal. The actual caller/runtime must come from the host terminal; shared MCP environment, guessed IDs and external terminals cannot identify this chat.
+When no goal exists, use the returned ordinary binding and submit normally. With an active goal and missing permission, the command succeeds with `status=needs_confirmation`, `session_key` and a `consent` record containing `request_id`, `revision`, scope, expiry and remaining job count. There is no submission binding, wait group, workload or goal mutation yet. This is pending user input, not a tool failure or a blocked goal. Inactive-goal reconnection is described below. The actual caller/runtime must come from the host terminal; shared MCP environment, guessed IDs and external terminals cannot identify this chat.
 
 Keep the request ID. The job count is 1–16, default 1, and limits newly admitted jobs; retries do not consume another slot. If the initial user request already permits this pause, adding `--wait-goal` records that actual permission and skips the question. The flag is a cooperative assertion, not independent host attestation.
 
@@ -40,6 +40,8 @@ For three separate calls, submit one job, complete its handoff, inspect its resu
 
 Consent is pinned to the original registration/endpoint, goal/controller, workspace, request label and job limit. Approval lasts at most 24 hours for admission; it is not a workload timeout. A new request never silently adopts an earlier approval. Reconnection with an exhausted or closed request returns its state and original Job/Run/wait IDs for recovery, without replaying work. `decision=revoke` with the observed revision closes future admission/control/notification while admitted commands keep running; it does not resume an already paused goal.
 
+If a later round returns `status=goal_not_active`, inspect `goal_status` and keep the original request ID. `blocked` and other inactive states gate admission without permanently invalidating unexpired consent. An acknowledged wait handles its original paused goal on completion; a separate blocked/user-paused state requires the user's host Resume control. After the original goal becomes active, reconnect with the same `--request-id`; approved consent needs no new question and retains its remaining job budget. Do not create a replacement request, mark the goal blocked to wait or overwrite an unexplained blocker automatically. Controller/read errors fail the current call without cancelling consent or waits; explicit decline/revocation remains available while the controller is unavailable. Previously invalidated requests are not reopened.
+
 ## 4. Acknowledge the native pause
 
 Admission returns `sealed`, `host_pause_required=true`, original Job/Run/wait IDs and a revision. Finish other Agent work, invoke this chat's native `update_goal(status="paused")` under the actual user permission, then confirm its successful acknowledgement:
@@ -57,7 +59,9 @@ Missing pause acknowledgement expires with `attention` after five minutes. Retry
 | Situation | Relay behavior |
 |---|---|
 | All original members finish | Verify the original paused goal/binding, restore status only and send one merged result notification |
-| Goal deleted or observably replaced/changed | Invalidate consent and suppress continuation; never recreate a goal |
+| Goal deleted/completed or identity observably replaced/changed | Invalidate consent and suppress continuation; never recreate a goal |
+| Same goal blocked between rounds | Retain unexpired consent and original IDs, return `goal_not_active` without a binding; reuse the request after host Resume |
+| Consent controller read fails | Fail the call without invalidation or wait cancellation; never infer goal deletion from transport loss |
 | Daemon lost before sealing | Recover committed members only, then await native acknowledgement; never replay execution |
 | Daemon lost after acknowledged pause | Continue durable observation of the original runs |
 | Restore acknowledgement lost or mutation interrupted | Close with `attention`; never replay the mutation |

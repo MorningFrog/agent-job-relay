@@ -291,7 +291,7 @@ pub async fn connect_request(
         "binding cwd must be a directory"
     );
     let goal =
-        crate::goal_control::Controller::detect(desktop_registration()?.0.session_id).await?;
+        crate::goal_control::Controller::inspect(desktop_registration()?.0.session_id).await?;
     let mut value = connect(config).await?;
     value["goal_wait_policy"] = json!("required_for_active_desktop_goal");
     value["automatic_goal_pause_supported"] = json!(false);
@@ -299,7 +299,9 @@ pub async fn connect_request(
         .as_str()
         .context("missing caller key")?
         .to_string();
-    let Some((controller, expected)) = goal else {
+    let goal_status = goal.as_ref().map(|(_, g)| g.status.as_str());
+    value["goal_status"] = json!(goal_status);
+    if goal_status != Some("active") {
         if ipc::call(config, Request::Doctor).await?["scoped_goal_consent"] == true {
             crate::storage::Store::new(config.clone())
                 .clear_obsolete_goal_consents(key.clone())
@@ -310,15 +312,24 @@ pub async fn connect_request(
                 config,
                 Request::GoalConsent {
                     request_id,
-                    session_key: key,
+                    session_key: key.clone(),
                     decision: Default::default(),
                     expected_revision: None,
                 },
             )
             .await?;
             value["status"] = json!("goal_not_active");
+            value["next_step"] = if value["consent"].get("goal_status").is_some() {
+                value["consent"]["next_step"].clone()
+            } else {
+                json!(
+                    "This original request has no active goal. Inspect its retained Job/Run/wait IDs; do not submit remaining rounds or move its consent to another goal."
+                )
+            };
+        } else if goal_status.is_some_and(|s| !matches!(s, "paused" | "complete" | "completed")) {
+            value["status"] = json!("goal_not_active");
             value["next_step"] = json!(
-                "This original request has no active goal. Do not submit remaining rounds or move its consent to another goal."
+                "The host goal is inactive. Do not submit work, create a replacement request, poll or automatically change its status. The user can resume the original goal through host controls, then reconnect using the retained request_id when available."
             );
         } else {
             value["binding"] = json!({"session_key":key,"cwd":cwd});
@@ -327,7 +338,8 @@ pub async fn connect_request(
         value["goal_state_verified"] =
             json!(std::env::var_os("CODEX_APP_RUNTIME_CLI_PATH").is_some());
         return Ok(value);
-    };
+    }
+    let (controller, expected) = goal.context("active goal missing")?;
     ensure!(
         ipc::call(config, Request::Doctor).await?["scoped_goal_consent"] == true,
         "selected daemon lacks scoped goal consent; update the same profile before submission"
@@ -449,6 +461,13 @@ async fn connect_context_inner(
     Ok(value)
 }
 pub fn brief_binding(value: Value) -> Value {
+    if value["status"] == "goal_not_active" {
+        let mut result = json!({"status":value["status"],"session_key":value["session"]["key"],"goal_status":value["goal_status"],"goal_state_verified":value["goal_state_verified"],"next_step":value["next_step"]});
+        if let Some(consent) = value.get("consent") {
+            result["consent"] = consent.clone();
+        }
+        return result;
+    }
     if value.get("consent").is_some() {
         let mut result = json!({"status":value["status"],"session_key":value["session"]["key"],"consent":value["consent"],"goal_state_verified":value["goal_state_verified"],"next_step":value["next_step"]});
         if let Some(binding) = value.get("binding") {
@@ -572,7 +591,10 @@ pub async fn start(config: &Config, mut spec: StartSpec, wake_me: bool) -> Resul
         } else {
             connect_registration(config, registration, fingerprint).await?
         };
-        if session["status"] == "needs_confirmation" || session["status"] == "request_closed" {
+        if matches!(
+            session["status"].as_str(),
+            Some("needs_confirmation" | "request_closed" | "goal_not_active")
+        ) {
             return Ok(brief_binding(session));
         }
         spec.session = Some(
@@ -632,7 +654,10 @@ pub async fn start_batch(
         } else {
             connect_registration(config, registration, fingerprint).await?
         };
-        if session["status"] == "needs_confirmation" || session["status"] == "request_closed" {
+        if matches!(
+            session["status"].as_str(),
+            Some("needs_confirmation" | "request_closed" | "goal_not_active")
+        ) {
             return Ok(brief_binding(session));
         }
         let key = session["session"]["key"]

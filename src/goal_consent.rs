@@ -51,11 +51,13 @@ pub struct Consent {
     pub expires: i64,
     token: Option<String>,
     pub source: String,
+    /// Latest successful observation, never persisted as lifecycle authority.
+    pub goal_status: Option<String>,
 }
 
 fn read(db: &Connection, id: &str) -> Result<Consent> {
     db.query_row("SELECT id,session_key,controller,expected,session_snapshot,cwd,label,job_limit,used,status,revision,expires,question_token,source FROM goal_consents WHERE id=?",[id],|r| Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,String>(3)?,r.get::<_,String>(4)?,r.get::<_,String>(5)?,r.get::<_,String>(6)?,r.get::<_,u32>(7)?,r.get::<_,u32>(8)?,r.get::<_,String>(9)?,r.get::<_,i64>(10)?,r.get::<_,i64>(11)?,r.get::<_,Option<String>>(12)?,r.get::<_,String>(13)?)))
-        .map_err(Into::into).and_then(|r|Ok(Consent{id:r.0,session_key:r.1,controller:serde_json::from_str(&r.2)?,expected:serde_json::from_str(&r.3)?,snapshot:r.4,cwd:r.5.into(),label:r.6,job_limit:r.7,used:r.8,status:r.9,revision:r.10,expires:r.11,token:r.12,source:r.13}))
+        .map_err(Into::into).and_then(|r|Ok(Consent{id:r.0,session_key:r.1,controller:serde_json::from_str(&r.2)?,expected:serde_json::from_str(&r.3)?,snapshot:r.4,cwd:r.5.into(),label:r.6,job_limit:r.7,used:r.8,status:r.9,revision:r.10,expires:r.11,token:r.12,source:r.13,goal_status:None}))
 }
 fn audit(db: &Connection, c: &Consent, source: &str) -> Result<()> {
     db.execute(
@@ -108,12 +110,18 @@ pub fn view(c: &Consent) -> Value {
     } else {
         &c.status
     };
-    json!({"request_id":c.id,"session_key":c.session_key,"status":state,"revision":c.revision,"label":c.label,"job_limit":c.job_limit,"jobs_admitted":c.used,"jobs_remaining":c.job_limit.saturating_sub(c.used),"expires_at":c.expires,"question":"允许本次后台任务暂停目标，完成后继续吗？","choices":["允许","暂不运行"],"question_pending":c.status=="asking","authorization_source":c.source,"next_step":match state {
+    let goal_inactive = c.goal_status.as_deref().is_some_and(|s| s != "active");
+    let mut value = json!({"request_id":c.id,"session_key":c.session_key,"status":state,"revision":c.revision,"label":c.label,"job_limit":c.job_limit,"jobs_admitted":c.used,"jobs_remaining":c.job_limit.saturating_sub(c.used),"expires_at":c.expires,"question":"允许本次后台任务暂停目标，完成后继续吗？","choices":["允许","暂不运行"],"question_pending":c.status=="asking","authorization_source":c.source,"next_step":match state {
+        "pending" | "asking" | "approved" if goal_inactive => "The original goal is inactive; this request and its remaining consent are retained until expiry. Do not submit, re-prompt, mark blocked or automatically overwrite the host status. If a recorded wait is still waiting, let it finish. Otherwise the user can resume the original goal through host controls, then reconnect with this same request_id; approved consent needs no new pause question.",
         "pending"=>"Use job_goal_consent to request native confirmation, or ask one short host question. Only an actual user answer may be recorded with decision=allow/decline and this revision. Do not submit work or mark the goal blocked.",
         "asking"=>"The original question is pending. Wait for that answer; do not ask again, poll or submit work.",
         "approved"=>"Reconnect from the actual terminal with --request-id and this request_id; preserve the returned goal binding. Reuse this consent only for the remaining rounds of this request and original goal.",
         _=>"This request cannot admit further work. Existing jobs were not replayed or stopped. Do not re-prompt automatically; follow the user's next instruction."
-    }})
+    }});
+    if goal_inactive {
+        value["goal_status"] = json!(c.goal_status);
+    }
+    value
 }
 fn view_db(db: &Connection, c: &Consent) -> Result<Value> {
     let mut value = view(c);
@@ -189,41 +197,51 @@ impl Store {
         }).await
     }
 
-    pub async fn goal_consent_record(&self, id: String, session_key: String) -> Result<Consent> {
+    async fn local_goal_consent_record(&self, id: String, session_key: String) -> Result<Consent> {
         validate_id(&id)?;
         validate_id(&session_key)?;
-        let c = self
-            .call(move |db| {
-                let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-                let c = read(&tx, &id)?;
-                owner(&tx, &c, &session_key)?;
-                let c = expire(&tx, &c)?;
-                tx.commit()?;
-                Ok(c)
-            })
-            .await?;
+        self.call(move |db| {
+            let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+            let c = read(&tx, &id)?;
+            owner(&tx, &c, &session_key)?;
+            let c = expire(&tx, &c)?;
+            tx.commit()?;
+            Ok(c)
+        })
+        .await
+    }
+
+    pub async fn goal_consent_record(&self, id: String, session_key: String) -> Result<Consent> {
+        let mut c = self.local_goal_consent_record(id, session_key).await?;
         if matches!(c.status.as_str(), "pending" | "asking" | "approved") {
-            let actual = c.controller.read().await.ok().flatten();
+            // Transport/controller failure is not evidence of goal deletion.
+            // Fail closed for this call without destroying consent or waits.
+            let actual = c.controller.read().await?;
             if actual.as_ref().is_none_or(|g| {
-                !c.expected.same_identity(g) || !matches!(g.status.as_str(), "active" | "paused")
+                !c.expected.same_identity(g)
+                    || matches!(g.status.as_str(), "complete" | "completed")
             }) {
                 let id = c.id.clone();
+                let revision = c.revision;
                 self.call(move |db| {
                     let tx =
                         db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
                     let c = read(&tx, &id)?;
-                    close(
-                        &tx,
-                        &c,
-                        "invalidated",
-                        "original goal removed/replaced or controller unavailable",
-                    )?;
+                    if c.revision == revision {
+                        close(
+                            &tx,
+                            &c,
+                            "invalidated",
+                            "original goal removed, replaced or completed",
+                        )?;
+                    }
                     let result = read(&tx, &id)?;
                     tx.commit()?;
                     Ok(result)
                 })
                 .await
             } else {
+                c.goal_status = actual.map(|g| g.status);
                 Ok(c)
             }
         } else {
@@ -239,9 +257,14 @@ impl Store {
         decision: Decision,
         source: &'static str,
     ) -> Result<Value> {
-        let c = self
-            .goal_consent_record(id.clone(), session_key.clone())
-            .await?;
+        // Withdrawing consent must remain possible while the host is offline.
+        let c = if matches!(decision, Decision::Decline | Decision::Revoke) {
+            self.local_goal_consent_record(id.clone(), session_key.clone())
+                .await?
+        } else {
+            self.goal_consent_record(id.clone(), session_key.clone())
+                .await?
+        };
         if matches!(c.status.as_str(), "expired" | "invalidated" | "revoked") {
             return Ok(view(&c));
         }
@@ -275,8 +298,13 @@ impl Store {
         revision: i64,
         native: bool,
     ) -> Result<Consent> {
-        self.goal_consent_record(id.clone(), session_key.clone())
+        let observed = self
+            .goal_consent_record(id.clone(), session_key.clone())
             .await?;
+        ensure!(
+            observed.goal_status.as_deref() == Some("active"),
+            "the original goal must be active before asking for pause consent; existing consent was retained"
+        );
         self.call(move|db|{let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;let c=expire(&tx,&read(&tx,&id)?)?;owner(&tx,&c,&session_key)?;
             ensure!(c.status=="pending"&&c.revision==revision,"question already pending/resolved; do not create another prompt");
             tx.execute("UPDATE goal_consents SET status='asking',revision=revision+1,updated=?,expires=?,question_token=? WHERE id=? AND revision=?",params![now(),now()+QUESTION_SECONDS as i64*1000,if native {Some(crate::core::id())}else{None},c.id,c.revision])?;
@@ -293,9 +321,13 @@ impl Store {
         token: String,
         allow: bool,
     ) -> Result<Value> {
-        let c = self
-            .goal_consent_record(id.clone(), session_key.clone())
-            .await?;
+        let c = if allow {
+            self.goal_consent_record(id.clone(), session_key.clone())
+                .await?
+        } else {
+            self.local_goal_consent_record(id.clone(), session_key.clone())
+                .await?
+        };
         if matches!(c.status.as_str(), "expired" | "invalidated" | "revoked") {
             return self.goal_consent_view(id, session_key).await;
         }

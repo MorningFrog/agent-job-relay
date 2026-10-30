@@ -150,6 +150,13 @@ impl Controller {
             .context("goal waiting requires an active goal in this chat; no job was submitted")
     }
     pub async fn detect(thread_id: String) -> Result<Option<(Self, Goal)>> {
+        Ok(Self::inspect(thread_id)
+            .await?
+            .filter(|(_, goal)| goal.status == "active"))
+    }
+    /// Preserve inactive state so request preflight can gate admission without
+    /// treating a temporarily blocked goal as absent or replaced.
+    pub async fn inspect(thread_id: String) -> Result<Option<(Self, Goal)>> {
         if std::env::var_os("CODEX_APP_RUNTIME_CLI_PATH").is_none() {
             return Ok(None);
         }
@@ -184,7 +191,7 @@ impl Controller {
         };
         let goal = process.goal(&controller.thread_id).await?;
         process.close().await;
-        let Some(goal) = goal.filter(|g| g.status == "active") else {
+        let Some(goal) = goal else {
             return Ok(None);
         };
         controller.validate_async().await?;

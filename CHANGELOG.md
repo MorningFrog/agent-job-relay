@@ -11,6 +11,7 @@
 
 ### Fixed
 
+- Retain unexpired scoped consent, budgets and wait history when the original goal is blocked/inactive or its controller cannot be read. Gate new work/questions, reuse approval after host Resume, keep withdrawal available offline and fence stale observations against concurrent revocation; never automatically overwrite unexplained blockers.
 - Find and reuse the originating chat's existing same-profile task-manager tab before opening a panel, including repeated submissions and reopen requests. Navigate/show its verified tab ID and reconcile uncertain opens instead of creating duplicates.
 - Handle fresh task/credential fragments in an existing Web panel, reset hidden-task filters and reconnect the selected task without a reload. Keep credentials out of the visible URL.
 - Flush asynchronous output writes before synchronization so a delayed ENOSPC cannot become a successful job. Always clean up spawned native work on supervision errors and scope capture tasks to their owner.

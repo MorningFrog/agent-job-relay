@@ -217,7 +217,7 @@ ws.addEventListener('close', () => process.exit());
             async def active_checks():
                 return sum(objective in json.dumps(r["body"].get("input", [])) for r in requests[request_offset:]) >= 2
             await until(active_checks, "active goal did not produce repeated control turns before pause")
-            pending=await relay("connect", "--request-label", scenario, "--job-count", 1, "--cwd", work, caller=thread)
+            pending=await relay("connect", "--request-label", scenario, "--job-count", 2 if scenario == "resume" else 1, "--cwd", work, caller=thread)
             if pending["status"]!="needs_confirmation" or pending.get("binding"):
                 raise RuntimeError("active-goal preflight did not return a gated confirmation state")
             consent=pending["consent"]
@@ -274,6 +274,22 @@ ws.addEventListener('close', () => process.exit());
                 if len(requests) != before or any(m["thread_id"] == thread for m in messages):
                     raise RuntimeError("obsolete goal completion woke an Agent")
             goal = (await rpc.call("thread/goal/get", {"threadId": thread}))["goal"]
+            if scenario == "resume":
+                if goal is None or goal["status"] != "active":
+                    raise RuntimeError("the result turn did not retain the restored active goal")
+                # Simulate a separate host blocker between rounds. It must
+                # gate admission without permanently invalidating consent.
+                await rpc.call("thread/goal/set", {"threadId": thread, "status": "blocked", "origin": "user"})
+                gated = await relay("connect", "--request-id", consent["request_id"], "--cwd", work, caller=thread)
+                if gated["status"] != "goal_not_active" or gated["goal_status"] != "blocked" or gated.get("binding"):
+                    raise RuntimeError("blocked host goal did not gate the next round")
+                if gated["consent"]["status"] != "approved" or gated["consent"]["jobs_admitted"] != 1:
+                    raise RuntimeError("blocked host goal destroyed the original approval or budget")
+                await rpc.call("thread/goal/set", {"threadId": thread, "status": "active", "origin": "user"})
+                continued = await relay("connect", "--request-id", consent["request_id"], "--cwd", work, caller=thread)
+                if continued["status"] != "ready" or continued["consent"]["request_id"] != consent["request_id"]:
+                    raise RuntimeError("host resume could not reuse the original approved request")
+                await relay("goal-wait", continued["goal_wait"]["goal_wait_id"], "--cancel", "--expected-revision", continued["goal_wait"]["revision"])
             if scenario == "deleted" and goal is not None:
                 raise RuntimeError("deleted goal was recreated")
             if scenario == "replaced" and (goal["objective"] != "New unrelated user goal" or goal["status"] != "paused"):

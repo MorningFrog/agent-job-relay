@@ -82,7 +82,7 @@ pub(crate) async fn respond(
         r.input_responses.is_none(),
         "native responses require the original opaque request state"
     );
-    if c.status != "pending" {
+    if c.status != "pending" || c.goal_status.as_deref() != Some("active") {
         return Ok(result(
             store.goal_consent_view(request_id, session_key).await?,
         ));

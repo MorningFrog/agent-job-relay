@@ -18,11 +18,14 @@ for line in sys.stdin:
     if method == "initialize":
         result = {"codexHome": str(home)}
     elif method == "thread/goal/get":
-        if (home / "mode").exists() and (home / "mode").read_text() == "hold_second_read":
+        if (home / "mode").exists() and (home / "mode").read_text() == "disconnect_read":
+            sys.exit(0)
+        if (home / "mode").exists() and (home / "mode").read_text() in ("hold_first_read", "hold_second_read"):
             counter = home / "reads"
             count = int(counter.read_text()) + 1 if counter.exists() else 1
             counter.write_text(str(count))
-            if count == 2:
+            held_read = 1 if (home / "mode").read_text() == "hold_first_read" else 2
+            if count == held_read:
                 (home / "blocked").touch()
                 deadline = time.monotonic() + 5
                 while not (home / "release").exists():
