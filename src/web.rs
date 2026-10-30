@@ -15,10 +15,11 @@ use axum::{
     routing::{get, post},
 };
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::json;
 use std::{convert::Infallible, sync::Arc, time::Duration};
-use tokio::sync::{Semaphore, mpsc, watch};
+use tokio::sync::{Mutex, Semaphore, mpsc, watch};
 use tokio_stream::wrappers::ReceiverStream;
+mod sampling;
 include!(concat!(env!("OUT_DIR"), "/web_assets.rs"));
 #[derive(Clone)]
 struct Web {
@@ -27,6 +28,7 @@ struct Web {
     host: String,
     requests: Arc<Semaphore>,
     streams: Arc<Semaphore>,
+    samples: Arc<Mutex<sampling::Sampler>>,
     stopped: watch::Receiver<bool>,
 }
 pub(crate) async fn start(
@@ -49,11 +51,12 @@ pub(crate) async fn start(
         .lock()
         .map_err(|_| anyhow::anyhow!("UI state poisoned"))? = json!({"enabled":true,"url":url,"access_url":format!("{url}#token={token}"),"authentication":"ephemeral bearer token"});
     let state = Web {
+        samples: Arc::new(Mutex::new(sampling::Sampler::new(store.clone()))),
         store,
         token,
         host,
         requests: Arc::new(Semaphore::new(16)),
-        streams: Arc::new(Semaphore::new(8)),
+        streams: Arc::new(Semaphore::new(sampling::MAX_VIEWERS)),
         stopped: stopped.clone(),
     };
     let app = Router::new()
@@ -168,23 +171,19 @@ async fn events(State(state): State<Web>, Query(query): Query<Watch>) -> Respons
         let mut stopped = state.stopped.clone();
         loop {
             let sample = async {
-                let mut overview = state.store.inspect(None, None, 50).await?;
-                overview["health"] = crate::ipc::dispatch(&state.store, Request::Doctor).await?;
-                let detail = if let Some(job) = &query.job_id {
-                    state.store.inspect(Some(job.clone()), None, 20).await?
-                } else {
-                    Value::Null
-                };
-                Ok::<_, anyhow::Error>(json!({"overview":overview,"detail":detail}))
+                state
+                    .samples
+                    .lock()
+                    .await
+                    .sample(query.job_id.clone())
+                    .await
             };
             let value = tokio::select! {
                 _=stopped.changed()=>break,
                 _=tx.closed()=>break,
-                result=sample=>match result {Ok(v)=>v,Err(e)=>json!({"error":format!("{e:#}")})},
+                result=sample=>match result {Ok(v)=>v,Err(e)=>json!({"error":format!("{e:#}")}).to_string().into()},
             };
-            let _ = tx.try_send(Ok::<_, Infallible>(
-                Event::default().data(value.to_string()),
-            ));
+            let _ = tx.try_send(Ok::<_, Infallible>(Event::default().data(value.as_ref())));
             tokio::select! {_=stopped.changed()=>break,_=tx.closed()=>break,_=tokio::time::sleep(Duration::from_secs(1))=>{}}
         }
     });

@@ -104,6 +104,146 @@ impl Fixture {
 }
 
 #[tokio::test]
+async fn archived_inspection_preserves_bounded_detail_pages_and_rehydration() {
+    use agent_job_relay::monitor::{Action, Condition, Mutation, RuleSpec};
+    let f = Fixture::new().await;
+    let session = f.session("inspection").await;
+    let job = f.job("inspection", Some(session.clone()), false).await;
+    f.store
+        .monitor(
+            job.job_id.clone(),
+            Some(Mutation::Add {
+                rule: RuleSpec {
+                    condition: Condition::NoOutput { seconds: 30 },
+                    action: Action::Alert,
+                    notify_agent: false,
+                    grace_seconds: 5,
+                },
+            }),
+        )
+        .await
+        .unwrap();
+    let key = job.job_id.clone();
+    f.store
+        .call(move |db| {
+            let tx = db.transaction()?;
+            let target: String =
+                tx.query_row("SELECT id FROM targets WHERE job_id=?", [&key], |r| {
+                    r.get(0)
+                })?;
+            for index in 0..40 {
+                agent_job_relay::storage::insert_event(
+                    &tx,
+                    &key,
+                    &job.run_id,
+                    "progress",
+                    json!({"index":index}),
+                )?;
+                let event: String = tx.query_row(
+                    "SELECT id FROM events WHERE seq=last_insert_rowid()",
+                    [],
+                    |r| r.get(0),
+                )?;
+                agent_job_relay::session::enqueue(&tx, &event, &target, now())?;
+            }
+            tx.execute(
+                "INSERT INTO runtime_observations(job_id,data) VALUES(?,?)",
+                rusqlite::params![
+                    key,
+                    json!({"stdout":{"text":"retained tail","total_bytes":42},"sampled_at":123})
+                        .to_string()
+                ],
+            )?;
+            tx.commit()?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+    f.store
+        .stop_with(job.job_id.clone(), 5, "inspection test".into())
+        .await
+        .unwrap();
+    while let Some(claim) = f.store.claim().await.unwrap() {
+        f.store
+            .complete_claim(claim, Ok("notification_recorded"))
+            .await
+            .unwrap();
+    }
+    let key = job.job_id.clone();
+    f.store
+        .call(move |db| {
+            db.execute("UPDATE jobs SET updated=updated-1000 WHERE id=?", [key])?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+    let before = f
+        .store
+        .inspect(Some(job.job_id.clone()), None, 20)
+        .await
+        .unwrap();
+    assert_eq!(before["events"].as_array().unwrap().len(), 30);
+    assert_eq!(
+        before["deliveries"]["deliveries"].as_array().unwrap().len(),
+        20
+    );
+    assert_eq!(before["events"][0]["kind"], "cancelled");
+    f.immediate().await;
+    f.store.maintain(true).await.unwrap();
+    assert_eq!(f.count("archive_jobs").await, 1);
+    let cold = f
+        .store
+        .inspect(Some(job.job_id.clone()), None, 20)
+        .await
+        .unwrap();
+    for field in [
+        "job",
+        "events",
+        "deliveries",
+        "rules",
+        "observation",
+        "goal_wait",
+        "profile",
+    ] {
+        assert_eq!(before[field], cold[field], "{field}");
+    }
+    assert_eq!(cold["stop"]["reason"], "inspection test");
+    // Explicit target maintenance rehydrates history without launching it.
+    f.store
+        .target(job.job_id.clone(), session, false)
+        .await
+        .unwrap();
+    let hot = f
+        .store
+        .inspect(Some(job.job_id.clone()), None, 20)
+        .await
+        .unwrap();
+    for field in [
+        "job",
+        "events",
+        "deliveries",
+        "rules",
+        "observation",
+        "stop",
+    ] {
+        assert_eq!(before[field], hot[field], "{field}");
+    }
+    f.store.maintain(true).await.unwrap();
+    let corrupted_id = job.job_id.clone();
+    f.store
+        .call(move |db| {
+            db.execute(
+                "UPDATE archive_jobs SET snapshot=x'00' WHERE id=?",
+                [job.job_id],
+            )?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+    assert!(f.store.inspect(Some(corrupted_id), None, 20).await.is_err());
+}
+
+#[tokio::test]
 async fn automatic_archive_preserves_history_logs_idempotency_and_monotonic_cursors() {
     let f = Fixture::new().await;
     let session = f.session("history").await;

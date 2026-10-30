@@ -135,7 +135,7 @@ pub enum Mutation {
         expected_revision: i64,
     },
 }
-fn decode_rule(v: Value) -> Result<Rule> {
+pub(crate) fn decode_rule(v: Value) -> Result<Rule> {
     let mut v = v;
     v["spec"] = serde_json::from_str(v["spec"].as_str().unwrap_or(""))?;
     for field in ["enabled", "deleted"] {
@@ -316,26 +316,24 @@ impl Store {
         ensure!((1..=100).contains(&limit), "inspect limit must be 1..100");
         if let Some(key) = job {
             validate_id(&key)?;
-            let id = key.clone();
+            let id = key;
             let mut value=self.read(move|db| {
                 let tx=db.transaction()?;
+                if let Some(snapshot) = crate::archive::load(&tx, &id)? {
+                    let mut value = snapshot.inspection()?;
+                    value["goal_wait"] = json!(crate::goal_wait::summary_for_job(&tx, &id)?);
+                    value["sampled_at"] = json!(now());
+                    return Ok(value);
+                }
                 let j=read_job(&tx,&id)?;
-                let records=crate::archive::monitor_rows(&tx,&id,"runtime_observations")?;
-                let raw=if let Some(rows)=records {rows.first().and_then(|r|r["data"].as_str()).map(str::to_owned)} else {tx.query_row("SELECT data FROM runtime_observations WHERE job_id=?",[&id],|r|r.get::<_,String>(0)).optional()?};
+                let raw=tx.query_row("SELECT data FROM runtime_observations WHERE job_id=?",[&id],|r|r.get::<_,String>(0)).optional()?;
                 let observation=raw.map(|r|serde_json::from_str::<Value>(&r)).transpose()?.unwrap_or(Value::Null);
-                let stop=if let Some(rows)=crate::archive::monitor_rows(&tx,&id,"stop_requests")? {rows.first().cloned().unwrap_or(Value::Null)}else{tx.query_row("SELECT grace_seconds,reason,at FROM stop_requests WHERE job_id=?",[&id],|r|Ok(json!({"grace_seconds":r.get::<_,u32>(0)?,"reason":r.get::<_,String>(1)?,"at":r.get::<_,i64>(2)?}))).optional()?.unwrap_or(Value::Null)};
-                Ok(json!({"job":j,"goal_wait":crate::goal_wait::summary_for_job(&tx,&id)?,"observation":observation,"rules":rules(&tx,&id)?,"stop":stop,"sampled_at":now()}))
+                let stop=tx.query_row("SELECT grace_seconds,reason,at FROM stop_requests WHERE job_id=?",[&id],|r|Ok(json!({"grace_seconds":r.get::<_,u32>(0)?,"reason":r.get::<_,String>(1)?,"at":r.get::<_,i64>(2)?}))).optional()?.unwrap_or(Value::Null);
+                let mut q=tx.prepare("SELECT seq,id,job_id,run_id,kind,at,payload FROM events WHERE job_id=? ORDER BY seq DESC LIMIT 30")?;
+                let events=q.query_map([&id],|r|Ok(Event{seq:r.get(0)?,event_id:r.get(1)?,job_id:r.get(2)?,run_id:r.get(3)?,kind:r.get(4)?,at:r.get(5)?,payload:serde_json::from_str(&r.get::<_,String>(6)?).map_err(|e|rusqlite::Error::FromSqlConversionFailure(6,rusqlite::types::Type::Text,Box::new(e)))?}))?.collect::<rusqlite::Result<Vec<_>>>()?;
+                Ok(json!({"job":j,"goal_wait":crate::goal_wait::summary_for_job(&tx,&id)?,"observation":observation,"rules":rules(&tx,&id)?,"stop":stop,"events":events,"deliveries":crate::delivery::page(&tx,Some(&id),0,20)?,"sampled_at":now()}))
             }).await?;
             value["profile"] = json!(self.config.root);
-            // Latest events are bounded independently from full event pagination.
-            let event_job = key.clone();
-            let events=self.read(move|db| {
-                if let Some(mut events)=crate::archive::latest_events(db,&event_job)? {events.reverse();return Ok(events.into_iter().take(30).collect::<Vec<_>>());}
-                let mut q=db.prepare("SELECT seq,id,job_id,run_id,kind,at,payload FROM events WHERE job_id=? ORDER BY seq DESC LIMIT 30")?;
-                let rows=q.query_map([event_job],|r|Ok(Event{seq:r.get(0)?,event_id:r.get(1)?,job_id:r.get(2)?,run_id:r.get(3)?,kind:r.get(4)?,at:r.get(5)?,payload:serde_json::from_str(&r.get::<_,String>(6)?).map_err(|e|rusqlite::Error::FromSqlConversionFailure(6,rusqlite::types::Type::Text,Box::new(e)))?}))?.collect::<rusqlite::Result<Vec<_>>>()?;Ok(rows)
-            }).await?;
-            value["events"] = json!(events);
-            value["deliveries"] = self.deliveries(Some(key), 0, 20).await?;
             return Ok(value);
         }
         let mut value=self.read(move|db| {

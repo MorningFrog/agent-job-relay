@@ -35,6 +35,42 @@ pub(crate) struct Snapshot {
     pub spec: String,
     tables: BTreeMap<String, Vec<Record>>,
 }
+impl Snapshot {
+    /// Decode every detail section from this one validated cold snapshot.
+    pub(crate) fn inspection(&self) -> Result<Value> {
+        let raw = self.tables["runtime_observations"]
+            .first()
+            .and_then(|row| row.get("data"))
+            .and_then(Value::as_str);
+        let observation = raw.map(serde_json::from_str::<Value>).transpose()?;
+        let rules = self.tables["monitor_rules"]
+            .iter()
+            .map(|row| crate::monitor::decode_rule(serde_json::to_value(row)?))
+            .collect::<Result<Vec<_>>>()?;
+        let events = self.tables["events"]
+            .iter()
+            .rev()
+            .take(30)
+            .map(event)
+            .collect::<Result<Vec<_>>>()?;
+        let deliveries = self.tables["deliveries"]
+            .iter()
+            .take(20)
+            .map(delivery)
+            .collect::<Result<Vec<_>>>()?;
+        Ok(json!({
+            "job": self.job,
+            "observation": observation,
+            "rules": rules,
+            "stop": self.tables["stop_requests"].first(),
+            "events": events,
+            "deliveries": {
+                "next_cursor": deliveries.last().map_or(0, |d| d.sequence),
+                "deliveries": deliveries,
+            },
+        }))
+    }
+}
 pub(crate) fn hash(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
@@ -214,18 +250,19 @@ pub(crate) fn events(snapshot: &Snapshot, after: i64, limit: u32) -> Result<Vec<
         .iter()
         .filter(|r| r["seq"].as_i64().unwrap_or(0) > after)
         .take(limit as usize)
-        .map(|r| {
-            Ok(Event {
-                seq: r["seq"].as_i64().context("event sequence")?,
-                event_id: text(r, "id")?,
-                job_id: text(r, "job_id")?,
-                run_id: text(r, "run_id")?,
-                kind: text(r, "kind")?,
-                at: r["at"].as_i64().context("event time")?,
-                payload: serde_json::from_str(&text(r, "payload")?)?,
-            })
-        })
+        .map(event)
         .collect()
+}
+fn event(row: &Record) -> Result<Event> {
+    Ok(Event {
+        seq: row["seq"].as_i64().context("event sequence")?,
+        event_id: text(row, "id")?,
+        job_id: text(row, "job_id")?,
+        run_id: text(row, "run_id")?,
+        kind: text(row, "kind")?,
+        at: row["at"].as_i64().context("event time")?,
+        payload: serde_json::from_str(&text(row, "payload")?)?,
+    })
 }
 pub(crate) fn attempts(db: &Connection, id: &str, after: u32, limit: u32) -> Result<Option<Value>> {
     let job: Option<String> = db
@@ -581,25 +618,4 @@ pub(crate) fn monitor_rows(db: &Connection, job: &str, table: &str) -> Result<Op
             .map(|r| serde_json::to_value(r).expect("record"))
             .collect()
     }))
-}
-
-pub(crate) fn latest_events(db: &Connection, job: &str) -> Result<Option<Vec<Event>>> {
-    load(db, job)?
-        .map(|snapshot| {
-            snapshot.tables["events"]
-                .iter()
-                .map(|row| {
-                    Ok(Event {
-                        seq: row["seq"].as_i64().context("event sequence")?,
-                        event_id: text(row, "id")?,
-                        job_id: text(row, "job_id")?,
-                        run_id: text(row, "run_id")?,
-                        kind: text(row, "kind")?,
-                        at: row["at"].as_i64().context("event timestamp")?,
-                        payload: serde_json::from_str(&text(row, "payload")?)?,
-                    })
-                })
-                .collect()
-        })
-        .transpose()
 }

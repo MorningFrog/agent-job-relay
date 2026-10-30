@@ -861,6 +861,79 @@ mod native {
         String::from_utf8_lossy(&bytes).into()
     }
     #[tokio::test]
+    async fn shared_web_streams_keep_task_selection_and_observe_direct_stops() {
+        use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines};
+        type Feed = Lines<BufReader<tokio::net::TcpStream>>;
+        async fn next(feed: &mut Feed) -> Value {
+            tokio::time::timeout(Duration::from_secs(8), async {
+                loop {
+                    let line = feed.next_line().await.unwrap().expect("SSE ended");
+                    if let Some(data) = line.strip_prefix("data: ") {
+                        break serde_json::from_str(data).unwrap();
+                    }
+                }
+            })
+            .await
+            .unwrap()
+        }
+        async fn open(url: &str, token: &str, job: Option<&str>) -> Feed {
+            let host = url.strip_prefix("http://").unwrap().trim_end_matches('/');
+            let mut socket = tokio::net::TcpStream::connect(host).await.unwrap();
+            let query = job.map(|id| format!("?job_id={id}")).unwrap_or_default();
+            socket.write_all(format!("GET /api/events{query} HTTP/1.1\r\nHost: {host}\r\nAuthorization: Bearer {token}\r\n\r\n").as_bytes()).await.unwrap();
+            let mut feed = BufReader::new(socket).lines();
+            assert!(
+                feed.next_line()
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .starts_with("HTTP/1.1 200")
+            );
+            feed
+        }
+        let r = Runtime::new().await;
+        let info = ipc::call(&r.config, Request::UiInfo).await.unwrap();
+        let url = info["url"].as_str().unwrap();
+        let token = info["access_url"]
+            .as_str()
+            .unwrap()
+            .split("#token=")
+            .nth(1)
+            .unwrap();
+        let id = r.start("sleep 20", vec![]).await;
+        let (mut first, mut second, mut overview) = tokio::join!(
+            open(url, token, Some(&id)),
+            open(url, token, Some(&id)),
+            open(url, token, None)
+        );
+        for feed in [&mut first, &mut second] {
+            let value = next(feed).await;
+            assert_eq!(value["detail"]["job"]["job_id"], id);
+            assert!(value["overview"]["health"]["sampled_at"].is_i64());
+            assert!(!value.to_string().contains(token));
+        }
+        assert_eq!(next(&mut overview).await["detail"], Value::Null);
+        let response = http(
+            url,
+            "/api/request",
+            Some(token),
+            None,
+            Some(json!({"op":"stop","job_id":id,"grace_seconds":0,"wait_seconds":0})),
+        )
+        .await;
+        assert!(response.starts_with("HTTP/1.1 200"), "{response}");
+        tokio::time::timeout(Duration::from_secs(8), async {
+            loop {
+                if next(&mut first).await["detail"]["job"]["status"] == "cancelled" {
+                    break;
+                }
+            }
+        })
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
     async fn default_web_ui_authenticates_requests_and_controls_the_same_job() {
         let r = Runtime::new().await;
         let info = ipc::call(&r.config, Request::UiInfo).await.unwrap();

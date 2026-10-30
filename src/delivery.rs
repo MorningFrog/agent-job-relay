@@ -66,11 +66,11 @@ impl Store {
         if let Some(j) = &job {
             validate_id(j)?;
         }
-        self.read(move|db|{let tx=db.transaction()?;let db=&tx;let mut q=db.prepare("SELECT sequence,id,archived FROM (SELECT d.rowid AS sequence,d.id,0 AS archived,t.job_id FROM deliveries d JOIN targets t ON d.target_id=t.id UNION ALL SELECT sequence,id,1 AS archived,job_id FROM archive_deliveries) WHERE (?1 IS NULL OR job_id=?1) AND sequence>?2 ORDER BY sequence LIMIT ?3")?;
-            let ids=q.query_map(params![job,after,limit],|r|Ok((r.get::<_,String>(1)?,r.get::<_,bool>(2)?)))?.collect::<rusqlite::Result<Vec<_>>>()?;
-            let rows=ids.iter().map(|(id,archived)|if *archived {crate::archive::archived_delivery(db,id)?.context("archived delivery missing")}else{Ok(db.query_row("SELECT rowid,id,event_id,target_id,status,attempts,expires,last_error,failure_kind,next_at FROM deliveries WHERE id=?",[id],read_delivery)?)}).collect::<Result<Vec<_>>>()?;
-            Ok(json!({"next_cursor":rows.last().map_or(after,|d|d.sequence),"deliveries":rows}))
-        }).await
+        self.read(move |db| {
+            let tx = db.transaction()?;
+            page(&tx, job.as_deref(), after, limit)
+        })
+        .await
     }
     pub async fn retry_delivery(&self, d: String) -> Result<Value> {
         validate_id(&d)?;
@@ -168,6 +168,21 @@ fn candidate(db: &rusqlite::Connection, at: i64) -> Result<Option<(String, Strin
         [at],
         |r| Ok((r.get(0)?,r.get(1)?)),
     ).optional()?)
+}
+pub(crate) fn page(
+    db: &rusqlite::Connection,
+    job: Option<&str>,
+    after: i64,
+    limit: u32,
+) -> Result<Value> {
+    let mut q=db.prepare("SELECT sequence,id,archived FROM (SELECT d.rowid AS sequence,d.id,0 AS archived,t.job_id FROM deliveries d JOIN targets t ON d.target_id=t.id UNION ALL SELECT sequence,id,1 AS archived,job_id FROM archive_deliveries) WHERE (?1 IS NULL OR job_id=?1) AND sequence>?2 ORDER BY sequence LIMIT ?3")?;
+    let ids = q
+        .query_map(params![job, after, limit], |r| {
+            Ok((r.get::<_, String>(1)?, r.get::<_, bool>(2)?))
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    let rows=ids.iter().map(|(id,archived)|if *archived {crate::archive::archived_delivery(db,id)?.context("archived delivery missing")}else{Ok(db.query_row("SELECT rowid,id,event_id,target_id,status,attempts,expires,last_error,failure_kind,next_at FROM deliveries WHERE id=?",[id],read_delivery)?)}).collect::<Result<Vec<_>>>()?;
+    Ok(json!({"next_cursor":rows.last().map_or(after,|d|d.sequence),"deliveries":rows}))
 }
 fn read_delivery(r: &rusqlite::Row<'_>) -> rusqlite::Result<Delivery> {
     Ok(Delivery {

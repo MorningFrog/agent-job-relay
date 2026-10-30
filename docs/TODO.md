@@ -64,6 +64,7 @@ Runtime 0.1.12+ implements the [remote contract and reference path](remote-execu
 - [x] Implement Agent-independent inspect/watch, revision-fenced persistent output/silence/elapsed rules, bounded recent tails, automatic tree cancellation, optional same-chat alerts and preserved archive/backup/audit history.
 - [x] Adapt the embedded panel to narrow chat sidebars with expandable icon navigation, adjacent inline task details and stateful chevrons; automatically open the accepted task through the host Agent workflow before yielding or goal handoff.
 - [x] Reuse the originating chat's same-profile embedded tab before opening another; handle repeated task/credential fragment navigation in place, with explicit limits when host tab discovery is unavailable.
+- [x] Reuse one validated archive snapshot per task inspection and share bounded per-listener Web samples/serialization with one-second task and ten-second health expiry; keep explicit reads and controls direct, errors visible and profiles isolated.
 - [x] Bundle a React + Vite task manager in the native executable, default-on authenticated loopback access, exact-profile management commands and CLI/MCP/plugin entry points. See [runtime monitoring](runtime-monitoring.md).
 - [x] Natively qualify monitor/Web UI/schema v9 on Windows, including independent runner detection/tree stop, bounded tails, silence rearming, authenticated HTTP control and installed-package resources.
 - [ ] **P1:** test real running-alert continuation in ChatGPT Desktop/OpenCode. Existing completion acceptance does not qualify this path.

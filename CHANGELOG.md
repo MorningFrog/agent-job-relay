@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Decode one validated cold snapshot per task inspection and read hot detail sections in one transaction. Preserve bounded event/delivery pages, cursors and current goal-wait summaries.
+- Share demand-driven Web overview and same-task response samples for one second, with ten-second timestamped health samples and at most eight cached selections. Keep explicit reads/controls direct and report expired-query errors without stale fallback.
+
 ### Fixed
 
 - Find and reuse the originating chat's existing same-profile task-manager tab before opening a panel, including repeated submissions and reopen requests. Navigate/show its verified tab ID and reconcile uncertain opens instead of creating duplicates.
