@@ -27,6 +27,7 @@
 - Reap a live Linux runner's adopted session-escaped descendants using parent-verified pidfds; cleanup failure cannot report success. Runner SIGKILL/power-loss limits remain.
 - Fence late rule responses to their original selected task and show independent connection errors; runtime health shows its own sample time.
 - Keep compact navigation buttons and icons in place while the sidebar expands. Reserve header/caption height without wrapping, and add distinct hover and keyboard-focus feedback.
+- Recheck an interrupted optimistic daemon health probe under the startup lock during concurrent upgrades. Keep protocol/authentication errors explicit and never retry mutations or uncertain shutdowns through this recovery path.
 
 ### Safety and compatibility
 

@@ -114,7 +114,21 @@ async fn ensure_daemon_inner(config: &Config, image: &Path, version: &str) -> Re
     match ipc::call(config, Request::Doctor).await {
         Ok(info) if !older_daemon(&info, version)? => return verify_runner_launch(&info),
         Ok(_) => {}
-        Err(e) if unavailable(&e) => {}
+        Err(e)
+            if unavailable(&e)
+                || e.downcast_ref::<std::io::Error>().is_some_and(|error| {
+                    matches!(
+                        error.kind(),
+                        std::io::ErrorKind::UnexpectedEof
+                            | std::io::ErrorKind::ConnectionReset
+                            | std::io::ErrorKind::BrokenPipe
+                    )
+                }) =>
+        {
+            // A concurrent starter may close this optimistic read-only probe
+            // while replacing the old daemon. Recheck under the startup lock;
+            // never apply this retry policy to a mutation or pinned shutdown.
+        }
         Err(e) => return Err(e),
     }
     config.prepare()?;
@@ -865,5 +879,68 @@ mod startup_tests {
         );
         assert!(verify_runner_launch(&json!({"daemon_executable_path_available":false,"runner_launch_from_loaded_image":true})).is_ok());
         assert!(verify_runner_launch(&json!({"daemon_executable_path_available":true})).is_ok());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn interrupted_doctor_probe_waits_for_startup_lock_and_rechecks_the_peer() {
+        use super::*;
+
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join(".tmp");
+        std::fs::create_dir_all(&root).unwrap();
+        let dir = tempfile::Builder::new()
+            .prefix("startup-probe-")
+            .tempdir_in(root)
+            .unwrap();
+        let config = Config::new(Some(dir.path().join("state"))).unwrap();
+        config.prepare().unwrap();
+        let startup = crate::platform::private_file(&config.root.join("startup.lock")).unwrap();
+        startup.try_lock().unwrap();
+        let mut listener = crate::platform::Listener::bind(&config.socket()).unwrap();
+        let waiting_config = config.clone();
+        let mut waiting = tokio::spawn(async move {
+            ensure_daemon_from(
+                &waiting_config,
+                &waiting_config.root.join("must-not-launch"),
+                env!("CARGO_PKG_VERSION"),
+            )
+            .await
+        });
+
+        let mut probe = tokio::time::timeout(Duration::from_secs(2), listener.accept())
+            .await
+            .unwrap()
+            .unwrap();
+        let request = ipc::read_frame(&mut probe, 65536).await.unwrap();
+        assert_eq!(request["request"]["op"], "doctor");
+        // An old daemon can close this already accepted read-only request when
+        // another starter shuts it down while holding the startup lock.
+        drop(probe);
+        assert!(
+            tokio::time::timeout(Duration::from_millis(100), &mut waiting)
+                .await
+                .is_err(),
+            "an interrupted optimistic probe must wait for the existing starter"
+        );
+        drop(startup);
+
+        let mut probe = tokio::time::timeout(Duration::from_secs(2), listener.accept())
+            .await
+            .unwrap()
+            .unwrap();
+        let request = ipc::read_frame(&mut probe, 65536).await.unwrap();
+        assert_eq!(request["request"]["op"], "doctor");
+        ipc::write_frame(
+            &mut probe,
+            &json!({"protocol_version":1,"ok":true,"result":{"version":env!("CARGO_PKG_VERSION"),"runner_launch_from_loaded_image":true}}),
+        )
+        .await
+        .unwrap();
+        tokio::time::timeout(Duration::from_secs(2), waiting)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert!(!config.root.join("relay.sqlite3").exists());
     }
 }

@@ -6,7 +6,7 @@
 
 ## Current release handoff
 
-Source **0.1.14** includes unified online maintenance, task-panel reuse, inspection sampling, runner reliability and scoped-consent fixes. npm/GitHub latest is **0.1.13**. After local delivery gates and the authorized push, require successful CI for that exact revision, then run **Release All** with `dry_run=true`, `channel=latest` and an empty candidate ID. Review its new sealed candidate and publisher preview before a separate publication approval.
+Source **0.1.14** includes unified online maintenance, task-panel reuse, inspection sampling, runner reliability, concurrent startup handover and scoped-consent fixes. npm/GitHub latest is **0.1.13**. After local delivery gates and the authorized push, require successful CI for that exact revision, then run **Release All** with `dry_run=true`, `channel=latest` and an empty candidate ID. Review its new sealed candidate and publisher preview before a separate publication approval.
 
 The published 0.1.13 candidate is immutable and cannot be repurposed for 0.1.14. Runtime/package/version/CHANGELOG changes do not qualify for the documentation-only `recover_candidate` exception. New Linux/Windows candidate bytes and source identity must be verified together; local developer binaries have a different glibc minimum and must not replace release payloads.
 

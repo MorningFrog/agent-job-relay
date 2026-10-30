@@ -63,7 +63,7 @@ impl Rig {
         let output = self.command(program).args(args).output().await.unwrap();
         assert!(
             output.status.success(),
-            "{}",
+            "{args:?}: {}",
             String::from_utf8_lossy(&output.stderr)
         );
         serde_json::from_slice(&output.stdout).unwrap()
