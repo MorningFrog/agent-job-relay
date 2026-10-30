@@ -18,6 +18,7 @@ sys.dont_write_bytecode = True
 import release_actions as actions
 import release_metadata as metadata
 import release_pipeline as pipeline
+import check_online_update as online_fixture
 
 
 class ReleaseTests(unittest.TestCase):
@@ -911,6 +912,39 @@ class ReleaseTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "original candidate_run_id"):
                 actions.prepare()
         command.assert_not_called()
+
+
+@unittest.skipUnless(sys.platform == "linux", "Linux executable mapping fixture")
+class LinuxFixtureTests(unittest.TestCase):
+    def test_loaded_native_fixture_replacement_keeps_the_original_process_and_mode(self):
+        import errno
+        import stat
+
+        root = metadata.REPO / ".tmp"
+        root.mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="loaded-fixture-", dir=root) as directory:
+            image = Path(directory) / "sleep"
+            shutil.copyfile(shutil.which("sleep"), image)
+            image.chmod(0o750)
+            original = image.stat()
+            data = image.read_bytes() + b"fixture-replacement"
+            child = subprocess.Popen([image, "30"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            try:
+                # Confirm the exact kernel refusal seen by the release checker.
+                with self.assertRaises(OSError) as busy:
+                    image.write_bytes(data)
+                self.assertEqual(busy.exception.errno, errno.ETXTBSY)
+                online_fixture.replace_fixture_image(image, data)
+                self.assertIsNone(child.poll())
+                loaded = Path(f"/proc/{child.pid}/exe").stat()
+                self.assertEqual((loaded.st_dev, loaded.st_ino), (original.st_dev, original.st_ino))
+                self.assertNotEqual(image.stat().st_ino, original.st_ino)
+                self.assertEqual(stat.S_IMODE(image.stat().st_mode), 0o750)
+                self.assertEqual(image.read_bytes(), data)
+                subprocess.run([image, "0"], check=True, timeout=5)
+            finally:
+                child.terminate()
+                child.wait(timeout=5)
 
 
 if __name__ == "__main__":

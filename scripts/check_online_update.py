@@ -2,8 +2,24 @@
 import hashlib
 import json
 import os
+import stat
+import tempfile
 import time
 from pathlib import Path
+
+
+def replace_fixture_image(image, data):
+    # A terminal result can precede its independent runner's process exit.
+    # Keep that mapped image intact when preparing this isolated older fixture.
+    descriptor, name = tempfile.mkstemp(prefix=".fixture-image-", dir=image.parent)
+    staging = Path(name)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(data)
+        staging.chmod(stat.S_IMODE(image.stat().st_mode))
+        staging.replace(image)
+    finally:
+        staging.unlink(missing_ok=True)
 
 
 def check_online_update(root, prefix, env, meta, registry, command, job_id):
@@ -62,7 +78,7 @@ else process.exit(2);
     data = image.read_bytes().replace(original.encode(), older.encode())
     if data == image.read_bytes():
         raise RuntimeError("older-version native fixture was not changed")
-    image.write_bytes(data)
+    replace_fixture_image(image, data)
     metadata["version"] = older
     (package / "package.json").write_text(json.dumps(metadata))
     manifest = json.loads((package / "native/manifest.json").read_text())
