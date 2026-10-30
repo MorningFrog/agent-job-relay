@@ -2,6 +2,7 @@
 import hashlib
 import json
 import os
+import sqlite3
 import stat
 import tempfile
 import time
@@ -98,6 +99,30 @@ else process.exit(2);
     work = root / "continued-work"
     work.mkdir()
     running = json.loads(command(["ajr", "start", "--cwd", work, "--shell", "echo once >> launches; echo ready; while [ ! -f finish ]; do sleep 0.05; done"], "update-running-job"))["job"]
+    state = root / "agent-job-relay/codex"
+    journal = state / "online-update.json"
+    # Reproduce a schema-v11 active profile without changing its job records.
+    # Preflight must retain the old daemon/run and avoid inventing retry state.
+    with sqlite3.connect(state / "relay.sqlite3") as database:
+        schema = database.execute("PRAGMA user_version").fetchone()[0]
+        calls_before = json.loads(fixture.read_text())["calls"]
+        try:
+            database.execute("PRAGMA user_version=11")
+            command(["ajr", "update"], "update-schema-refused", expected=1)
+            error = (root / "update-schema-refused.stderr").read_text()
+            if not all(text in error for text in ("database schema 11", "requires schema 12", "let tasks finish", "retry ajr update", "No runtime package or host-plugin changes were applied")):
+                raise RuntimeError("schema refusal did not explain active-task recovery")
+            if journal.exists() or "Completed steps remain recorded" in error:
+                raise RuntimeError("preflight refusal invented an unfinished update")
+            if any(call[1:3] != ["marketplace", "list"] and call[1:] != ["list", "--json"] for call in json.loads(fixture.read_text())["calls"][len(calls_before):]):
+                raise RuntimeError("schema refusal mutated the host")
+            if json.loads(command(["ajr", "doctor"], "update-schema-health"))["version"] != older or command(["ajr", "--version"], "update-schema-cli").strip() != f"agent-job-relay {older}":
+                raise RuntimeError("schema refusal replaced the daemon or package")
+            current = json.loads(command(["ajr", "status", running["job_id"]], "update-schema-job"))
+            if current["run_id"] != running["run_id"] or current["status"] != "running" or current["cancel_requested"]:
+                raise RuntimeError("schema refusal changed the original running attempt")
+        finally:
+            database.execute(f"PRAGMA user_version={schema}")
     preview = json.loads(command(["ajr", "update", "--dry-run"], "update-preview"))
     if preview["version"] != original or not preview["changed"]:
         raise RuntimeError("unified update preview did not pin the candidate")
@@ -115,7 +140,6 @@ else process.exit(2);
         raise RuntimeError("a different PATH installation was allowed to mutate the host")
     env["PATH"] = original_path
     command(["ajr", "update"], "update-partial", expected=1)
-    journal = root / "agent-job-relay/codex/online-update.json"
     if json.loads(journal.read_text())["stage"] != "adding_marketplace":
         raise RuntimeError("partial update stage was not retained")
     if command(["ajr", "--version"], "update-runtime-version").strip() != f"agent-job-relay {original}":

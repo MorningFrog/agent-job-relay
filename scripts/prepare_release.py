@@ -26,6 +26,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, default=REPO / "target/release/agent-job-relay")
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--allow-unreleased", action="store_true", help="Build development-only packages from Unreleased notes; these cannot be promoted")
     parser.add_argument("--windows-binary", type=Path, help="Windows x86_64 executable built and checked on Windows")
     parser.add_argument("--windows-metadata", type=Path, help="Matching native build descriptor from describe_native.ps1")
     args = parser.parse_args()
@@ -34,7 +35,7 @@ def main():
     temporary.mkdir(exist_ok=True)
     if output.exists() or not output.is_relative_to(temporary):
         parser.error("choose a new output directory under repository .tmp/")
-    version = source_metadata()["version"]
+    version = source_metadata(allow_unreleased=args.allow_unreleased)["version"]
     binary = args.binary.resolve(strict=True)
     image = binary.read_bytes()
     if image[:5] != b"\x7fELF\x02" or image[5] != 1 or int.from_bytes(image[18:20], "little") != 62:
@@ -117,6 +118,8 @@ def main():
                     parser.error("marketplace files must be regular, unsymlinked allowlisted paths")
                 bundle.write(path, path.relative_to(REPO))
         metadata.update(version=version, platforms=["linux-x64", "win32-x64"] if windows_image else ["linux-x64"], platform="linux-x64", minimumGlibc=".".join(map(str, glibc)), marketplace=archive, publication="not performed")
+        if args.allow_unreleased:
+            metadata["development"] = True
         (artifacts / "release.json").write_text(json.dumps(metadata, indent=2) + "\n")
         (artifacts / "SHA256SUMS").write_text("".join(f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n" for p in sorted(artifacts.iterdir())))
         output.parent.mkdir(parents=True, exist_ok=True)

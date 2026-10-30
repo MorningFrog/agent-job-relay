@@ -6,17 +6,11 @@
 
 ## Current release handoff
 
-**0.1.17 is verified through dry-run and remains unpublished.** It adds recognizable task titles, read-only feedback receipts and temporary goal feedback/restoration/native re-pause, with schema v12 and synchronized package/plugin pins; IPC v1 and 25 tools remain. Older active runs must finish before migration.
+**0.1.17 is the public npm/GitHub baseline**, rechecked on 2026-10-30. Its original [sealed Linux/Windows candidate **41077448673**](https://github.com/MorningFrog/agent-job-relay/actions/runs/41077448673), source `b025e54b9b880a3bed32c32c622db33ea54a79bc`, passed [exact-revision CI](https://github.com/MorningFrog/agent-job-relay/actions/runs/41077345117), [Release All publication](https://github.com/MorningFrog/agent-job-relay/actions/runs/41081628008) and [independent public verification](https://github.com/MorningFrog/agent-job-relay/actions/runs/41082058071). Preserve its published bytes and receipts unchanged. Linux release payloads require glibc 2.34 or newer; local developer builds can require newer glibc.
 
-Use original [sealed Linux/Windows candidate **41077448673**](https://github.com/MorningFrog/agent-job-relay/actions/runs/41077448673), source `b025e54b9b880a3bed32c32c622db33ea54a79bc`, channel `latest`. Its [exact-revision CI](https://github.com/MorningFrog/agent-job-relay/actions/runs/41077345117), [Release All dry-run](https://github.com/MorningFrog/agent-job-relay/actions/runs/41077427707) and [actual OIDC publisher preview](https://github.com/MorningFrog/agent-job-relay/actions/runs/41080111107) pass, including installed Linux/Windows packages and actual Codex/OpenCode loaders; OpenCode uses a simulated model. Downloaded checksums/inventory, native hashes, release notes and packaged runtime/OpenCode/marketplace files match the reviewed source. Parent and child publication jobs were skipped; no 0.1.17 package, channel, tag or GitHub draft/Release was created. Preserve this candidate unchanged, including its glibc 2.34 Linux payload; artifacts are retained for 14 days. A later publication needs final confirmation and this original candidate ID, not the Release All or preview ID.
+**Development version 0.1.18 is provisional**, with changes under Unreleased for active-profile schema diagnostics, preflight failure guidance and development-note checks. It keeps schema v12, IPC v1 and 25 MCP tools. Its changed runtime/package bytes need their own exact-revision CI and sealed candidate; the published 0.1.17 candidate cannot carry this fix. Source preparation does not authorize pushing or publication; final confirmation must name the intended verified candidate.
 
-**0.1.15 is the public npm/GitHub baseline**, rechecked on 2026-10-30. Its [Release All publication](https://github.com/MorningFrog/agent-job-relay/actions/runs/41051248462) and [independent public verification](https://github.com/MorningFrog/agent-job-relay/actions/runs/41051565448) pass. Preserve its published bytes and receipts unchanged; it includes the marketplace fix but excludes current task titles, feedback receipts and temporary goal-restoration changes. Linux release payloads require glibc 2.34 or newer; local developer builds can require newer glibc.
-
-Source preparation does not authorize publication; final confirmation must name the intended verified candidate. Never rebuild a sealed candidate or substitute local developer payloads.
-
-A changed runtime/package needs a new Cargo version, synchronized pins/CHANGELOG, delivery gates, exact-revision CI and its own candidate. Documentation-only changes do not replace payloads; if such changes reach main after preparation, follow the existing `recover_candidate` rules when promoting the original candidate.
-
-Consumer CLI/plugin installation and updates use `ajr update`; native offline and OpenCode routes remain separate. Published 0.1.15 uses schema v11; source 0.1.17 migrates it forward to v12 after older active runs finish. See [updates](updating.md) and [current support/evidence](IMPLEMENTATION_STATUS.md).
+Consumer CLI/plugin installation and updates use `ajr update`; native offline and OpenCode routes remain separate. Runtime 0.1.17+ migrates v11 profiles forward to v12 after older active runs finish. See [updates](updating.md) and [current support/evidence](IMPLEMENTATION_STATUS.md).
 
 ## Choose an entry point
 
@@ -60,7 +54,7 @@ Prepare Release, Check Release and Release All are not npm publishing identities
 
 ### Prepare and review
 
-Use a new numeric x.y.z in Cargo.toml. Synchronize the root Cargo.lock entry, both npm manifests, OpenCode's exact runtime dependency, plugin descriptors, both online MCP declarations/launchers and the stable online skill entry. Skills load the selected runtime workflow rather than carrying a version pin. Add exactly one nonempty CHANGELOG section for that version; keep unfinished work under Unreleased. Validate locally:
+During development, keep changes under the single `## [Unreleased]` CHANGELOG heading; Cargo.toml may temporarily advance without finalizing the release version. At formal release preparation, choose the final unused numeric x.y.z, synchronize Cargo.lock, both npm manifests, OpenCode's exact runtime dependency, plugin descriptors, both online MCP declarations/launchers and the stable online skill entry. Skills load the selected runtime workflow rather than carrying a version pin. Move the release's entries into exactly one dated version section and retain one empty Unreleased heading above it. The release preflight requires that finalized version section. Validate locally:
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 python3 scripts/release_actions.py source

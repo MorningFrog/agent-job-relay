@@ -28,7 +28,7 @@ class ReleaseTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name) / "source"
         self.root.mkdir()
-        files = ["Cargo.toml", "Cargo.lock", "CHANGELOG.md", "plugins/chatgpt/plugin.json", "plugins/chatgpt/.codex-plugin/plugin.json", "plugins/agent-job-relay/plugin.json", "plugins/chatgpt/mcp.json", "plugins/chatgpt/.mcp.json", "plugins/chatgpt/relay", "plugins/chatgpt/relay.cmd", "packages/runtime/package.json", "plugins/opencode-v1/package.json"]
+        files = ["Cargo.toml", "Cargo.lock", "plugins/chatgpt/plugin.json", "plugins/chatgpt/.codex-plugin/plugin.json", "plugins/agent-job-relay/plugin.json", "plugins/chatgpt/mcp.json", "plugins/chatgpt/.mcp.json", "plugins/chatgpt/relay", "plugins/chatgpt/relay.cmd", "packages/runtime/package.json", "plugins/opencode-v1/package.json"]
         for name in files:
             target = self.root / name
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -36,6 +36,8 @@ class ReleaseTests(unittest.TestCase):
         self.directory = Path(self.temp.name) / "candidate"
         self.directory.mkdir()
         self.version = metadata.version(self.root)
+        # Release fixtures finalize their own notes; development keeps Unreleased.
+        (self.root / "CHANGELOG.md").write_text(f"# Changelog\n\n## [Unreleased]\n\n## [{self.version}] - 2026-10-27\n\n### Fixed\n\n- Prepare an isolated release fixture.\n")
         self.meta = {"version": self.version, "platforms": ["linux-x64", "win32-x64"], "minimumGlibc": "2.35", "marketplace": f"agent-job-relay-marketplace-{self.version}.zip"}
         for key, name in metadata.PACKAGES.items():
             tarball = self.directory / f"{name}-{self.version}.tgz"
@@ -51,6 +53,9 @@ class ReleaseTests(unittest.TestCase):
         self.revision = "a" * 40
         self.run = {"id": 123, "status": "completed", "conclusion": "success", "event": "workflow_dispatch", "path": ".github/workflows/release.yml", "head_branch": "main", "head_sha": self.revision, "repository": {"full_name": actions.REPOSITORY}, "head_repository": {"full_name": actions.REPOSITORY}}
         self.candidate = metadata.seal_candidate(self.directory, "next", actions.REPOSITORY, self.revision, "123", self.root)
+        # Exercise real metadata validation against the finalized fixture only.
+        self.enterContext(patch.object(actions, "source_metadata", side_effect=lambda: metadata.source_metadata(self.root)))
+        self.enterContext(patch.object(actions, "check_candidate", side_effect=lambda directory: metadata.check_candidate(directory, self.root)))
         # A missing mock must fail before it can contact a real service.
         self.real_request = actions.request
         self.network = patch.object(actions, "request", side_effect=AssertionError("Unexpected real network operation"))
@@ -101,6 +106,26 @@ class ReleaseTests(unittest.TestCase):
                 metadata.changelog_notes(text, self.version)
         text = f"## [Unreleased]\n- Future\n## [{self.version}] - 2026-10-27\n- Actual change\n## 0.0.1 — old\n- History\n"
         self.assertEqual(metadata.changelog_notes(text, self.version), "- Actual change\n")
+
+    def test_unreleased_notes_allow_development_checks_but_never_release_promotion(self):
+        path = self.root / "CHANGELOG.md"
+        finalized = path.read_text()
+        path.write_text("# Changelog\n\n## [Unreleased]\n\n- Development change\n")
+        self.assertEqual(metadata.source_metadata(self.root, allow_unreleased=True)["notes"], "- Development change\n")
+        with self.assertRaisesRegex(ValueError, "exactly one section"):
+            metadata.source_metadata(self.root)
+        with self.assertRaisesRegex(ValueError, "exactly one section"):
+            metadata.seal_candidate(self.directory, "next", actions.REPOSITORY, self.revision, "123", self.root)
+        path.write_text(finalized)
+        self.meta["development"] = True
+        (self.directory / "release.json").write_text(json.dumps(self.meta))
+        metadata.write_checksums(self.directory)
+        with self.assertRaisesRegex(ValueError, "Development-only packages"):
+            self.validate()
+        with patch.object(sys, "argv", ["release_actions.py", "publish", "--allow-unreleased"]), patch.object(actions, "publish") as publish, self.assertRaises(SystemExit) as stopped, patch("sys.stderr", new=io.StringIO()):
+            actions.main()
+        self.assertEqual(stopped.exception.code, 1)
+        publish.assert_not_called()
 
     def test_promotion_fences_run_identity_and_source(self):
         self.assertEqual(self.validate()["channel"], "next")

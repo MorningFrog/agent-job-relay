@@ -55,6 +55,18 @@ impl Rig {
             .args(["--target-version", env!("CARGO_PKG_VERSION")]);
         command
     }
+    async fn peer(&self) -> (u32, String) {
+        let config = agent_job_relay::config::Config {
+            root: self.state.clone(),
+        };
+        let stream = agent_job_relay::platform::connect_host(&config.socket())
+            .await
+            .unwrap();
+        let pid = agent_job_relay::platform::peer_pid(&stream)
+            .unwrap()
+            .unwrap();
+        (pid, agent_job_relay::platform::identity(pid).unwrap())
+    }
 }
 impl Drop for Rig {
     fn drop(&mut self) {
@@ -296,19 +308,45 @@ async fn compatible_daemon_handover_preserves_active_run_and_refuses_schema_mism
         ])
         .await;
     let id = job["job"]["job_id"].as_str().unwrap();
+    let original_peer = r.peer().await;
     let database = rusqlite::Connection::open(r.state.join("relay.sqlite3")).unwrap();
     database.busy_timeout(Duration::from_secs(5)).unwrap();
-    database.pragma_update(None, "user_version", 10).unwrap();
-    let refused = r
-        .guard()
-        .args(["--allow-active", "--apply"])
-        .output()
-        .await
-        .unwrap();
+    for version in [11, 13] {
+        database
+            .pragma_update(None, "user_version", version)
+            .unwrap();
+        for apply in [false, true] {
+            let mut command = r.guard();
+            command.arg("--allow-active");
+            if apply {
+                command.arg("--apply");
+            }
+            let refused = command.output().await.unwrap();
+            assert!(!refused.status.success());
+            let error = String::from_utf8_lossy(&refused.stderr);
+            assert!(
+                error.contains(&format!("database schema {version}")),
+                "{error}"
+            );
+            assert!(error.contains("requires schema 12"), "{error}");
+            assert!(error.contains(r.state.to_str().unwrap()), "{error}");
+            assert!(error.contains("let tasks finish"), "{error}");
+            assert!(error.contains("retry ajr update"), "{error}");
+            assert!(error.contains("Codex application"), "{error}");
+            assert_eq!(
+                database
+                    .pragma_query_value::<i64, _>(None, "user_version", |row| row.get(0))
+                    .unwrap(),
+                version
+            );
+            assert_eq!(r.peer().await, original_peer);
+            let current = r.cli(&["status", id]).await;
+            assert_eq!(current["run_id"], job["job"]["run_id"]);
+            assert_eq!(current["status"], "running");
+            assert_eq!(current["cancel_requested"], false);
+        }
+    }
     database.pragma_update(None, "user_version", 12).unwrap();
-    assert!(!refused.status.success());
-    assert!(String::from_utf8_lossy(&refused.stderr).contains("schema"));
-    assert_ne!(r.cli(&["doctor"]).await["daemon"], "stopped");
     let mut child = r
         .guard()
         .args(["--allow-active", "--apply"])

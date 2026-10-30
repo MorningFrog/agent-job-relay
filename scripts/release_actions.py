@@ -544,10 +544,12 @@ def main():
     parser.add_argument("--candidate-run-id", default="")
     parser.add_argument("--channel", choices=["latest", "next"], default="latest")
     parser.add_argument("--auth", choices=["stage", "oidc"], default="stage")
+    parser.add_argument("--allow-unreleased", action="store_true", help="Allow development notes for source validation only")
     args = parser.parse_args()
     try:
+        require(not args.allow_unreleased or args.operation == "source", "--allow-unreleased is only supported for source validation")
         if args.operation == "source":
-            meta = source_metadata()
+            meta = source_metadata(allow_unreleased=args.allow_unreleased)
             print(json.dumps(meta))
             output("version", meta["version"])
         elif args.operation == "prepare":

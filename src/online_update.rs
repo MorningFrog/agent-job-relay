@@ -52,7 +52,17 @@ async fn check_jobs(config: &Config, mode: GuardMode) -> Result<usize> {
             // schema and decodable job contract; maintenance never migrates it.
             Ok(crate::storage::Store::readonly(config.clone())
                 .active()
-                .await?
+                .await
+                .with_context(|| match mode {
+                    GuardMode::Update { .. } => format!(
+                        "cannot preserve active tasks in profile {} with the target AgentJobRelay runtime; let tasks finish using their original runtime, then retry ajr update with the same profile/options; stopping the daemon alone does not finish tasks; this does not require updating the Codex application",
+                        config.root.display()
+                    ),
+                    GuardMode::Remove { .. } => format!(
+                        "cannot safely stop active tasks in profile {} with this AgentJobRelay runtime; finish them using the matching runtime, then retry ajr uninstall with the same profile/options",
+                        config.root.display()
+                    ),
+                })?
                 .len())
         }
         _ => {

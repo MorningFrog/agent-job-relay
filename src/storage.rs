@@ -96,10 +96,12 @@ impl Store {
                         Connection::open(&path)?
                     };
                     if readonly {
+                        let version =
+                            db.pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0))?;
                         ensure!(
-                            db.pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0))?
-                                == 12,
-                            "offline schema is unsupported; use the matching runtime"
+                            version == 12,
+                            "database schema {version} does not match runtime {} (requires schema 12); use the matching AgentJobRelay runtime",
+                            env!("CARGO_PKG_VERSION")
                         );
                     }
                     db.busy_timeout(std::time::Duration::from_secs(5))?;

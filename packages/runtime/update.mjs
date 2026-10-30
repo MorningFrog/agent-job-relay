@@ -61,7 +61,10 @@ async function run(program, args, { raw = false } = {}) {
   }
   try {
     const code = await new Promise((accept, reject) => { child.once("error", reject); child.once("close", accept); });
-    if (code !== 0) throw new Error(`${args.slice(0, 3).join(" ")} failed (${code}): ${stderr.slice(-2000)}`);
+    if (code !== 0) {
+      const operation = args[0] === "update-guard" ? "Update preflight" : args.slice(0, 3).join(" ");
+      throw new Error(`${operation} failed (${code}): ${stderr.slice(-2000).trim()}`);
+    }
     return raw ? stdout : stdout.trim();
   } finally { clearTimeout(timer); running.delete(child); }
 }
@@ -326,9 +329,11 @@ async function updateInner(request) {
   let tarball;
   const allowActive = process.platform === "linux";
   let fencing, installedImage = originalImage, installedVersion = originalVersion;
+  let recorded = Boolean(pending);
   const record = stage => {
     const data = { format: 1, packageRoot, prefix, hostTarget, target, cliOnly: request.cli_only, enabled, beforeMarketplace: pending ? previous.beforeMarketplace : before, stage };
     writeJournal(journal, data);
+    recorded = true;
   };
   try {
     let guardImage = originalImage;
@@ -380,7 +385,10 @@ async function updateInner(request) {
         await fencing.release(); fencing = null;
       } catch (restart) { error.message += `; daemon recovery: ${restart.message}`; }
     }
-    throw new Error(`${error.message}. Completed steps remain recorded at ${journal}; inspect the same profile and repeat ajr update with the original options. No rollback was attempted`);
+    const recovery = recorded
+      ? `Completed steps remain recorded at ${journal}; inspect the same profile and repeat ajr update with the original options. No rollback was attempted`
+      : "No runtime package or host-plugin changes were applied; resolve the preflight error, then retry ajr update with the same profile/options";
+    throw new Error(`${error.message}. ${recovery}`);
   } finally { if (fencing) await fencing.abort(); rmSync(temp, { recursive: true, force: true }); }
 }
 

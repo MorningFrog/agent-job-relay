@@ -35,6 +35,12 @@ Apply verifies the exact target tarball and schema/job compatibility, then insta
 
 Only the official Git marketplace at an unmodified matching release tag is managed automatically. Local/ZIP/native, foreign, modified and untagged sources are preserved and refused; use their original route or `--cli-only`. An outdated disabled plugin needs host management because the public Codex CLI cannot reinstall it while preserving disabled state. Avoid concurrent manual changes to host registrations. Windows self-update and actual Desktop refresh remain separately unqualified; see [implementation status](IMPLEMENTATION_STATUS.md).
 
+### Update reports an unsupported database schema
+
+An older AgentJobRelay daemon can still own running tasks after the CLI package is updated. For example, runtime 0.1.15 uses schema v11, while 0.1.17+ requires v12. The updater cannot migrate that profile while old tasks are active. This error does not require updating the Codex application. Source 0.1.18 identifies the profile and actual/required schemas; older versions may report `offline schema is unsupported; use the matching runtime`.
+
+Use the same profile's `ajr doctor` and `ajr list` to inspect the original daemon/tasks. Let those tasks finish, then repeat `ajr update` with the original profile/options. Expected: the idle profile migrates forward and its previously online daemon restarts from the installed runtime. `daemon stop` alone leaves runners active and does not resolve the migration fence. A refusal during preflight does not replace packages or host plugins; do not delete history or an existing update journal.
+
 ### Marketplace reports local changes
 
 Use `codex plugin marketplace list --json` to find the registered marketplace's exact `root`, then inspect `git -C <marketplace-root> status --short --untracked-files=all`. Preserve and review actual edits before retrying. CLI 0.1.14 also rejects Codex's own untracked `.codex-marketplace-install.json`; do not delete that provenance record to bypass the check. Update the terminal CLI to 0.1.15 or newer with `ajr update --cli-only`, then retry the full update.

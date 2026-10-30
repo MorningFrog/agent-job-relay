@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Explain online update refusals with the affected profile, actual/required database schemas and instructions to finish old tasks before retrying. Distinguish the AgentJobRelay runtime from the Codex application and retain the active-run migration fence.
+- Report a preflight refusal without claiming unfinished update steps were recorded when no runtime/package or host-plugin changes were applied.
+
+### Changed
+
+- Keep development changes under one Unreleased heading and finalize the version/date only during formal release preparation. Explicit development/CI checks accept Unreleased notes and mark their packages as ineligible for release promotion.
+
 ## [0.1.17] - 2026-10-30
 
 ### Added

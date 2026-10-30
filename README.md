@@ -74,7 +74,7 @@ For the online ChatGPT Desktop/Codex installation:
 
 Restart or reconnect the host afterward. Uninstall retains history, logs and backups; active tasks block removal unless you explicitly use `--force` to stop them first. These maintenance commands require CLI 0.1.14 or newer; [older CLIs](docs/updating.md#update-the-terminal-command) first need the npm installation command above.
 
-Use the route matching your installation: [online and native updates](docs/updating.md), [OpenCode updates](docs/updating.md#update-opencode-v1), [uninstallation and configuration removal](docs/uninstalling.md). Updates keep the original profile; finish jobs before native offline/Windows package replacement or incompatible schema migration. Compatible Linux runners can continue during online updates.
+Use the route matching your installation: [online and native updates](docs/updating.md), [OpenCode updates](docs/updating.md#update-opencode-v1), [uninstallation and configuration removal](docs/uninstalling.md). Updates keep the original profile; finish jobs before native offline/Windows package replacement or incompatible schema migration. Compatible Linux runners can continue during online updates. If an update reports an unsupported schema, [finish the older runtime’s tasks before retrying](docs/updating.md#update-reports-an-unsupported-database-schema); updating the Codex application is not required.
 
 ## Everyday use
 
@@ -103,7 +103,7 @@ ajr list
 ajr inspect <job-id>
 ```
 
-The unreleased source also supports `start --title "Run project tests" -- cargo test` and MCP `spec.title`. The task manager displays this short purpose, keeps the full command in details and uses compact command/project hints for unnamed history. This requires an updated runtime; published-version support is tracked in [implementation status](docs/IMPLEMENTATION_STATUS.md).
+Runtime 0.1.17+ also supports `start --title "Run project tests" -- cargo test` and MCP `spec.title`. The task manager displays this short purpose, keeps the full command in details and uses compact command/project hints for unnamed history. This requires an updated runtime; published-version support is tracked in [implementation status](docs/IMPLEMENTATION_STATUS.md).
 
 Use the returned job ID in the last command; the first submission starts the daemon automatically. OpenCode uses `ajr opencode`; native offline installations use their recorded launcher/profile. See the [command reference](docs/commands.md).
 

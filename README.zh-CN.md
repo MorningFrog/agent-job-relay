@@ -74,7 +74,7 @@ ajr ui
 
 完成后重启或重连宿主。卸载保留历史、日志及备份；有活动任务时拒绝卸载，除非显式使用 `--force` 先停止任务。这些维护命令需要 CLI 0.1.14 或更新版本；[旧版 CLI](docs/updating.md#update-the-terminal-command) 需先运行上方的 npm 安装命令。
 
-按原安装方式维护：[在线及原生更新](docs/updating.md)、[OpenCode 更新](docs/updating.md#update-opencode-v1)、[卸载和配置移除](docs/uninstalling.md)。更新保留原数据目录；原生离线替换、Windows 包替换或不兼容 schema 迁移前，须先完成活动任务。兼容的 Linux runner 可在在线更新期间继续运行。
+按原安装方式维护：[在线及原生更新](docs/updating.md)、[OpenCode 更新](docs/updating.md#update-opencode-v1)、[卸载和配置移除](docs/uninstalling.md)。更新保留原数据目录；原生离线替换、Windows 包替换或不兼容 schema 迁移前，须先完成活动任务。兼容的 Linux runner 可在在线更新期间继续运行。若更新提示 schema 不兼容，[先等旧运行时的任务结束再重试](docs/updating.md#update-reports-an-unsupported-database-schema)，无需为此更新 Codex 应用。
 
 ## 日常使用
 
@@ -103,7 +103,7 @@ ajr list
 ajr inspect <job-id>
 ```
 
-未发布源码还支持 `start --title "运行项目测试" -- cargo test` 和 MCP `spec.title`。任务面板显示简短用途，详情保留完整命令；未命名的历史任务显示精简命令／项目提示。此功能需要更新运行时，已发布版本的支持情况见[实施状态](docs/IMPLEMENTATION_STATUS.md)。
+运行时 0.1.17+ 还支持 `start --title "运行项目测试" -- cargo test` 和 MCP `spec.title`。任务面板显示简短用途，详情保留完整命令；未命名的历史任务显示精简命令／项目提示。此功能需要更新运行时，已发布版本的支持情况见[实施状态](docs/IMPLEMENTATION_STATUS.md)。
 
 最后一条命令使用提交后返回的任务 ID；首次提交会自动启动 daemon。OpenCode 使用 `ajr opencode`，原生离线安装使用其记录的启动器及数据目录，具体见[命令参考](docs/commands.md)。
 

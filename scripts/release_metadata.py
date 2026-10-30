@@ -24,10 +24,12 @@ def version(root=REPO):
     return value
 
 
-def changelog_notes(text, selected):
+def changelog_notes(text, selected, *, allow_unreleased=False):
     # Keep historical headings readable; new entries use Keep a Changelog syntax.
     headers = list(re.finditer(r"^## (?:\[)?(\d+\.\d+\.\d+)(?:\])?(?=\s|$)[^\n]*$", text, re.M))
     matches = [h for h in headers if h[1] == selected]
+    if not matches and allow_unreleased:
+        matches = list(re.finditer(r"^## \[Unreleased\][ \t]*$", text, re.M))
     require(len(matches) == 1, f"CHANGELOG.md must contain exactly one section for {selected}")
     heading = matches[0]
     next_heading = re.search(r"^## ", text[heading.end():], re.M)
@@ -38,7 +40,7 @@ def changelog_notes(text, selected):
     return body + "\n"
 
 
-def source_metadata(root=REPO):
+def source_metadata(root=REPO, *, allow_unreleased=False):
     selected = version(root)
     lock = tomllib.loads((root / "Cargo.lock").read_text())
     require([p["version"] for p in lock["package"] if p["name"] == "agent-job-relay"] == [selected], "Cargo.lock version differs from Cargo.toml")
@@ -57,7 +59,7 @@ def source_metadata(root=REPO):
         pins = re.findall(r"agent-job-relay-runtime@[^\s\"']+", (root / relative).read_text())
         require(pins and all(p == pin for p in pins), f"{relative} runtime pin mismatch")
     require(json.loads((root / "plugins/chatgpt/.mcp.json").read_text())["mcpServers"] == json.loads((root / "plugins/chatgpt/mcp.json").read_text())["mcpServers"], "MCP declarations differ")
-    return {"version": selected, "tag": f"v{selected}", "notes": changelog_notes((root / "CHANGELOG.md").read_text(), selected)}
+    return {"version": selected, "tag": f"v{selected}", "notes": changelog_notes((root / "CHANGELOG.md").read_text(), selected, allow_unreleased=allow_unreleased)}
 
 
 def sha256(path):
@@ -92,6 +94,7 @@ def check_checksums(directory):
 def check_candidate(directory, root=REPO):
     check_checksums(directory)
     meta = json.loads((directory / "release.json").read_text())
+    require(not meta.get("development", False), "Development-only packages cannot be promoted; prepare a finalized release candidate")
     source = source_metadata(root)
     require(meta["version"] == source["version"], "Candidate/source version mismatch")
     for key, name in PACKAGES.items():

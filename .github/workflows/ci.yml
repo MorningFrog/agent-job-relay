@@ -97,14 +97,14 @@ jobs:
         env:
           PYTHONDONTWRITEBYTECODE: '1'
         run: |
-          python3 scripts/release_actions.py source
+          python3 scripts/release_actions.py source --allow-unreleased
           python3 -m unittest discover -s scripts -p test_release.py -v
       - name: Isolated host-plugin dependencies
         if: runner.os == 'Linux'
         run: npm install --prefix .tmp/opencode-toolchain --cache .tmp/npm-cache --ignore-scripts --no-audit --no-fund opencode-ai@1.19.4 @opencode-ai/plugin@1.19.4 @opencode-ai/sdk@1.19.4
       - name: Pack native runtime, OpenCode and self-hosted marketplace candidates
         if: runner.os == 'Linux'
-        run: python3 scripts/prepare_release.py --output .tmp/release-candidate
+        run: python3 scripts/prepare_release.py --allow-unreleased --output .tmp/release-candidate
       - name: Install candidate packages and check actual OpenCode with simulated model
         if: runner.os == 'Linux'
         run: python3 scripts/check_release.py --release .tmp/release-candidate --opencode .tmp/opencode-toolchain/node_modules/opencode-linux-x64/bin/opencode
@@ -137,7 +137,7 @@ jobs:
           PYTHONDONTWRITEBYTECODE: '1'
         run: |
           chmod +x .tmp/ci-linux-native/agent-job-relay
-          python3 scripts/prepare_release.py --binary .tmp/ci-linux-native/agent-job-relay --output .tmp/ci-windows-packages --windows-binary .tmp/ci-windows-native/release/agent-job-relay.exe --windows-metadata .tmp/ci-windows-native/windows-native.json
+          python3 scripts/prepare_release.py --allow-unreleased --binary .tmp/ci-linux-native/agent-job-relay --output .tmp/ci-windows-packages --windows-binary .tmp/ci-windows-native/release/agent-job-relay.exe --windows-metadata .tmp/ci-windows-native/windows-native.json
       - uses: actions/upload-artifact@v7.0.2
         with:
           name: ci-windows-packages
