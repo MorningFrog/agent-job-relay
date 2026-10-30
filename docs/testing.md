@@ -10,6 +10,7 @@ Run from the repository root:
 
 ```bash
 npm ci --prefix web --ignore-scripts --no-audit --no-fund
+npm test --prefix web
 npm run build --prefix web
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
@@ -34,6 +35,8 @@ Plugin update/repair preservation checks checkpoint committed WAL pages before c
 Build the frontend before the native executable, then open `ui <job-id> --no-open` through the host’s embedded-browser tool using an isolated repository-local test profile. Check 360, 480, 761, 1250 and 1440 CSS-pixel widths. Expected: no page-wide horizontal overflow; an icon rail through 1250 pixels; mouse hover and keyboard/touch toggling reveal navigation without moving the main content; Escape/backdrop closes an explicitly opened menu. Selecting a task inserts exactly one detail panel directly after that row, switches cleanly to another row and collapses on a second activation. Wider windows place the same task detail beside the list. Search/filter must not leave a hidden selected task’s detail below the narrow list; direct task URLs must retain the requested job even outside the latest history page.
 
 Verify stdout/stderr, rules/form controls, events and a stop request against fixture jobs. Expected: the rule’s saved/applied state and eventual terminal status remain visible in the inline panel. Reset temporary viewport overrides afterward. The runtime workflow must open one exact-profile task panel after accepted submission and before yielding/native goal pause; pending/rejected submissions do not open one, and UI failures do not resubmit or cancel accepted execution. Runtime-instruction inspection plus a manually exercised host-panel tool establishes the opening mechanism, while a newly updated real host Agent following it remains separate acceptance.
+
+For panel reuse, start two fixture jobs and obtain their fresh `ui <job-id> --no-open` URLs from that same isolated profile. List this chat's embedded tabs before opening; create the first panel only if none matches the exact origin/path. Reuse its ID for A → B → B → A and an overview URL, navigating then showing that same tab. Expected: one tab ID throughout, the requested detail/output after each task navigation, no detail in overview, cleared credential fragments and no authentication error. Repeat with search/state filters set before navigation; the requested task must become visible. An inventory/open failure must not automatically create another panel. Node navigation tests cover fragment consumption, repeated selection, credential refresh and listener cleanup; actual host navigation is a separate browser check.
 
 ## Behavior coverage
 

@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Find and reuse the originating chat's existing same-profile task-manager tab before opening a panel, including repeated submissions and reopen requests. Navigate/show its verified tab ID and reconcile uncertain opens instead of creating duplicates.
+- Handle fresh task/credential fragments in an existing Web panel, reset hidden-task filters and reconnect the selected task without a reload. Keep credentials out of the visible URL.
+
 ## [0.1.14] - 2026-10-30
 
 ### Added

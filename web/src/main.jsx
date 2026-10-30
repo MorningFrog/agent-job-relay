@@ -1,11 +1,9 @@
 import React, { useEffect, useState, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
 import './style.css';
+import { consumePanelNavigation, subscribePanelNavigation } from './navigation.js';
 
-const params = new URLSearchParams(location.hash.slice(1));
-const incoming = params.get('token');
-if (incoming) { sessionStorage.setItem('ajr-token', incoming); history.replaceState(null, '', location.pathname); }
-const token = sessionStorage.getItem('ajr-token') || '';
+const initialNavigation = consumePanelNavigation();
 const terminal = new Set(['completed','failed','cancelled','timeout','orphaned']);
 const names = {queued:'等待启动',launching:'启动中',running:'运行中',completed:'已完成',failed:'失败',cancelled:'已停止',timeout:'超时',orphaned:'结果未知'};
 const phaseNames = {running:'运行中',graceful:'等待温和退出',forced:'已强制结束',finished:'已结束'};
@@ -13,11 +11,11 @@ const date = n => n ? new Date(n).toLocaleString() : '—';
 const age = n => n == null ? '尚无输出' : `${Math.max(0, Math.floor((Date.now()-n)/1000))} 秒前`;
 const elapsed = job => { const seconds=Math.max(0,Math.floor(((job.run?.ended_at||Date.now())-(job.run?.started_at||job.created_at))/1000));return seconds<60?`${seconds} 秒`:`${Math.floor(seconds/60)} 分 ${seconds%60} 秒`; };
 const command = job => job?.command_preview || (job?.command?.kind==='remote' ? `远程 ${job.command.remote.target_id} · ${job.command.remote.intent.kind}` : job?.command?.kind==='github_actions' ? `GitHub Actions ${job.command.workflow.repository} · ${job.command.workflow.run_id} / ${job.command.workflow.attempt}` : job?.command?.kind==='shell' ? job.command.script : [job?.command?.program,...(job?.command?.args||[])].filter(Boolean).join(' '));
-async function api(body) {
+async function api(body, token) {
   const r=await fetch('/api/request',{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},body:JSON.stringify(body)});
   const v=await r.json();if(!r.ok) throw new Error(v.error||`请求失败 (${r.status})`);return v;
 }
-async function stream(job, signal, receive) {
+async function stream(job, token, signal, receive) {
   const r=await fetch(`/api/events${job?`?job_id=${encodeURIComponent(job)}`:''}`,{headers:{Authorization:`Bearer ${token}`},signal});
   if(!r.ok) {const e=new Error(r.status===401?'访问凭据已失效，请在终端重新运行 ui 打开面板。':`连接失败 (${r.status})`);if(r.status===401)e.name='AuthError';throw e;}
   const reader=r.body.getReader(), decoder=new TextDecoder();let buffer='';
@@ -55,19 +53,22 @@ const compactLayout = matchMedia('(max-width: 1250px)');
 const subscribeLayout = listener => { compactLayout.addEventListener('change', listener); return () => compactLayout.removeEventListener('change', listener); };
 function App() {
  const compact = useSyncExternalStore(subscribeLayout, () => compactLayout.matches);
+ const [navigation,setNavigation]=useState(initialNavigation);
+ const {token}=navigation;
  const [navExpanded,setNavExpanded]=useState(false),[navHovered,setNavHovered]=useState(false);
  const navOpen=navExpanded||navHovered;
  function navigate(next){setPage(next);setNavExpanded(false);setNavHovered(false);if(next==='alerts')setTab('events');}
- const [overview,setOverview]=useState(null),[detail,setDetail]=useState(null),[selected,setSelected]=useState(params.get('job')),[tab,setTab]=useState('output'),[streamName,setStreamName]=useState('stdout'),[filter,setFilter]=useState(''),[status,setStatus]=useState('all'),[page,setPage]=useState('tasks'),[connection,setConnection]=useState('connecting'),[error,setError]=useState(''),[busy,setBusy]=useState(false),[form,setForm]=useState(null),[grace,setGrace]=useState(5),[older,setOlder]=useState([]),[cursor,setCursor]=useState(null),[more,setMore]=useState(true);
- useEffect(()=>{let controller,timer,disposed=false,retry=2500;async function connect(){if(disposed||document.hidden||!token)return;controller=new AbortController();try{await stream(selected,controller.signal,v=>{if(v.error){setError(v.error);return;}setOverview(v.overview);setDetail(v.detail||null);setConnection('connected');retry=2500;});}catch(e){if(e.name!=='AbortError'&&!disposed){setConnection('disconnected');setError(e.message);if(e.name!=='AuthError'){timer=setTimeout(connect,retry);retry=Math.min(30000,retry*2);}}}}function visibility(){clearTimeout(timer);controller?.abort();if(!document.hidden)connect();}connect();document.addEventListener('visibilitychange',visibility);return()=>{disposed=true;clearTimeout(timer);controller?.abort();document.removeEventListener('visibilitychange',visibility);};},[selected]);
+ const [overview,setOverview]=useState(null),[detail,setDetail]=useState(null),[selected,setSelected]=useState(initialNavigation.jobId),[tab,setTab]=useState('output'),[streamName,setStreamName]=useState('stdout'),[filter,setFilter]=useState(''),[status,setStatus]=useState('all'),[page,setPage]=useState('tasks'),[connection,setConnection]=useState('connecting'),[error,setError]=useState(''),[busy,setBusy]=useState(false),[form,setForm]=useState(null),[grace,setGrace]=useState(5),[older,setOlder]=useState([]),[cursor,setCursor]=useState(null),[more,setMore]=useState(true);
+ useEffect(()=>subscribePanelNavigation(next=>{setNavigation(next);setSelected(next.jobId);setDetail(null);setForm(null);setError('');setFilter('');setStatus('all');setPage('tasks');setTab('output');}),[]);
+ useEffect(()=>{let controller,timer,disposed=false,retry=2500;async function connect(){if(disposed||document.hidden||!token)return;controller=new AbortController();try{await stream(selected,token,controller.signal,v=>{if(v.error){setError(v.error);return;}setOverview(v.overview);setDetail(v.detail||null);setConnection('connected');retry=2500;});}catch(e){if(e.name!=='AbortError'&&!disposed){setConnection('disconnected');setError(e.message);if(e.name!=='AuthError'){timer=setTimeout(connect,retry);retry=Math.min(30000,retry*2);}}}}function visibility(){clearTimeout(timer);controller?.abort();if(!document.hidden)connect();}connect();document.addEventListener('visibilitychange',visibility);return()=>{disposed=true;clearTimeout(timer);controller?.abort();document.removeEventListener('visibilitychange',visibility);};},[selected,token,navigation]);
  const jobs=[...new Map([...(detail?.job?.job_id===selected?[detail.job]:[]),...older,...(overview?.jobs||[]),...(overview?.active_jobs||[])].map(j=>[j.job_id,j])).values()].sort((a,b)=>(Number(!terminal.has(b.status))-Number(!terminal.has(a.status)))||b.sequence-a.sequence);
  const displayed=jobs.filter(j=>(status==='all'||(status==='active'?!terminal.has(j.status):j.status===status))&&`${command(j)} ${j.cwd} ${j.job_id}`.toLowerCase().includes(filter.toLowerCase()));
  const progress=detail?.observation?.progress||detail?.observation?.external?.observation?.progress;
  const job=detail?.job,active=job&&!terminal.has(job.status),rules=(detail?.rules||[]).filter(r=>!r.deleted),alerts=(detail?.events||[]).filter(e=>e.kind==='monitor_alert');
- async function mutate(body){setBusy(true);setError('');try{const value=await api(body);if(body.op==='monitor'){setDetail(d=>d?{...d,rules:value.rules}:d);setForm(null);}return true;}catch(e){setError(e.message);return false;}finally{setBusy(false);}}
+ async function mutate(body){setBusy(true);setError('');try{const value=await api(body,token);if(body.op==='monitor'){setDetail(d=>d?{...d,rules:value.rules}:d);setForm(null);}return true;}catch(e){setError(e.message);return false;}finally{setBusy(false);}}
  function choose(id){setSelected(id);setDetail(null);setForm(null);setTab(page==='alerts'?'events':'output');}
  function closeDetail(){setSelected(null);setDetail(null);setForm(null);}
- async function loadMore(){setBusy(true);try{const before=cursor??overview?.next_cursor;const result=await api({op:'inspect',before,limit:50});setOlder(old=>[...old,...result.jobs]);setCursor(result.next_cursor);setMore(result.jobs.length===50);}catch(e){setError(e.message);}finally{setBusy(false);}}
+ async function loadMore(){setBusy(true);try{const before=cursor??overview?.next_cursor;const result=await api({op:'inspect',before,limit:50},token);setOlder(old=>[...old,...result.jobs]);setCursor(result.next_cursor);setMore(result.jobs.length===50);}catch(e){setError(e.message);}finally{setBusy(false);}}
  const ruleSummary=r=>r.condition.kind==='progress'?`${r.condition.source} · ${r.condition.trigger.kind==='stage'?`阶段变化 ${r.condition.trigger.stage||''}`:r.condition.trigger.kind==='step'?`每 ${r.condition.trigger.every} 步`:`${r.condition.trigger.name} ${r.condition.trigger.comparison} ${r.condition.trigger.value}`} · 间隔 ${r.condition.cooldown_seconds} 秒`:r.condition.kind==='contains'?`输出包含 “${r.condition.text}”`:r.condition.kind==='no_output'?`连续 ${r.condition.seconds} 秒无输出`:`总运行超过 ${r.condition.seconds} 秒`;
  const detailPanel = selected&&<section className="panel detail" id="task-detail" aria-label="任务详情"><div className="section-heading"><div><span className="eyebrow">任务详情</span><h2>{job?.job_id?.slice(0,8)||'加载中…'}</h2></div><button className="icon-button" aria-label="关闭任务详情" onClick={closeDetail}><Icon name="close"/></button></div>
  {job&&<><div className="job-summary"><Badge status={job.status}/><span className="muted">{elapsed(job)}</span><pre>{command(job)}</pre><div className="mono small muted">{job.cwd}</div><div className="small muted">启动 {date(job.run?.started_at)}{job.exit_code!=null&&` · 退出码 ${job.exit_code}`}</div></div>

@@ -56,6 +56,7 @@ jobs:
       - name: Build bundled React and Vite UI
         run: |
           npm ci --prefix web --ignore-scripts --no-audit --no-fund
+          npm test --prefix web
           npm run build --prefix web
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -90,6 +91,7 @@ jobs:
       - name: Build bundled React and Vite UI
         run: |
           npm ci --prefix web --ignore-scripts --no-audit --no-fund
+          npm test --prefix web
           npm run build --prefix web
       - uses: dtolnay/rust-toolchain@stable
         with:

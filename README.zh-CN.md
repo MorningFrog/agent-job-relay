@@ -125,7 +125,7 @@ codex plugin add agent-job-relay@agent-job-relay
 
 > 打开 AgentJobRelay 的任务面板，让我查看正在运行的任务。
 
-插件可以打开随包 Web UI；新版在线安装要求全局 CLI，原生离线插件使用其自带启动器。当前源码流程会在宿主提供内置浏览器时，自动将已接受的后台任务显示在聊天旁；面板支持窄侧栏布局。MCP 提交和同聊天通知恢复见[使用指南](docs/usage.md)，持久规则与停止任务见[监控和 Web UI](docs/runtime-monitoring.md)。
+插件可以打开随包 Web UI；新版在线安装要求全局 CLI，原生离线插件使用其自带启动器。当前源码流程会自动将已接受的后台任务显示在聊天旁，并在宿主支持内嵌标签页发现和导航时，为同一聊天及配置复用一个面板；面板支持窄侧栏布局。MCP 提交和同聊天通知恢复见[使用指南](docs/usage.md)，持久规则与停止任务见[监控和 Web UI](docs/runtime-monitoring.md)。
 
 ### 命令行与 Web UI
 

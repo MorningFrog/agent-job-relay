@@ -52,6 +52,8 @@ jobs:
       - run: cargo fmt --check
       - name: Check online updater public-host command behavior
         run: node --test scripts/test_online_update.mjs scripts/test_online_uninstall.mjs
+      - name: Check task-panel navigation
+        run: npm test --prefix web
       - run: cargo clippy --all-targets --locked -- -D warnings
       - name: Linux and Windows native behavior tests
         if: runner.os != 'macOS'
