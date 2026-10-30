@@ -6,8 +6,8 @@ Use the route matching your original installation. Current source replaces an ol
 
 | Installation | Update procedure |
 |---|---|
-| Global npm CLI | [Update the terminal command](#update-the-terminal-command) |
-| npm-backed ChatGPT Desktop/Codex marketplace | [Update the online marketplace](#update-the-online-marketplace) |
+| Global npm CLI | [One-command update](#one-command-online-update-0114), with an [older-CLI bootstrap](#update-the-terminal-command) |
+| npm-backed ChatGPT Desktop/Codex marketplace | [One-command update](#one-command-online-update-0114), with an [older-plugin procedure](#update-the-online-marketplace) |
 | OpenCode V1 npm plugin | [Update OpenCode V1](#update-opencode-v1) |
 | Native local/offline plugin | [Unified install and update](#unified-install-and-update); [compatible older entry](#updating-an-existing-installation) |
 | Known native cache or interrupted replacement | [Cache refresh](#cache-inspection-and-refresh); [recorded repair](#compatibility-and-interrupted-operations) |
@@ -18,41 +18,50 @@ Finish active jobs and retain the original profile. Record the installed version
 
 External-task command variants are unreadable by older binaries; 0.1.12 scoped goal waiting additionally migrates the profile to schema v11. Before first use, finish active jobs and use the updated runtime for that same profile. Automatic handover refuses migration while old runs remain active. Preserve the matching runtime on both hosts and the remote target profile; do not downgrade a profile containing external-task records. See [remote task requirements](remote-execution.md).
 
-Published 0.1.12 and source 0.1.13 use schema v11; 0.1.11 uses v9 and 0.1.9 uses v6. No schema migration is needed from 0.1.12 to 0.1.13. Migration refuses an old daemon lock or launching/running jobs, and older executables refuse newer schemas. Preserve backups and never downgrade a used database. See [data maintenance](data-maintenance.md) for backup and restore.
+Published 0.1.12 and source 0.1.14 use schema v11; 0.1.11 uses v9 and 0.1.9 uses v6. No schema migration is needed from 0.1.12 to 0.1.14. Migration refuses an old daemon lock or launching/running jobs, and older executables refuse newer schemas. Preserve backups and never downgrade a used database. See [data maintenance](data-maintenance.md) for backup and restore.
+
+## One-command online update (0.1.14+)
+
+Source 0.1.14 adds the unified online route. It is not yet published; npm/GitHub latest remains 0.1.12. After installing a released runtime containing this command, the initial plugin installation and later updates use the same entry:
+
+```bash
+ajr update --dry-run
+ajr update
+```
+
+Expected: the preview resolves one exact published version; apply updates the selected global npm CLI, registers its matching release-tagged marketplace and installs the matching ChatGPT Desktop/Codex plugin through the public Codex CLI. Restart/reconnect Desktop or Codex afterward to load the plugin and MCP catalog. Node.js 20+/npm, Codex CLI, Git and npm's global command directory must be on PATH. PowerShell can use `ajr.cmd`. Use `--to <x.y.z>` for an exact published version or `--cli-only` to leave host plugins untouched. Downgrades are refused. An unchanged installation returns `changed=false` without stopping a daemon.
+
+The updater validates that it is running from the selected global npm package and pins that npm prefix. The plugin retains its exact-version npm runtime; this command coordinates both versions. New online plugin entries require the installed global CLI and fail with a copyable installation command when it is missing. Host installation hooks are not used, and existing older cached entries require their initial update/reconnection. Native offline bundles and OpenCode packages keep their own routes below.
+
+The selected profile plus the default Codex/OpenCode profiles must have no queued/launching/running jobs. Preview reads state without starting/stopping daemons or creating profiles. Apply holds installation/startup locks, revalidates the original daemon peers, stops idle online profiles, replaces the global package after the original CLI exits, and restarts only those online profiles from verified installed bytes. A private copied helper avoids replacing its own loaded native image on Windows. Other custom profiles are not discovered or moved; finish their work separately and select a custom profile explicitly with `--state-dir` when needed. No schema rollback or workload replay occurs.
+
+Only the official Git marketplace at its matching release tag is managed automatically. Development/untagged checkouts are preserved and refused. Local/ZIP/native, foreign and modified same-name marketplaces are refused; use their original route or `--cli-only`. Other marketplace registrations remain host-managed. An outdated disabled plugin is refused before changes because the verified Codex CLI cannot reinstall it while preserving its disabled state; manage it in the host or use `--cli-only`. Host configuration changes have no public compare-and-swap operation: do not edit marketplace registrations concurrently.
+
+Applied steps are recorded in the selected profile's private `online-update.json`, including the original marketplace identity/version, Codex executable/configuration home and target. Retry refuses a changed host selection. On a partial failure, completed changes stay installed; rerun the original options to finish the pinned version forward. Public host reads reconcile a removed/re-added catalog or a successfully installed plugin after an uncertain reply; no package rollback or blind install replay is performed. A lost controller leaves stopped profiles stopped, with explicit same-profile recovery instructions. An interrupted journal write may leave its exact `.new` file for inspection; it is never scanned or deleted automatically. If the installed CLI itself is unavailable after npm failure, reinstall the recorded target with npm first. Do not overwrite or remove an unfamiliar journal. Native Windows self-update/held-image behavior and real Desktop refresh remain separate qualification until recorded in [implementation status](IMPLEMENTATION_STATUS.md).
 
 ## Update the terminal command
 
-Resolve the version matching the plugin you intend to use, then update the global CLI. For the current published channel in Bash:
+With 0.1.14+, use `ajr update` above; `ajr update --cli-only` updates just the global CLI. For older published CLIs, bootstrap once with standard npm registration:
 
 ```bash
-AJR_VERSION="$(npm view agent-job-relay-runtime@latest version --registry=https://registry.npmjs.org)" &&
-npm install --global --ignore-scripts --registry=https://registry.npmjs.org "agent-job-relay-runtime@$AJR_VERSION"
+npm install --global --ignore-scripts --registry=https://registry.npmjs.org agent-job-relay-runtime@latest
 agent-job-relay codex --version
 ```
 
-Expected: the CLI reports the resolved version. Update the host plugin separately below. With current source, `ui`, `daemon start`, submission or explicit session binding replaces an older daemon automatically. For published versions that still report an older daemon, finish its jobs, run `agent-job-relay codex daemon stop`, then retry `agent-job-relay codex ui` for that same profile. Substitute the OpenCode or native prefix when appropriate; do not switch profiles. PowerShell can use `npm.cmd` and `agent-job-relay.cmd`.
+Expected: the CLI reports npm's latest published version. Before 0.1.14 is published this remains 0.1.12 and the manual marketplace procedure below still applies. npm's global command directory must be on PATH; use a user-writable npm installation. PowerShell can use `npm.cmd` and `agent-job-relay.cmd`. Current runtimes replace an older same-profile daemon on runtime-starting use; incompatible migration still requires completed jobs.
 
 ## Update the online marketplace
 
-Finish active jobs, then resolve the latest version before replacing the registered catalog source. Codex refuses to add a different tag over an existing source, and marketplace upgrade retains the original tag. For an existing npm-backed marketplace, use Bash:
+With 0.1.14+, `ajr update` installs/updates both the CLI and plugin. For published versions without that command, finish jobs, install/update the global CLI above, then use the older manual route:
 
 ```bash
 AJR_VERSION="$(npm view agent-job-relay-runtime@latest version --registry=https://registry.npmjs.org)" &&
 codex plugin marketplace remove agent-job-relay &&
-codex plugin marketplace add MorningFrog/agent-job-relay --ref "v$AJR_VERSION"
+codex plugin marketplace add MorningFrog/agent-job-relay --ref "v$AJR_VERSION" &&
+codex plugin add agent-job-relay@agent-job-relay
 ```
 
-Or PowerShell:
-
-```powershell
-$AjrVersion = npm.cmd view agent-job-relay-runtime@latest version --registry=https://registry.npmjs.org
-if ($LASTEXITCODE -ne 0) { throw "Could not resolve the latest published runtime" }
-codex.cmd plugin marketplace remove agent-job-relay
-if ($LASTEXITCODE -ne 0) { throw "Could not remove the old marketplace registration" }
-codex.cmd plugin marketplace add MorningFrog/agent-job-relay --ref "v$($AjrVersion.Trim())"
-```
-
-Expected: the catalog is registered at the newly resolved tag. Refresh/reinstall AgentJobRelay through the host and reconnect MCP; CLI users can run `codex plugin add agent-job-relay@agent-job-relay` again. Removing this catalog registration preserves the external runtime profile/history. Reconnect MCP so the new runtime can replace the older daemon on first use. Finish old runs before an incompatible schema migration; versions before 0.1.12 need the manual same-profile stop.
+Expected: the matching release-tagged catalog and plugin are installed. For a first installation omit marketplace removal. Restart/reconnect Desktop or Codex afterward. Older CLI versions still need the manual same-profile daemon stop before an incompatible upgrade; retain the original profile/history.
 
 ## Update OpenCode V1
 

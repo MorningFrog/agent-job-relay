@@ -35,6 +35,16 @@ Retain the original profile when updating. Current source automatically replaces
 
 Native/source plugins use stable instruction entries and verified current-runtime MCP forwarding. Historical entries need [one migration and reconnection](docs/updating.md#cache-inspection-and-refresh); later same-version native updates follow the current workflow without clearing plugin caches.
 
+### Unified online installation/update (source 0.1.14)
+
+Install the CLI once, with npm's global command directory on PATH:
+
+```bash
+npm install --global --ignore-scripts --registry=https://registry.npmjs.org agent-job-relay-runtime@latest
+```
+
+After 0.1.14+ is published and installed, run `ajr update` for both initial ChatGPT Desktop/Codex plugin installation and later CLI/plugin updates. `ajr update --dry-run` previews changes; `--cli-only` leaves the plugin untouched. New online plugin entries require the installed CLI. Reconnect/restart the host afterward; data/history stay in their original profiles. This command is currently source-only: published 0.1.12 still uses the manual host steps below. See [unified updates and limits](docs/updating.md#one-command-online-update-0114).
+
 ### ChatGPT Desktop
 
 **Online installation:** register the marketplace matching the latest published runtime:
@@ -113,11 +123,11 @@ You can also ask:
 
 > Open AgentJobRelay's task manager so I can inspect the running tasks.
 
-The plugin can open the bundled Web UI without a globally installed CLI. The current source workflow automatically shows an accepted background task beside the chat when the host provides an embedded browser; the panel supports narrow sidebars. Follow [daily usage](docs/usage.md) for MCP submission and same-chat recovery, or [monitoring and Web UI](docs/runtime-monitoring.md) for persistent rules and stopping.
+The plugin can open the bundled Web UI; new online installations require the global CLI, while native offline plugins use their own launcher. The current source workflow automatically shows an accepted background task beside the chat when the host provides an embedded browser; the panel supports narrow sidebars. Follow [daily usage](docs/usage.md) for MCP submission and same-chat recovery, or [monitoring and Web UI](docs/runtime-monitoring.md) for persistent rules and stopping.
 
 ### Command line and Web UI
 
-For terminal access, install the CLI separately, then open the task manager or submit work using the online ChatGPT/Codex profile:
+With the CLI installed, open the task manager or submit work using the online ChatGPT/Codex profile:
 
 ```bash
 npm install --global --ignore-scripts --registry=https://registry.npmjs.org agent-job-relay-runtime@latest

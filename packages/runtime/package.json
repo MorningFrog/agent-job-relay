@@ -1,6 +1,6 @@
 {
   "name": "agent-job-relay-runtime",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "description": "Shared Linux and Windows native runtime for AgentJobRelay host plugins",
   "type": "module",
   "exports": "./index.mjs",
@@ -12,6 +12,7 @@
     "index.mjs",
     "cli.mjs",
     "ajr.mjs",
+    "update.mjs",
     "native",
     "README.md",
     "LICENSE"

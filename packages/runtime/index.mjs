@@ -34,13 +34,13 @@ export function resolveExecutable() {
   return executable;
 }
 
-export function defaultStateDir(host) {
+export function defaultStateDir(host, override = process.env.AJR_STATE_DIR) {
   if (!["codex", "opencode"].includes(host)) throw new Error("Unknown AgentJobRelay host profile");
   const linuxState = process.env.XDG_STATE_HOME || (process.env.HOME && join(process.env.HOME, ".local/state"));
   const base = process.platform === "win32"
     ? process.env.LOCALAPPDATA && join(process.env.LOCALAPPDATA, "AgentJobRelay", "profiles")
     : linuxState && join(linuxState, "agent-job-relay");
-  const state = process.env.AJR_STATE_DIR || (base && join(base, host));
+  const state = override || (base && join(base, host));
   if (!state || !isAbsolute(state)) throw new Error("AgentJobRelay state path must be absolute; set AJR_STATE_DIR or the platform's state base");
   return state;
 }

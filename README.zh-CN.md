@@ -35,6 +35,16 @@ Tasks run in the background. Agents pick up when needed.
 
 本地／源码插件通过稳定的指引入口和经过校验的 MCP 运行时转发跟随更新。旧入口需[一次迁移和重连](docs/updating.md#cache-inspection-and-refresh)；以后同版本本地更新也会使用当前流程，无需清理插件缓存。
 
+### 统一在线安装与更新（源码 0.1.14）
+
+先安装一次 CLI，并确保 npm 的全局命令目录在 PATH 中：
+
+```bash
+npm install --global --ignore-scripts --registry=https://registry.npmjs.org agent-job-relay-runtime@latest
+```
+
+0.1.14+ 发布并安装后，首次安装 ChatGPT Desktop/Codex 插件和后续 CLI／插件更新都使用 `ajr update`。`ajr update --dry-run` 可预览，`--cli-only` 仅更新 CLI；新版在线插件要求已安装 CLI。完成后重连或重启宿主，原数据目录和历史保持不变。此命令目前仅在源码中实现，已发布的 0.1.12 仍按下方手动宿主步骤操作，见[统一更新与限制](docs/updating.md#one-command-online-update-0114)。
+
 ### ChatGPT Desktop
 
 **在线安装：** 注册与最新已发布运行时匹配的 marketplace：
@@ -113,11 +123,11 @@ codex plugin add agent-job-relay@agent-job-relay
 
 > 打开 AgentJobRelay 的任务面板，让我查看正在运行的任务。
 
-插件可以打开随包 Web UI，无需全局安装 CLI。当前源码流程会在宿主提供内置浏览器时，自动将已接受的后台任务显示在聊天旁；面板支持窄侧栏布局。MCP 提交和同聊天通知恢复见[使用指南](docs/usage.md)，持久规则与停止任务见[监控和 Web UI](docs/runtime-monitoring.md)。
+插件可以打开随包 Web UI；新版在线安装要求全局 CLI，原生离线插件使用其自带启动器。当前源码流程会在宿主提供内置浏览器时，自动将已接受的后台任务显示在聊天旁；面板支持窄侧栏布局。MCP 提交和同聊天通知恢复见[使用指南](docs/usage.md)，持久规则与停止任务见[监控和 Web UI](docs/runtime-monitoring.md)。
 
 ### 命令行与 Web UI
 
-需要终端操作时，单独安装 CLI，再使用在线 ChatGPT/Codex 插件的数据目录打开面板或提交任务：
+安装 CLI 后，使用在线 ChatGPT/Codex 插件的数据目录打开面板或提交任务：
 
 ```bash
 npm install --global --ignore-scripts --registry=https://registry.npmjs.org agent-job-relay-runtime@latest

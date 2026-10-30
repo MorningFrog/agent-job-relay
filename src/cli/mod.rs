@@ -66,6 +66,38 @@ pub(super) async fn run() -> Result<()> {
     }
     let config = Config::new(state)?;
     let req = match cli.command {
+        Commands::Update {
+            dry_run,
+            cli_only,
+            to,
+        } => {
+            anyhow::ensure!(
+                std::env::var_os("AJR_NPM_LAUNCHER").is_some(),
+                "Online updates require the npm CLI. Install it once: npm install --global --ignore-scripts --registry=https://registry.npmjs.org agent-job-relay-runtime@latest. Native installations use plugin install --from <bundle>."
+            );
+            if let Some(version) = &to {
+                agent_job_relay::online_update::validate_version(version)?;
+            }
+            println!(
+                "{}",
+                serde_json::json!({"operation":"online_update","dry_run":dry_run,"cli_only":cli_only,"to":to,"state_dir":config.root})
+            );
+            return Ok(());
+        }
+        Commands::UpdateGuard {
+            installation,
+            profile,
+            target_version,
+            apply,
+        } => {
+            return agent_job_relay::online_update::guard(
+                installation,
+                profile,
+                &target_version,
+                apply,
+            )
+            .await;
+        }
         Commands::Instructions => {
             println!(
                 "{}",

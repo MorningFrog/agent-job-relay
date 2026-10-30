@@ -12,6 +12,8 @@ npm uninstall --global --ignore-scripts agent-job-relay-runtime
 
 Expected: npm removes the global command registration. This does not remove a host plugin or stop existing jobs/daemons. In PowerShell use `npm.cmd` if needed.
 
+New 0.1.14+ online ChatGPT Desktop/Codex entries require this CLI. Remove/disable those plugins first if removing the CLI permanently; otherwise their next launch will report the missing prerequisite. Native offline plugins retain their own launcher and OpenCode retains its host-managed dependency.
+
 ## Remove an online host plugin
 
 For ChatGPT Desktop/Codex, disable/remove AgentJobRelay through the host first. If the online marketplace is no longer needed, remove its registration:

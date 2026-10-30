@@ -35,11 +35,19 @@ ajr start --shell 'echo hello'
 ajr ui
 ```
 
-`ajr` defaults to the same `codex` profile as the online plugin; `ajr opencode <command>` selects OpenCode. `AJR_STATE_DIR` overrides the host default, and explicit `--state-dir` takes priority. The full command retains its existing default: use `agent-job-relay codex <command>` to select the plugin profile. A previous offline installation keeps its own recorded profile; use its installed launcher rather than assuming `ajr` selects it. Installing a host plugin alone does not register global terminal commands. For browser access without installing the CLI, ask the selected plugin to open AgentJobRelay's task manager.
+`ajr` defaults to the same `codex` profile as the online plugin; `ajr opencode <command>` selects OpenCode. `AJR_STATE_DIR` overrides the host default, and explicit `--state-dir` takes priority. The full command retains its existing default: use `agent-job-relay codex <command>` to select the plugin profile. A previous offline installation keeps its own recorded profile; use its installed launcher rather than assuming `ajr` selects it. Beginning with source 0.1.14, the online ChatGPT/Codex plugin requires the global CLI and supports unified installation/update. The host does not install global commands itself. Offline native bundles keep their recorded launcher and need no global npm CLI.
 
 ### ChatGPT Desktop / Codex
 
-Have Codex CLI and Git available on PATH and use a ChatGPT Desktop local executor. Query npm's latest runtime and register its matching GitHub release tag, so installation follows published versions rather than development main. Without Git, use the [Release ZIP](#install-from-a-github-release-zip).
+Install the global CLI once using the npm command above; keep npm's command directory on PATH along with Codex CLI and Git. Source 0.1.14 requires this CLI for online plugin entries and adds:
+
+```bash
+ajr update
+```
+
+Expected with a released 0.1.14+ CLI: register/install the matching online marketplace and plugin in one operation; subsequent updates use the same command. Restart/reconnect the host, then select the plugin in a local chat. Use `ajr update --dry-run` to preview and `ajr.cmd` in PowerShell. No automatic host installation hook is assumed. The current published 0.1.12 CLI does not yet include this command; until 0.1.14 is released, use the manual registration below after installing the CLI.
+
+Use a ChatGPT Desktop local executor. Query npm's latest runtime and register its matching GitHub release tag, so installation follows published versions rather than development main. Without Git, use the [Release ZIP](#install-from-a-github-release-zip).
 
 Bash:
 
@@ -82,7 +90,7 @@ If using a downloaded marketplace instead of a Git fetch, open [the latest GitHu
 codex plugin marketplace add <absolute-extracted-marketplace-directory>
 ```
 
-Use the directory containing `.agents/plugins/marketplace.json`, then follow the host installation/enablement steps above. Keep this directory for future marketplace refreshes. The marketplace ZIP uses npm on first invocation; it is not a native offline bundle. Each npm runtime tarball in the same Release includes its native executables; no recipient Rust build or secondary binary downloader is needed.
+Use the directory containing `.agents/plugins/marketplace.json`, then follow the host installation/enablement steps above. Keep this directory for future marketplace refreshes. The marketplace ZIP uses npm on first invocation; new 0.1.14+ entries also require the global CLI. It is not a native offline bundle. Each npm runtime tarball in the same Release includes its native executables; no recipient Rust build or secondary binary downloader is needed.
 
 ### Check the npm runtime
 

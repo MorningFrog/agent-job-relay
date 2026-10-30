@@ -60,6 +60,22 @@ async def run(binary, codex, marketplace=None, registry=None):
             path = plugin / name
             path.write_text(path.read_text().replace("https://registry.npmjs.org", registry))
         env["AJR_STATE_DIR"] = str(state)
+        # New online entries require the standard global CLI, installed only
+        # into this disposable prefix; the fixture registry serves exact bytes.
+        prefix = root / "global"
+        env["npm_config_prefix"] = str(prefix)
+        selected = json.loads((plugin / ".codex-plugin/plugin.json").read_text())["version"]
+        if tuple(map(int, selected.split("."))) >= (0, 1, 14):
+            missing_env = {**env, "PATH": ""}
+            missing = subprocess.run(["/bin/sh", plugin / "relay", "--version"], env=missing_env, capture_output=True, text=True, timeout=5)
+            if missing.returncode != 1 or "Install the CLI first" not in missing.stderr or state.exists():
+                raise RuntimeError("online launcher did not enforce the CLI prerequisite before runtime startup")
+            server = json.loads((plugin / ".mcp.json").read_text())["mcpServers"]["agent-job-relay"]
+            missing = subprocess.run([shutil.which("node"), *server["args"]], env=missing_env, capture_output=True, text=True, timeout=5)
+            if missing.returncode != 1 or "Install the CLI first" not in missing.stderr or state.exists():
+                raise RuntimeError("online MCP did not enforce the CLI prerequisite before runtime startup")
+            command(["npm", "install", "--global", "--prefix", prefix, "--ignore-scripts", "--no-audit", "--no-fund", "--registry", registry, f"agent-job-relay-runtime@{selected}"], "global-cli")
+            env["PATH"] = str(prefix / "bin") + os.pathsep + env["PATH"]
         command([codex, "plugin", "marketplace", "add", bundle], "marketplace-add")
         market_name = "agent-job-relay"
     else:

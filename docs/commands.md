@@ -108,10 +108,11 @@ Recovery preserves original expiry and excludes accepted/expired events and live
 
 ## Install, update and remove integrations
 
-Configuration and directory changes preview by default; `--apply` writes the reviewed change. `--dry-run` explicitly selects preview. Pack export follows the same preview/apply pattern.
+Native configuration and directory changes preview by default; `--apply` writes the reviewed change. Pack export follows the same pattern. Online npm `update` applies by default; `--dry-run` selects its preview.
 
 | Command after the prefix | Purpose and guide |
 |---|---|
+| `update [--dry-run] [--to <x.y.z>] [--cli-only]` | npm 0.1.14+: coordinate global CLI and matching online ChatGPT Desktop/Codex plugin installation/update; [procedure and limits](updating.md#one-command-online-update-0114) |
 | `plugin install [--root <root>] [--from <bundle>]` | Native bundle installation/update and marketplace registration; `--config`, repeated `--cache`, `--full`; [install](installation.md#quick-install-from-an-offline-bundle), [update](updating.md#unified-install-and-update) |
 | `plugin bootstrap [--root <root>] [--config <file>]` | Compatible first-install entry from a bundle; [installation](installation.md) |
 | `plugin update --from <bundle> [--root <root>] [--cache <path>]` | Compatible profile-preserving native update; [updating](updating.md#updating-an-existing-installation) |

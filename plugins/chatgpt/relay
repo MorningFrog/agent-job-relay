@@ -1,3 +1,7 @@
 #!/bin/sh
 set -eu
-exec npx --yes --ignore-scripts --registry=https://registry.npmjs.org --package=agent-job-relay-runtime@0.1.13 agent-job-relay codex "$@"
+if ! command -v ajr >/dev/null 2>&1 || ! ajr update --help >/dev/null 2>&1; then
+  echo "Install the CLI first: npm install --global --ignore-scripts --registry=https://registry.npmjs.org agent-job-relay-runtime@0.1.14 (then run ajr update)" >&2
+  exit 1
+fi
+exec npx --yes --ignore-scripts --registry=https://registry.npmjs.org --package=agent-job-relay-runtime@0.1.14 agent-job-relay codex "$@"

@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## [0.1.14] - 2026-10-30
+
+### Added
+
+- Add `ajr update` for one-command global npm CLI and matching ChatGPT Desktop/Codex marketplace/plugin installation and updates, with `--dry-run`, `--to` and `--cli-only`.
+- Require the global CLI for new online plugin entries. Keep exact-version npm plugin runtimes, native offline installation and OpenCode's host-managed dependency route.
+
+### Safety and compatibility
+
+- Preserve profiles/history, refuse downgrades, active work and modified/foreign marketplaces, fence idle daemon shutdown and restart, and record partial operations for forward retry through public host commands. Reconnect the host after updating; no automatic installation hook or cache scan is used.
+- Keep schema v11, IPC v1 and 25 MCP tools. This source needs a new release candidate; the sealed 0.1.13 candidate cannot carry these runtime/package changes.
+
 ## [0.1.13] - 2026-10-30
 
 ### Changed

@@ -18,6 +18,7 @@ from urllib.request import Request, urlopen
 
 sys.dont_write_bytecode = True
 from check_codex_plugin import run as check_codex
+from check_online_update import check_online_update
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -40,9 +41,10 @@ def main():
     print(json.dumps({"isolated_check": str(root)}), flush=True)
     home = root / "home"
     home.mkdir()
+    (root / "tmp").mkdir()
     env = {"PATH": os.environ["PATH"], "HOME": str(home), "XDG_STATE_HOME": str(root),
            "XDG_CONFIG_HOME": str(root / "config"), "XDG_CACHE_HOME": str(root / "cache"),
-           "npm_config_cache": str(root / "npm"), "npm_config_userconfig": str(root / "empty-npmrc")}
+           "npm_config_cache": str(root / "npm"), "npm_config_userconfig": str(root / "empty-npmrc"), "TMPDIR": str(root / "tmp")}
     installed = root / "installed"
 
     def command(argv, name, expected=0):
@@ -97,6 +99,7 @@ def main():
     cli = installed / "node_modules/agent-job-relay-runtime/cli.mjs"
     job_id = None
     short_job_id = None
+    online_update = None
     codex_state = root / "agent-job-relay/codex"
 
     def check_ui(argv, selected_job, name):
@@ -150,6 +153,8 @@ def main():
             if shared["status"] != "completed" or shared["exit_code"] != 0:
                 raise RuntimeError("short command did not share the plugin profile")
             check_ui(["ajr"], short_job_id, "short-ui")
+            if tuple(map(int, meta["version"].split("."))) >= (0, 1, 14):
+                online_update = check_online_update(root, prefix, env, meta, url, command, short_job_id)
         # Exercise profile persistence after moving the installed npm payload.
         job_id = json.loads(command(["node", cli, "opencode", "start", "--cwd", home, "--", "/usr/bin/printf", "packaged-runtime"], "start"))["job"]["job_id"]
         command(["node", cli, "opencode", "wait", job_id, "--seconds", "5"], "wait")
@@ -173,7 +178,7 @@ def main():
             command(["python3", REPO / "scripts/check_opencode_plugin.py", "--binary", args.binary.resolve(), "--opencode", args.opencode.resolve(), "--plugin-spec", f"{meta['opencode']['name']}@{meta['version']}", "--registry", url], "opencode")
         if args.codex:
             asyncio.run(check_codex(args.binary.resolve(), args.codex, release / meta["marketplace"], url))
-        report = {"result": "passed", "version": meta["version"], "npm_tarball_install": True, "npm_global_short_cli": short_cli, "bundled_ui": bundled_ui, "native_integrity_refusal": True, "relocation_preserves_history": True,
+        report = {"result": "passed", "version": meta["version"], "npm_tarball_install": True, "npm_global_short_cli": short_cli, "online_update": online_update, "bundled_ui": bundled_ui, "native_integrity_refusal": True, "relocation_preserves_history": True,
                   "opencode": "actual loader and simulated model" if args.opencode else "not requested", "codex": "actual marketplace loader with loopback registry" if args.codex else "not requested", "publication": "none"}
         (root / "report.json").write_text(json.dumps(report, indent=2) + "\n")
         print(json.dumps({**report, "report": str(root / "report.json")}))

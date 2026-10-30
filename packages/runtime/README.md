@@ -15,7 +15,13 @@ agent-job-relay codex start --shell 'echo hello'
 agent-job-relay codex ui
 ```
 
-npm 0.1.11 and newer also register `ajr`, defaulting to the same persistent `codex` profile as the online ChatGPT/Codex plugin. `ajr opencode <arguments>` selects OpenCode. npm's global command directory must be on PATH; use a user-writable npm installation. Windows also provides `ajr.cmd` for PowerShell script-policy restrictions. Host plugin installation alone does not register global commands. Remove the CLI with `npm uninstall --global --ignore-scripts agent-job-relay-runtime`; history and existing processes remain.
+npm 0.1.11 and newer also register `ajr`, defaulting to the same persistent `codex` profile as the online ChatGPT/Codex plugin. `ajr opencode <arguments>` selects OpenCode. npm's global command directory must be on PATH; use a user-writable npm installation. Windows also provides `ajr.cmd` for PowerShell script-policy restrictions. New 0.1.14+ online ChatGPT/Codex plugin entries require this globally registered CLI. The host has no automatic global installation hook. Remove the CLI with `npm uninstall --global --ignore-scripts agent-job-relay-runtime`; history and existing processes remain.
+
+## Unified online updates (0.1.14+)
+
+After installing this version globally, run `ajr update` to install or update the CLI and its matching ChatGPT Desktop/Codex marketplace/plugin together. Use `ajr update --dry-run` to preview, `--to <x.y.z>` for an exact published version, or `--cli-only` to leave host plugins unchanged. Codex CLI and Git must be on PATH for plugin updates. Reconnect/restart the host afterward. OpenCode packages and native offline bundles keep their original maintenance routes.
+
+The updater pins the selected global npm prefix and version, refuses downgrades/active jobs/foreign or modified catalogs, fences idle default/selected profiles and restarts their previously online daemons. A private copied native helper remains outside the package during replacement. Partial steps are recorded in the selected profile's `online-update.json` for forward retry; no rollback, cache scanning or automatic PATH editing occurs. Outdated disabled plugins need host management or `--cli-only`. Windows self-update and actual Desktop refresh require their own native evidence; see the [updating guide](https://github.com/MorningFrog/agent-job-relay/blob/main/docs/updating.md).
 
 The full `agent-job-relay` entry retains its original default profile; `agent-job-relay codex ui` is equivalent to `ajr ui`. Explicit `--state-dir` takes priority over `AJR_STATE_DIR` and host defaults. Offline native installations retain their separate recorded profile and installed launcher.
 

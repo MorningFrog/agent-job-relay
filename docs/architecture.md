@@ -20,7 +20,7 @@ One package and executable; CLI, stdio MCP, daemon and runner modes.
 | Automatic archive, budgets, backup and restore | `src/archive.rs`, `src/maintenance.rs`, `src/maintenance.sql` |
 | Local Web UI and bundled assets | `src/web.rs`, `web/`, `build.rs` |
 | Local transport and OS primitives | `src/ipc.rs`, `src/platform/` |
-| Configuration and plugin lifecycle | `src/config.rs`, `src/integration.rs`, `src/deployment.rs`, `src/plugin.rs`, `src/lifecycle.rs` |
+| Configuration and plugin lifecycle | `src/config.rs`, `src/integration.rs`, `src/deployment.rs`, `src/plugin.rs`, `src/lifecycle.rs`, `src/online_update.rs` |
 
 The binary owns argument parsing, profile selection and dispatch. CLI and MCP share library behavior; OS-specific operations belong in `platform/`. Host entry points live in `plugins/`, the npm launcher in `packages/runtime/`, and developer verification scripts in `scripts/`.
 
@@ -126,3 +126,7 @@ The daemon serves embedded React/Vite assets and a small typed HTTP API on a ran
 ## Structured progress (0.1.12+)
 
 Runner capture frames bounded `AJR_PROGRESS` v1 lines separately per stream; source high-water marks, rule cooldown counters, bounded latest values and milestone evidence live in existing runtime observations. One IMMEDIATE transaction accepts a source sequence, checks the output-time applied revision against current enabled rules, records progress/alerts and creates optional stops/Outbox entries. Terminal transitions serialize against ingestion and retain a bounded summary before existing delivery supersession. Archive/restore already carries these tables; no schema migration or replay is added. CLI/MCP/Web use shared progress conditions and inspection. Literal/time rules retain one trigger per revision. Native remote snapshots retain their remote progress; origin progress notifications require a separately submitted pinned-run checker. See [protocol and limits](progress.md).
+
+## Unified online maintenance
+
+The npm launcher forwards `update` to the native argument parser, then consumes its validated request after the native child exits. A copied native helper holds installation/startup/daemon fences while `packages/runtime/update.mjs` resolves one published version, updates that exact global prefix through npm and manages only the official Git marketplace through public Codex CLI commands. Only previously online profiles restart; the installation lock remains until the outcome journal is committed. New online plugin entries require the standard global CLI while retaining exact-version npm runtime pins. Profile data, offline native receipts and OpenCode's host-managed dependency remain independent. See [ADR 0021](adr/0021-unified-online-update.md).

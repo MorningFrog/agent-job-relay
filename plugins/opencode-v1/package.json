@@ -1,6 +1,6 @@
 {
   "name": "agent-job-relay-opencode-v1",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "type": "module",
   "main": "index.mjs",
   "exports": "./index.mjs",
@@ -37,6 +37,6 @@
   "license": "MIT",
   "dependencies": {
     "@opencode-ai/plugin": "1.19.4",
-    "agent-job-relay-runtime": "0.1.13"
+    "agent-job-relay-runtime": "0.1.14"
   }
 }

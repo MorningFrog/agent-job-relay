@@ -22,6 +22,29 @@ pub(super) struct Cli {
 }
 #[derive(Subcommand)]
 pub(super) enum Commands {
+    /// Update the global npm CLI and matching ChatGPT Desktop/Codex plugin
+    Update {
+        /// Preview the resolved version and changes without applying them
+        #[arg(long)]
+        dry_run: bool,
+        /// Update only the global CLI, without changing host plugins
+        #[arg(long)]
+        cli_only: bool,
+        /// Select an exact published version instead of latest (no downgrades)
+        #[arg(long)]
+        to: Option<String>,
+    },
+    #[command(hide = true)]
+    UpdateGuard {
+        #[arg(long)]
+        installation: PathBuf,
+        #[arg(long, required = true)]
+        profile: Vec<PathBuf>,
+        #[arg(long)]
+        target_version: String,
+        #[arg(long)]
+        apply: bool,
+    },
     /// Read the current plugin workflow without starting a daemon or job
     Instructions,
     /// Provision a remote identity or handle an authenticated stdio request

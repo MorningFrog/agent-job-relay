@@ -22,7 +22,9 @@ The user verified v0.1.8 with official Desktop 26.1021.3705.0, bundled Codex 0.1
 
 ## Distribution
 
-npm/GitHub 0.1.12 is public and both npm latest tags resolve to it. Publication succeeded; the original Actions checker timed out on registry propagation. A local read-only audit on 2026-10-30 verifies public package bytes/channels/clean installation, matching GitHub notes/assets/receipts and the original source tag against candidate 40908803482. The failed Actions run remains unchanged. Source 0.1.13 includes later Web UI/workflow/Actions changes and requires its own CI, candidate and publisher preview. See [implementation status](IMPLEMENTATION_STATUS.md) and [release preparation](release.md). No official-directory submission occurred.
+npm/GitHub 0.1.12 is public and both npm latest tags resolve to it. Publication succeeded; the original Actions checker timed out on registry propagation. A local read-only audit on 2026-10-30 verifies public package bytes/channels/clean installation, matching GitHub notes/assets/receipts and the original source tag against candidate 40908803482. The failed Actions run remains unchanged. Source 0.1.14 additionally implements unified online installation/update and requires new CI, candidate and publisher preview. See [implementation status](IMPLEMENTATION_STATUS.md) and [release preparation](release.md). No official-directory submission occurred.
+
+The local 0.1.14 npm check performs actual native package replacement in an isolated global prefix, preserves the original history, restarts its idle online daemon and recovers an injected partial marketplace failure. Marketplace mutations in that check use a public-CLI model. A separate actual Codex loader discovers the packaged tools with the required CLI installed; missing CLI is refused before runtime startup. This does not qualify Windows self-update or actual Desktop refresh/reconnection.
 
 ## Runtime monitoring boundary
 

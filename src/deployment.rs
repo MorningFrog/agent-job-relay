@@ -391,7 +391,7 @@ pub(crate) fn idle_guards(state: &Path, install_root: &Path) -> Result<Vec<File>
     require_idle_jobs(state)?;
     Ok(locks)
 }
-fn require_idle_jobs(state: &Path) -> Result<()> {
+pub(crate) fn require_idle_jobs(state: &Path) -> Result<()> {
     let db = state.join("relay.sqlite3");
     let metadata = match std::fs::symlink_metadata(&db) {
         Ok(metadata) => metadata,
