@@ -393,12 +393,12 @@ pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
                 .stop_with(job_id.clone(), grace_seconds, "manual".into())
                 .await?;
             let until = tokio::time::Instant::now() + Duration::from_secs(wait_seconds as u64);
-            while !terminal(&job.status) && tokio::time::Instant::now() < until {
+            while !job.status.is_terminal() && tokio::time::Instant::now() < until {
                 tokio::time::sleep(Duration::from_millis(100)).await;
                 job = store.status(job_id.clone()).await?;
             }
             let mut value = serde_json::to_value(&job)?;
-            value["stop_outcome"] = json!(if terminal(&job.status) {
+            value["stop_outcome"] = json!(if job.status.is_terminal() {
                 "terminal_observed"
             } else {
                 "requested"
@@ -423,7 +423,10 @@ pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
             loop {
                 let e = store.events(job_id.clone(), after, 100).await?;
                 let j = store.status(job_id.clone()).await?;
-                if !e.is_empty() || terminal(&j.status) || tokio::time::Instant::now() >= deadline {
+                if !e.is_empty()
+                    || j.status.is_terminal()
+                    || tokio::time::Instant::now() >= deadline
+                {
                     return Ok(
                         json!({"job":j,"events":e,"next_cursor":e.last().map_or(after,|e|e.seq)}),
                     );

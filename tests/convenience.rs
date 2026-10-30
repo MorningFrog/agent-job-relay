@@ -128,7 +128,7 @@ impl Rig {
         tokio::time::timeout(Duration::from_secs(8), async {
             loop {
                 let job = s.status(j.into()).await.unwrap();
-                if terminal(&job.status) {
+                if job.status.is_terminal() {
                     break job;
                 }
                 tokio::time::sleep(Duration::from_millis(20)).await;
@@ -470,7 +470,8 @@ async fn batch_cli_and_shared_mcp_bind_every_item_to_the_actual_caller() {
             assert_eq!(
                 r.terminal(item["result"]["job"]["job_id"].as_str().unwrap())
                     .await
-                    .status,
+                    .status
+                    .as_str(),
                 "completed"
             );
         }
@@ -548,7 +549,7 @@ async fn daemon_launches_runner_after_its_executable_is_replaced_by_a_rebuild() 
         .await,
     );
     let job = r.terminal(started["job"]["job_id"].as_str().unwrap()).await;
-    assert_eq!(job.status, "completed", "{:?}", job.detail);
+    assert_eq!(job.status.as_str(), "completed", "{:?}", job.detail);
     assert_eq!(job.exit_code, Some(0));
     assert_eq!(
         std::fs::read_to_string(r.dir.path().join("execution-count")).unwrap(),
@@ -718,7 +719,7 @@ async fn installed_shared_mcp_uses_each_terminal_binding_and_never_its_inherited
             .success()
     );
     for j in jobs {
-        assert_eq!(r.terminal(&j).await.status, "completed");
+        assert_eq!(r.terminal(&j).await.status.as_str(), "completed");
     }
     let mut destinations = vec![
         host.delivery().await["params"]["arguments"]["threadId"]
@@ -789,7 +790,7 @@ async fn installed_recovery_previews_then_rebinds_only_current_chat_after_host_r
     let mut replacement = Host::new(&r, true);
     std::fs::write(r.dir.path().join("release-recovery"), "release").unwrap();
     for job in &jobs {
-        assert_eq!(r.terminal(job).await.status, "completed");
+        assert_eq!(r.terminal(job).await.status.as_str(), "completed");
     }
     let store = Store::new(r.config.clone());
     // Recovery deliberately skips a live delivery claim. Observe its recorded
@@ -884,7 +885,7 @@ async fn installed_long_job_renews_expired_binding_only_when_completion_is_due()
             .is_err()
     );
     std::fs::write(r.dir.path().join("release"), b"go").unwrap();
-    assert_eq!(r.terminal(job).await.status, "completed");
+    assert_eq!(r.terminal(job).await.status.as_str(), "completed");
     let message = host.delivery().await;
     assert_eq!(message["params"]["arguments"]["threadId"], "thread-a");
     let key = started["job"]["session"].as_str().unwrap().to_owned();
@@ -920,7 +921,7 @@ async fn cli_wake_automatically_starts_registers_probes_and_deduplicates() {
     assert_eq!(first["wake"]["automatic_binding"], true);
     assert_eq!(first["wake"]["probe"], "passed");
     let j = first["job"]["job_id"].as_str().unwrap();
-    assert_eq!(r.terminal(j).await.status, "completed");
+    assert_eq!(r.terminal(j).await.status.as_str(), "completed");
     let delivery = host.delivery().await;
     assert_eq!(delivery["params"]["arguments"]["threadId"], "thread-a");
     let again = success(r.cli(&args, Some(("thread-a", &host.endpoint))).await);
@@ -972,7 +973,8 @@ async fn missing_host_context_fails_before_creating_state_or_executing() {
     assert_eq!(
         r.terminal(v["job"]["job_id"].as_str().unwrap())
             .await
-            .status,
+            .status
+            .as_str(),
         "completed"
     );
 }
@@ -1061,7 +1063,7 @@ async fn stop_daemon_preserves_runner_and_next_submission_restarts_it() {
     })
     .await
     .unwrap();
-    assert_eq!(r.terminal(&j).await.status, "completed");
+    assert_eq!(r.terminal(&j).await.status.as_str(), "completed");
     assert_eq!(
         success(r.cli(&["daemon", "stop"], None).await)["already_stopped"],
         true
@@ -1137,7 +1139,7 @@ async fn mcp_wake_me_uses_current_context_and_survives_mcp_exit() {
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(r.terminal(j).await.status, "completed");
+    assert_eq!(r.terminal(j).await.status.as_str(), "completed");
     let delivered = host.delivery().await;
     assert_eq!(delivered["params"]["arguments"]["threadId"], "mcp-thread-a");
 }

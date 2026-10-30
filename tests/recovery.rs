@@ -183,7 +183,12 @@ async fn preview_apply_is_scoped_preserves_ids_ttl_and_never_replays_accepted_or
             .is_empty()
     );
     assert_eq!(
-        f.store.status(active.job_id.clone()).await.unwrap().status,
+        f.store
+            .status(active.job_id.clone())
+            .await
+            .unwrap()
+            .status
+            .as_str(),
         "queued"
     );
     f.store

@@ -145,6 +145,8 @@ Use the returned job ID in the last command; the first submission starts the dae
 
 Commands run with your OS permissions. Job completion, host acknowledgement (`accepted_by_host`) and observed Agent continuation are separate results. Removal retains task history and logs; see [uninstallation](docs/uninstalling.md) and [troubleshooting](docs/troubleshooting.md).
 
+Current source reports log write/flush/sync failures explicitly. If the database cannot commit a result, recovery preserves the original job/run as unknown rather than replaying its command; see [execution limits](docs/limitations.md#execution-lifetime-and-containment).
+
 ## Find documentation
 
 The **[documentation index / 文档导航](docs/README.md)** groups all guides by task.

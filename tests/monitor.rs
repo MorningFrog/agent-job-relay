@@ -107,7 +107,12 @@ async fn rules_validate_revisions_terminal_fences_and_offline_reads() {
         .await
         .unwrap();
     assert_eq!(
-        store.status(job.job_id.clone()).await.unwrap().status,
+        store
+            .status(job.job_id.clone())
+            .await
+            .unwrap()
+            .status
+            .as_str(),
         "completed"
     );
     assert!(

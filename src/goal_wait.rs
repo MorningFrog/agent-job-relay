@@ -569,7 +569,7 @@ pub async fn progress(store: &Store, id: &str) -> Result<()> {
                         .collect::<Result<Vec<_>>>()
                 })
                 .await?;
-            if jobs.is_empty() || jobs.iter().any(|j| !terminal(&j.status)) {
+            if jobs.is_empty() || jobs.iter().any(|j| !j.status.is_terminal()) {
                 let id = record.id.clone();
                 let revision = record.revision;
                 store

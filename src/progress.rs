@@ -315,7 +315,7 @@ impl Store {
         self.call(move |db| {
             let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
             let j = read_job(&tx, &job)?;
-            if terminal(&j.status) { return Ok(()) }
+            if j.status.is_terminal() { return Ok(()) }
             let mut observation = read_observation(&tx, &job)?;
             let mut state: State = observation.get("progress").cloned().map(serde_json::from_value).transpose()?.unwrap_or_default();
             state.rejected = state.rejected.saturating_add(batch.rejected);

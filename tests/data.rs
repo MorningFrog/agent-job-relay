@@ -385,7 +385,12 @@ async fn archive_protects_pending_claims_and_recovery_then_restores_explicit_ret
     f.store.maintain(true).await.unwrap();
     assert_eq!(f.count("archive_jobs").await, 1);
     assert_eq!(
-        f.store.status(c.job_id.clone()).await.unwrap().status,
+        f.store
+            .status(c.job_id.clone())
+            .await
+            .unwrap()
+            .status
+            .as_str(),
         "completed"
     );
     let before = f.store.attempts(delivery.id.clone(), 0, 100).await.unwrap();
@@ -411,8 +416,14 @@ async fn archive_protects_pending_claims_and_recovery_then_restores_explicit_ret
             .await
             .unwrap()
     );
-    assert_eq!(f.store.status(a.job_id).await.unwrap().status, "completed");
-    assert_eq!(f.store.status(b.job_id).await.unwrap().status, "completed");
+    assert_eq!(
+        f.store.status(a.job_id).await.unwrap().status.as_str(),
+        "completed"
+    );
+    assert_eq!(
+        f.store.status(b.job_id).await.unwrap().status.as_str(),
+        "completed"
+    );
     assert!(f.store.data_check().await.is_ok());
 }
 
@@ -634,11 +645,16 @@ async fn backup_restores_wal_history_and_logs_without_replaying_active_jobs_or_c
     let restored = Store::new(config.clone());
     restored.init().await.unwrap();
     assert_eq!(
-        restored.status(active.job_id.clone()).await.unwrap().status,
+        restored
+            .status(active.job_id.clone())
+            .await
+            .unwrap()
+            .status
+            .as_str(),
         "orphaned"
     );
     assert_eq!(
-        f.store.status(active.job_id).await.unwrap().status,
+        f.store.status(active.job_id).await.unwrap().status.as_str(),
         "queued"
     );
     assert_eq!(
@@ -825,7 +841,7 @@ async fn daemon_automatically_archives_and_backs_up_without_manual_maintenance()
     assert!(exit.unwrap().success());
     assert_eq!(f.count("jobs").await, 0);
     assert_eq!(
-        f.store.status(job.job_id).await.unwrap().status,
+        f.store.status(job.job_id).await.unwrap().status.as_str(),
         "completed"
     );
 }
@@ -899,7 +915,7 @@ async fn schema_eight_backups_restore_forward_without_changing_the_original() {
     let restored = Store::new(Config::new(Some(to)).unwrap());
     restored.init().await.unwrap();
     assert_eq!(
-        restored.status(job.job_id).await.unwrap().status,
+        restored.status(job.job_id).await.unwrap().status.as_str(),
         "completed"
     );
 }

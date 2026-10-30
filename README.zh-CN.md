@@ -145,6 +145,8 @@ agent-job-relay codex inspect <job-id>
 
 命令以当前用户的系统权限执行。任务完成、宿主接收（`accepted_by_host`）和实际观察到 Agent 继续执行是三项独立结果。卸载默认保留任务历史和日志，具体见[卸载指南](docs/uninstalling.md)及[故障排查](docs/troubleshooting.md)。
 
+当前源码会明确报告日志写入、刷新及同步失败。如果数据库无法提交结果，恢复时保留原 Job/Run 并报告结果未知，不会重新执行命令；见[执行边界](docs/limitations.md#execution-lifetime-and-containment)。
+
 ## 按需要查找文档
 
 **[文档导航 / Documentation index](docs/README.md)** 按实际任务整理全部指南。

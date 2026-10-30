@@ -318,6 +318,7 @@ impl Store {
         signal: Option<i32>,
         detail: String,
     ) -> Result<()> {
+        let state: JobState = state.parse()?;
         self.call(move |db| {
             let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
             finish_tx(&tx, &j, state, code, signal, &detail)?;
@@ -362,7 +363,7 @@ pub fn read_job(db: &Connection, j: &str) -> Result<Job> {
         run_id: run_id.clone(),
         job_id: job_id.clone(),
         attempt,
-        status: run_status,
+        status: run_status.parse()?,
         started_at,
         ended_at,
         runner_pid,
@@ -377,7 +378,7 @@ pub fn read_job(db: &Connection, j: &str) -> Result<Job> {
         sequence,
         job_id,
         run_id,
-        status,
+        status: status.parse()?,
         command: spec.command,
         cwd: spec.cwd,
         session: spec.session,
@@ -396,16 +397,16 @@ pub fn read_job(db: &Connection, j: &str) -> Result<Job> {
 pub fn finish_tx(
     tx: &Connection,
     j: &str,
-    state: &str,
+    state: JobState,
     code: Option<i32>,
     signal: Option<i32>,
     detail: &str,
 ) -> Result<()> {
+    ensure!(state.is_terminal(), "invalid terminal state");
     let job = read_job(tx, j)?;
-    if terminal(&job.status) {
+    if job.status.is_terminal() {
         return Ok(());
     }
-    ensure!(terminal(state), "invalid terminal state");
     let t = now();
     tx.execute(
         "UPDATE jobs SET status=?,updated=? WHERE id=?",
@@ -420,7 +421,7 @@ pub fn finish_tx(
         tx,
         j,
         &job.run_id,
-        state,
+        state.as_str(),
         serde_json::json!({"detail":detail,"exit_code":code,"signal":signal,"progress":crate::progress::final_summary(tx,j)?}),
     )?;
     Ok(())

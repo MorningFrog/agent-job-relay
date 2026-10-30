@@ -11,8 +11,8 @@ async fn reconcile(store: &Store) -> Result<bool> {
     let active = store.active().await?;
     let has_active = !active.is_empty();
     for job in active {
-        match job.status.as_str() {
-            "queued" => {
+        match job.status {
+            JobState::Queued => {
                 let j = job.job_id.clone();
                 let nonce=store.call(move|db|{let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
                     let changed=tx.execute("UPDATE jobs SET status='launching',updated=? WHERE id=? AND status='queued'",params![now(),j])?;
@@ -55,8 +55,8 @@ async fn reconcile(store: &Store) -> Result<bool> {
                     }
                 }
             }
-            "launching" | "running" => {
-                if job.status == "launching" && now() - job.updated_at < 5000 {
+            JobState::Launching | JobState::Running => {
+                if job.status == JobState::Launching && now() - job.updated_at < 5000 {
                     continue;
                 }
                 let lock = store.config.run_lock(&job.run_id)?;
@@ -83,7 +83,11 @@ async fn reconcile(store: &Store) -> Result<bool> {
                     Err(e) => return Err(e.into()),
                 }
             }
-            _ => {}
+            JobState::Completed
+            | JobState::Failed
+            | JobState::Cancelled
+            | JobState::Timeout
+            | JobState::Orphaned => {}
         }
     }
     Ok(has_active)

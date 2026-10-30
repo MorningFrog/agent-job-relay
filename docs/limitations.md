@@ -28,11 +28,13 @@ Installed/generated MCP uses shared-host mode and an explicit caller binding for
 
 - Job attempt=1. Idempotent submission returns the original job; it does not rerun failure. Use a new key/job for a deliberate rerun. Ambiguous launches become orphaned after a 5-second grace period and are never auto-replayed.
 
-- Runner writes terminal state directly to SQLite while daemon is absent. Lost runner lock means orphaned, not success. SIGKILL/power loss cannot run Rust cleanup; Linux parent-death kills the direct workload, but descendants can escape process groups or remain after runner death. Audit external side effects before deliberately submitting again. Graceful cancellation handles non-daemonizing process groups, not adversarial containment.
+- Runner writes terminal state directly to SQLite while daemon is absent. Lost runner lock means orphaned, not success. Current source adds bounded cleanup of a live Linux runner's adopted descendants, including session escapes, through parent-verified pidfds. SIGKILL/power loss cannot run Rust cleanup; Linux parent-death kills the direct workload, but descendants can remain after runner death. This is not adversarial containment. Audit external side effects before deliberately submitting again.
 
-- A machine reboot stops processes; persisted jobs are classified on restart, never promised to keep executing across shutdown. Fault injection simulates vanished locks/stale boot identity; actual power-loss/ENOSPC VM tests pending.
+Adopted-child termination requires Linux pidfd support and permission; failures are explicit rather than falling back to PID-only signals. The current eight-job ten-minute soak bounds observed RSS/descriptors through daemon restarts and active backup/restore. It does not establish multi-day behavior, physical disk exhaustion, OOM or power-loss recovery.
 
-- Disk write failure is a failed job with diagnostics where DB remains writable. If SQLite itself cannot commit due to disk/full/corruption, recovery may only classify unknown/orphaned. No offline result journal. Runtime 0.1.10 and newer include consistent local database/log backups and new-profile restore; these do not guarantee recovery of a terminal commit that never reached SQLite.
+- A machine reboot stops processes; persisted jobs are classified on restart, never promised to keep executing across shutdown. Fault injection covers vanished locks/stale boot identity and profile-specific log-write/log-sync/WAL-write ENOSPC. Physical volume exhaustion and power-loss VM tests remain pending.
+
+- Current source flushes buffered log writes before synchronization, reporting write/flush/sync failure as a failed job where DB remains writable. If SQLite itself cannot commit due to disk/full/corruption, recovery may only classify unknown/orphaned; it preserves IDs and never replays native commands. There is no offline result journal. Runtime 0.1.10 and newer include consistent local database/log backups and new-profile restore; these do not guarantee recovery of a terminal commit that never reached SQLite.
 
 - Default maximum eight active jobs; no waiting pool beyond this quota, tuning config, interactive stdin/PTY, schedules or artifacts. Runtime 0.1.12+ supports [pinned remote execution and workflow observation](remote-execution.md); arbitrary SSH processes remain local jobs.
 

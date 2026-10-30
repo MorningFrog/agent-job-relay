@@ -520,6 +520,10 @@ pub fn runner_initialize() -> Result<()> {
 pub fn reap_descendants() -> Result<bool> {
     Ok(true)
 }
+pub fn terminate_adopted_descendants() -> Result<()> {
+    // The runner-owned Job Object already contains and terminates descendants.
+    Ok(())
+}
 pub struct Interrupt(Option<tokio::signal::windows::CtrlC>);
 impl Interrupt {
     pub async fn recv(&mut self) -> Option<()> {

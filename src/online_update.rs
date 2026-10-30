@@ -86,7 +86,7 @@ async fn stop_jobs(config: &Config) -> Result<(Vec<std::fs::File>, Vec<String>)>
                 .runner_pid
                 .zip(current.run.runner_identity.as_ref())
                 .is_some_and(|(pid, identity)| platform::identity(pid).as_ref() == Some(identity));
-            if crate::core::terminal(&current.status) && !runner_alive {
+            if current.status.is_terminal() && !runner_alive {
                 let lock = config.run_lock(&job.run_id)?;
                 match lock.try_lock() {
                     Ok(()) => {

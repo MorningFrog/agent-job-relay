@@ -1,21 +1,13 @@
 #![cfg(target_os = "linux")]
 mod common;
 use agent_job_relay::{
-    config::Config,
     core::*,
     ipc::{self, Request},
     storage::Store,
 };
+use common::runtime::Rig;
 use serde_json::Value;
-use std::{
-    process::{Child, Command, Stdio},
-    time::Duration,
-};
-struct Rig {
-    dir: tempfile::TempDir,
-    config: Config,
-    daemon: Option<Child>,
-}
+use std::{process::Stdio, time::Duration};
 
 #[tokio::test]
 async fn batch_partial_admission_preserves_options_and_independent_lifecycles() {
@@ -317,126 +309,7 @@ async fn batch_envelope_refusal_and_lost_response_retry_survive_restart() {
             .contains("different specification")
     );
 }
-impl Rig {
-    async fn new() -> Self {
-        let dir = tempfile::Builder::new()
-            .prefix("rt-")
-            .tempdir_in(common::root())
-            .unwrap();
-        let config = Config::new(Some(dir.path().join("state"))).unwrap();
-        let mut r = Self {
-            dir,
-            config,
-            daemon: None,
-        };
-        r.boot().await;
-        r
-    }
-    async fn boot(&mut self) {
-        let c = Command::new(env!("CARGO_BIN_EXE_agent-job-relay"))
-            .arg("--state-dir")
-            .arg(&self.config.root)
-            .arg("daemon")
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .unwrap();
-        self.daemon = Some(c);
-        tokio::time::timeout(Duration::from_secs(8), async {
-            loop {
-                if ipc::call(&self.config, Request::Doctor).await.is_ok() {
-                    break;
-                }
-                tokio::time::sleep(Duration::from_millis(20)).await;
-            }
-        })
-        .await
-        .unwrap();
-    }
-    fn crash(&mut self) {
-        if let Some(mut c) = self.daemon.take() {
-            c.kill().unwrap();
-            c.wait().unwrap();
-        }
-    }
-    async fn call(&self, r: Request) -> Value {
-        ipc::call(&self.config, r).await.unwrap()
-    }
-    fn spec(&self, script: &str) -> StartSpec {
-        StartSpec {
-            command: CommandSpec::Shell {
-                interpreter: "/bin/sh".into(),
-                script: script.into(),
-            },
-            cwd: self.dir.path().to_path_buf(),
-            env: Default::default(),
-            timeout_seconds: None,
-            session: None,
-            idempotency_key: None,
-            monitor_rules: vec![],
-        }
-    }
-    async fn start(&self, script: &str) -> String {
-        self.call(Request::Start {
-            spec: self.spec(script),
-        })
-        .await["job"]["job_id"]
-            .as_str()
-            .unwrap()
-            .into()
-    }
-    async fn state(&self, j: &str, states: &[&str]) -> Value {
-        tokio::time::timeout(Duration::from_secs(12), async {
-            loop {
-                let v = self.call(Request::Status { job_id: j.into() }).await;
-                if states.contains(&v["status"].as_str().unwrap()) {
-                    break v;
-                }
-                tokio::time::sleep(Duration::from_millis(20)).await;
-            }
-        })
-        .await
-        .unwrap()
-    }
-}
-impl Drop for Rig {
-    fn drop(&mut self) {
-        if let Some(mut c) = self.daemon.take() {
-            let _ = c.kill();
-            let _ = c.wait();
-        }
-        // Cleanup only verified processes belonging to this isolated rig, including panic paths.
-        if let Ok(db) = rusqlite::Connection::open(self.config.root.join("relay.sqlite3"))
-            && let Ok(mut q) = db.prepare(
-                "SELECT workload_pid,workload_identity,runner_pid,runner_identity FROM runs",
-            )
-            && let Ok(rows) = q.query_map([], |r| {
-                Ok((
-                    r.get::<_, Option<u32>>(0)?,
-                    r.get::<_, Option<String>>(1)?,
-                    r.get::<_, Option<u32>>(2)?,
-                    r.get::<_, Option<String>>(3)?,
-                ))
-            })
-        {
-            for (pid, identity, rpid, ridentity) in rows.flatten() {
-                if let (Some(p), Some(i)) = (pid, identity)
-                    && agent_job_relay::platform::identity(p).as_ref() == Some(&i)
-                {
-                    let _ = agent_job_relay::platform::signal_group(p, 9);
-                }
-                if let (Some(p), Some(i)) = (rpid, ridentity)
-                    && agent_job_relay::platform::identity(p).as_ref() == Some(&i)
-                {
-                    unsafe {
-                        libc::kill(p as i32, libc::SIGKILL);
-                    }
-                }
-            }
-        }
-    }
-}
+
 #[tokio::test]
 async fn output_exit_events_and_cursors() {
     let r = Rig::new().await;
@@ -536,7 +409,7 @@ async fn daemon_crash_does_not_own_runner_or_completion() {
     let store = Store::new(r.config.clone());
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
-            if store.status(j.clone()).await.unwrap().status == "completed" {
+            if store.status(j.clone()).await.unwrap().status.as_str() == "completed" {
                 break;
             }
             tokio::time::sleep(Duration::from_millis(20)).await;
@@ -938,7 +811,7 @@ async fn daemon_graceful_shutdown_keeps_runner_and_restart_dispatches_outbox() {
     let store = Store::new(r.config.clone());
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
-            if terminal(&store.status(j.clone()).await.unwrap().status) {
+            if store.status(j.clone()).await.unwrap().status.is_terminal() {
                 break;
             }
             tokio::time::sleep(Duration::from_millis(20)).await;

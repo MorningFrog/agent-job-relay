@@ -752,7 +752,7 @@ pub async fn restore(from: PathBuf, to: PathBuf) -> Result<Value> {
         let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         let mut q=tx.prepare("SELECT id FROM jobs WHERE status IN ('queued','launching','running')")?;
         let active=q.query_map([],|r|r.get::<_,String>(0))?.collect::<rusqlite::Result<Vec<_>>>()?;drop(q);
-        for job in &active {crate::storage::finish_tx(&tx,job,"orphaned",None,None,"restored backup; execution was not replayed")?;}
+        for job in &active {crate::storage::finish_tx(&tx,job,crate::core::JobState::Orphaned,None,None,"restored backup; execution was not replayed")?;}
         let t=now();
         tx.execute("UPDATE sessions SET connected=0",[])?;
         crate::goal_wait::restore_fence(&tx)?;

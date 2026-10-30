@@ -3,3 +3,6 @@ pub fn root() -> std::path::PathBuf {
     std::fs::create_dir_all(&path).expect("isolated test root");
     path
 }
+
+#[cfg(target_os = "linux")]
+pub mod runtime;

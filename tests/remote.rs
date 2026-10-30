@@ -273,7 +273,12 @@ async fn remote_protocol_recovers_lost_launch_response_and_fences_target_run_att
         .is_err()
     );
     assert_eq!(
-        r.store.status(run.job_id.clone()).await.unwrap().status,
+        r.store
+            .status(run.job_id.clone())
+            .await
+            .unwrap()
+            .status
+            .as_str(),
         "running"
     );
     assert_eq!(std::fs::read(r.dir.path().join("launches")).unwrap(), b"x");
@@ -341,7 +346,8 @@ async fn remote_attach_observation_stop_and_control_have_separate_authority() {
             .status(remote_job.job_id.clone())
             .await
             .unwrap()
-            .status,
+            .status
+            .as_str(),
         "running"
     );
     let controller = local.start(local.spec(attach(true))).await;
@@ -367,7 +373,13 @@ async fn remote_attach_observation_stop_and_control_have_separate_authority() {
         true
     );
     assert_eq!(
-        remote.store.status(remote_job.job_id).await.unwrap().status,
+        remote
+            .store
+            .status(remote_job.job_id)
+            .await
+            .unwrap()
+            .status
+            .as_str(),
         "cancelled"
     );
 }
@@ -445,7 +457,8 @@ async fn remote_observer_recovers_process_loss_disconnect_and_pending_exact_run_
             .status(watcher.job_id.clone())
             .await
             .unwrap()
-            .status,
+            .status
+            .as_str(),
         "running"
     );
     assert_eq!(
@@ -454,7 +467,8 @@ async fn remote_observer_recovers_process_loss_disconnect_and_pending_exact_run_
             .status(run.job_id.clone())
             .await
             .unwrap()
-            .status,
+            .status
+            .as_str(),
         "running"
     );
     std::fs::remove_file(flag).unwrap();
@@ -776,7 +790,7 @@ async fn cancelling_a_lost_launch_acknowledgement_uses_lookup_without_relaunch()
     assert!(calls.iter().any(|c| c["operation"]["op"] == "lookup"));
     let jobs = remote.store.list(0, 100).await.unwrap();
     assert_eq!(jobs.len(), 1);
-    assert_eq!(jobs[0].status, "cancelled");
+    assert_eq!(jobs[0].status.as_str(), "cancelled");
 }
 
 #[tokio::test]
@@ -895,7 +909,7 @@ async fn observer_storage_failure_does_not_become_an_external_execution_failure(
         .unwrap();
     assert!(output.status.success());
     let observed = store.status(job.job_id).await.unwrap();
-    assert_eq!(observed.status, "orphaned");
+    assert_eq!(observed.status.as_str(), "orphaned");
     assert!(observed.exit_code.is_none());
     assert!(
         observed
@@ -941,7 +955,7 @@ async fn observer_recovery_does_not_reopen_a_racing_terminal_run() {
     // A queued control attachment must retain its stop intent until the observer
     // can contact the already-existing execution.
     let pending = store.stop(job.job_id.clone()).await.unwrap();
-    assert_eq!(pending.status, "queued");
+    assert_eq!(pending.status.as_str(), "queued");
     assert!(pending.cancel_requested);
     let db = rusqlite::Connection::open(config.root.join("relay.sqlite3")).unwrap();
     db.execute("UPDATE jobs SET status='running' WHERE id=?", [&job.job_id])
@@ -973,7 +987,7 @@ async fn observer_recovery_does_not_reopen_a_racing_terminal_run() {
     agent_job_relay::storage::finish_tx(
         &db,
         &job.job_id,
-        "completed",
+        JobState::Completed,
         Some(0),
         None,
         "racing terminal evidence",
@@ -982,7 +996,7 @@ async fn observer_recovery_does_not_reopen_a_racing_terminal_run() {
     db.execute_batch("COMMIT").unwrap();
     tick.await.unwrap().unwrap();
     let observed = store.status(job.job_id).await.unwrap();
-    assert_eq!(observed.status, "completed");
-    assert_eq!(observed.run.status, "completed");
+    assert_eq!(observed.status.as_str(), "completed");
+    assert_eq!(observed.run.status.as_str(), "completed");
     assert_eq!(observed.run.run_id, job.run_id);
 }

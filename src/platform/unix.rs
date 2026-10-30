@@ -195,6 +195,83 @@ pub fn reap_descendants() -> Result<bool> {
     }
 }
 
+/// After the workload has been waited on, a runner subreaper owns any orphaned
+/// descendants, including setsid children. Pin only its actual adopted children;
+/// never enumerate or signal unrelated same-user processes.
+pub fn terminate_adopted_descendants() -> Result<()> {
+    #[cfg(target_os = "linux")]
+    {
+        use std::{
+            collections::BTreeSet,
+            io::Read,
+            os::fd::{AsRawFd, FromRawFd, OwnedFd},
+        };
+        let mut children = BTreeSet::new();
+        for task in std::fs::read_dir("/proc/self/task")?.take(256) {
+            let path = task?.path().join("children");
+            let mut raw = String::new();
+            match std::fs::File::open(path) {
+                Ok(file) => {
+                    file.take(65537).read_to_string(&mut raw)?;
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(e) => return Err(e.into()),
+            }
+            ensure!(
+                raw.len() <= 65536,
+                "runner child inventory exceeds its bound"
+            );
+            for value in raw.split_whitespace() {
+                children.insert(value.parse::<u32>()?);
+            }
+            ensure!(
+                children.len() <= 4096,
+                "runner child inventory exceeds its bound"
+            );
+        }
+        for pid in children {
+            let raw = unsafe { libc::syscall(libc::SYS_pidfd_open, pid, 0) };
+            if raw < 0 {
+                let error = std::io::Error::last_os_error();
+                if error.raw_os_error() == Some(libc::ESRCH) {
+                    continue;
+                }
+                return Err(error.into());
+            }
+            let process = unsafe { OwnedFd::from_raw_fd(raw as i32) };
+            let stat = match std::fs::read_to_string(format!("/proc/{pid}/stat")) {
+                Ok(stat) => stat,
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(e) => return Err(e.into()),
+            };
+            let parent = stat
+                .rsplit_once(')')
+                .and_then(|(_, fields)| fields.split_whitespace().nth(1))
+                .and_then(|v| v.parse::<u32>().ok());
+            ensure!(
+                parent == Some(std::process::id()),
+                "adopted child ownership changed; no signal sent"
+            );
+            let sent = unsafe {
+                libc::syscall(
+                    libc::SYS_pidfd_send_signal,
+                    process.as_raw_fd(),
+                    libc::SIGKILL,
+                    std::ptr::null::<libc::siginfo_t>(),
+                    0,
+                )
+            };
+            if sent < 0 {
+                let error = std::io::Error::last_os_error();
+                if error.raw_os_error() != Some(libc::ESRCH) {
+                    return Err(error.into());
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 pub fn verify_peer(stream: &tokio::net::UnixStream) -> Result<()> {
     ensure!(
         stream.peer_cred()?.uid() == unsafe { libc::geteuid() },

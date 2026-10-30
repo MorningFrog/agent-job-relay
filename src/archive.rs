@@ -108,7 +108,9 @@ pub(crate) fn load(db: &Connection, job: &str) -> Result<Option<Snapshot>> {
             snapshot.tables.entry(table.into()).or_default();
         }
         ensure!(
-            snapshot.version == 1 && snapshot.job.job_id == job && terminal(&snapshot.job.status),
+            snapshot.version == 1
+                && snapshot.job.job_id == job
+                && snapshot.job.status.is_terminal(),
             "invalid archive identity/version/state"
         );
         ensure!(
@@ -179,7 +181,10 @@ pub(crate) fn rows(db: &Connection, table: &str, filter: &str, job: &str) -> Res
 }
 pub(crate) fn snapshot(db: &Connection, job: &str) -> Result<Snapshot> {
     let job = crate::storage::read_job(db, job)?;
-    ensure!(terminal(&job.status), "only terminal jobs can be archived");
+    ensure!(
+        job.status.is_terminal(),
+        "only terminal jobs can be archived"
+    );
     let busy: bool = db.query_row("SELECT EXISTS(SELECT 1 FROM deliveries d JOIN targets t ON t.id=d.target_id WHERE t.job_id=? AND (d.status IN ('pending','retry_wait','leased') OR (d.status='dead_letter' AND d.expires>?)))", params![job.job_id, now()], |r| r.get(0))?;
     ensure!(!busy, "job still has recoverable or unresolved deliveries");
     let spec = db.query_row("SELECT spec FROM jobs WHERE id=?", [&job.job_id], |r| {

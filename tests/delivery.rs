@@ -64,6 +64,101 @@ impl Fixture {
     }
 }
 #[tokio::test]
+async fn execution_states_reject_unknown_records_and_nonterminal_finish_without_side_effects() {
+    let f = Fixture::new().await;
+    let session = f.session("typed-state", "one").await;
+    let job = f.job(&session).await;
+    assert!(
+        f.store
+            .finish(job.job_id.clone(), "unknown", None, None, "invalid".into())
+            .await
+            .is_err()
+    );
+    assert!(
+        f.store
+            .finish(job.job_id.clone(), "running", None, None, "invalid".into())
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        f.store.status(job.job_id.clone()).await.unwrap().status,
+        JobState::Queued
+    );
+    assert!(f.rows(&job.job_id).await.is_empty());
+    assert!(
+        f.store
+            .events(job.job_id.clone(), 0, 100)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    let key = job.job_id.clone();
+    f.store
+        .call(move |db| {
+            db.execute(
+                "UPDATE runs SET status='future-state' WHERE job_id=?",
+                [key],
+            )?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+    assert!(
+        f.store
+            .status(job.job_id.clone())
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("unknown execution state")
+    );
+    assert!(
+        f.store
+            .inspect(Some(job.job_id.clone()), None, 20)
+            .await
+            .is_err()
+    );
+    let key = job.job_id.clone();
+    f.store
+        .call(move |db| {
+            db.execute("UPDATE runs SET status='queued' WHERE job_id=?", [key])?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+    f.store
+        .finish(
+            job.job_id.clone(),
+            "completed",
+            Some(0),
+            None,
+            "done".into(),
+        )
+        .await
+        .unwrap();
+    assert!(
+        f.store
+            .finish(
+                job.job_id.clone(),
+                "queued",
+                None,
+                None,
+                "invalid late transition".into()
+            )
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        f.store.status(job.job_id.clone()).await.unwrap().status,
+        JobState::Completed
+    );
+    assert_eq!(f.rows(&job.job_id).await.len(), 1);
+    assert_eq!(
+        serde_json::to_value(f.store.status(job.job_id).await.unwrap()).unwrap()["status"],
+        "completed"
+    );
+}
+
+#[tokio::test]
 async fn idle_dispatch_reads_without_waiting_for_a_database_writer() {
     let f = Fixture::new().await;
     let db = rusqlite::Connection::open(f.store.config.root.join("relay.sqlite3")).unwrap();
@@ -156,7 +251,12 @@ async fn completion_outbox_is_atomic_and_duplicate_finish_is_safe() {
             .is_err()
     );
     assert_eq!(
-        f.store.status(j.job_id.clone()).await.unwrap().status,
+        f.store
+            .status(j.job_id.clone())
+            .await
+            .unwrap()
+            .status
+            .as_str(),
         "queued"
     );
     assert!(
@@ -182,7 +282,10 @@ async fn completion_outbox_is_atomic_and_duplicate_finish_is_safe() {
         .await
         .unwrap();
     assert_eq!(f.rows(&j.job_id).await.len(), 1);
-    assert_eq!(f.store.status(j.job_id).await.unwrap().status, "completed");
+    assert_eq!(
+        f.store.status(j.job_id).await.unwrap().status.as_str(),
+        "completed"
+    );
 }
 #[tokio::test]
 async fn inbox_routes_exact_session_and_duplicate_ack_is_fenced() {
@@ -481,8 +584,8 @@ async fn version_one_database_upgrades_without_losing_job_or_run() {
     store.init().await.unwrap();
     store.init().await.unwrap();
     let job = store.status(j).await.unwrap();
-    assert_eq!(job.status, "completed");
-    assert_eq!(job.run.status, "completed");
+    assert_eq!(job.status.as_str(), "completed");
+    assert_eq!(job.run.status.as_str(), "completed");
     assert_eq!(job.run.attempt, 1);
     assert_eq!(job.run.exit_code, Some(0));
     assert_eq!(job.run.ended_at, Some(2));
@@ -589,7 +692,8 @@ async fn status_has_reserved_capacity_when_all_writer_workers_are_busy() {
         result
             .expect("reads must not queue behind occupied writer workers")
             .unwrap()
-            .status,
+            .status
+            .as_str(),
         "queued"
     );
 }

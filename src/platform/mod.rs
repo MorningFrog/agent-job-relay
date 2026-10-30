@@ -204,6 +204,10 @@ pub fn runner_initialize() -> Result<()> {
 pub fn reap_descendants() -> Result<bool> {
     bail!("native descendant reaping unavailable")
 }
+#[cfg(not(any(unix, windows)))]
+pub fn terminate_adopted_descendants() -> Result<()> {
+    bail!("native descendant termination unavailable")
+}
 
 pub fn is_link(metadata: &std::fs::Metadata) -> bool {
     #[cfg(windows)]

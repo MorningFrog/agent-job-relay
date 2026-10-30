@@ -6,6 +6,8 @@ use std::{
     path::PathBuf,
     time::{SystemTime, UNIX_EPOCH},
 };
+mod state;
+pub use state::JobState;
 
 pub fn now() -> i64 {
     SystemTime::now()
@@ -17,10 +19,7 @@ pub fn id() -> String {
     uuid::Uuid::new_v4().to_string()
 }
 pub fn terminal(s: &str) -> bool {
-    matches!(
-        s,
-        "completed" | "failed" | "cancelled" | "timeout" | "orphaned"
-    )
+    s.parse::<JobState>().is_ok_and(JobState::is_terminal)
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema, PartialEq)]
@@ -177,7 +176,7 @@ pub struct Run {
     pub run_id: String,
     pub job_id: String,
     pub attempt: u32,
-    pub status: String,
+    pub status: JobState,
     pub started_at: Option<i64>,
     pub ended_at: Option<i64>,
     pub runner_pid: Option<u32>,
@@ -193,7 +192,7 @@ pub struct Job {
     pub sequence: i64,
     pub job_id: String,
     pub run_id: String,
-    pub status: String,
+    pub status: JobState,
     pub command: CommandSpec,
     pub cwd: PathBuf,
     pub session: Option<String>,

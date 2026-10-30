@@ -195,7 +195,7 @@ fn audit(db: &Connection, job: &str, rule: &str, revision: i64, details: Value) 
 }
 pub(crate) fn stop_tx(db: &Connection, job: &str, grace: u32, reason: &str) -> Result<()> {
     let j = read_job(db, job)?;
-    if terminal(&j.status) {
+    if j.status.is_terminal() {
         return Ok(());
     }
     db.execute("INSERT INTO stop_requests(job_id,grace_seconds,reason,at) VALUES(?,?,?,?) ON CONFLICT(job_id) DO UPDATE SET grace_seconds=min(grace_seconds,excluded.grace_seconds)",params![job,grace,reason,now()])?;
@@ -205,10 +205,10 @@ pub(crate) fn stop_tx(db: &Connection, job: &str, grace: u32, reason: &str) -> R
     }
     let control_attachment = matches!(&j.command, CommandSpec::Remote { remote }
         if matches!(remote.intent, crate::remote::Intent::Attach { allow_stop: true, .. }));
-    if j.status == "queued"
+    if j.status == JobState::Queued
         && (!j.command.is_external() || (j.run.started_at.is_none() && !control_attachment))
     {
-        crate::storage::finish_tx(db, job, "cancelled", None, None, reason)?;
+        crate::storage::finish_tx(db, job, JobState::Cancelled, None, None, reason)?;
     }
     Ok(())
 }
@@ -220,7 +220,7 @@ impl Store {
             self.call(move|db| {
                 let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
                 let j=read_job(&tx,&key)?;
-                ensure!(!terminal(&j.status),"monitor changes require an active job");
+                ensure!(!j.status.is_terminal(),"monitor changes require an active job");
                 match mutation {
                     Mutation::Add {rule} => {add_rule(&tx,&key,&rule)?;},
                     mutation => {
@@ -260,7 +260,7 @@ impl Store {
         self.call(move|db|{
             let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
             let j=read_job(&tx,&job)?;
-            if terminal(&j.status) {return Ok(false);}
+            if j.status.is_terminal() {return Ok(false);}
             let changed=tx.execute("UPDATE monitor_rules SET triggered_revision=?,triggered_at=? WHERE id=? AND job_id=? AND revision=? AND enabled=1 AND deleted=0 AND triggered_revision<>revision",params![rule.revision,now(),rule.id,job,rule.revision])?;
             if changed==0 {return Ok(false);}
             crate::storage::insert_event(&tx,&job,&j.run_id,"monitor_alert",json!({"rule_id":rule.id,"revision":rule.revision,"rule":rule.spec,"evidence":evidence,"terminal_exit_observed":!can_stop}))?;

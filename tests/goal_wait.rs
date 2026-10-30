@@ -284,7 +284,10 @@ async fn storage_only_pause_never_acknowledges_the_host_and_confirmation_is_fenc
     let revision = result["goal_wait"]["revision"].as_i64();
     assert_eq!(result["goal_wait"]["status"], "sealed");
     assert_eq!(result["goal_wait"]["host_pause_required"], true);
-    assert_eq!(f.controller.read().await.unwrap().unwrap().status, "active");
+    assert_eq!(
+        f.controller.read().await.unwrap().unwrap().status.as_str(),
+        "active"
+    );
     assert!(
         f.store
             .confirm_goal_pause(wait.clone(), revision)
@@ -400,7 +403,8 @@ async fn missing_pause_confirmation_expires_and_legacy_waits_cannot_restore_goal
                 .status(result["job"]["job_id"].as_str().unwrap().into())
                 .await
                 .unwrap()
-                .status,
+                .status
+                .as_str(),
             "completed"
         );
     }
@@ -494,11 +498,14 @@ async fn batch_freezes_partial_admission_waits_for_every_run_and_merges_notifica
     f.finish(first).await;
     goal_wait::progress(&f.store, &wait).await.unwrap();
     assert!(f.store.claim().await.unwrap().is_none());
-    assert_eq!(f.controller.read().await.unwrap().unwrap().status, "paused");
+    assert_eq!(
+        f.controller.read().await.unwrap().unwrap().status.as_str(),
+        "paused"
+    );
     f.finish(second).await;
     goal_wait::progress(&f.store, &wait).await.unwrap();
     let active = f.controller.read().await.unwrap().unwrap();
-    assert_eq!(active.status, "active");
+    assert_eq!(active.status.as_str(), "active");
     assert_eq!(active.tokens_used, 73);
     assert_eq!(active.token_budget, Some(5000));
     let claim = f.store.claim().await.unwrap().unwrap();
@@ -673,8 +680,14 @@ async fn explicit_cancel_manual_stop_and_stale_revisions_leave_host_goal_and_oth
         }
         assert_eq!(f.state(&wait).await["status"], "cancelled");
         goal_wait::progress(&f.store, &wait).await.unwrap();
-        assert_eq!(f.controller.read().await.unwrap().unwrap().status, "paused");
-        assert_eq!(f.store.status(other.job_id).await.unwrap().status, "queued");
+        assert_eq!(
+            f.controller.read().await.unwrap().unwrap().status.as_str(),
+            "paused"
+        );
+        assert_eq!(
+            f.store.status(other.job_id).await.unwrap().status.as_str(),
+            "queued"
+        );
         assert!(f.store.claim().await.unwrap().is_none());
         assert!(f.mutations().is_empty());
     }
@@ -701,7 +714,10 @@ async fn explicit_cancel_manual_stop_and_stale_revisions_leave_host_goal_and_oth
     std::fs::write(f.controller.home.join("release"), "continue").unwrap();
     resume.await.unwrap().unwrap();
     assert_eq!(f.state(&wait).await["status"], "cancelled");
-    assert_eq!(f.controller.read().await.unwrap().unwrap().status, "paused");
+    assert_eq!(
+        f.controller.read().await.unwrap().unwrap().status.as_str(),
+        "paused"
+    );
     assert_eq!(
         f.mutations().len(),
         0,
@@ -785,7 +801,8 @@ async fn backup_restore_fences_waits_and_retains_member_audits_without_host_cont
             .status(result["job"]["job_id"].as_str().unwrap().into())
             .await
             .unwrap()
-            .status,
+            .status
+            .as_str(),
         "completed"
     );
     assert_eq!(
@@ -888,7 +905,14 @@ async fn default_detection_preserves_inactive_goals_and_refuses_unverifiable_goa
             assert!(started.get("goal_wait").is_none());
             let job = started["job"]["job_id"].as_str().unwrap();
             tokio::time::timeout(Duration::from_secs(8), async {
-                while !terminal(&f.store.status(job.into()).await.unwrap().status) {
+                while !f
+                    .store
+                    .status(job.into())
+                    .await
+                    .unwrap()
+                    .status
+                    .is_terminal()
+                {
                     tokio::time::sleep(Duration::from_millis(20)).await;
                 }
             })
@@ -1022,7 +1046,7 @@ async fn real_cli_binding_and_runner_survive_daemon_loss_and_finish_one_wait() {
     let job = response["job"]["job_id"].as_str().unwrap().to_string();
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
-            if f.store.status(job.clone()).await.unwrap().status == "running" {
+            if f.store.status(job.clone()).await.unwrap().status.as_str() == "running" {
                 break;
             }
             tokio::time::sleep(Duration::from_millis(20)).await;
@@ -1035,7 +1059,7 @@ async fn real_cli_binding_and_runner_survive_daemon_loss_and_finish_one_wait() {
     std::fs::write(gate, "release").unwrap();
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
-            if f.store.status(job.clone()).await.unwrap().status == "completed" {
+            if f.store.status(job.clone()).await.unwrap().status.as_str() == "completed" {
                 break;
             }
             tokio::time::sleep(Duration::from_millis(20)).await;
@@ -1043,7 +1067,10 @@ async fn real_cli_binding_and_runner_survive_daemon_loss_and_finish_one_wait() {
     })
     .await
     .unwrap();
-    assert_eq!(f.controller.read().await.unwrap().unwrap().status, "paused");
+    assert_eq!(
+        f.controller.read().await.unwrap().unwrap().status.as_str(),
+        "paused"
+    );
     daemon = OwnedDaemon(
         Command::new(env!("CARGO_BIN_EXE_agent-job-relay"))
             .args([
@@ -1199,7 +1226,10 @@ async fn recovery_skips_pinned_waits_and_still_recovers_unrelated_targets() {
     let ordinary = rows.iter().find(|r| r["job_id"] == other.job_id).unwrap();
     assert_eq!(ordinary["applied"], true);
     assert_eq!(f.state(&wait).await["session_key"], f.session);
-    assert_eq!(f.controller.read().await.unwrap().unwrap().status, "paused");
+    assert_eq!(
+        f.controller.read().await.unwrap().unwrap().status.as_str(),
+        "paused"
+    );
 }
 
 #[tokio::test]
@@ -1370,7 +1400,10 @@ async fn shared_mcp_uses_only_the_bound_wait_and_exposes_revision_fenced_cancell
     let job = result["job"]["job_id"].as_str().unwrap();
     let cancelled=rpc(&mut input,&mut lines,6,"tools/call",json!({"name":"job_goal_wait","arguments":{"goal_wait_id":wait,"cancel":true,"expected_revision":confirmed["revision"]}})).await;
     assert_ne!(cancelled["result"]["isError"], true);
-    assert_eq!(f.controller.read().await.unwrap().unwrap().status, "paused");
+    assert_eq!(
+        f.controller.read().await.unwrap().unwrap().status.as_str(),
+        "paused"
+    );
     assert!(matches!(
         f.store.status(job.into()).await.unwrap().status.as_str(),
         "queued" | "launching" | "running"
@@ -1529,7 +1562,10 @@ async fn scoped_consent_survives_reconnect_and_admits_exactly_three_serial_runs(
             consent["jobs"].as_array().unwrap().len(),
             round as usize + 1
         );
-        assert_eq!(f.controller.read().await.unwrap().unwrap().status, "active");
+        assert_eq!(
+            f.controller.read().await.unwrap().unwrap().status.as_str(),
+            "active"
+        );
     }
     assert_eq!(
         f.store
@@ -1675,7 +1711,8 @@ async fn scoped_consent_fences_question_claims_callers_changes_expiry_and_restor
             .status(started["job"]["job_id"].as_str().unwrap().into())
             .await
             .unwrap()
-            .status,
+            .status
+            .as_str(),
         "queued",
         "revocation must not stop or replay execution"
     );
@@ -1835,7 +1872,10 @@ async fn native_mcp_questions_and_fallback_require_real_answers_and_preserve_one
             mcp.call(2, args.clone()).await;
             let question = mcp.receive().await;
             assert!(f.store.list(0, 100).await.unwrap().is_empty());
-            assert_eq!(f.controller.read().await.unwrap().unwrap().status, "active");
+            assert_eq!(
+                f.controller.read().await.unwrap().unwrap().status.as_str(),
+                "active"
+            );
             let answer = json!({"action":if allow{"accept"}else{"cancel"},"content":if allow{json!({"allow_goal_pause":true})}else{Value::Null}});
             if version == "2026-07-28" {
                 assert_eq!(

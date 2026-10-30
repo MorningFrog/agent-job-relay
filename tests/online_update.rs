@@ -257,7 +257,10 @@ async fn uninstall_defaults_to_idle_shutdown_and_force_cancels_exact_runs_withou
     let store = agent_job_relay::storage::Store::readonly(agent_job_relay::config::Config {
         root: r.state.clone(),
     });
-    assert_eq!(store.status(id.into()).await.unwrap().status, "cancelled");
+    assert_eq!(
+        store.status(id.into()).await.unwrap().status.as_str(),
+        "cancelled"
+    );
     assert!(r.state.join("relay.sqlite3").exists());
     r.cli(&["daemon", "start"]).await;
     let mut child = r
