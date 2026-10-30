@@ -10,6 +10,8 @@
 
 A future runtime/package change requires a new Cargo version, synchronized pins/CHANGELOG, passing delivery gates and exact-revision CI, then a new reviewed candidate. Documentation-only changes do not replace published payloads. Linux release payloads require glibc 2.34 or newer; local developer builds may require a newer glibc and must not be substituted.
 
+Source **0.1.15** prepares the Codex marketplace installation-record fix and specific refusal diagnostics. Pins and release notes are synchronized; local delivery gates, installed Linux Codex/OpenCode checks and both npm publication dry-runs pass. The local Linux-only payload requires glibc 2.39 and is test-only. A fresh **Release All** run with `dry_run=true`, `channel=latest` and no candidate Run ID must build the release Linux/Windows bytes and preview the actual OIDC publisher after exact-revision CI. Neither remote 0.1.15 outcome is qualified yet; retain the published 0.1.14 candidate unchanged.
+
 Consumer CLI/plugin installation and updates use `ajr update`; native offline and OpenCode routes remain separate. Schema v11 is unchanged since 0.1.12. See [updates](updating.md) and [current support/evidence](IMPLEMENTATION_STATUS.md).
 
 ## Choose an entry point

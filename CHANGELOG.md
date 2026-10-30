@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.15] - 2026-10-30
+
 ### Fixed
 
 - Recognize Codex's untracked `.codex-marketplace-install.json` during online update/removal after validating its official source, release tag, revision and full-checkout provenance. Continue refusing user edits, additional untracked files and invalid or symlinked records.
