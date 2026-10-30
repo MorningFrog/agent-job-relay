@@ -125,7 +125,7 @@ You can also ask:
 
 > Open AgentJobRelay's task manager so I can inspect the running tasks.
 
-The plugin can open the bundled Web UI; new online installations require the global CLI, while native offline plugins use their own launcher. The current source workflow automatically shows an accepted background task beside the chat and reuses one panel for that chat/profile when the host supports embedded-tab discovery and navigation; the panel supports narrow sidebars. Follow [daily usage](docs/usage.md) for MCP submission and same-chat recovery, or [monitoring and Web UI](docs/runtime-monitoring.md) for persistent rules and stopping.
+The plugin can open the bundled Web UI; new online installations require the global CLI, while native offline plugins use their own launcher. The current source workflow automatically shows an accepted background task beside the chat and reuses one panel for that chat/profile when the host supports embedded-tab discovery and navigation; the panel supports narrow sidebars with stable navigation targets during expansion and hover/focus feedback. Follow [daily usage](docs/usage.md) for MCP submission and same-chat recovery, or [monitoring and Web UI](docs/runtime-monitoring.md) for persistent rules and stopping.
 
 Current-source viewers share task samples for up to one second and runtime health for up to ten seconds. Explicit inspection, diagnosis and control requests read the runtime directly.
 

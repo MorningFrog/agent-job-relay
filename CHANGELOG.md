@@ -26,6 +26,7 @@
 - Flush asynchronous output writes before synchronization so a delayed ENOSPC cannot become a successful job. Always clean up spawned native work on supervision errors and scope capture tasks to their owner.
 - Reap a live Linux runner's adopted session-escaped descendants using parent-verified pidfds; cleanup failure cannot report success. Runner SIGKILL/power-loss limits remain.
 - Fence late rule responses to their original selected task and show independent connection errors; runtime health shows its own sample time.
+- Keep compact navigation buttons and icons in place while the sidebar expands. Reserve header/caption height without wrapping, and add distinct hover and keyboard-focus feedback.
 
 ### Safety and compatibility
 

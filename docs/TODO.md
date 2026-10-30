@@ -65,7 +65,7 @@ Runtime 0.1.12+ implements the [remote contract and reference path](remote-execu
 ## Runtime inspection and monitoring
 
 - [x] Implement Agent-independent inspect/watch, revision-fenced persistent output/silence/elapsed rules, bounded recent tails, automatic tree cancellation, optional same-chat alerts and preserved archive/backup/audit history.
-- [x] Adapt the embedded panel to narrow chat sidebars with expandable icon navigation, adjacent inline task details and stateful chevrons; automatically open the accepted task through the host Agent workflow before yielding or goal handoff.
+- [x] Adapt the embedded panel to narrow chat sidebars with expandable icon navigation, stable button/icon positions, hover/focus feedback, adjacent inline task details and stateful chevrons; automatically open the accepted task through the host Agent workflow before yielding or goal handoff.
 - [x] Reuse the originating chat's same-profile embedded tab before opening another; handle repeated task/credential fragment navigation in place, with explicit limits when host tab discovery is unavailable.
 - [x] Reuse one validated archive snapshot per task inspection and share bounded per-listener Web samples/serialization with one-second task and ten-second health expiry; keep explicit reads and controls direct, errors visible and profiles isolated.
 - [x] Split runner capture/supervision and React components/connection handling, type execution states without changing wire/storage strings, fence stale rule responses by selected task and cover reconnect/visibility/authentication/revision conflicts and component rendering.
