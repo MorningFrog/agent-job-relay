@@ -23,7 +23,7 @@ npm --version
 cc --version
 ```
 
-预期：每条命令都能显示已安装的工具版本。声明的最低 Rust 1.89 尚未独立验证，当前构建证据见[实施状态](IMPLEMENTATION_STATUS.md)。缺少工具时，先按对应工具的正常安装说明补齐，再继续。
+预期：每条命令都能显示已安装的工具版本。最低 Rust 1.89 的 Linux 全目标编译已验证，当前构建证据见[实施状态](IMPLEMENTATION_STATUS.md)。缺少工具时，先按对应工具的正常安装说明补齐，再继续。
 
 ## 2. 进入源码目录
 
@@ -89,7 +89,7 @@ AJR_INSTALL_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/agent-job-relay"
 "$AJR_INSTALL_ROOT/relay" doctor --client plugin --check-mcp
 ```
 
-预期：已安装版本与构建版本一致，受管理的 marketplace 条目匹配，`stdio_self_check.status` 为 `passed`，当前源码工具数为 25（已发布 0.1.11 为 22）。首次提交任务前 daemon 处于 stopped 状态是正常的。该检查不提交任务，只验证本机 stdio 工具发现，不能证明 ChatGPT Desktop 已连接或聊天能自动续接。
+预期：已安装版本与构建版本一致，受管理的 marketplace 条目匹配，`stdio_self_check.status` 为 `passed`，当前源码和已发布 0.1.12 的工具数均为 25。首次提交任务前 daemon 处于 stopped 状态是正常的。该检查不提交任务，只验证本机 stdio 工具发现，不能证明 ChatGPT Desktop 已连接或聊天能自动续接。
 
 请保留 AJR_INSTALL_ROOT：缓存中的 MCP 和终端启动器都使用该目录中的原生程序。仅重新编译 `target/release` 不会更新已安装运行时。任务状态和历史另行保存；[状态配置](installation.md#custom-directories-and-stored-data)、[更新](updating.md)和[卸载](uninstalling.md)分别见对应指南。
 

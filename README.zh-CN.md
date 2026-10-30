@@ -16,10 +16,10 @@ Tasks run in the background. Agents pick up when needed.
 | 能力 | 用途 |
 |---|---|
 | 持久后台任务 | 运行构建、测试、训练和数据处理，关闭聊天或查看器后仍可继续 |
-| Goal 等待（实验性源码） | 活动 goal 缺少暂停许可时，仅通过原生确认或 Agent 简短询问一次；持久批准覆盖同一请求的有界轮次，保留原 goal 交接、恢复和删除保护。见[用法及宿主限制](docs/goal-waiting.md) |
-| 批量提交（0.1.12 源码） | 通过 CLI/MCP 一次提交 1–16 个独立命令，逐项返回结果并支持安全重试，见[使用指南](docs/usage.md#submit-independent-commands-together-0112-source) |
-| 远程任务（0.1.12 源码） | 在固定身份的远端运行时启动或附加命令；观察固定的 GitHub Actions attempt，显示作业／步骤状态并提供运行页面直达链接；见[配置与边界](docs/remote-execution.md) |
-| 中间反馈（0.1.12 源码） | 结构化阶段、步数和指标，重复里程碑或阈值告警，以及有界 checker 示例；见[用法与边界](docs/progress.md) |
+| Goal 等待（实验性） | 活动 goal 缺少暂停许可时，仅通过原生确认或 Agent 简短询问一次；持久批准覆盖同一请求的有界轮次，保留原 goal 交接、恢复和删除保护。见[用法及宿主限制](docs/goal-waiting.md) |
+| 批量提交（0.1.12+） | 通过 CLI/MCP 一次提交 1–16 个独立命令，逐项返回结果并支持安全重试，见[使用指南](docs/usage.md#submit-independent-commands-together-0112) |
+| 远程任务（0.1.12+） | 在固定身份的远端运行时启动或附加命令，或观察固定的 GitHub Actions attempt；0.1.13 源码增加作业／步骤状态和 attempt 直达链接，见[配置与边界](docs/remote-execution.md) |
+| 中间反馈（0.1.12+） | 结构化阶段、步数和指标，重复里程碑或阈值告警，以及有界 checker 示例；见[用法与边界](docs/progress.md) |
 | 结果与历史 | 保存有界的 stdout/stderr、退出结果、事件和任务历史 |
 | 绑定会话的通知 | 将结果投递到发起会话，在宿主支持时续接聊天 |
 | 本地任务面板 | 通过 CLI 或随包 Web UI 检查任务、设置输出/静默/时长规则并停止任务 |
@@ -31,7 +31,7 @@ Tasks run in the background. Agents pick up when needed.
 
 在线安装需要 Node.js 20+/npm 和网络。ChatGPT Desktop/Codex 还需要 PATH 中可用的 Codex CLI 和获取目录所需的 Git，Desktop 需要本地执行环境，无需 Rust 编译器。以下命令使用 Bash；另有 [PowerShell 和 Release ZIP 安装方式](docs/installation.md#chatgpt-desktop--codex)。
 
-更新时保留原数据目录。当前源码会在新版运行入口首次使用时自动接替旧 daemon，本地运行时更新也会自动重启在线 daemon；替换文件或迁移 schema 前须完成活动任务。已发布版本仍需手动停止同一数据目录的 daemon，见[更新前的准备](docs/updating.md#before-updating)。
+更新时保留原数据目录。当前源码会在新版运行入口首次使用时自动接替旧 daemon，本地运行时更新也会自动重启在线 daemon；替换文件或迁移 schema 前须完成活动任务。0.1.12 之前的版本仍需手动停止同一数据目录的 daemon，见[更新前的准备](docs/updating.md#before-updating)。
 
 本地／源码插件通过稳定的指引入口和经过校验的 MCP 运行时转发跟随更新。旧入口需[一次迁移和重连](docs/updating.md#cache-inspection-and-refresh)；以后同版本本地更新也会使用当前流程，无需清理插件缓存。
 

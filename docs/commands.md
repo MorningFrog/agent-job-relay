@@ -33,9 +33,9 @@ agent-job-relay codex monitor add --help
 |---|---|
 | `start -- <program> <args...>` | Submit explicit argv; `--cwd`, `--timeout <seconds>`, `--idempotency-key`, `--session` or current-terminal `--wake` |
 | `start --shell '<script>'` | Explicit shell execution; `--interpreter` selects the shell |
-| `start-batch --file <json-file>` (0.1.12 source) | Submit a JSON array of 1–16 specs with distinct stable keys; `--file -` reads stdin, `--wake` binds every item to the actual caller; [partial-admission/retry semantics](usage.md#submit-independent-commands-together-0112-source) |
-| `start-spec --file <json-file>` (0.1.12 source) | Submit one bounded JSON StartSpec, including remote launch/attach or GitHub Actions observation; `--file -` for stdin and `--wake` for the current caller |
-| `remote init` / `remote serve` (0.1.12 source) | Explicit remote-profile provisioning / one authenticated stdio request; [setup and protocol](remote-execution.md) |
+| `start-batch --file <json-file>` (0.1.12+) | Submit a JSON array of 1–16 specs with distinct stable keys; `--file -` reads stdin, `--wake` binds every item to the actual caller; [partial-admission/retry semantics](usage.md#submit-independent-commands-together-0112) |
+| `start-spec --file <json-file>` (0.1.12+) | Submit one bounded JSON StartSpec, including remote launch/attach or GitHub Actions observation; `--file -` for stdin and `--wake` for the current caller |
+| `remote init` / `remote serve` (0.1.12+) | Explicit remote-profile provisioning / one authenticated stdio request; [setup and protocol](remote-execution.md) |
 | `list` | Bounded history; `--after`, `--limit` |
 | `status <job-id>` | Durable job/run state and exit outcome |
 | `logs <job-id>` | Bounded stdout/stderr; `--stream`, byte `--cursor`, `--limit`, optional human-viewer `--follow` |
@@ -71,10 +71,10 @@ Rules use one condition: `--no-output <duration>`, `--elapsed <duration>` or `--
 | Command after the prefix | Purpose |
 |---|---|
 | `connect [--cwd <absolute-project>]` | Obtain a fresh current-chat/workspace binding from its actual terminal |
-| `connect [--request-label <label>] [--job-count <1..16>] [--request-id <id>]` (experimental source) | Prepare a scoped request or reconnect after approval; pending input creates no wait/job |
-| `connect --wait-goal` (experimental source) | Assert actual user pause permission; scoped options record it for this request, otherwise use single-handoff compatibility |
+| `connect [--request-label <label>] [--job-count <1..16>] [--request-id <id>]` (experimental) | Prepare a scoped request or reconnect after approval; pending input creates no wait/job |
+| `connect --wait-goal` (experimental) | Assert actual user pause permission; scoped options record it for this request, otherwise use single-handoff compatibility |
 | `instructions` | Read the current embedded plugin workflow, policy and digest without starting a daemon/job; cached skills load this at every invocation |
-| `goal-wait <id> [--confirm-paused\|--cancel] [--expected-revision <n>]` (experimental source) | Inspect, confirm this chat's successful native goal pause, or cancel future control/notification; mutations require the observed revision and jobs keep running; [handoff and interruption](goal-waiting.md) |
+| `goal-wait <id> [--confirm-paused\|--cancel] [--expected-revision <n>]` (experimental) | Inspect, confirm this chat's successful native goal pause, or cancel future control/notification; mutations require the observed revision and jobs keep running; [handoff and interruption](goal-waiting.md) |
 | `connect --recover [--apply]` | Preview/apply same-chat recovery; `--after`, `--limit`, `--full` |
 | `session connect [--brief]` | Compatible current-terminal binding entry |
 | `session recover [--apply]` | Compatible same-chat recovery entry |

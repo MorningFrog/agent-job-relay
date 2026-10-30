@@ -76,7 +76,7 @@ Remote `target_id` identifies a provisioned profile; it is not authentication. S
 
 Keep tokens, passwords and keys in the existing SSH/`gh` authentication facilities. Explicit task env is persisted on its execution owner; it is unsuitable for secrets. Raw transport stderr is bounded and discarded; GitHub diagnostics retain fixed categories. Local chat endpoint/identity variables are removed from transport child environments. Workload logs, bounded remote observations and final details remain untrusted data with the same private-storage requirements as local output. The workflow adapter issues GET requests only; stopping an observer grants no workflow cancellation or dispatch authority.
 
-## Scoped goal consent and control (experimental source)
+## Scoped goal consent and control (experimental)
 
 Goal waiting records actual user permission through negotiated native input or a revision-fenced cooperative Agent/terminal assertion, distinguishable in authorization_source. Plugin text, silence and defaults cannot approve it. Scope pins the original chat/goal/controller/workspace and bounded job budget; native form tokens cannot be overridden by Agent assertions. The actual Desktop terminal supplies runtime selection. The source captures a canonical executable/profile and bounded executable digest, pins the original session/endpoint snapshot, and exposes only an opaque wait ID through shared MCP. A fixed initialize/get/status-only-set allowlist runs with plugins disabled and bounded frames/deadlines; it never loads a thread, invokes a model or sends an objective/budget. Goal snapshots can contain sensitive objectives and remain in private SQLite/backups; normal summaries/notifications omit them. No real host configuration or service is modified.
 

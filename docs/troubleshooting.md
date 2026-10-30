@@ -12,7 +12,7 @@ Use the same launcher and state profile as the affected plugin or task. Keep the
 | Terminal command missing | Install the [global npm CLI](installation.md#terminal-and-web-ui) and ensure npm's global command directory is on PATH. Plugin installation alone does not register it. |
 | `ajr` missing | The shortcut requires npm runtime 0.1.11 or newer installed globally. Use `agent-job-relay codex <command>`; check [current version status](IMPLEMENTATION_STATUS.md). |
 | `npm E404` / `ETARGET` | Check the selected version, registry and network. Use the latest published runtime and matching release catalog rather than an unpublished source pin. |
-| Web UI reports an older daemon | Use the new runtime; current source replaces older daemons on `ui`. Published versions require finished jobs and a manual same-profile stop; see [updating](updating.md#before-updating). |
+| Web UI reports an older daemon | Use the new runtime; current source replaces older daemons on `ui`. Versions before 0.1.12 require finished jobs and a manual same-profile stop; see [updating](updating.md#before-updating). |
 | UI no longer authenticates | Reopen `ui` after daemon replacement; its access credential changes. See [Web access](runtime-monitoring.md#open-the-bundled-web-ui). |
 | Windows startup/binding fails | Follow [Windows startup](windows.md#automatic-startup) and [binding permissions](windows.md#current-chat-binding-permissions); use only the reported same-profile fallback. |
 | Update reports an active runtime | Finish jobs and retry the reviewed [update](updating.md); current-source apply restarts an online daemon automatically. With older update executables, stop that same daemon manually first. |

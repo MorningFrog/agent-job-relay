@@ -16,10 +16,10 @@ Run long commands independently of the Agent connection, keep their results, and
 | Capability | Use it for |
 |---|---|
 | Durable background jobs | Builds, tests, training and data processing that continue after a chat or viewer closes |
-| Goal waiting (experimental source) | One short native or Agent question when pause permission is missing; durable approval covers this request’s bounded rounds. Original-goal handoff, restoration and deletion safeguards remain. [Usage and host limits](docs/goal-waiting.md) |
-| Batch submission (0.1.12 source) | Submit 1–16 independent commands through CLI/MCP, with per-item results and safe retries; [usage](docs/usage.md#submit-independent-commands-together-0112-source) |
-| Remote tasks (0.1.12 source) | Launch/attach on a pinned remote runtime; observe a fixed GitHub Actions attempt with job/step status and a direct run link; [setup and boundaries](docs/remote-execution.md) |
-| Mid-run feedback (0.1.12 source) | Structured stages/steps/metrics, repeated milestone or threshold alerts and a bounded checker recipe; [usage and limits](docs/progress.md) |
+| Goal waiting (experimental) | One short native or Agent question when pause permission is missing; durable approval covers this request’s bounded rounds. Original-goal handoff, restoration and deletion safeguards remain. [Usage and host limits](docs/goal-waiting.md) |
+| Batch submission (0.1.12+) | Submit 1–16 independent commands through CLI/MCP, with per-item results and safe retries; [usage](docs/usage.md#submit-independent-commands-together-0112) |
+| Remote tasks (0.1.12+) | Launch/attach on a pinned remote runtime or observe a fixed GitHub Actions attempt. Source 0.1.13 adds job/step status and an attempt link; [setup and boundaries](docs/remote-execution.md) |
+| Mid-run feedback (0.1.12+) | Structured stages/steps/metrics, repeated milestone or threshold alerts and a bounded checker recipe; [usage and limits](docs/progress.md) |
 | Results and history | Bounded stdout/stderr, exit outcomes, events and retained task history |
 | Session-bound notifications | Deliver results to the initiating session; resume the chat when supported by its host |
 | Local task manager | Inspect tasks, configure persistent output/silence/elapsed rules and stop work through CLI or the bundled Web UI |
@@ -31,7 +31,7 @@ Run long commands independently of the Agent connection, keep their results, and
 
 Online installation needs Node.js 20+/npm and network access. ChatGPT Desktop/Codex also needs Codex CLI on PATH and Git for catalog fetching; Desktop requires a local executor. No Rust compiler is needed. Commands below use Bash; [PowerShell and Release ZIP alternatives](docs/installation.md#chatgpt-desktop--codex) are available.
 
-Retain the original profile when updating. Current source automatically replaces an older daemon on first runtime use and restarts an online daemon after a local runtime update; finish active jobs before file replacement or schema migration. Published versions still require a manual same-profile stop. See [upgrade preparation](docs/updating.md#before-updating).
+Retain the original profile when updating. Current source automatically replaces an older daemon on first runtime use and restarts an online daemon after a local runtime update; finish active jobs before file replacement or schema migration. Versions before 0.1.12 require a manual same-profile stop. See [upgrade preparation](docs/updating.md#before-updating).
 
 Native/source plugins use stable instruction entries and verified current-runtime MCP forwarding. Historical entries need [one migration and reconnection](docs/updating.md#cache-inspection-and-refresh); later same-version native updates follow the current workflow without clearing plugin caches.
 

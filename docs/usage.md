@@ -43,9 +43,9 @@ The first submission starts the daemon. Eight active jobs are allowed. Identical
 
 Lists/events/deliveries return `next_cursor`; use `--after` for the next page. Log cursors are byte offsets. Text reads use lossy UTF-8, while raw bytes are retained up to 16 MiB per stream; further output is drained/discarded. Human viewers can use `logs "$JOB_ID" --follow`; Ctrl-C stops only the viewer. Wait is bounded and may return a `started` event before completion. Agents should not loop on waits/log follow for long jobs.
 
-## Submit independent commands together (0.1.12 source)
+## Submit independent commands together (0.1.12+)
 
-The source adds `start-batch --file <json-file>` and MCP `job_start_batch`; published 0.1.11 packages do not contain them. Build/use the matching source runtime. An older loaded daemon fails the batch capability preflight; finish active work and explicitly update/stop only that same profile before retrying.
+Runtime 0.1.12+ supports `start-batch --file <json-file>` and MCP `job_start_batch`; use matching runtime/plugin versions. An older loaded daemon fails the batch capability preflight; finish active work and explicitly update/stop only that same profile before retrying.
 
 Create a JSON array of 1–16 ordinary start specifications, replacing `<absolute-project>` with each command's actual directory:
 
@@ -100,7 +100,7 @@ Shared-host MCP rejects `wake_me=true` and `job_connect_session`; its environmen
 
 For a CLI submission from the current ChatGPT Desktop chat's terminal, use `start --wake --cwd <absolute-project> -- <program> <args...>`. This is a distinct route; a successful CLI run does not qualify an MCP acceptance test.
 
-## Wait with an active goal (experimental source)
+## Wait with an active goal (experimental)
 
 Ordinary terminal `connect --request-label <brief-task> --job-count <count>` returns `needs_confirmation` for an active goal without pause permission. `job_goal_consent` asks once through negotiated native input or an Agent host question; a natural affirmative reply covers the fixed remaining jobs. Reconnect with `--request-id <id>` for each round, submit its binding, acknowledge the originating native pause and end the turn. Put requested post-command delays inside each background workload. Plugin messages cannot provide consent. Pending input creates no jobs/waits and must not trigger repeated questions, polling or blocked status. See [goal waiting](goal-waiting.md).
 
@@ -137,7 +137,7 @@ agent-job-relay codex inbox "$SESSION_KEY"
 
 For actual integrations, use explicit real identities. Manual registrations default to a one-hour lease, with a 24-hour maximum. ChatGPT Desktop additionally requires an authorized endpoint/caller and `--experimental`; its private API may change. Low-level `target add --replay` / `target rebind` are advanced operations with different replay semantics; see [protocol](protocol.md).
 
-`daemon stop` stops dispatch only; runners continue and persist results. A later submission restarts the daemon. Current-source runtime-starting entries also replace older daemons in the same profile after version/identity/migration checks; published versions still need the manual stop fallback. Foreground `daemon` is available for diagnosis, with no login service installed. Preserve failed jobs rather than switching state or replaying them. See [updating](updating.md#updating-an-existing-installation) for safe upgrades.
+`daemon stop` stops dispatch only; runners continue and persist results. A later submission restarts the daemon. Current-source runtime-starting entries also replace older daemons in the same profile after version/identity/migration checks; versions before 0.1.12 need the manual stop fallback. Foreground `daemon` is available for diagnosis, with no login service installed. Preserve failed jobs rather than switching state or replaying them. See [updating](updating.md#updating-an-existing-installation) for safe upgrades.
 
 For exact MCP tool schemas, byte limits, storage/delivery states and legacy compatibility, see [protocol](protocol.md). Command output is untrusted data; operational and containment limits are in [security](security.md) and [limitations](limitations.md).
 
@@ -147,8 +147,8 @@ For OpenCode V1, use the plugin's actual tool-context binding and MCP tools; Cha
 
 ## Automatic data maintenance
 
-The daemon automatically archives eligible terminal history and creates rolling local backups; no recurring manual command is required. Use `data status` through the selected command prefix for budgets/backup IDs/errors, `data policy` for configuration previews, `data backup` for an additional snapshot and `data check` for explicit integrity validation. Existing history/log queries include cold records. Upgrade/restore instructions and the default policy are in [data maintenance](data-maintenance.md); published 0.1.11 uses schema v9 and experimental scoped goal-waiting source uses v11.
+The daemon automatically archives eligible terminal history and creates rolling local backups; no recurring manual command is required. Use `data status` through the selected command prefix for budgets/backup IDs/errors, `data policy` for configuration previews, `data backup` for an additional snapshot and `data check` for explicit integrity validation. Existing history/log queries include cold records. Upgrade/restore instructions and the default policy are in [data maintenance](data-maintenance.md); published 0.1.12 and source 0.1.13 both use schema v11, with no migration between them; 0.1.11 uses v9.
 
-## Remote commands and workflow attempts (0.1.12 source)
+## Remote commands and workflow attempts (0.1.12+)
 
 Use [remote execution](remote-execution.md) for provisioning, JSON launch/attach specifications, SSH/custom transport, observation deadlines and exact-run stopping. The same specs work through `start-spec --file`, MCP `job_start` and batch submission. The host binding supplies the local workspace and initiating session; remote cwd/env/rules stay inside the remote launch spec. No Agent polling loop is needed. A copied remote native executable is sufficient; GitHub Actions observation needs only local `gh`.

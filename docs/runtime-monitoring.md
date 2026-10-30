@@ -57,9 +57,9 @@ Each rule revision triggers once; enable it again to rearm. At most 16 rule iden
 
 `--notify-agent` additionally enqueues an alert for the job's explicit bound session. It does not create or guess a binding; unsupported hosts remain inbox-only. Terminal results supersede unresolved alert deliveries and fence expired claims while retaining live per-chat exclusion, IDs, expiry and attempt history. Accepted or in-flight host effects cannot be recalled. Host acceptance remains separate from observed Agent execution. New running-alert continuation needs its own real-host qualification.
 
-## Mid-run feedback (0.1.12 source)
+## Mid-run feedback (0.1.12+)
 
-Use existing flushed marker rules for a few known milestones, or source-only `AJR_PROGRESS` frames and repeated stage/step/metric conditions. CLI `--progress`, MCP and Web share the same durable rules and snapshots; terminal events retain bounded milestone summaries. The [progress guide](progress.md) includes the versioned protocol, limits, source capability check and pinned-run reference checker. Ordinary literal/time rules keep the once-per-revision policy. Real mid-run Agent execution remains a separate qualification.
+Use existing flushed marker rules for a few known milestones, or `AJR_PROGRESS` frames (runtime 0.1.12+) and repeated stage/step/metric conditions. CLI `--progress`, MCP and Web share the same durable rules and snapshots; terminal events retain bounded milestone summaries. The [progress guide](progress.md) includes the versioned protocol, limits, runtime capability check and pinned-run reference checker. Ordinary literal/time rules keep the once-per-revision policy. Real mid-run Agent execution remains a separate qualification.
 
 ## Stop and observe the result
 

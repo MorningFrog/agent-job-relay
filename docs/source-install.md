@@ -23,7 +23,7 @@ npm --version
 cc --version
 ```
 
-Expected: each command reports an installed tool. The declared Rust 1.89 minimum has not been independently verified; current build evidence is in [implementation status](IMPLEMENTATION_STATUS.md). Obtain missing tools through their normal supported installation instructions before continuing.
+Expected: each command reports an installed tool. Rust 1.89 all-target compilation is verified on Linux; current build evidence is in [implementation status](IMPLEMENTATION_STATUS.md). Obtain missing tools through their normal supported installation instructions before continuing.
 
 ## 2. Open the source checkout
 
@@ -89,7 +89,7 @@ Expected: the preview retains the original state directory; apply retains histor
 "$AJR_INSTALL_ROOT/relay" doctor --client plugin --check-mcp
 ```
 
-Expected: the installed version matches the build, the owned marketplace entry matches, and `stdio_self_check.status` is `passed` with 25 tools for current source (22 in published 0.1.11). A stopped daemon before the first submission is normal. This check submits no job and establishes local stdio discovery, not ChatGPT Desktop tool connectivity or chat continuation.
+Expected: the installed version matches the build, the owned marketplace entry matches, and `stdio_self_check.status` is `passed` with 25 tools for current source and published 0.1.12. A stopped daemon before the first submission is normal. This check submits no job and establishes local stdio discovery, not ChatGPT Desktop tool connectivity or chat continuation.
 
 Keep AJR_INSTALL_ROOT present: cached MCP and terminal launchers use its native executable. Rebuilding `target/release` alone does not update this installation. Task state/history stays separate; [installation profiles](installation.md#custom-directories-and-stored-data), [updates](updating.md) and [uninstallation](uninstalling.md) cover later maintenance.
 

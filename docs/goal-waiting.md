@@ -4,7 +4,7 @@
 
 An active Desktop goal must pause through its native tool while Relay work runs. If pause permission is missing, ask once: **“允许本次后台任务暂停目标，完成后继续吗？”** A natural affirmative answer is enough for the remaining rounds of this same request and goal. No fixed authorization phrase or per-round question is required. The user has verified locally that automatic pause works after approval; the new direct MCP confirmation form and full multi-round restoration workflow have separate acceptance boundaries.
 
-This is experimental source behavior, using schema v11 and 25 MCP tools. Published 0.1.11 packages do not contain it. Finish existing runs before migration, preserve the original profile and backups, and never downgrade a used database. `goal_wait_host_pause=true` advertises the supported handoff; `automatic_goal_pause_supported=false` means consent-free pause is unavailable.
+This is experimental behavior, using schema v11 and 25 MCP tools. Use runtime 0.1.12 or newer. Finish existing runs before migration, preserve the original profile and backups, and never downgrade a used database. `goal_wait_host_pause=true` advertises the supported handoff; `automatic_goal_pause_supported=false` means consent-free pause is unavailable.
 
 ## 1. Prepare this request
 

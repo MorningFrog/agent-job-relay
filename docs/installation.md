@@ -96,7 +96,7 @@ Expected: the latest published runtime version is printed. The host plugin's ins
 
 ## Profiles and existing installations
 
-The new persistent host profiles are `$XDG_STATE_HOME/agent-job-relay/codex` and `.../opencode`, falling back to `$HOME/.local/state/...`; Windows uses `%LOCALAPPDATA%\AgentJobRelay\profiles\<host>`. AJR_STATE_DIR may explicitly select a reviewed existing profile. They live outside npm/host caches and do not migrate old offline history automatically. Do not enable old and new MCP integrations together or switch profiles to hide a failure. Finish jobs before file replacement or incompatible schema migration. Current source replaces older daemons on new runtime use and restarts online daemons during applied local updates; published versions still require a manual same-profile stop. Uninstall preserves data and never stops a daemon automatically.
+The new persistent host profiles are `$XDG_STATE_HOME/agent-job-relay/codex` and `.../opencode`, falling back to `$HOME/.local/state/...`; Windows uses `%LOCALAPPDATA%\AgentJobRelay\profiles\<host>`. AJR_STATE_DIR may explicitly select a reviewed existing profile. They live outside npm/host caches and do not migrate old offline history automatically. Do not enable old and new MCP integrations together or switch profiles to hide a failure. Finish jobs before file replacement or incompatible schema migration. Current source replaces older daemons on new runtime use and restarts online daemons during applied local updates; versions before 0.1.12 still require a manual same-profile stop. Uninstall preserves data and never stops a daemon automatically.
 
 ## Quick install from an offline bundle
 

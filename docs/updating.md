@@ -2,7 +2,7 @@
 
 [Documentation index](README.md) · [Install](installation.md) · [Troubleshooting](troubleshooting.md)
 
-Use the route matching your original installation. Current source replaces an older daemon when the new runtime first starts/binds work or opens the UI. Applied local runtime updates restart an online daemon from the new installation. Historical full-skill/MCP entries need one migration refresh/reconnection. New native cached entries read current runtime instructions, and retained managed MCP connections verify/follow the updated installation; history stays in its original profile. Published versions predate automatic handover and retain the manual stop fallback below.
+Use the route matching your original installation. Current source replaces an older daemon when the new runtime first starts/binds work or opens the UI. Applied local runtime updates restart an online daemon from the new installation. Historical full-skill/MCP entries need one migration refresh/reconnection. New native cached entries read current runtime instructions, and retained managed MCP connections verify/follow the updated installation; history stays in its original profile. Versions before 0.1.12 predate automatic handover and retain the manual stop fallback below.
 
 | Installation | Update procedure |
 |---|---|
@@ -18,7 +18,7 @@ Finish active jobs and retain the original profile. Record the installed version
 
 External-task command variants are unreadable by older binaries; 0.1.12 scoped goal waiting additionally migrates the profile to schema v11. Before first use, finish active jobs and use the updated runtime for that same profile. Automatic handover refuses migration while old runs remain active. Preserve the matching runtime on both hosts and the remote target profile; do not downgrade a profile containing external-task records. See [remote task requirements](remote-execution.md).
 
-Published 0.1.11 uses schema v9; 0.1.12 scoped goal waiting uses v11, and 0.1.9 uses v6. Migration refuses an old daemon lock or launching/running jobs, and older executables refuse newer schemas. Preserve backups and never downgrade a used database. See [data maintenance](data-maintenance.md) for backup and restore.
+Published 0.1.12 and source 0.1.13 use schema v11; 0.1.11 uses v9 and 0.1.9 uses v6. No schema migration is needed from 0.1.12 to 0.1.13. Migration refuses an old daemon lock or launching/running jobs, and older executables refuse newer schemas. Preserve backups and never downgrade a used database. See [data maintenance](data-maintenance.md) for backup and restore.
 
 ## Update the terminal command
 
@@ -52,7 +52,7 @@ if ($LASTEXITCODE -ne 0) { throw "Could not remove the old marketplace registrat
 codex.cmd plugin marketplace add MorningFrog/agent-job-relay --ref "v$($AjrVersion.Trim())"
 ```
 
-Expected: the catalog is registered at the newly resolved tag. Refresh/reinstall AgentJobRelay through the host and reconnect MCP; CLI users can run `codex plugin add agent-job-relay@agent-job-relay` again. Removing this catalog registration preserves the external runtime profile/history. Reconnect MCP so the new runtime can replace the older daemon on first use. Finish old runs before an incompatible schema migration; published versions still need the manual same-profile stop.
+Expected: the catalog is registered at the newly resolved tag. Refresh/reinstall AgentJobRelay through the host and reconnect MCP; CLI users can run `codex plugin add agent-job-relay@agent-job-relay` again. Removing this catalog registration preserves the external runtime profile/history. Reconnect MCP so the new runtime can replace the older daemon on first use. Finish old runs before an incompatible schema migration; versions before 0.1.12 need the manual same-profile stop.
 
 ## Update OpenCode V1
 

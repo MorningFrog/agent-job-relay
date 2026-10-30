@@ -24,7 +24,7 @@ $ajrInstall = Join-Path $env:LOCALAPPDATA 'AgentJobRelay\plugin'
 & "$ajrInstall\relay.cmd" doctor --client plugin --check-mcp
 ```
 
-Expected: the preview identifies the chosen installation/state and marketplace entry; apply installs the native executable and `.cmd` launcher. Doctor reports a successful stdio tool check (25 tools for current source; 22 in published 0.1.11). A stopped daemon before the first submission is expected. The bundle needs no recipient Rust, Python or Node. Restart the host, install/enable the local plugin and separately verify host MCP connectivity.
+Expected: the preview identifies the chosen installation/state and marketplace entry; apply installs the native executable and `.cmd` launcher. Doctor reports a successful stdio tool check (25 tools for current source and published 0.1.12). A stopped daemon before the first submission is expected. The bundle needs no recipient Rust, Python or Node. Restart the host, install/enable the local plugin and separately verify host MCP connectivity.
 
 The default native installation is `%LOCALAPPDATA%\AgentJobRelay\plugin`; state is `%LOCALAPPDATA%\AgentJobRelay\state`. Explicit `--state-dir`/AJR_STATE_DIR and existing installation profiles retain their recorded selection. Configuration/removal preserves other entries and task history. Do not move state into a plugin/npm cache.
 
@@ -84,7 +84,7 @@ Follow [native updates and repair](updating.md#unified-install-and-update), [sam
 
 Use the new bundle's launcher, finish active jobs and preview/apply `plugin update --root <original-install> --from <new-bundle>`. Keep the recorded state. Close host MCP processes when replacing their Windows executable/cache files; Windows may retain an executable image lock. An interrupted operation retains its journal/backups; run `plugin repair --path <exact-directory>` from the new bundle to preview and finish forward after releasing the lock. Never delete a cache or switch state to hide an update failure.
 
-`daemon stop --install-root <original-install>` leaves runners independent. Current-source applied runtime updates restart an online daemon from the new installation; cache/configuration/repair operations remain separate and do not stop it. Published versions still require a manual same-profile stop. Automatic upgrade behavior has Linux regression coverage; this change has no new Windows native qualification. Normal removal keeps SQLite history/logs; independent Windows installers and WinGet distribution are not planned.
+`daemon stop --install-root <original-install>` leaves runners independent. Current-source applied runtime updates restart an online daemon from the new installation; cache/configuration/repair operations remain separate and do not stop it. Versions before 0.1.12 require a manual same-profile stop. Automatic upgrade behavior has Linux regression coverage; this change has no new Windows native qualification. Normal removal keeps SQLite history/logs; independent Windows installers and WinGet distribution are not planned.
 
 ## Execution boundaries
 

@@ -22,7 +22,7 @@ The user verified v0.1.8 with official Desktop 26.1021.3705.0, bundled Codex 0.1
 
 ## Distribution
 
-npm/GitHub 0.1.11 is public and both npm latest tags resolve to it. Full read-only public-byte/install checker evidence remains at 0.1.10. Version 0.1.12 has a reviewed sealed candidate and passing CI/OIDC preview; subsequent source Web UI/workflow changes are excluded from those bytes and require a new version/candidate. See the current [implementation status](IMPLEMENTATION_STATUS.md). No official-directory submission occurred. See [release preparation](release.md).
+npm/GitHub 0.1.12 is public and both npm latest tags resolve to it. Publication succeeded; the original Actions checker timed out on registry propagation. A local read-only audit on 2026-10-30 verifies public package bytes/channels/clean installation, matching GitHub notes/assets/receipts and the original source tag against candidate 40908803482. The failed Actions run remains unchanged. Source 0.1.13 includes later Web UI/workflow/Actions changes and requires its own CI, candidate and publisher preview. See [implementation status](IMPLEMENTATION_STATUS.md) and [release preparation](release.md). No official-directory submission occurred.
 
 ## Runtime monitoring boundary
 
@@ -38,6 +38,6 @@ The current bundled React/Vite panel has isolated Linux embedded-browser verific
 
 Direct MCP form UI, complete three-round real-model restoration, Windows goal/controller, changed-host goal recovery and long-duration savings remain unqualified. The host lacks generation/CAS and uses second-resolution timestamps, so identical same-second replacement and final verification/write/send races remain. No real chats/goals are created or changed by these fixtures. See [operation and limits](goal-waiting.md) and [backlog](TODO.md).
 
-## External tasks (0.1.12 source)
+## External tasks (0.1.12+)
 
 Linux→Windows native execution through the existing authenticated VM channel under SYSTEM verifies one launch, cwd/env/output, injected transport and local observer/daemon loss, stable local/remote IDs after reconnect and observed exact-run cancellation. This is not SSH-server, ordinary-user, machine-restart or real Desktop acceptance. Current Linux source observes a completed real GitHub Actions attempt read-only with matching conclusion, all five jobs, step counts and an attempt-specific URL; the embedded browser shows its details and opens that exact GitHub page on click. Long-name/current-step/partial-matrix cards pass 360/1280-pixel checks without horizontal overflow. In-progress/auth/attempt/detail-failure transitions use fixtures. External-task same-chat continuation and prolonged reliability remain unqualified.
