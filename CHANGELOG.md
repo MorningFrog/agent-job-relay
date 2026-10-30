@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## [0.1.17] - 2026-10-30
+
+### Added
+
+- Support requested goal feedback by temporarily restoring the original goal, delivering a bounded intermediate event, then requiring the originating Agent's native re-pause and revision-fenced confirmation on the same wait.
+- Add schema v12 feedback identities/counters, a 32-cycle group budget, 60-second minimum interval, five-minute re-pause deadline and durable cycle audits. Keep intermediate acceptance separate from final notification state.
+
+### Safety and compatibility
+
+- Prioritize all-member completion before intermediate transmission; if completion occurs during a report, finish native re-pause before the final restoration. Preserve original Job/Run/request IDs, accounting, delivery attempts and uncertain-mutation non-replay.
+- Migrate supported backups forward and fence restored controls. Finish older active runs before schema migration. IPC v1 and 25 MCP tools remain; actual Desktop UI/model and Windows goal-feedback acceptance remain separate from native fixtures and simulated-model Codex integration.
+
 ## [0.1.16] - 2026-10-30
 
 ### Added

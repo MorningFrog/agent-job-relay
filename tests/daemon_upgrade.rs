@@ -215,5 +215,5 @@ async fn incompatible_schema_upgrade_leaves_old_daemon_and_active_runner_untouch
             .unwrap(),
         9
     );
-    db.pragma_update(None, "user_version", 11).unwrap();
+    db.pragma_update(None, "user_version", 12).unwrap();
 }

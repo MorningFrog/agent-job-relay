@@ -4,7 +4,7 @@
 
 An active Desktop goal must pause through its native tool while Relay work runs. If pause permission is missing, ask once: **“允许本次后台任务暂停目标，完成后继续吗？”** A natural affirmative answer is enough for the remaining rounds of this same request and goal. No fixed authorization phrase or per-round question is required. The user has verified locally that automatic pause works after approval; the new direct MCP confirmation form and full multi-round restoration workflow have separate acceptance boundaries.
 
-This is experimental behavior, using schema v11 and 25 MCP tools. Use runtime 0.1.12 or newer. Finish existing runs before migration, preserve the original profile and backups, and never downgrade a used database. `goal_wait_host_pause=true` advertises the supported handoff; `automatic_goal_pause_supported=false` means consent-free pause is unavailable.
+This is experimental behavior, with 25 MCP tools. Ordinary goal waiting requires runtime 0.1.12+; source 0.1.17 adds intermediate feedback and schema v12. Finish existing runs before migration, preserve the original profile and backups, and never downgrade a used database. `goal_wait_host_pause=true` advertises the native handoff and `goal_wait_feedback=true` the temporary-restoration protocol; neither proves host/model acceptance. `automatic_goal_pause_supported=false` means consent-free pause is unavailable.
 
 ## 1. Prepare this request
 
@@ -54,6 +54,16 @@ Replace `2` with the admission revision. Only `waiting` acknowledges the complet
 
 Missing pause acknowledgement expires with `attention` after five minutes. Retry a lost Relay confirmation using its original revision, or an uncertain admission using the original binding/keys/specs. Never repeat native pause or execution to recover a lost acknowledgement. Direct `connect --wait-goal` without scoped options and `start --wake --wait-goal` retain the single-handoff compatibility path; scoped requests are preferred for multiple rounds.
 
+## 5. Report intermediate feedback and pause again
+
+When the user requests stage or exception feedback as well as the pause/restoration workflow, configure the ordinary initial `notify_agent` monitor rules against an actual producer. Source 0.1.17 restores the original paused goal only when a qualifying event exists, then sends a feedback notification addressed to that same chat. Completion-only requests need no notifying rules. The original request approval covers these bounded cycles without another question or job admission.
+
+Deduplicate the delivery, inspect `job_goal_wait` once and match the original Job/Run. `status=resumed`, a non-null `feedback` object and `host_pause_required=true` mean temporary restoration. Read bounded evidence and give the requested report, then use this chat's native `update_goal(status="paused")` and confirm its successful acknowledgement with the same `confirm_paused=true` call and the currently observed revision. Only `waiting` completes the re-pause handshake; end the turn immediately. Keep the original request/wait/member IDs. Do not submit another command or repeat an uncertain native mutation.
+
+Complete this handshake even if members finish during the report; Relay then restores once for the final merged result. If all members finish before intermediate transmission, the final notification supersedes that unsent feedback and no intermediate re-pause is requested. Read the current phase rather than inferring it from a milestone label. Intermediate acceptance never consumes `notification_accepted`, which remains the final merged-notification flag.
+
+`feedback_policy` exposes at most 32 attempted temporary restorations per wait, a minimum 60-second interval and a five-minute native re-pause deadline. Older unsent alerts are coalesced with their evidence/IDs/history retained; producer/rule cooldowns remain independent. Clock rollback delays subsequent cycles. Exhausting the feedback budget leaves local evidence and final completion available. Missing/uncertain re-pause, uncertain restoration and cancellation close automatic control while jobs remain retained; no background controller silently pauses the host. The isolated actual-Codex test uses a simulated Agent/model/endpoint; real Desktop UI/model and Windows acceptance remain separate.
+
 ## Completion and recovery
 
 | Situation | Relay behavior |
@@ -69,7 +79,7 @@ Missing pause acknowledgement expires with `attention` after five minutes. Retry
 | Binding/controller/profile/image replaced | Require manual goal handling; never move consent or waits |
 | Backup restored | Invalidate consent and fence all restored controls/grouped notifications |
 
-Wait cancellation and manual member stops close future continuation, without stopping other members. Batches freeze accepted membership; rejected/uncommitted items cannot join on retry. Local monitoring/stopping remains available, while `notify_agent` rules are rejected for goal-wait members. Running groups have no separate deadline beyond member timeouts; completion must resolve within 24 hours of the last member outcome. Consent and wait history each have a 10,000-record quota. Delivery expiry/attempts and membership/audits survive retries and archival. Host acceptance is not proof of Agent execution.
+Wait cancellation and manual member stops close future continuation, without stopping other members. Batches freeze accepted membership; rejected/uncommitted items cannot join on retry. Local monitoring/stopping remains available; closed waits cannot enable notifying rules. Running groups have no separate deadline beyond member timeouts, except each temporary feedback restoration's native re-pause deadline; completion must resolve within 24 hours of the last member outcome. Consent and wait history each have a 10,000-record quota. Delivery expiry/attempts and membership/audits survive retries and archival. Host acceptance is not proof of Agent execution.
 
 ## Runtime updates and host limits
 

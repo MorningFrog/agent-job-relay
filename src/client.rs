@@ -222,10 +222,10 @@ fn upgrade_preflight(config: &Config) -> Result<()> {
         rusqlite::Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
     let version: i64 = db.pragma_query_value(None, "user_version", |r| r.get(0))?;
     ensure!(
-        version <= 11,
+        version <= 12,
         "database schema is newer than this executable; downgrade refused"
     );
-    if version > 0 && version < 11 {
+    if version > 0 && version < 12 {
         let running: bool = db.query_row(
             "SELECT EXISTS(SELECT 1 FROM jobs WHERE status IN ('launching','running'))",
             [],

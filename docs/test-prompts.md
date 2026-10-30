@@ -36,7 +36,7 @@ Scan my home directory and count the files and total size. Use AgentJobRelay to 
 
 ## Verify real-Agent mid-run feedback
 
-Use a new ordinary chat without an active goal. Goal-wait members reject intermediate Agent notifications. Run this for a relevant feedback change or a new environment; user-confirmed acceptance is in [live verification](live-e2e.md#real-agent-mid-run-feedback).
+Use a new ordinary chat without an active goal for this baseline. Goal feedback has a separate temporary-restoration/native re-pause protocol below. Run this for a relevant feedback change or a new environment; user-confirmed ordinary acceptance is in [live verification](live-e2e.md#real-agent-mid-run-feedback).
 
 ```text
 Use AgentJobRelay to create and run a controlled background test under this project's .tmp/ directory. It should take about three minutes, with three stages of 60 seconds each, recording its start, stage completions and exit times and exposing detectable stage progress.
@@ -49,6 +49,16 @@ In the final summary, say whether both intermediate reports occurred before task
 ```
 
 Expected: two automatic same-chat reports before the original task exits, yielding between reports, followed by a final report after exit, without human continuation or Agent polling. See [manual acceptance](manual-testing.md#optional-real-agent-mid-run-feedback) for evidence boundaries.
+
+## Verify goal feedback and native re-pause (source 0.1.17+)
+
+```text
+Within this chat's existing active goal, use AgentJobRelay to run one controlled three-minute background task under this project's .tmp/ directory, with three 60-second stages and observable stage progress. I authorize pausing this goal while waiting, temporarily restoring it to report the first two stage completions, and natively pausing it again after each report. After the original task exits, restore the goal and report the final result.
+
+Keep the same goal, request and Job/Run throughout. Do not poll, launch replacement work or ask again for each feedback cycle. Report actual task state, complete each native re-pause confirmation and end the turn while waiting. If the task finishes during a feedback report, complete that re-pause handshake before handling the final notification. Preserve test files under .tmp/ and explain any host limitation without changing user configuration.
+```
+
+Expected: the same goal is active during each report and paused between reports, with unchanged original work, bounded event handling and one final merged notification. Actual UI/model acceptance is separate from the simulated integration in [live verification](live-e2e.md#goal-waiting-protocol-proof).
 
 ## Scan multiple directories together
 

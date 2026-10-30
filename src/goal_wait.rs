@@ -8,6 +8,7 @@ use crate::{
 use anyhow::{Context, Result, ensure};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde_json::{Value, json};
+mod feedback;
 
 const OPEN: &str = "'prepared','sealed','pausing','waiting','resuming'";
 const DAY: i64 = 86_400_000;
@@ -24,6 +25,10 @@ struct Wait {
     revision: i64,
     expires: i64,
     session_snapshot: String,
+    feedback_event: Option<String>,
+    feedback_delivery: Option<String>,
+    feedback_count: u32,
+    feedback_last_at: i64,
 }
 fn read(db: &Connection, id: &str) -> Result<Wait> {
     let (session_key, controller, expected, paused, status, revision, expires) = db.query_row(
@@ -33,6 +38,10 @@ fn read(db: &Connection, id: &str) -> Result<Wait> {
         "SELECT session_snapshot FROM goal_waits WHERE id=?",
         [id],
         |r| r.get(0),
+    )?;
+    let (feedback_event, feedback_delivery, feedback_count, feedback_last_at) = db.query_row(
+        "SELECT feedback_event,feedback_delivery,feedback_count,feedback_last_at FROM goal_waits WHERE id=?",
+        [id], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?)),
     )?;
     Ok(Wait {
         id: id.into(),
@@ -44,6 +53,10 @@ fn read(db: &Connection, id: &str) -> Result<Wait> {
         revision,
         expires,
         session_snapshot,
+        feedback_event,
+        feedback_delivery,
+        feedback_count,
+        feedback_last_at,
     })
 }
 fn audit(db: &Connection, id: &str, revision: i64, status: &str, detail: &str) -> Result<()> {
@@ -79,6 +92,21 @@ fn brief(db: &Connection, id: &str) -> Result<Value> {
             "Work is admitted, but goal pause is not yet acknowledged. Inspect this wait before claiming automatic waiting.",
     });
     value["host_pause_required"] = json!(value["status"] == "sealed");
+    let record = read(db, id)?;
+    value["feedback_count"] = json!(record.feedback_count);
+    value["feedback_policy"] = json!({"max_cycles":feedback::LIMIT,"min_interval_seconds":feedback::COOLDOWN/1000,"repause_deadline_seconds":PAUSE_ACK_TIMEOUT/1000});
+    value["feedback"] = match (&record.feedback_event, &record.feedback_delivery) {
+        (Some(event), Some(delivery)) => {
+            json!({"cycle":record.feedback_count,"event_id":event,"delivery_id":delivery})
+        }
+        _ => Value::Null,
+    };
+    if record.status == "resumed" && record.feedback_delivery.is_some() {
+        value["host_pause_required"] = json!(true);
+        value["next_step"] = json!(
+            "The original goal was temporarily restored for this feedback cycle. Match Job/Run/delivery, inspect bounded evidence and report requested feedback. Then use this chat's native update_goal(status='paused') under the original pause/feedback authorization, and confirm with job_goal_wait(confirm_paused=true, expected_revision=this revision). Do not submit or replay work. Complete this re-pause handshake even if members finished during the report; Relay will then restore once for the final merged outcome. If native pause fails or is uncertain, cancel this wait and report the limitation; never replay the native mutation."
+        );
+    }
     Ok(value)
 }
 fn view(db: &Connection, id: &str) -> Result<Value> {
@@ -151,10 +179,6 @@ pub(crate) fn attach(
     ensure!(
         spec.idempotency_key.is_some(),
         "goal-wait submissions require a stable idempotency key"
-    );
-    ensure!(
-        !spec.monitor_rules.iter().any(|r| r.notify_agent),
-        "goal waiting groups terminal notifications; running rules may alert locally but cannot notify_agent"
     );
     let count: i64 = db.query_row(
         "SELECT count(*) FROM goal_wait_jobs WHERE wait_id=?",
@@ -302,7 +326,9 @@ impl Store {
             return self.goal_wait(id, false, None).await;
         }
         ensure!(
-            record.status == "sealed" && expected_revision == Some(record.revision),
+            (record.status == "sealed"
+                || (record.status == "resumed" && record.feedback_delivery.is_some()))
+                && expected_revision == Some(record.revision),
             "goal wait phase or revision changed; inspect before confirming pause"
         );
         ensure!(
@@ -324,9 +350,12 @@ impl Store {
         self.call(move |db| {
             let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
             let current = read(&tx, &expected.id)?;
-            ensure!(current.status == "sealed" && current.revision == expected.revision && current.expires > now(), "goal wait changed before pause confirmation");
+            ensure!(current.status == expected.status && current.revision == expected.revision && current.expires > now() && current.feedback_delivery == expected.feedback_delivery, "goal wait changed before pause confirmation");
             binding_matches(&current, &crate::session::read_session(&tx, &current.session_key)?)?;
-            tx.execute("UPDATE goal_waits SET status='waiting',revision=revision+1,paused=?,updated=?,next_at=?,expires=? WHERE id=? AND revision=?",params![serde_json::to_string(&paused)?,now(),now(),i64::MAX,current.id,current.revision])?;
+            tx.execute("UPDATE goal_waits SET status='waiting',revision=revision+1,paused=?,updated=?,next_at=?,expires=?,feedback_event=NULL,feedback_delivery=NULL WHERE id=? AND revision=?",params![serde_json::to_string(&paused)?,now(),now(),i64::MAX,current.id,current.revision])?;
+            if let Some(delivery)=&current.feedback_delivery {
+                audit(&tx,&current.id,current.revision+1,"waiting",&format!("feedback cycle {} native re-pause acknowledged; delivery {delivery}",current.feedback_count))?;
+            }
             audit(&tx,&current.id,current.revision+1,"waiting","originating Agent acknowledged native host pause; original paused goal verified")?;
             let result = view(&tx, &current.id)?;
             tx.commit()?;
@@ -401,6 +430,10 @@ pub(crate) fn restore_fence(db: &Connection) -> Result<()> {
 pub(crate) fn target_allowed(db: &Connection, job: &str, session: &str) -> Result<bool> {
     let original:Option<String>=db.query_row("SELECT w.session_key FROM goal_wait_jobs m JOIN goal_waits w ON w.id=m.wait_id WHERE m.job_id=?",[job],|r|r.get(0)).optional()?;
     Ok(original.is_none_or(|key| key == session))
+}
+pub(crate) fn notifying_rule_allowed(db: &Connection, job: &str) -> Result<()> {
+    ensure!(!db.query_row("SELECT EXISTS(SELECT 1 FROM goal_wait_jobs m JOIN goal_waits w ON w.id=m.wait_id WHERE m.job_id=? AND w.status IN ('cancelled','suppressed','attention'))",[job],|r|r.get::<_,bool>(0))?,"goal wait is closed; only local monitoring remains available");
+    Ok(())
 }
 async fn close(store: &Store, record: &Wait, state: &str, detail: &str) -> Result<()> {
     let record = record.clone();
@@ -530,7 +563,7 @@ pub async fn progress(store: &Store, id: &str) -> Result<()> {
                 store,
                 &record,
                 "attention",
-                "goal restored but notification expired; inspect results manually",
+                if record.feedback_delivery.is_some() {"feedback cycle native re-pause was not confirmed before its deadline; jobs retained, automatic goal control stopped"} else {"goal restored but notification expired; inspect results manually"},
             )
             .await;
         }
@@ -569,7 +602,14 @@ pub async fn progress(store: &Store, id: &str) -> Result<()> {
                         .collect::<Result<Vec<_>>>()
                 })
                 .await?;
-            if jobs.is_empty() || jobs.iter().any(|j| !j.status.is_terminal()) {
+            let complete = !jobs.is_empty() && jobs.iter().all(|j| j.status.is_terminal());
+            let selection = if complete {
+                None
+            } else {
+                let record = record.clone();
+                store.read(move |db| feedback::select(db, &record)).await?
+            };
+            if !complete && selection.is_none() {
                 let id = record.id.clone();
                 let revision = record.revision;
                 store
@@ -587,11 +627,15 @@ pub async fn progress(store: &Store, id: &str) -> Result<()> {
                 .iter()
                 .max_by_key(|j| j.run.ended_at.unwrap_or(j.updated_at))
                 .context("missing member")?;
-            let expiry = representative
-                .run
-                .ended_at
-                .unwrap_or(representative.updated_at)
-                .saturating_add(DAY);
+            let expiry = if selection.is_some() {
+                now() + PAUSE_ACK_TIMEOUT
+            } else {
+                representative
+                    .run
+                    .ended_at
+                    .unwrap_or(representative.updated_at)
+                    .saturating_add(DAY)
+            };
             if now() >= expiry {
                 return close(
                     store,
@@ -611,6 +655,27 @@ pub async fn progress(store: &Store, id: &str) -> Result<()> {
             }
             if let Err(e) = binding_matches(&record, &session) {
                 return retry_read(store, &record, e).await;
+            }
+            // Opted-in expired leases renew only under the actual delivery
+            // claim. Pre-probing them here would prevent that claim forever.
+            if selection.is_some()
+                && session.expires_at <= now()
+                && !session.registration.renew_on_delivery
+            {
+                return retry_read(
+                    store,
+                    &record,
+                    anyhow::anyhow!(
+                        "feedback session lease expired; refresh the original binding explicitly"
+                    ),
+                )
+                .await;
+            }
+            if selection.is_some()
+                && session.expires_at > now()
+                && let Err(error) = crate::adapters::probe(&session).await
+            {
+                return retry_read(store, &record, error).await;
             }
             if let Err(error) = record.controller.validate_async().await {
                 return close(
@@ -638,7 +703,12 @@ pub async fn progress(store: &Store, id: &str) -> Result<()> {
                 }
                 Err(e) => return retry_read(store, &record, e).await,
             };
-            let Some(record) = phase(store, &record, "resuming", None).await? else {
+            let resumed = if let Some(selection) = &selection {
+                feedback::begin(store, &record, selection).await?
+            } else {
+                phase(store, &record, "resuming", None).await?
+            };
+            let Some(record) = resumed else {
                 return Ok(());
             };
             match record
@@ -651,10 +721,10 @@ pub async fn progress(store: &Store, id: &str) -> Result<()> {
                     let record = record.clone();
                     store.call(move|db|{
                         let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-                        let n=tx.execute("UPDATE goal_waits SET status='resumed',revision=revision+1,updated=?,expires=?,detail='goal restored; host notification pending' WHERE id=? AND revision=?",params![now(),expiry,record.id,record.revision])?;
+                        let n=tx.execute("UPDATE goal_waits SET status='resumed',revision=revision+1,updated=?,expires=?,detail=? WHERE id=? AND revision=?",params![now(),expiry,if record.feedback_delivery.is_some() {"goal temporarily restored; feedback and native re-pause pending"} else {"goal restored; host notification pending"},record.id,record.revision])?;
                         if n==1 {
                             audit(&tx,&record.id,record.revision+1,"resumed","status-only restoration acknowledged; accounting preserved")?;
-                            tx.execute("UPDATE deliveries SET status='cancelled',failure_kind='goal_wait',last_error='combined into one goal-wait completion' WHERE status IN ('pending','retry_wait','dead_letter') AND target_id IN (SELECT t.id FROM targets t JOIN goal_wait_jobs m ON m.job_id=t.job_id WHERE m.wait_id=? AND (m.job_id<>? OR t.session_key<>?))",params![record.id,job,record.session_key])?;
+                            if record.feedback_delivery.is_none() {feedback::merge_terminal(&tx,&record.id,&job,&record.session_key)?;}
                         }
                         tx.commit()?;Ok(())
                     }).await?;
@@ -737,6 +807,25 @@ pub(crate) async fn before_delivery(store: &Store, claim: &crate::delivery::Clai
     if record.status != "resumed" || record.session_key != claim.session.key {
         return Ok(false);
     }
+    if record.expires <= now() {
+        close(
+            store,
+            &record,
+            "attention",
+            "goal notification/re-pause deadline expired before transmission",
+        )
+        .await?;
+        return Ok(false);
+    }
+    if record
+        .feedback_delivery
+        .as_deref()
+        .is_some_and(|id| id != claim.delivery.id)
+        || (claim.event["goal_wait_phase"] == "feedback"
+            && record.feedback_delivery.as_deref() != Some(claim.delivery.id.as_str()))
+    {
+        return Ok(false);
+    }
     if !record.controller.host_pause {
         close(store, &record, "attention", "legacy storage-only pause cannot authorize completion notification; use host goal controls explicitly").await?;
         return Ok(false);
@@ -767,7 +856,14 @@ pub(crate) async fn before_delivery(store: &Store, claim: &crate::delivery::Clai
     }
     let paused = record.paused.as_ref().context("missing pause identity")?;
     match record.controller.read().await? {
-        Some(current) if paused.same_identity(&current) && current.status == "active" => Ok(true),
+        Some(current) if paused.same_identity(&current) && current.status == "active" => {
+            if record.feedback_delivery.is_some()
+                && feedback::promote_terminal(store, &record, claim).await?
+            {
+                return Ok(false);
+            }
+            Ok(true)
+        }
         _ => {
             close(
                 store,
@@ -781,5 +877,5 @@ pub(crate) async fn before_delivery(store: &Store, claim: &crate::delivery::Clai
     }
 }
 pub(crate) fn claim_allowed(db: &Connection, claim: &crate::delivery::Claim) -> Result<bool> {
-    Ok(!db.query_row("SELECT EXISTS(SELECT 1 FROM goal_wait_jobs m JOIN goal_waits w ON w.id=m.wait_id WHERE m.job_id=? AND (w.status<>'resumed' OR w.notified<>0 OR w.session_key<>?))",params![claim.event["job_id"].as_str(),claim.session.key],|r|r.get::<_,bool>(0))?)
+    Ok(!db.query_row("SELECT EXISTS(SELECT 1 FROM goal_wait_jobs m JOIN goal_waits w ON w.id=m.wait_id WHERE m.job_id=?1 AND (w.status<>'resumed' OR w.notified<>0 OR w.expires<=?5 OR w.session_key<>?2 OR (w.feedback_delivery IS NOT NULL AND w.feedback_delivery<>?3) OR (w.feedback_delivery IS NULL AND ?4='monitor_alert')))",params![claim.event["job_id"].as_str(),claim.session.key,claim.delivery.id,claim.event["kind"].as_str(),now()],|r|r.get::<_,bool>(0))?)
 }

@@ -61,7 +61,7 @@ Each rule revision triggers once; enable it again to rearm. At most 16 rule iden
 
 ## Mid-run feedback (0.1.12+)
 
-Use existing flushed marker rules for a few known milestones, or `AJR_PROGRESS` frames (runtime 0.1.12+) and repeated stage/step/metric conditions. CLI `--progress`, MCP and Web share the same durable rules and snapshots; terminal events retain bounded milestone summaries. The [progress guide](progress.md) includes the versioned protocol, limits, runtime capability check and pinned-run reference checker. Ordinary literal/time rules keep the once-per-revision policy. A cooldown limits event-triggered feedback; it does not schedule periodic summaries. Goal-wait members still reject `notify_agent`.
+Use existing flushed marker rules for a few known milestones, or `AJR_PROGRESS` frames (runtime 0.1.12+) and repeated stage/step/metric conditions. CLI `--progress`, MCP and Web share the same durable rules and snapshots; terminal events retain bounded milestone summaries. The [progress guide](progress.md) includes the versioned protocol, limits, runtime capability check and pinned-run reference checker. Ordinary literal/time rules keep the once-per-revision policy. A cooldown limits event-triggered feedback; it does not schedule periodic summaries. Source 0.1.17 goal-wait notifying rules use [temporary restoration/report/native re-pause](goal-waiting.md#5-report-intermediate-feedback-and-pause-again), with a separate final notification.
 
 ## Stop and observe the result
 

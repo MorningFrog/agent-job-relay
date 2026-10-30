@@ -98,7 +98,7 @@ impl Store {
                     if readonly {
                         ensure!(
                             db.pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0))?
-                                == 11,
+                                == 12,
                             "offline schema is unsupported; use the matching runtime"
                         );
                     }
@@ -141,7 +141,7 @@ impl Store {
             .await?;
         // Older daemons allocate rowids independently of the archive high-water
         // marks. Never migrate underneath one or an older in-flight runner.
-        let _migration_lock = if version < 11 {
+        let _migration_lock = if version < 12 {
             Some(
                 self.config
                     .daemon_lock()
@@ -153,10 +153,10 @@ impl Store {
         self.call(|db| {
             let v: i64 = db.pragma_query_value(None, "user_version", |r| r.get(0))?;
             ensure!(
-                v <= 11,
+                v <= 12,
                 "database schema is newer than this executable; downgrade refused"
             );
-            if v > 0 && v < 11 {
+            if v > 0 && v < 12 {
                 let running:bool=db.query_row("SELECT EXISTS(SELECT 1 FROM jobs WHERE status IN ('launching','running'))",[],|r|r.get(0))?;
                 ensure!(!running,"finish active runs with the previous runtime before upgrading the data schema");
             }
@@ -210,6 +210,7 @@ impl Store {
             }
             if v < 10 { db.execute_batch(include_str!("goal_wait.sql"))?; }
             if v < 11 { db.execute_batch(include_str!("goal_consent.sql"))?; }
+            if v < 12 { db.execute_batch(include_str!("goal_feedback.sql"))?; }
             Ok(())
         })
         .await

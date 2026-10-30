@@ -164,14 +164,7 @@ pub(crate) fn add_rule(db: &Connection, job: &str, spec: &RuleSpec) -> Result<St
         "monitor rule quota (16, including removed rules) reached"
     );
     if spec.notify_agent {
-        ensure!(
-            !db.query_row(
-                "SELECT EXISTS(SELECT 1 FROM goal_wait_jobs WHERE job_id=?)",
-                [job],
-                |r| r.get::<_, bool>(0)
-            )?,
-            "goal-wait members support local rules only; Agent notification is merged at completion"
-        );
+        crate::goal_wait::notifying_rule_allowed(db, job)?;
         ensure!(
             read_job(db, job)?.session.is_some(),
             "notify_agent requires an explicitly bound job session"
@@ -240,7 +233,7 @@ impl Store {
                         };
                         spec.validate()?;
                         j.command.validate_rule(&spec)?;
-                        if spec.notify_agent {ensure!(j.session.is_some(),"notify_agent requires an explicitly bound job session");ensure!(!tx.query_row("SELECT EXISTS(SELECT 1 FROM goal_wait_jobs WHERE job_id=?)",[&key],|r|r.get::<_,bool>(0))?,"goal-wait members support local rules only");}
+                        if spec.notify_agent {crate::goal_wait::notifying_rule_allowed(&tx,&key)?;ensure!(j.session.is_some(),"notify_agent requires an explicitly bound job session");}
                         tx.execute("UPDATE monitor_rules SET revision=revision+1,spec=?,enabled=?,deleted=? WHERE id=?",params![serde_json::to_string(&spec)?,enabled,deleted,rule_id])?;
                         audit(&tx,&key,rule_id,expected+1,json!({"before":old,"after":{"spec":spec,"enabled":enabled,"deleted":deleted}}))?;
                     }

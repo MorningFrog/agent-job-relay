@@ -87,10 +87,36 @@ pub(crate) fn summarize(db: &Connection, detail: &Value) -> Result<Value> {
             "terminal",
             "The run has ended; rules cannot produce new mid-run feedback. Inspect retained events and deliveries.",
         )
+    } else if goal_wait
+        && matches!(
+            detail["goal_wait"]["status"].as_str(),
+            Some("cancelled" | "suppressed" | "attention")
+        )
+    {
+        (
+            "goal_wait_closed",
+            "This goal wait is closed; local monitoring may continue but no further automatic goal control or notification is scheduled.",
+        )
+    } else if goal_wait
+        && notifying > 0
+        && detail["goal_wait"]["feedback_count"].as_u64().unwrap_or(0)
+            >= detail["goal_wait"]["feedback_policy"]["max_cycles"]
+                .as_u64()
+                .unwrap_or(u64::MAX)
+    {
+        (
+            "goal_feedback_exhausted",
+            "This wait has reached its temporary-restoration budget; local evidence and final completion remain available.",
+        )
+    } else if goal_wait && notifying > 0 {
+        (
+            "goal_feedback",
+            "Notifying rules use bounded temporary goal restoration. The Agent must report, acknowledge native re-pause and return this same group to waiting; final completion is separate.",
+        )
     } else if goal_wait {
         (
             "goal_completion_only",
-            "Goal-wait members permit local rules only; Agent continuation is merged at member completion.",
+            "No notifying rule is enabled for this goal-wait member; Agent continuation is merged at member completion.",
         )
     } else if configured == 0 {
         (

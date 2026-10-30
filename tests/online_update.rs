@@ -305,7 +305,7 @@ async fn compatible_daemon_handover_preserves_active_run_and_refuses_schema_mism
         .output()
         .await
         .unwrap();
-    database.pragma_update(None, "user_version", 11).unwrap();
+    database.pragma_update(None, "user_version", 12).unwrap();
     assert!(!refused.status.success());
     assert!(String::from_utf8_lossy(&refused.stderr).contains("schema"));
     assert_ne!(r.cli(&["doctor"]).await["daemon"], "stopped");

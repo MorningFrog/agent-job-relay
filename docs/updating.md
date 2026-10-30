@@ -47,7 +47,7 @@ Use the same launcher and profile to check `--version`, `doctor` and `list`. Fin
 
 Runtime 0.1.12+ replaces older same-profile daemons on runtime-starting operations, including session binding/submission and `ui`; applied native runtime updates also restart an online daemon. Equal/newer peers are reused. Doctor and ordinary read-only queries do not start or replace daemons. Versions before 0.1.12 need a manual same-profile `daemon stop` after their jobs finish; an updated native bundle can select that profile with `daemon stop --install-root <original-installation>`.
 
-Current storage is schema v11, unchanged since 0.1.12. Older profiles migrate only after old daemons stop and old runs finish. Older binaries refuse newer schemas and may not understand external-task records. Preserve backups, never downgrade a used database and keep matching runtimes/target identity for remote tasks. See [data maintenance](data-maintenance.md) and [remote task requirements](remote-execution.md).
+Current storage is schema v12 in source 0.1.17; 0.1.12–0.1.16 use v11. Older profiles migrate only after old daemons stop and old runs finish. Older binaries refuse newer schemas and may not understand external-task records. Preserve backups, never downgrade a used database and keep matching runtimes/target identity for remote tasks. See [data maintenance](data-maintenance.md) and [remote task requirements](remote-execution.md).
 
 ## Update the terminal command
 

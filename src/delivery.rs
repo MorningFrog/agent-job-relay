@@ -112,6 +112,9 @@ impl Store {
         let mut event=tx.query_row("SELECT id,job_id,run_id,kind,at,seq FROM events WHERE id=?",[&delivery.event_id],|r|Ok(json!({"event_id":r.get::<_,String>(0)?,"job_id":r.get::<_,String>(1)?,"run_id":r.get::<_,String>(2)?,"kind":r.get::<_,String>(3)?,"at":r.get::<_,i64>(4)?,"sequence":r.get::<_,i64>(5)?,"untrusted_output":true})))?;
         if let Some(wait)=crate::goal_wait::summary_for_job(&tx,event["job_id"].as_str().unwrap_or(""))? {
             event["goal_wait_id"]=wait["goal_wait_id"].clone();event["goal_wait_jobs"]=wait["jobs"].clone();
+            event["goal_wait_phase"]=json!(if wait["feedback"]["delivery_id"]==delivery.id {"feedback"} else {"completion"});
+            event["goal_wait_revision"]=wait["revision"].clone();
+            event["goal_wait_feedback"]=wait["feedback"].clone();
         }
         tx.commit()?;Ok(Some(Claim{delivery,token,session,event}))
     }).await
@@ -120,7 +123,7 @@ impl Store {
         self.call(move|db|{
         let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;let t=now();
         let goal_cancelled=!crate::goal_wait::claim_allowed(&tx,&c)?;
-        let obsolete=c.event["kind"]=="monitor_alert" && tx.query_row("SELECT EXISTS(SELECT 1 FROM jobs WHERE id=? AND status IN ('completed','failed','cancelled','timeout','orphaned'))",[c.event["job_id"].as_str().unwrap_or("")],|r|r.get::<_,bool>(0))?;
+        let obsolete=c.event["kind"]=="monitor_alert" && c.event["goal_wait_phase"]!="feedback" && tx.query_row("SELECT EXISTS(SELECT 1 FROM jobs WHERE id=? AND status IN ('completed','failed','cancelled','timeout','orphaned'))",[c.event["job_id"].as_str().unwrap_or("")],|r|r.get::<_,bool>(0))?;
         let (state,error,kind,next_at)=match outcome {
             Ok(s)=>{ensure!(matches!(s,"accepted_by_host"|"notification_recorded"),"invalid adapter acknowledgement");(s,None,None,t)},
             Err(e)=>{
@@ -133,7 +136,7 @@ impl Store {
         };
         let n=tx.execute("UPDATE deliveries SET status=?,last_error=?,failure_kind=?,next_at=?,token=NULL,lease_until=NULL WHERE id=? AND status='leased' AND token=? AND lease_until>?",params![state,error,kind,next_at,c.delivery.id,c.token,t])?;
         if n==1 {tx.execute("UPDATE delivery_attempts SET ended=?,outcome=?,error=? WHERE delivery_id=? AND token=?",params![t,if obsolete&&state=="cancelled"{"superseded"}else{state},error,c.delivery.id,c.token])?;}
-        if n==1 && state=="accepted_by_host" {
+        if n==1 && state=="accepted_by_host" && c.event["goal_wait_phase"]!="feedback" {
             let changed=tx.execute("UPDATE goal_waits SET notified=1,revision=revision+1,updated=? WHERE id=(SELECT wait_id FROM goal_wait_jobs WHERE job_id=?) AND notified=0",params![t,c.event["job_id"].as_str()])?;
             if changed==1 {tx.execute("INSERT INTO goal_wait_audits(wait_id,revision,at,status,detail) SELECT id,revision,?,status,'merged completion accepted by host; model execution unconfirmed' FROM goal_waits WHERE id=(SELECT wait_id FROM goal_wait_jobs WHERE job_id=?)",params![t,c.event["job_id"].as_str()])?;}
         }
@@ -154,9 +157,9 @@ fn candidate(db: &rusqlite::Connection, at: i64) -> Result<Option<(String, Strin
     // registrations. Other chats can progress while this destination is slow.
     Ok(db.query_row(
         "SELECT d.id,t.session_key FROM deliveries d
-         JOIN targets t ON t.id=d.target_id JOIN sessions s ON s.key=t.session_key
+         JOIN targets t ON t.id=d.target_id JOIN sessions s ON s.key=t.session_key JOIN events e ON e.id=d.event_id
          WHERE t.active=1 AND d.expires>?1
-         AND NOT EXISTS(SELECT 1 FROM goal_wait_jobs gm JOIN goal_waits gw ON gw.id=gm.wait_id WHERE gm.job_id=t.job_id AND (gw.status<>'resumed' OR gw.notified<>0 OR gw.session_key<>t.session_key))
+         AND NOT EXISTS(SELECT 1 FROM goal_wait_jobs gm JOIN goal_waits gw ON gw.id=gm.wait_id WHERE gm.job_id=t.job_id AND (gw.status<>'resumed' OR gw.notified<>0 OR gw.expires<=?1 OR gw.session_key<>t.session_key OR (gw.feedback_delivery IS NOT NULL AND gw.feedback_delivery<>d.id) OR (gw.feedback_delivery IS NULL AND e.kind='monitor_alert')))
          AND ((d.status IN ('pending','retry_wait') AND d.next_at<=?1)
               OR (d.status='leased' AND d.lease_until<=?1))
          AND NOT EXISTS(SELECT 1 FROM deliveries busy
@@ -265,13 +268,21 @@ async fn deliver_claim(store: Store, mut claim: Claim) -> Result<()> {
 
 // Keep live claims until transport completion so logical-chat exclusion remains
 // intact. On recovery, fence expired claims before selecting another delivery.
-const OBSOLETE_ALERTS: &str = "SELECT d.id FROM deliveries d JOIN events e ON e.id=d.event_id JOIN jobs j ON j.id=e.job_id WHERE e.kind='monitor_alert' AND j.status IN ('completed','failed','cancelled','timeout','orphaned') AND (?1 IS NULL OR j.id=?1) AND (d.status IN ('pending','retry_wait') OR (d.status='leased' AND d.lease_until<=?2))";
+const OBSOLETE_ALERTS: &str = "SELECT d.id FROM deliveries d JOIN events e ON e.id=d.event_id JOIN jobs j ON j.id=e.job_id WHERE e.kind='monitor_alert' AND j.status IN ('completed','failed','cancelled','timeout','orphaned') AND NOT EXISTS(SELECT 1 FROM goal_waits gw WHERE gw.feedback_delivery=d.id AND gw.status IN ('resuming','resumed')) AND (?1 IS NULL OR j.id=?1) AND (d.status IN ('pending','retry_wait') OR (d.status='leased' AND d.lease_until<=?2))";
 pub(crate) fn supersede_alerts(
     db: &rusqlite::Connection,
     job: Option<&str>,
     at: i64,
 ) -> Result<()> {
-    db.execute(&format!("UPDATE delivery_attempts SET ended=?2,outcome='superseded',error='monitor alert superseded; expired in-flight effects are unconfirmed' WHERE ended IS NULL AND delivery_id IN ({OBSOLETE_ALERTS})"),params![job,at])?;
-    db.execute(&format!("UPDATE deliveries SET status='cancelled',token=NULL,lease_until=NULL,last_error='monitor alert superseded by terminal result' WHERE id IN ({OBSOLETE_ALERTS})"),params![job,at])?;
+    // Legacy-schema fixtures/owners can finish an existing run before migration;
+    // they have no goal-feedback columns and must not access the new contract.
+    let version: i64 = db.pragma_query_value(None, "user_version", |r| r.get(0))?;
+    let query = if version >= 12 {
+        OBSOLETE_ALERTS.to_string()
+    } else {
+        OBSOLETE_ALERTS.replace("AND NOT EXISTS(SELECT 1 FROM goal_waits gw WHERE gw.feedback_delivery=d.id AND gw.status IN ('resuming','resumed')) ","")
+    };
+    db.execute(&format!("UPDATE delivery_attempts SET ended=?2,outcome='superseded',error='monitor alert superseded; expired in-flight effects are unconfirmed' WHERE ended IS NULL AND delivery_id IN ({query})"),params![job,at])?;
+    db.execute(&format!("UPDATE deliveries SET status='cancelled',token=NULL,lease_until=NULL,last_error='monitor alert superseded by terminal result' WHERE id IN ({query})"),params![job,at])?;
     Ok(())
 }

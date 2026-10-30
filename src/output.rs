@@ -127,6 +127,7 @@ pub fn compact(op: &str, value: Value) -> Value {
                     "github_actions_observation",
                     "goal_waiting",
                     "goal_wait_host_pause",
+                    "goal_wait_feedback",
                     "goal_wait_policy",
                     "automatic_goal_pause_supported",
                     "goal_pause_authorization_policy",

@@ -276,6 +276,346 @@ impl Drop for Fixture {
     }
 }
 
+impl Fixture {
+    async fn feedback_job(&self, wait: &str, key: &str) -> Value {
+        let mut spec = self.spec(key);
+        spec.monitor_rules=vec![serde_json::from_value(json!({"condition":{"kind":"progress","source":"test","trigger":{"kind":"stage"},"cooldown_seconds":1},"notify_agent":true})).unwrap()];
+        let result = ipc::dispatch(
+            &self.store,
+            Request::StartGoal {
+                spec,
+                goal_wait_id: wait.into(),
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(result["feedback"]["status"], "goal_feedback");
+        self.pause_and_confirm(wait).await;
+        result
+    }
+    async fn alert(&self, result: &Value) -> String {
+        let job = result["job"]["job_id"].as_str().unwrap().to_string();
+        let run = result["job"]["run_id"].as_str().unwrap().to_string();
+        let session = self.session.clone();
+        self.store
+            .call(move |db| {
+                let tx = db.transaction()?;
+                agent_job_relay::storage::insert_event(
+                    &tx,
+                    &job,
+                    &run,
+                    "monitor_alert",
+                    json!({"fixture":"bounded stage"}),
+                )?;
+                let event: String = tx.query_row(
+                    "SELECT id FROM events WHERE seq=last_insert_rowid()",
+                    [],
+                    |r| r.get(0),
+                )?;
+                let target: String = tx.query_row(
+                    "SELECT id FROM targets WHERE job_id=? AND session_key=?",
+                    rusqlite::params![job, session],
+                    |r| r.get(0),
+                )?;
+                agent_job_relay::session::enqueue(&tx, &event, &target, now())?;
+                let delivery =
+                    tx.query_row("SELECT id FROM deliveries WHERE event_id=?", [event], |r| {
+                        r.get::<_, String>(0)
+                    })?;
+                tx.commit()?;
+                Ok(delivery)
+            })
+            .await
+            .unwrap()
+    }
+    async fn allow_next_feedback(&self, wait: &str) {
+        let wait = wait.to_string();
+        self.store
+            .call(move |db| {
+                db.execute(
+                    "UPDATE goal_waits SET feedback_last_at=0 WHERE id=?",
+                    [wait],
+                )?;
+                Ok(())
+            })
+            .await
+            .unwrap();
+    }
+    async fn deliver(&self, claim: agent_job_relay::delivery::Claim) {
+        let outcome = agent_job_relay::adapters::deliver(&self.store.config, &claim).await;
+        self.store.complete_claim(claim, outcome).await.unwrap();
+    }
+}
+
+#[tokio::test]
+async fn feedback_cycles_restore_then_ack_native_repause_without_finishing_or_readmitting_jobs() {
+    let f = Fixture::new().await;
+    let wait = f.prepare().await;
+    let result = f.feedback_job(&wait, "feedback").await;
+    let older = f.alert(&result).await;
+    let selected = f.alert(&result).await;
+    goal_wait::progress(&f.store, &wait).await.unwrap();
+    let reporting = f.state(&wait).await;
+    assert_eq!(reporting["status"], "resumed");
+    assert_eq!(reporting["feedback"]["delivery_id"], selected);
+    assert_eq!(reporting["host_pause_required"], true);
+    assert_eq!(f.controller.read().await.unwrap().unwrap().status, "active");
+    assert_eq!(f.mutations().len(), 1);
+    let claim = f.store.claim().await.unwrap().unwrap();
+    assert_eq!(claim.event["goal_wait_phase"], "feedback");
+    f.deliver(claim).await;
+    assert_eq!(f.state(&wait).await["notification_accepted"], false);
+    let deliveries = f
+        .store
+        .deliveries(
+            Some(result["job"]["job_id"].as_str().unwrap().into()),
+            0,
+            20,
+        )
+        .await
+        .unwrap();
+    assert!(
+        deliveries["deliveries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|d| d["id"] == older && d["status"] == "cancelled")
+    );
+    let revision = reporting["revision"].as_i64();
+    assert!(
+        f.store
+            .confirm_goal_pause(wait.clone(), revision)
+            .await
+            .is_err()
+    );
+    f.native_pause();
+    let confirmed = f
+        .store
+        .confirm_goal_pause(wait.clone(), revision)
+        .await
+        .unwrap();
+    assert_eq!(confirmed["status"], "waiting");
+    assert!(confirmed["feedback"].is_null());
+    assert_eq!(
+        f.store
+            .confirm_goal_pause(wait.clone(), revision)
+            .await
+            .unwrap()["revision"],
+        confirmed["revision"]
+    );
+    f.alert(&result).await;
+    goal_wait::progress(&f.store, &wait).await.unwrap();
+    assert_eq!(f.state(&wait).await["status"], "waiting"); // group cooldown
+    f.allow_next_feedback(&wait).await;
+    goal_wait::progress(&f.store, &wait).await.unwrap();
+    let reporting = f.state(&wait).await;
+    assert_eq!(reporting["feedback"]["cycle"], 2);
+    let late = f.store.claim().await.unwrap().unwrap();
+    // The owning Agent can finish its native pause before the host transport
+    // acknowledgement is committed. That late ACK must not consume completion.
+    f.native_pause();
+    f.store
+        .confirm_goal_pause(wait.clone(), reporting["revision"].as_i64())
+        .await
+        .unwrap();
+    f.deliver(late).await;
+    assert_eq!(f.state(&wait).await["notification_accepted"], false);
+    f.finish(&result).await;
+    goal_wait::progress(&f.store, &wait).await.unwrap();
+    let final_claim = f.store.claim().await.unwrap().unwrap();
+    assert_eq!(final_claim.event["goal_wait_phase"], "completion");
+    f.deliver(final_claim).await;
+    assert_eq!(f.state(&wait).await["notification_accepted"], true);
+    assert!(f.store.claim().await.unwrap().is_none());
+    assert_eq!(f.mutations().len(), 3);
+    assert_eq!(f.store.list(0, 20).await.unwrap().len(), 1);
+    let goal = f.controller.read().await.unwrap().unwrap();
+    assert_eq!(goal.tokens_used, f.goal.tokens_used);
+    assert_eq!(goal.token_budget, f.goal.token_budget);
+    assert_eq!(
+        f.store
+            .status(result["job"]["job_id"].as_str().unwrap().into())
+            .await
+            .unwrap()
+            .run_id,
+        result["job"]["run_id"].as_str().unwrap()
+    );
+}
+
+#[tokio::test]
+async fn final_completion_supersedes_unsent_feedback_through_the_actual_dispatcher() {
+    let f = Fixture::new().await;
+    let wait = f.prepare().await;
+    let result = f.feedback_job(&wait, "final-first").await;
+    f.alert(&result).await;
+    goal_wait::progress(&f.store, &wait).await.unwrap();
+    f.finish(&result).await;
+    let _daemon = f.daemon().await;
+    tokio::time::timeout(Duration::from_secs(8), async {
+        while f.state(&wait).await["notification_accepted"] != true {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(f.mutations().len(), 1);
+    {
+        let messages = f.messages.lock().unwrap();
+        assert_eq!(messages.len(), 1);
+        assert!(
+            messages[0]["params"]["arguments"]["prompt"]
+                .as_str()
+                .unwrap()
+                .contains("all member runs reached terminal")
+        );
+    }
+    assert!(f.state(&wait).await["feedback"].is_null());
+}
+
+#[tokio::test]
+async fn completion_during_feedback_waits_for_native_repause_then_restores_once() {
+    let f = Fixture::new().await;
+    let wait = f.prepare().await;
+    let result = f.feedback_job(&wait, "during-report").await;
+    f.alert(&result).await;
+    goal_wait::progress(&f.store, &wait).await.unwrap();
+    let claim = f.store.claim().await.unwrap().unwrap();
+    f.deliver(claim).await;
+    let reporting = f.state(&wait).await;
+    f.finish(&result).await;
+    goal_wait::progress(&f.store, &wait).await.unwrap();
+    assert!(f.store.claim().await.unwrap().is_none());
+    assert_eq!(f.mutations().len(), 1);
+    f.native_pause();
+    f.store
+        .confirm_goal_pause(wait.clone(), reporting["revision"].as_i64())
+        .await
+        .unwrap();
+    goal_wait::progress(&f.store, &wait).await.unwrap();
+    let final_claim = f.store.claim().await.unwrap().unwrap();
+    assert_eq!(final_claim.event["goal_wait_phase"], "completion");
+    f.deliver(final_claim).await;
+    assert_eq!(f.mutations().len(), 2);
+    assert_eq!(f.state(&wait).await["notification_accepted"], true);
+}
+
+#[tokio::test]
+async fn feedback_uncertainty_expiry_cancellation_and_budget_never_replay_host_controls() {
+    for scenario in ["drop_resume", "timeout", "cancel", "budget", "delete"] {
+        let f = Fixture::new().await;
+        let wait = f.prepare().await;
+        let result = f.feedback_job(&wait, scenario).await;
+        f.alert(&result).await;
+        if scenario == "drop_resume" {
+            std::fs::write(f.controller.home.join("mode"), "drop_resume").unwrap();
+        }
+        if scenario == "budget" {
+            let id = wait.clone();
+            f.store
+                .call(move |db| {
+                    db.execute("UPDATE goal_waits SET feedback_count=32 WHERE id=?", [id])?;
+                    Ok(())
+                })
+                .await
+                .unwrap();
+        }
+        if scenario == "delete" {
+            std::fs::remove_file(f.controller.home.join("goal.json")).unwrap();
+        }
+        goal_wait::progress(&f.store, &wait).await.unwrap();
+        let state = f.state(&wait).await;
+        if scenario == "timeout" {
+            let id = wait.clone();
+            f.store
+                .call(move |db| {
+                    db.execute("UPDATE goal_waits SET expires=0 WHERE id=?", [id])?;
+                    Ok(())
+                })
+                .await
+                .unwrap();
+            assert!(f.store.claim().await.unwrap().is_none());
+            goal_wait::progress(&f.store, &wait).await.unwrap();
+        } else if scenario == "cancel" {
+            f.store
+                .goal_wait(wait.clone(), true, state["revision"].as_i64())
+                .await
+                .unwrap();
+            let job = result["job"]["job_id"].as_str().unwrap().to_string();
+            let notifying = serde_json::from_value(
+                json!({"condition":{"kind":"contains","text":"new-alert"},"notify_agent":true}),
+            )
+            .unwrap();
+            assert!(
+                f.store
+                    .monitor(
+                        job.clone(),
+                        Some(agent_job_relay::monitor::Mutation::Add { rule: notifying })
+                    )
+                    .await
+                    .is_err()
+            );
+            let local = serde_json::from_value(
+                json!({"condition":{"kind":"contains","text":"local-alert"}}),
+            )
+            .unwrap();
+            assert!(
+                f.store
+                    .monitor(
+                        job,
+                        Some(agent_job_relay::monitor::Mutation::Add { rule: local })
+                    )
+                    .await
+                    .is_ok()
+            );
+        }
+        let mutations = f.mutations().len();
+        goal_wait::progress(&f.store, &wait).await.unwrap();
+        assert_eq!(f.mutations().len(), mutations, "{scenario}");
+        assert!(f.store.claim().await.unwrap().is_none(), "{scenario}");
+        assert_eq!(f.store.list(0, 20).await.unwrap().len(), 1);
+        match scenario {
+            "drop_resume" | "timeout" => assert_eq!(f.state(&wait).await["status"], "attention"),
+            "cancel" => assert_eq!(f.state(&wait).await["status"], "cancelled"),
+            "delete" => assert_eq!(f.state(&wait).await["status"], "suppressed"),
+            "budget" => assert_eq!(f.state(&wait).await["status"], "waiting"),
+            _ => unreachable!(),
+        }
+    }
+}
+
+#[tokio::test]
+async fn feedback_backup_restore_fences_reporting_controls_and_retains_cycle_evidence() {
+    let f = Fixture::new().await;
+    let wait = f.prepare().await;
+    let result = f.feedback_job(&wait, "feedback-backup").await;
+    let delivery = f.alert(&result).await;
+    goal_wait::progress(&f.store, &wait).await.unwrap();
+    let backup = f.store.backup().await.unwrap();
+    let to = f.dir.path().join("feedback-restored");
+    agent_job_relay::maintenance::restore(
+        PathBuf::from(backup["path"].as_str().unwrap()),
+        to.clone(),
+    )
+    .await
+    .unwrap();
+    let restored = Store::new(Config::new(Some(to)).unwrap());
+    restored.init().await.unwrap();
+    let state = restored.goal_wait(wait.clone(), false, None).await.unwrap();
+    assert_eq!(state["status"], "cancelled");
+    assert_eq!(state["feedback_count"], 1);
+    assert_eq!(state["feedback"]["delivery_id"], delivery);
+    assert_eq!(state["host_pause_required"], false);
+    goal_wait::tick(&restored).await.unwrap();
+    assert_eq!(f.mutations().len(), 1);
+    assert!(restored.claim().await.unwrap().is_none());
+    let job = restored
+        .status(result["job"]["job_id"].as_str().unwrap().into())
+        .await
+        .unwrap();
+    assert_eq!(job.status.as_str(), "orphaned");
+    assert_eq!(job.run_id, result["job"]["run_id"].as_str().unwrap());
+}
+
 #[tokio::test]
 async fn storage_only_pause_never_acknowledges_the_host_and_confirmation_is_fenced() {
     let f = Fixture::new().await;
