@@ -41,7 +41,7 @@ export function NotificationStatus({ detail, token }) {
       {goal.detail && <p>{goal.detail}</p>}
     </div>}
     <details><summary>查看恢复步骤</summary>
-      <p>请回到发起任务的原聊天，让 Agent 使用该任务记录的启动器和数据目录执行 <code>connect --recover</code> 预览；核对后使用 <code>connect --recover --apply</code>。</p>
+      <p>请回到发起任务的原聊天，让 Agent 通过该宿主的绑定接口预览可恢复通知。ChatGPT Desktop 使用记录的启动器和数据目录执行 <code>connect --recover</code>，核对后使用 <code>connect --recover --apply</code>。OpenCode 使用 <code>relay_recover</code> 预览并明确应用；仅收件箱宿主请检查保留结果。</p>
       <p>此面板不能证明聊天身份。恢复保留任务、投递 ID、有效期和尝试历史，不重新执行命令。已接收和已过期通知不自动补投；Goal 等待保留原绑定，需通过原聊天的 Goal 控制处理。</p>
     </details>
     <details><summary>投递记录与尝试历史</summary>

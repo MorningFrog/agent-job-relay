@@ -362,7 +362,7 @@ export default function App() {
                   通知待处理
                   <Icon name="clock" />
                 </span>
-                <strong>{overview?.health?.retrying_deliveries ?? "—"}</strong>
+                <strong>{overview?.health ? (overview.health.retrying_deliveries || 0) + (overview.health.dead_letters || 0) : "—"}</strong>
                 <small>持久化投递队列</small>
               </div>
             </div>

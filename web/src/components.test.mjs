@@ -136,6 +136,8 @@ test("notification diagnostics show recovery and goal attention without claiming
   }));
   assert.ok(html.includes("通知需要处理"));
   assert.ok(html.includes("connect --recover"));
+  assert.ok(html.includes("OpenCode"));
+  assert.ok(html.includes("relay_recover"));
   assert.ok(html.includes("native pause needed"));
   assert.ok(html.includes("Agent 是否继续仍待核实"));
   assert.ok(html.includes("&lt;script&gt;host changed&lt;/script&gt;"));

@@ -58,8 +58,10 @@ pub(crate) fn context(detail: &mut Value) {
     detail["notifications"]["goal"] = crate::output::goal_summary(&detail["goal_wait"]);
     detail["notifications"]["recovery"] = json!({
         "requires_original_caller":true,
-        "preview_args":["connect","--recover"],
-        "apply_args":["connect","--recover","--apply"],
-        "reason":"Use the recorded launcher/profile in the original chat to obtain a fresh caller binding and preview eligible recovery. Accepted/expired events are not recovered; inspect attempt history before an explicit retry. Goal waits retain their original binding and require explicit host goal handling."
+        "desktop_preview_args":["connect","--recover"],
+        "desktop_apply_args":["connect","--recover","--apply"],
+        "opencode_tool":"relay_recover",
+        "inbox":"inspect retained results; no automatic continuation",
+        "reason":"Use the original host caller binding to preview eligible recovery: Desktop uses its recorded launcher/profile connect --recover; OpenCode uses relay_recover. Inbox-only hosts inspect retained results. Accepted/expired events are not recovered; inspect attempt history before an explicit retry. Goal waits retain their original binding and require explicit host goal handling."
     });
 }
