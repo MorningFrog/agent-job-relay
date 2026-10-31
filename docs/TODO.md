@@ -16,7 +16,7 @@ This is the sole project backlog. Current functionality, completed acceptance an
 - [x] Publish the original 0.1.17 candidate and independently verify public bytes/channels/installation/GitHub; see [release handoff](release.md#current-release-handoff).
 - [x] Explain active-profile schema incompatibility during online updates, identify the required AgentJobRelay runtime and recovery steps, and avoid claiming update progress before preflight succeeds.
 - [x] Keep development notes under one Unreleased heading; allow explicitly marked local/CI package checks while retaining finalized-release and promotion fences.
-- [ ] Finalize the next release version/CHANGELOG (development Cargo currently 0.1.18), then prepare its own candidate after local delivery gates and exact-revision CI; the diagnostic fix changes runtime/package bytes and cannot reuse the published 0.1.17 candidate. Pushing/publication still require final confirmation.
+- [ ] Finalize the next release version/CHANGELOG (development Cargo currently 0.1.18), then prepare its own candidate after local delivery gates and exact-revision CI; the development changes alter runtime/package bytes and cannot reuse the published 0.1.17 candidate. Pushing/publication still require final confirmation.
 - [ ] **P1:** natively qualify Windows self-update/self-removal with loaded global CLI/daemon/MCP images, qualify active-run package replacement separately, and verify actual Desktop refresh/reconnection. Public-host fixtures and Linux package replacement do not establish these outcomes.
 - [ ] **P1, maintainer:** verify revocation/removal of the unused bootstrap publication token/secret; successful OIDC publication does not prove credential cleanup.
 

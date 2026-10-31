@@ -10,6 +10,8 @@
 
 ### Fixed
 
+- Restrict backup file locking to mutable recent-log rings; append-only log capture does not participate in these locks and must remain writable on Windows during backup.
+
 - Explain online update refusals with the affected profile, actual/required database schemas and instructions to finish old tasks before retrying. Distinguish the AgentJobRelay runtime from the Codex application and retain the active-run migration fence.
 - Report a preflight refusal without claiming unfinished update steps were recorded when no runtime/package or host-plugin changes were applied.
 

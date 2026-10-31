@@ -501,8 +501,10 @@ fn fingerprint(path: &Path) -> Result<FileRecord> {
 fn copy_file(source: &Path, destination: &Path, limit: u64) -> Result<()> {
     archive::regular(source)?.context("missing source file")?;
     let input = crate::platform::read_file(source)?;
-    input.lock_shared()?;
     let limit = if source.extension().is_some_and(|e| e == "recent") {
+        // Ring writes participate in this lock. Append-only capture does not;
+        // locking prefixes would deny concurrent Windows output writes.
+        input.lock_shared()?;
         let length = input.metadata()?.len();
         ensure!(
             length <= crate::log_retention::FILE_CAP,
@@ -797,5 +799,46 @@ pub(crate) async fn worker(store: Store, mut stopped: tokio::sync::watch::Receiv
                 .await;
         }
         tokio::select! {biased;_ = stopped.changed()=>break,_ = tokio::time::sleep(Duration::from_secs(delay))=>{}}
+    }
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn backup_does_not_lock_append_only_prefixes_but_snapshots_recent_rings() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join(".tmp");
+        std::fs::create_dir_all(&root).unwrap();
+        let temp = tempfile::tempdir_in(root).unwrap();
+        let prefix = temp.path().join("stdout.log");
+        let mut owner = crate::platform::create_new_file(&prefix).unwrap();
+        owner.write_all(b"prefix").unwrap();
+        owner.lock().unwrap();
+        let copied = temp.path().join("prefix-copy");
+        let destination = copied.clone();
+        let task = tokio::task::spawn_blocking(move || copy_file(&prefix, &destination, 6));
+        let result = tokio::time::timeout(Duration::from_secs(2), task).await;
+        owner.unlock().unwrap();
+        result
+            .expect("prefix backup unexpectedly requested a shared lock")
+            .unwrap()
+            .unwrap();
+        assert_eq!(std::fs::read(copied).unwrap(), b"prefix");
+
+        let recent = temp.path().join("stdout.recent");
+        let mut writer = crate::log_retention::Writer::new(recent.clone());
+        writer
+            .output(&vec![b'x'; crate::log_retention::SEGMENT])
+            .await
+            .unwrap();
+        let copied = temp.path().join("recent-copy");
+        copy_file(&recent, &copied, 1).unwrap();
+        // A recent snapshot uses its locked current length, not a stale length
+        // sampled before waiting for the writer's publication boundary.
+        assert_eq!(
+            std::fs::read(recent).unwrap(),
+            std::fs::read(copied).unwrap()
+        );
     }
 }
