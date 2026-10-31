@@ -31,14 +31,14 @@ agent-job-relay codex monitor add --help
 
 | Command after the prefix | Purpose and useful options |
 |---|---|
-| `start -- <program> <args...>` | Submit explicit argv; unreleased source adds `--title <purpose>`; `--cwd`, `--timeout <seconds>`, `--idempotency-key`, `--session` or current-terminal `--wake` |
+| `start -- <program> <args...>` | Submit explicit argv; `--title <purpose>` (0.1.17+); `--cwd`, `--timeout <seconds>`, `--idempotency-key`, `--session` or current-terminal `--wake` |
 | `start --shell '<script>'` | Explicit shell execution; `--interpreter` selects the shell |
 | `start-batch --file <json-file>` (0.1.12+) | Submit a JSON array of 1–16 specs with distinct stable keys; `--file -` reads stdin, `--wake` binds every item to the actual caller; [partial-admission/retry semantics](usage.md#submit-independent-commands-together-0112) |
 | `start-spec --file <json-file>` (0.1.12+) | Submit one bounded JSON StartSpec, including remote launch/attach or GitHub Actions observation; `--file -` for stdin and `--wake` for the current caller |
 | `remote init` / `remote serve` (0.1.12+) | Explicit remote-profile provisioning / one authenticated stdio request; [setup and protocol](remote-execution.md) |
 | `list` | Bounded history; `--after`, `--limit` |
 | `status <job-id>` | Durable job/run state and exit outcome |
-| `logs <job-id>` | Bounded stdout/stderr; `--stream`, byte `--cursor`, `--limit`, optional human-viewer `--follow`; unreleased `--export <new-file>` exports retained text with gap markers |
+| `logs <job-id>` | Bounded stdout/stderr; `--stream`, byte `--cursor`, `--limit`, optional human-viewer `--follow`; 0.1.18+ `--export <new-file>` exports retained text with gap markers |
 | `events <job-id>` | Durable events; `--after`, `--limit` |
 | `wait <job-id>` | Bounded event wait; `--after`, `--seconds` (at most 30) |
 | `stop <job-id>` | Idempotent cancellation; `--grace` before force stop, `--wait` for bounded observation. Read-only remote/workflow jobs stop observation only |
@@ -154,6 +154,6 @@ Policy flags are `--hot-jobs`, `--archive-after-days`, `--hot-log-mib`, `--backu
 
 Tools accept optional `full=true` for complete diagnostic records. In shared-host mode, `job_connect_session` and `wake_me=true` are rejected; pass the actual host caller's binding instead. Web access URLs, daemon shutdown, installation and data maintenance have no corresponding MCP tools. Use [protocol](protocol.md) for schemas, states, byte limits and compatibility details.
 
-## Unreleased inspection and log additions
+## Inspection and log additions (0.1.18+)
 
 `inspect <job-id> --json --compact` uses the same bounded result summary as default MCP `job_inspect`; MCP `full=true` and ordinary CLI JSON retain complete detail. Task details include independent notification diagnostics and original-chat recovery steps. `logs <job-id> --export <new-file>` exports retained UTF-8-lossy text and explicit missing-byte markers, refuses overwrite and is exclusive with `--follow`, `--cursor` and `--limit`. Native runs retain the original 16-MiB prefix plus four recent 1-MiB segments per stream. See [inspection, recovery and retained logs](runtime-monitoring.md).

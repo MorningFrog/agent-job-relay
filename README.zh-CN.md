@@ -105,7 +105,7 @@ ajr inspect <job-id>
 
 运行时 0.1.17+ 还支持 `start --title "运行项目测试" -- cargo test` 和 MCP `spec.title`。任务面板显示简短用途，详情保留完整命令；未命名的历史任务显示精简命令／项目提示。此功能需要更新运行时，已发布版本的支持情况见[实施状态](docs/IMPLEMENTATION_STATUS.md)。
 
-未发布源码新增任务级通知诊断与恢复指引、Agent 精简检查结果（`job_inspect`，或 `ajr inspect <job-id> --json --compact`）及有界近期日志轮转。使用 `ajr logs <job-id> --export <new-file>` 或任务面板可导出保留文本，缺失区间会明确标记。这些新增能力需要更新运行时，见[检查与日志](docs/runtime-monitoring.md)。
+0.1.18 源码新增任务级通知诊断与恢复指引、Agent 精简检查结果（`job_inspect`，或 `ajr inspect <job-id> --json --compact`）及有界近期日志轮转。使用 `ajr logs <job-id> --export <new-file>` 或任务面板可导出保留文本，缺失区间会明确标记。这些新增能力需要 0.1.18 运行时，该版本软件包尚未发布；见[检查与日志](docs/runtime-monitoring.md)。
 
 最后一条命令使用提交后返回的任务 ID；首次提交会自动启动 daemon。OpenCode 使用 `ajr opencode`，原生离线安装使用其记录的启动器及数据目录，具体见[命令参考](docs/commands.md)。
 

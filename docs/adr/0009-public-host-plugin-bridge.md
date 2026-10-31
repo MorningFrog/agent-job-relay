@@ -4,7 +4,7 @@ Accepted, 2026-10-26, source 0.1.6.
 
 ## Decision
 
-Keep command execution, durable delivery and recovery in the Rust core. Add `plugin_bridge` registrations for host plugins that expose an owner-only Unix socket and call a documented host session API. The core verifies endpoint identity/peer ownership, bounded versioned framing, echoed caller/instance and exact acknowledged delivery metadata. Host acceptance remains distinct from model execution.
+Keep command execution, durable delivery and recovery in the Rust core. Add `plugin_bridge` registrations for host plugins that expose an owner-only Unix socket or private Windows pipe and call a documented host session API. The core verifies endpoint identity/peer ownership, bounded versioned framing, echoed caller/instance and exact acknowledged delivery metadata. Host acceptance remains distinct from model execution.
 
 OpenCode V1 obtains the caller from `tool.execute.before`, supplies the binding to shared MCP, and uses the public session `promptAsync` API. Its bridge instance owns only sessions observed in tool contexts, verifies their project directory, sends only stable completion metadata, and has bounded in-process delivery dedupe. Existing fenced renewal/scoped recovery is generalized by exact adapter identity; it never crosses ChatGPT Desktop/plugin adapters or guesses the latest session. Explicit registration now starts an absent per-state daemon; read-only queries still do not.
 
@@ -14,4 +14,4 @@ Claude Code receives its documented manifest/MCP/skill layout and a helper using
 
 ## Limits
 
-Linux only. The bridge is this project's local protocol, not a public host socket or cryptographic caller attestation. Plugin reload/host replacement requires explicit caller-owned recovery; receiver dedupe across restart is not established. Schema v6 and IPC v1 remain, but old binaries do not understand plugin_bridge registration records. Source updates do not change personal installations or running daemons. Host packages remain development sources, separate from the existing Codex offline bundle. No publication or credentials are added.
+The bridge uses this project's local protocol on Linux and Windows, not a public host socket or cryptographic caller attestation. Plugin reload/host replacement requires explicit caller-owned recovery; receiver dedupe across restart is not established. IPC v1 retains its registration vocabulary, but older binaries that predate `plugin_bridge` cannot interpret those records. Source updates do not change personal installations or running daemons. Current platform/schema support, package availability and host qualification are tracked in [implementation status](../IMPLEMENTATION_STATUS.md) and [host packages](../host-plugins.md).
