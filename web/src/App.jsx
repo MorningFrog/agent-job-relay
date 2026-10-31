@@ -156,6 +156,7 @@ export default function App() {
   const detailPanel = (
     <TaskDetail
       selected={selected}
+      token={token}
       detail={detail}
       busy={busy}
       tab={tab}

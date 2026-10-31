@@ -17,7 +17,7 @@ The current source workflow automatically shows the accepted background task in 
 
 The task list supports search, state filters and older-history pages. At widths up to 1250 CSS pixels, navigation collapses to an icon rail that expands on hover or its keyboard/touch toggle. Navigation buttons keep their positions during expansion and provide hover/focus feedback; task details expand immediately below the selected row. Select the row again to collapse it; chevrons indicate its state. Wider windows retain adjacent list/detail columns. Select a task for recent stdout/stderr, monitor rules, trigger evidence and stopping. Rule changes display saved versus applied revisions; edits require the revision last observed. Runtime status identifies the profile and notification failures. The alert view lists recent hot alerts; archived task details retain their original events. Browser updates pause while hidden, and reconnect with bounded backoff. Closing the browser affects only viewing.
 
-Unreleased source supports [recognizable task names](usage.md#name-tasks-unreleased-source) through CLI `start --title` or MCP/JSON `spec.title`; the runtime workflow asks Agents to name new tasks in the user’s language. Unnamed history shows bounded command/project hints, summarizing inline interpreter bodies as scripts. Search matches names, command previews, directories and IDs. Select a named task: expect the same name, original Job ID and full command in details, with long titles wrapping above the command. Published 0.1.15 does not include this feature; it requires the updated source runtime until a qualifying release is published.
+Runtime 0.1.17+ supports [recognizable task names](usage.md#name-tasks-unreleased-source) through CLI `start --title` or MCP/JSON `spec.title`; the runtime workflow asks Agents to name new tasks in the user’s language. Unnamed history shows bounded command/project hints, summarizing inline interpreter bodies as scripts. Search matches names, command previews, directories and IDs. Select a named task: expect the same name, original Job ID and full command in details, with long titles wrapping above the command.
 
 For source GitHub Actions observations, task details show job state, current step and ended/known step counts for up to 20 jobs. The GitHub link opens the pinned run/attempt, including before a successful query or when step details are unavailable. Counts describe steps rather than elapsed-time percentage; partial matrices are labeled. See [workflow observation](remote-execution.md#observe-an-existing-github-actions-attempt).
 
@@ -39,6 +39,28 @@ Expected: summaries identify the selected profile and runtime connection; a task
 Inspection never starts a daemon, migrates a database or creates an empty profile. When the runtime is absent, compatible current-schema history is read through a read-only connection and labelled `offline_snapshot`; process liveness is unverified. Unsupported older schemas require a matching runtime. Active observation ages exceeding five seconds require investigation; no output alone does not prove a hang.
 
 Each stream retains a rolling 64 KiB tail and total-byte offset independently from its original 16 MiB log prefix. Detection continues after that prefix fills. Tail metadata identifies its retained range and truncation; binary/invalid text is displayed with replacements, while capped raw logs retain original bytes. Observations are sampled approximately once per second and flushed at completion; abrupt runner loss can leave the last snapshot stale.
+
+## Notification status and compact results (unreleased)
+
+Task details now show notification state separately from execution: pending, retrying, stopped retries, inbox-only or accepted by host. Counts cover all retained deliveries, not only the displayed first page; terminal notification status summarizes completion deliveries separately from intermediate alerts. The newest unresolved error includes its delivery ID, failure class, expiry and retry time. Expand attempt history for a bounded page of recorded outcomes. Host acceptance leaves Agent execution `unconfirmed`.
+
+Goal wait identity/status/revision and native-pause requirements remain visible. Recovery instructions return you to the original chat and recorded launcher/profile: preview `connect --recover`, then explicitly apply eligible recovery. The browser cannot authenticate a chat or rebind a target. Recovery does not rerun commands or replay accepted/expired notifications; goal waits retain their original binding and need explicit host goal handling. An explicit delivery retry has different TTL semantics; inspect attempts before choosing it.
+
+MCP `job_inspect` defaults to a compact result: original Job/Run and title, exit/timing, at most 2 KiB of text per stream, recent progress/milestones, notification and goal diagnostics, and evidence cursors. `recent_events_after` retrieves omitted retained event detail; `events_after` continues after the observed newest event, and `deliveries_after` continues the detailed delivery page. Output remains untrusted data. Use `full=true` for complete tails, rules and recent events. CLI `inspect <job-id> --json --compact` shares this summary; ordinary CLI JSON and HTTP details keep their complete contract. Overview pagination is unchanged. Read once on a relevant event and yield again while work continues.
+
+## Read and export retained logs (unreleased)
+
+New native exec/shell runs keep the original 16-MiB prefix plus four rotating 1-MiB segments per stream after that prefix. Full segments publish while running; a final partial segment publishes at normal output completion, replacing the oldest slot. Up to one pending MiB remains in capture memory; use the independently sampled 64-KiB tail for the newest output. Abrupt runner loss can lose that pending segment and leave the tail stale. Missing middle output is not recoverable. Old runs and remote observer copies retain their existing prefix/tail limits.
+
+```bash
+ajr logs <job-id> --stream stderr --cursor 0 --limit 8192
+ajr logs <job-id> --stream stderr --cursor <retained-offset> --limit 8192
+ajr logs <job-id> --stream stderr --export <new-file>
+```
+
+Log responses include absolute `cursor`/`next_cursor`, `retained_ranges`, `gaps`, `retained_end` and an optional `skipped` range. A cursor inside an evicted interval advances to the next retained range with an explicit skip; reads never splice across a gap or renumber old bytes. `--follow` prints gap markers. In the panel, expand “查阅与导出保留日志”, load the ranges, select one and page through it; the export button reads a bounded snapshot without waiting for new output. Switching task/stream fences pending responses.
+
+Exports use the existing UTF-8-lossy text representation and insert `[AgentJobRelay missing bytes A..B]` markers. They are diagnostic text, not byte-exact binary exports; byte positions refer to original output. CLI export creates a new file and refuses an existing destination; an interrupted export can leave a partial new file. `--export` is exclusive with `--follow`, `--cursor` and `--limit`. Native segment bytes/checksums survive verified compression, backup and new-profile restore. No schema migration, new MCP tool or remote execution replay is introduced. Windows behavior and actual host/browser adoption need separate qualification.
 
 ## Install persistent rules
 

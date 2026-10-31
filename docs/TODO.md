@@ -71,6 +71,11 @@ Runtime 0.1.12+ implements the [remote contract and reference path](remote-execu
 
 ## Runtime inspection and monitoring
 
+- [x] Add task-level notification/goal diagnostics, bounded attempt history and original-chat recovery guidance without browser caller inference or mutation.
+- [x] Add compact default MCP task inspection and opt-in CLI summaries with original identities, bounded excerpts/progress and evidence cursors; retain complete `full=true`/HTTP/ordinary CLI detail.
+- [x] Add four bounded checksummed recent native-log segments, absolute retained ranges/gaps, CLI/Web text export and verified archive/backup/restore support without execution replay.
+- [ ] **P1:** qualify the new recent-log format, backup locking and CLI export on native Windows, and the changed panel/summary workflow in actual installed hosts. Current Linux fixtures/browser checks do not extend earlier Windows or real-Agent acceptance.
+
 - [x] Implement Agent-independent inspect/watch, revision-fenced persistent output/silence/elapsed rules, bounded recent tails, automatic tree cancellation, optional same-chat alerts and preserved archive/backup/audit history.
 - [x] Adapt the embedded panel to narrow chat sidebars with expandable icon navigation, stable button/icon positions, hover/focus feedback, adjacent inline task details and stateful chevrons; automatically open the accepted task through the host Agent workflow before yielding or goal handoff.
 - [x] Reuse the originating chat's same-profile embedded tab before opening another; handle repeated task/credential fragment navigation in place, with explicit limits when host tab discovery is unavailable.

@@ -187,9 +187,8 @@ impl Store {
                 if dir.exists() {
                     crate::platform::secure_dir(&dir)?;
                 }
-                for stream in ["stdout", "stderr"] {
-                    c.bytes += archive::regular(&dir.join(format!("{stream}.log")))?
-                        .map_or(0, |m| m.len());
+                for name in ["stdout.log", "stderr.log", "stdout.recent", "stderr.recent"] {
+                    c.bytes += archive::regular(&dir.join(name))?.map_or(0, |m| m.len());
                 }
             }
             Ok(candidates)
@@ -467,7 +466,7 @@ fn recover_backup(config: &Config, pending: &PendingBackup) -> Result<Option<(St
         .collect::<BTreeSet<_>>();
         for run in &pending.runs {
             allowed.insert(format!("runs/{run}/"));
-            for name in ["stdout.log", "stderr.log", "stdout.log.gz", "stderr.log.gz"] {
+            for name in crate::log_retention::NAMES {
                 allowed.insert(format!("runs/{run}/{name}"));
             }
         }
@@ -501,11 +500,20 @@ fn fingerprint(path: &Path) -> Result<FileRecord> {
 }
 fn copy_file(source: &Path, destination: &Path, limit: u64) -> Result<()> {
     archive::regular(source)?.context("missing source file")?;
+    let input = crate::platform::read_file(source)?;
+    input.lock_shared()?;
+    let limit = if source.extension().is_some_and(|e| e == "recent") {
+        let length = input.metadata()?.len();
+        ensure!(
+            length <= crate::log_retention::FILE_CAP,
+            "recent log exceeds backup capacity"
+        );
+        length
+    } else {
+        limit
+    };
     let mut output = crate::platform::create_new_file(destination)?;
-    std::io::copy(
-        &mut crate::platform::read_file(source)?.take(limit),
-        &mut output,
-    )?;
+    std::io::copy(&mut input.take(limit), &mut output)?;
     output.sync_all()?;
     Ok(())
 }
@@ -596,12 +604,12 @@ fn create_backup(
         }
         crate::platform::secure_dir(&source)?;
         let mut has_logs = false;
-        for stream in ["stdout", "stderr"] {
+        for base in ["stdout.log", "stderr.log", "stdout.recent", "stderr.recent"] {
             // A readable raw prefix wins if compression was prepared but not committed.
-            let name = if archive::regular(&source.join(format!("{stream}.log")))?.is_some() {
-                format!("{stream}.log")
+            let name = if archive::regular(&source.join(base))?.is_some() {
+                base.to_string()
             } else {
-                format!("{stream}.log.gz")
+                format!("{base}.gz")
             };
             let path = source.join(&name);
             if let Some(meta) = archive::regular(&path)? {
@@ -646,7 +654,7 @@ fn valid_relative(name: &str) -> bool {
     parts.len() == 3
         && parts[0] == "runs"
         && validate_id(parts[1]).is_ok()
-        && ["stdout.log", "stderr.log", "stdout.log.gz", "stderr.log.gz"].contains(&parts[2])
+        && crate::log_retention::NAMES.contains(&parts[2])
 }
 fn inventory(path: &Path, root: &Path, files: &mut BTreeSet<String>) -> Result<()> {
     crate::platform::secure_dir(path)?;

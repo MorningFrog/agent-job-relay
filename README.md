@@ -105,6 +105,8 @@ ajr inspect <job-id>
 
 Runtime 0.1.17+ also supports `start --title "Run project tests" -- cargo test` and MCP `spec.title`. The task manager displays this short purpose, keeps the full command in details and uses compact command/project hints for unnamed history. This requires an updated runtime; published-version support is tracked in [implementation status](docs/IMPLEMENTATION_STATUS.md).
 
+Unreleased source adds task-level notification diagnostics/recovery guidance, compact Agent inspection (`job_inspect`, or `ajr inspect <job-id> --json --compact`) and bounded recent-log rotation. Use `ajr logs <job-id> --export <new-file>` or the task panel to export retained text with explicit gap markers. These additions require the updated runtime; see [inspection and logs](docs/runtime-monitoring.md).
+
 Use the returned job ID in the last command; the first submission starts the daemon automatically. OpenCode uses `ajr opencode`; native offline installations use their recorded launcher/profile. See the [command reference](docs/commands.md).
 
 Commands run with your OS permissions. Job completion, host acknowledgement (`accepted_by_host`) and observed Agent continuation are separate results. Removal retains task history and logs; see [uninstallation](docs/uninstalling.md) and [troubleshooting](docs/troubleshooting.md).

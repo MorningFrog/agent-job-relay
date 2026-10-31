@@ -19,6 +19,10 @@ export function RuntimeStatus({ connection, overview }) {
         <dd>{overview?.active_jobs?.length || 0}</dd>
         <dt>等待重试的通知</dt>
         <dd>{overview?.health?.retrying_deliveries || 0}</dd>
+        <dt>停止重试的通知</dt>
+        <dd>{overview?.health?.dead_letters || 0}</dd>
+        <dt>需要处理的 Goal 等待</dt>
+        <dd>{overview?.health?.goal_waits?.attention || 0}</dd>
         <dt>需要恢复绑定</dt>
         <dd>{overview?.health?.rebind_required || 0}</dd>
         <dt>健康采样</dt>

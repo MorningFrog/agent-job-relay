@@ -457,6 +457,27 @@ async fn batch_cli_and_shared_mcp_bind_every_item_to_the_actual_caller() {
         }
         mcp = result;
     }
+    let job = mcp["results"][0]["result"]["job"]["job_id"]
+        .as_str()
+        .unwrap();
+    for full in [false, true] {
+        let response = rpc(
+            &mut input,
+            &mut lines,
+            6,
+            "tools/call",
+            json!({"name":"job_inspect","arguments":{"job_id":job,"full":full}}),
+        )
+        .await;
+        assert_ne!(response["result"]["isError"], true, "{response}");
+        let detail: Value =
+            serde_json::from_str(response["result"]["content"][0]["text"].as_str().unwrap())
+                .unwrap();
+        assert_eq!(detail["job"]["job_id"], job);
+        assert_eq!(detail.get("observation").is_some(), full);
+        assert_eq!(detail.get("output").is_some(), !full);
+        assert_eq!(detail["notifications"]["agent_execution"], "unconfirmed");
+    }
     drop(input);
     assert!(
         tokio::time::timeout(Duration::from_secs(5), child.wait())

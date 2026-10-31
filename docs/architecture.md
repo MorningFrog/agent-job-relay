@@ -10,10 +10,10 @@ One package and executable; CLI, stdio MCP, daemon and runner modes.
 |---|---|
 | Process initialization | `src/main.rs` |
 | CLI syntax and dispatch | `src/cli/args.rs`, `src/cli/mod.rs` (binary-private) |
-| MCP tools and client convenience | `src/mcp.rs`, `src/mcp_runtime.rs`, `src/client.rs`, `src/diagnostics.rs`, `src/output.rs`, `src/feedback.rs`, `src/monitor.rs`, `src/progress.rs` |
+| MCP tools and client convenience | `src/mcp.rs`, `src/mcp_runtime.rs`, `src/client.rs`, `src/diagnostics.rs`, `src/output.rs`, `src/feedback.rs`, `src/notifications.rs`, `src/monitor.rs`, `src/progress.rs` |
 | External execution and observation | `src/remote/` (pinned contract/stdio helper, bounded transport, native observer and read-only Actions adapter) |
 | Bounded batch admission | `src/batch.rs`, shared CLI/MCP client and IPC dispatch; existing per-item storage transactions |
-| Job intent, execution and persistence | `src/core.rs`, `src/core/state.rs`, `src/daemon.rs`, `src/runner.rs`, `src/runner/{supervisor,output}.rs`, `src/storage.rs` |
+| Job intent, execution and persistence | `src/core.rs`, `src/core/state.rs`, `src/daemon.rs`, `src/runner.rs`, `src/runner/{supervisor,output}.rs`, `src/log_retention.rs`, `src/storage.rs` |
 | Session binding and notifications | `src/session.rs`, `src/adapters.rs`, `src/plugin_bridge.rs`, `src/delivery.rs`, `src/recovery.rs`, `src/renewal.rs` |
 | Scoped goal consent/waiting | `src/goal_consent.rs`, `src/goal_consent.sql`, `src/goal_question.rs`, `src/goal_wait.rs`, `src/goal_wait.sql`, `src/goal_control.rs`; one question, bounded admission, native handoff and delivery gate |
 | Idle scheduling and local wake signals | `src/scheduling.rs`, `src/storage.rs` |
@@ -154,3 +154,9 @@ The npm launcher forwards `update`/`uninstall` to the native argument parser and
 Marketplace inspection accepts Codex's exact untracked installation record only after bounded regular-file and official source/release/HEAD/full-checkout validation. All other working-tree changes remain protected; inspection leaves host metadata untouched.
 
 Online uninstall stops idle selected/default daemons by default and rejects active tasks. `--force` uses the existing durable manual-stop API, waits for exact-run terminal state and local runner identity/lock release, then removes the exact host plugin, unshared official marketplace and finally the global npm package. Shared catalogs, task history/logs/backups and download caches remain. Update/removal journals pin the original installation and host selection, reconcile uncertain host outcomes and forbid overlapping unfinished operations. Native offline/OpenCode routes remain separate. See [ADR 0021](adr/0021-unified-online-update.md).
+
+## Result inspection and retained logs
+
+Unreleased inspection derives notification counts/problem state without host probes, including equivalent cold-snapshot summaries; the panel exposes bounded attempt reads and original-chat recovery guidance without admitting browser rebinds. MCP task inspection has compact output excerpts/progress/control diagnostics by default, while `full=true`, ordinary CLI JSON and HTTP retain full details. CLI `--compact` shares the Agent summary. The Web notification/log components fence asynchronous reads and exports on task/stream changes.
+
+Native capture retains a legacy-compatible 16-MiB prefix plus four recent 1-MiB segments per stream in a bounded checksummed ring. Full segments and the final partial segment publish with absolute offsets under a file lock; invalidation/data/header synchronization prevents stale offsets from naming overwritten bytes. Readers expose retained ranges/gaps without splicing across holes; verified archive pruning and locked per-file backup snapshots preserve this format. Pending capture bytes and abrupt-runner-loss limits remain explicit. Remote v1 raw copying remains prefix-only. See [protocol](protocol.md#unreleased-result-diagnostics-and-log-retention).

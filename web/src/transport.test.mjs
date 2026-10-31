@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { api, mutateTask, observeTask, streamTask } from "./transport.js";
+import { api, mutateTask, observeTask, streamTask, exportLogText } from "./transport.js";
 
 const settle = async () => {
   await Promise.resolve();
@@ -211,4 +211,18 @@ test("rule responses cannot overwrite another task or apply a stale revision", a
     onRules: (value) => applied.push(value),
   });
   assert.deepEqual(applied, [{ rules: ["b"] }]);
+});
+
+
+test("log export preserves byte gaps, bounds its snapshot and fences task switches", async () => {
+  const calls=[];
+  const send=async body=>{ calls.push(body); return body.cursor===0
+    ? {cursor:0,next_cursor:3,retained_end:10,text:"abc"}
+    : {cursor:8,next_cursor:10,retained_end:10,text:"YZ"}; };
+  const parts=await exportLogText("job","stderr","token",{send});
+  assert.equal(parts.join(""),"abc\n[AgentJobRelay missing bytes 3..8]\nYZ");
+  assert.equal(calls.length,2);
+  assert.equal(calls[1].cursor,3);
+  await assert.rejects(exportLogText("job","stdout","token",{send,isCurrent:()=>false}),/任务已切换/);
+  await assert.rejects(exportLogText("job","stdout","token",{send:async()=>({cursor:0,next_cursor:0,retained_end:10,text:""})}),/未前进/);
 });

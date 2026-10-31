@@ -58,8 +58,28 @@ impl Snapshot {
             .take(20)
             .map(delivery)
             .collect::<Result<Vec<_>>>()?;
+        let kinds = self.tables["events"]
+            .iter()
+            .filter_map(|e| Some((e["id"].as_str()?, e["kind"].as_str()?)))
+            .collect::<BTreeMap<_, _>>();
+        let mut counts = BTreeMap::<(String, String), u64>::new();
+        let mut problem = Value::Null;
+        for row in &self.tables["deliveries"] {
+            let d = delivery(row)?;
+            let kind = kinds.get(d.event_id.as_str()).copied().unwrap_or("unknown");
+            *counts.entry((d.status.clone(), kind.into())).or_default() += 1;
+            if matches!(d.status.as_str(), "retry_wait" | "dead_letter") {
+                problem = json!({"delivery_id":d.id,"status":d.status,"failure_kind":d.failure_kind,
+                    "error":d.last_error,"expires_at":d.expires_at,"next_attempt_at":d.next_attempt_at});
+            }
+        }
+        let notifications = crate::notifications::summarize(
+            counts.into_iter().map(|((s, k), n)| (s, k, n)).collect(),
+            problem,
+        );
         Ok(json!({
             "job": self.job,
+            "notifications": notifications,
             "observation": observation,
             "rules": rules,
             "stop": self.tables["stop_requests"].first(),
@@ -432,7 +452,10 @@ fn compress_log(path: &Path) -> Result<()> {
         meta.len() <= crate::runner::LOG_CAP,
         "log exceeds archive limit"
     );
-    let gz = path.with_extension("log.gz");
+    let gz = path.with_file_name(format!(
+        "{}.gz",
+        path.file_name().context("log name")?.to_string_lossy()
+    ));
     let temporary = path.with_extension(format!("{}.tmp", id()));
     // Always replace a previous prepared copy from a failed/interrupted attempt.
     regular(&gz)?;
@@ -457,10 +480,13 @@ fn compress_log(path: &Path) -> Result<()> {
 }
 pub(crate) fn remove_raw_logs(config: &crate::config::Config, run: &str) -> Result<()> {
     crate::platform::secure_dir(&config.run_dir(run))?;
-    for stream in ["stdout", "stderr"] {
-        let path = config.run_dir(run).join(format!("{stream}.log"));
+    for name in ["stdout.log", "stderr.log", "stdout.recent", "stderr.recent"] {
+        let path = config.run_dir(run).join(name);
         if regular(&path)?.is_some() {
-            let gz = path.with_extension("log.gz");
+            let gz = path.with_file_name(format!(
+                "{}.gz",
+                path.file_name().context("log name")?.to_string_lossy()
+            ));
             regular(&gz)?.context("raw log has no durable compressed copy")?;
             let original = crate::platform::read_file(&path)?;
             let mut decoded =
@@ -504,8 +530,8 @@ impl Store {
         lock.try_lock()
             .context("runner still owns terminal run; defer archiving")?;
         let prepared = tokio::task::spawn_blocking(move || -> Result<_> {
-            for stream in ["stdout", "stderr"] {
-                compress_log(&config.run_dir(&run).join(format!("{stream}.log")))?;
+            for name in ["stdout.log", "stderr.log", "stdout.recent", "stderr.recent"] {
+                compress_log(&config.run_dir(&run).join(name))?;
             }
             let bytes = serde_json::to_vec(&snapshot)?;
             let compressed = pack(&bytes)?;
@@ -544,10 +570,7 @@ pub async fn logs(
     cursor: u64,
     limit: u32,
 ) -> Result<Value> {
-    let data = log_bytes(config, run, stream, cursor, limit).await?;
-    Ok(
-        json!({"text":String::from_utf8_lossy(&data),"bytes":data.len(),"next_cursor":cursor+data.len() as u64,"untrusted":true,"encoding":"utf8_lossy","cap_bytes":crate::runner::LOG_CAP}),
-    )
+    crate::log_retention::read(config, run, stream, cursor, limit).await
 }
 
 /// Preserve byte cursors across remote reconnects, including invalid UTF-8.

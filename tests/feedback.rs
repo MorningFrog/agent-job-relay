@@ -281,3 +281,112 @@ async fn host_feedback_follows_recorded_rebinds_lease_state_and_one_shot_exhaust
         false
     );
 }
+
+#[tokio::test]
+async fn notification_diagnostics_preserve_delivery_identity_and_archive_equivalence() {
+    use agent_job_relay::delivery::{DeliveryError, FailureKind};
+    let (_dir, store, mut spec) = fixture().await;
+    spec.session = Some(
+        store
+            .register(registration("notifications"))
+            .await
+            .unwrap()
+            .key,
+    );
+    let job = store.start(spec).await.unwrap();
+    store
+        .finish(
+            job.job_id.clone(),
+            "completed",
+            Some(0),
+            None,
+            "done".into(),
+        )
+        .await
+        .unwrap();
+    let initial = inspect(&store, &job.job_id).await;
+    assert_eq!(initial["notifications"]["status"], "pending");
+    let claim = store.claim().await.unwrap().unwrap();
+    let delivery = claim.delivery.id.clone();
+    store
+        .complete_claim(
+            claim,
+            Err(DeliveryError(FailureKind::RebindRequired, "host instance changed").into()),
+        )
+        .await
+        .unwrap();
+    let failed = inspect(&store, &job.job_id).await;
+    assert_eq!(
+        failed["notifications"]["latest_problem"]["delivery_id"],
+        delivery
+    );
+    assert_eq!(
+        failed["notifications"]["latest_problem"]["failure_kind"],
+        "rebind_required"
+    );
+    store.retry_delivery(delivery.clone()).await.unwrap();
+    let claim = store.claim().await.unwrap().unwrap();
+    store
+        .complete_claim(claim, Ok("accepted_by_host"))
+        .await
+        .unwrap();
+    let hot = inspect(&store, &job.job_id).await;
+    assert_eq!(hot["notifications"]["status"], "accepted_by_host");
+    assert_eq!(hot["notifications"]["agent_execution"], "unconfirmed");
+    store
+        .data_policy(
+            Some(agent_job_relay::maintenance::Policy {
+                archive_after_days: 0,
+                ..Default::default()
+            }),
+            true,
+        )
+        .await
+        .unwrap();
+    store.maintain(true).await.unwrap();
+    let cold = inspect(&store, &job.job_id).await;
+    assert_eq!(hot["notifications"], cold["notifications"]);
+    assert_eq!(cold["job"]["run_id"], job.run_id);
+    assert_eq!(
+        store.attempts(delivery, 0, 20).await.unwrap()["attempts"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+}
+
+#[test]
+fn compact_inspection_bounds_output_and_keeps_result_and_control_identity() {
+    let full = json!({"job":{"job_id":"job","run_id":"run","status":"failed","exit_code":1,"run":{"started_at":1,"ended_at":2}},
+        "observation":{"stdout":{"text":"训练🙂".repeat(20000),"total_bytes":160000},"stderr":{"text":"x".repeat(65536)}},
+        "events":[{"seq":9,"payload":"x".repeat(65536)}],
+        "rules":[{"private":"large"}],"goal_wait":{"goal_wait_id":"wait","revision":7,"status":"sealed","host_pause_required":true,"controller":"private"},
+        "notifications":{"status":"retry_wait","agent_execution":"unconfirmed"},"deliveries":{"next_cursor":12}});
+    let compact = agent_job_relay::output::compact("inspect", full.clone());
+    assert!(serde_json::to_vec(&compact).unwrap().len() < 16000);
+    assert!(compact["output"]["stdout"]["text"].as_str().unwrap().len() <= 2048);
+    assert_eq!(compact["job"]["run_id"], "run");
+    assert_eq!(compact["job"]["exit_code"], 1);
+    assert_eq!(compact["events_after"], 9);
+    assert_eq!(compact["recent_events_after"], 8);
+    assert_eq!(compact["job"]["run"]["ended_at"], 2);
+    assert!(
+        compact["recent_events"][0]["payload_excerpt"]
+            .as_str()
+            .unwrap()
+            .len()
+            <= 1024
+    );
+    assert_eq!(compact["deliveries_after"], 12);
+    assert_eq!(compact["goal_wait"]["revision"], 7);
+    assert!(compact["goal_wait"].get("controller").is_none());
+    assert!(compact.get("rules").is_none());
+    assert!(
+        full["observation"]["stdout"]["text"]
+            .as_str()
+            .unwrap()
+            .len()
+            > 65536
+    );
+}

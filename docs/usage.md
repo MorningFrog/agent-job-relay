@@ -41,7 +41,7 @@ agent-job-relay codex stop "$JOB_ID"
 
 The first submission starts the daemon. Eight active jobs are allowed. Identical submissions sharing an idempotency key return the original job; changed settings conflict, and a deliberate rerun needs a new key. Stop is idempotent and never changes an already completed job into a cancellation.
 
-Lists/events/deliveries return `next_cursor`; use `--after` for the next page. Log cursors are byte offsets. Text reads use lossy UTF-8, while raw bytes are retained up to 16 MiB per stream; further output is drained/discarded. Human viewers can use `logs "$JOB_ID" --follow`; Ctrl-C stops only the viewer. Wait is bounded and may return a `started` event before completion. Agents should not loop on waits/log follow for long jobs.
+Lists/events/deliveries return `next_cursor`; use `--after` for the next page. Log cursors are absolute byte offsets. Text reads use lossy UTF-8. Published 0.1.17 retains a 16-MiB prefix per stream; unreleased native runs additionally retain four recent 1-MiB segments. Responses identify retained ranges and explicitly skip missing middle intervals; old runs and remote copies retain their existing limits. Source `logs <job-id> --export <new-file>` exports retained text with gap markers; see [retained logs](runtime-monitoring.md#read-and-export-retained-logs-unreleased). Human viewers can use `logs "$JOB_ID" --follow`; Ctrl-C stops only the viewer. Wait is bounded and may return a `started` event before completion. Agents should not loop on waits/log follow for long jobs.
 
 ## Name tasks (unreleased source)
 

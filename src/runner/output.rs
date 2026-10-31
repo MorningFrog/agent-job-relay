@@ -52,6 +52,7 @@ async fn capture(
     live: crate::monitor::SharedLive,
     stream: usize,
 ) -> Result<bool> {
+    let mut recent = crate::log_retention::Writer::new(path.with_extension("recent"));
     let file = crate::platform::private_file(&path)?;
     let mut file = tokio::fs::File::from_std(file);
     let mut buf = [0u8; 8192];
@@ -72,8 +73,16 @@ async fn capture(
                 .context("cannot write output log")?;
             written += keep as u64;
         }
+        recent
+            .output(&buf[keep..n])
+            .await
+            .context("cannot persist recent output")?;
         truncated |= keep < n;
     }
+    recent
+        .flush()
+        .await
+        .context("cannot synchronize recent output")?;
     // Tokio can acknowledge buffered writes before the blocking write finishes.
     // flush surfaces that operation's error; sync_all alone can miss it.
     file.flush().await.context("cannot flush output log")?;

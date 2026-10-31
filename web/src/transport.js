@@ -129,3 +129,26 @@ export function observeTask({
     document?.removeEventListener("visibilitychange", visibility);
   };
 }
+
+// Explicit export reads one bounded snapshot; it never waits for future output.
+export async function exportLogText(job, stream, token, { send = api, isCurrent = () => true } = {}) {
+  let page = await send({ op: "logs", job_id: job, stream, cursor: 0, limit: 65536 }, token);
+  const end = page.retained_end;
+  if (!Number.isSafeInteger(end) || end < 0) throw new Error("运行时不支持保留日志导出，请先更新。");
+  let cursor = 0;
+  const parts = [];
+  for (let count = 0; count < 512; count++) {
+    if (!isCurrent()) throw new Error("任务已切换，导出已停止。");
+    const actual = page.cursor, next = page.next_cursor;
+    if (!Number.isSafeInteger(actual) || actual < cursor || !Number.isSafeInteger(next)) throw new Error("日志游标无效。");
+    if (actual > cursor) parts.push(`\n[AgentJobRelay missing bytes ${cursor}..${Math.min(actual, end)}]\n`);
+    if (actual >= end) return parts;
+    cursor = actual;
+    if (next <= actual) throw new Error("日志读取未前进，请重新查看保留区间。");
+    if (next <= end) { parts.push(page.text); cursor = next; }
+    const from = next > end ? actual : cursor;
+    if (cursor >= end) return parts;
+    page = await send({ op: "logs", job_id: job, stream, cursor: from, limit: Math.min(65536, end - from) }, token);
+  }
+  throw new Error("导出超出有界读取额度。");
+}

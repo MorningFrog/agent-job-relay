@@ -317,6 +317,7 @@ impl Store {
                     value["goal_wait"] = json!(crate::goal_wait::summary_for_job(&tx, &id)?);
                     value["sampled_at"] = json!(now());
                     value["feedback"] = crate::feedback::summarize(&tx, &value)?;
+                    crate::notifications::context(&mut value);
                     return Ok(value);
                 }
                 let j=read_job(&tx,&id)?;
@@ -326,7 +327,9 @@ impl Store {
                 let mut q=tx.prepare("SELECT seq,id,job_id,run_id,kind,at,payload FROM events WHERE job_id=? ORDER BY seq DESC LIMIT 30")?;
                 let events=q.query_map([&id],|r|Ok(Event{seq:r.get(0)?,event_id:r.get(1)?,job_id:r.get(2)?,run_id:r.get(3)?,kind:r.get(4)?,at:r.get(5)?,payload:serde_json::from_str(&r.get::<_,String>(6)?).map_err(|e|rusqlite::Error::FromSqlConversionFailure(6,rusqlite::types::Type::Text,Box::new(e)))?}))?.collect::<rusqlite::Result<Vec<_>>>()?;
                 let mut value = json!({"job":j,"goal_wait":crate::goal_wait::summary_for_job(&tx,&id)?,"observation":observation,"rules":rules(&tx,&id)?,"stop":stop,"events":events,"deliveries":crate::delivery::page(&tx,Some(&id),0,20)?,"sampled_at":now()});
+                value["notifications"] = crate::notifications::read(&tx, &id)?;
                 value["feedback"] = crate::feedback::summarize(&tx, &value)?;
+                crate::notifications::context(&mut value);
                 Ok(value)
             }).await?;
             value["profile"] = json!(self.config.root);
@@ -580,25 +583,34 @@ pub fn human(value: &Value) -> String {
             job["cwd"].as_str().unwrap_or("")
         ));
         lines.push(format!("Stop: {}", value["stop"]));
+        lines.push(format!("Notifications: {}", value["notifications"]));
         if let Some(status) = value["feedback"]["status"].as_str() {
             lines.push(format!(
                 "Feedback: {status} · {}",
                 value["feedback"]["reason"].as_str().unwrap_or("")
             ));
         }
-        if let Some(progress) = value["observation"].get("progress") {
+        if let Some(progress) = value["observation"]
+            .get("progress")
+            .or_else(|| value.get("progress"))
+        {
             lines.push(format!("Progress (untrusted workload data): {progress}"));
         }
+        let output = value.get("output").unwrap_or(&value["observation"]);
         for stream in ["stdout", "stderr"] {
             lines.push(format!(
                 "{stream} · {} bytes · last output {}\n{}",
-                value["observation"][stream]["total_bytes"],
-                value["observation"][stream]["last_output_at"],
-                value["observation"][stream]["text"].as_str().unwrap_or("")
+                output[stream]["total_bytes"],
+                output[stream]["last_output_at"],
+                output[stream]["text"].as_str().unwrap_or("")
             ));
         }
-        lines.push(format!("Rules: {}", value["rules"]));
-        lines.push(format!("Recent events: {}", value["events"]));
+        if let Some(rules) = value.get("rules") {
+            lines.push(format!("Rules: {rules}"));
+        }
+        if let Some(events) = value.get("events") {
+            lines.push(format!("Recent events: {events}"));
+        }
     } else {
         let mut seen = std::collections::BTreeSet::new();
         for key in ["active_jobs", "jobs"] {

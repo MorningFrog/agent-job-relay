@@ -38,7 +38,7 @@ agent-job-relay codex monitor add --help
 | `remote init` / `remote serve` (0.1.12+) | Explicit remote-profile provisioning / one authenticated stdio request; [setup and protocol](remote-execution.md) |
 | `list` | Bounded history; `--after`, `--limit` |
 | `status <job-id>` | Durable job/run state and exit outcome |
-| `logs <job-id>` | Bounded stdout/stderr; `--stream`, byte `--cursor`, `--limit`, optional human-viewer `--follow` |
+| `logs <job-id>` | Bounded stdout/stderr; `--stream`, byte `--cursor`, `--limit`, optional human-viewer `--follow`; unreleased `--export <new-file>` exports retained text with gap markers |
 | `events <job-id>` | Durable events; `--after`, `--limit` |
 | `wait <job-id>` | Bounded event wait; `--after`, `--seconds` (at most 30) |
 | `stop <job-id>` | Idempotent cancellation; `--grace` before force stop, `--wait` for bounded observation. Read-only remote/workflow jobs stop observation only |
@@ -153,3 +153,7 @@ Policy flags are `--hot-jobs`, `--archive-after-days`, `--hot-log-mib`, `--backu
 | Targets and delivery | `job_add_wake_target`, `job_rebind_target`, `job_deliveries`, `job_retry_delivery`, `job_delivery_attempts` |
 
 Tools accept optional `full=true` for complete diagnostic records. In shared-host mode, `job_connect_session` and `wake_me=true` are rejected; pass the actual host caller's binding instead. Web access URLs, daemon shutdown, installation and data maintenance have no corresponding MCP tools. Use [protocol](protocol.md) for schemas, states, byte limits and compatibility details.
+
+## Unreleased inspection and log additions
+
+`inspect <job-id> --json --compact` uses the same bounded result summary as default MCP `job_inspect`; MCP `full=true` and ordinary CLI JSON retain complete detail. Task details include independent notification diagnostics and original-chat recovery steps. `logs <job-id> --export <new-file>` exports retained UTF-8-lossy text and explicit missing-byte markers, refuses overwrite and is exclusive with `--follow`, `--cursor` and `--limit`. Native runs retain the original 16-MiB prefix plus four recent 1-MiB segments per stream. See [inspection, recovery and retained logs](runtime-monitoring.md).

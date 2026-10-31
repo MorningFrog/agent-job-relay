@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Added
+
+- Show task-level notification counts, unresolved errors, delivery-attempt history, original-chat recovery instructions and goal handoff status in the bundled panel. Keep host acceptance independent from unconfirmed Agent execution.
+- Return compact default MCP task inspections with original IDs, timing, 2-KiB output excerpts per stream, recent progress and notification/control diagnostics. Add CLI `inspect --compact`; `full=true` and ordinary CLI/HTTP inspection retain complete detail.
+- Retain four checksummed 1-MiB recent output segments beyond each native stream's existing 16-MiB prefix, preserving absolute cursors and explicit missing ranges. Include segments in verified archives/backups and expose bounded range browsing and text export in CLI/Web.
+
 ### Fixed
 
 - Explain online update refusals with the affected profile, actual/required database schemas and instructions to finish old tasks before retrying. Distinguish the AgentJobRelay runtime from the Codex application and retain the active-run migration fence.

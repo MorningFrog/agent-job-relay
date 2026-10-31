@@ -123,3 +123,21 @@ test("unnamed legacy jobs have bounded project hints without inline script bodie
   assert.ok(long.includes("…"));
   assert.equal(taskTitle({}), "后台任务");
 });
+
+test("notification diagnostics show recovery and goal attention without claiming Agent execution", () => {
+  const html = renderToStaticMarkup(React.createElement(TaskDetail, {
+    selected:"job", tab:"output", streamName:"stdout", detail:{
+      job:{job_id:"job", status:"completed"},
+      notifications:{status:"dead_letter", counts:{dead_letter:1},
+        latest_problem:{delivery_id:"delivery", failure_kind:"rebind_required", error:"<script>host changed</script>"},
+        goal:{status:"attention",revision:4,host_pause_required:true,detail:"native pause needed"}},
+      deliveries:{deliveries:[{id:"delivery",status:"dead_letter",attempts:2}]}
+    }
+  }));
+  assert.ok(html.includes("通知需要处理"));
+  assert.ok(html.includes("connect --recover"));
+  assert.ok(html.includes("native pause needed"));
+  assert.ok(html.includes("Agent 是否继续仍待核实"));
+  assert.ok(html.includes("&lt;script&gt;host changed&lt;/script&gt;"));
+  assert.ok(!html.includes("<script>"));
+});

@@ -273,6 +273,9 @@ pub(super) enum Commands {
             help = "Follow output until terminal state; Ctrl-C stops only the viewer"
         )]
         follow: bool,
+        /// Export retained UTF-8-lossy text with explicit gap markers to a new file
+        #[arg(long, conflicts_with_all = ["follow", "cursor", "limit"])]
+        export: Option<PathBuf>,
         #[arg(long, default_value = "stdout")]
         stream: String,
         #[arg(long, default_value_t = 0)]
@@ -311,6 +314,9 @@ pub(super) enum Commands {
         watch: bool,
         #[arg(long)]
         json: bool,
+        /// Return the bounded Agent result summary (same as default MCP inspection)
+        #[arg(long)]
+        compact: bool,
         #[arg(long)]
         before: Option<i64>,
         #[arg(long, default_value_t = 20)]

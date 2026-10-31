@@ -864,6 +864,97 @@ pub async fn call(config: &Config, request: Request) -> Result<Value> {
     }
 }
 
+/// Export a bounded retained snapshot, never wait for future workload output.
+/// Existing destinations are protected; an I/O/transport error may leave a partial new file.
+pub async fn export_logs(
+    config: &Config,
+    job: String,
+    stream: String,
+    path: std::path::PathBuf,
+) -> Result<Value> {
+    use tokio::io::AsyncWriteExt;
+    let mut page = call(
+        config,
+        Request::Logs {
+            job_id: job.clone(),
+            stream: stream.clone(),
+            cursor: 0,
+            limit: 65536,
+        },
+    )
+    .await?;
+    let end = page["retained_end"]
+        .as_u64()
+        .context("runtime lacks retained-log export; update it first")?;
+    let file = crate::platform::create_new_file(&path)?;
+    let mut file = tokio::fs::File::from_std(file);
+    let mut cursor = 0;
+    let mut exported = 0;
+    for _ in 0..512 {
+        let actual = page["cursor"].as_u64().context("missing log cursor")?;
+        if actual > cursor {
+            file.write_all(
+                format!(
+                    "\n[AgentJobRelay missing bytes {cursor}..{}]\n",
+                    actual.min(end)
+                )
+                .as_bytes(),
+            )
+            .await?;
+        }
+        if actual >= end {
+            break;
+        }
+        cursor = actual;
+        let next = page["next_cursor"]
+            .as_u64()
+            .context("missing next log cursor")?;
+        ensure!(
+            next > actual,
+            "log export made no progress; partial output retained"
+        );
+        if next > end {
+            page = call(
+                config,
+                Request::Logs {
+                    job_id: job.clone(),
+                    stream: stream.clone(),
+                    cursor: actual,
+                    limit: (end - actual).min(65536) as u32,
+                },
+            )
+            .await?;
+            continue;
+        }
+        let text = page["text"].as_str().context("missing log text")?;
+        file.write_all(text.as_bytes()).await?;
+        exported += next - actual;
+        cursor = next;
+        if cursor >= end {
+            break;
+        }
+        page = call(
+            config,
+            Request::Logs {
+                job_id: job.clone(),
+                stream: stream.clone(),
+                cursor,
+                limit: (end - cursor).min(65536) as u32,
+            },
+        )
+        .await?;
+    }
+    ensure!(
+        cursor >= end || page["cursor"].as_u64().is_some_and(|c| c >= end),
+        "log export exceeded its bounded page budget; partial output retained"
+    );
+    file.flush().await?;
+    file.sync_all().await?;
+    Ok(
+        json!({"path":path,"job_id":job,"stream":stream,"exported_bytes":exported,"snapshot_end":end,"encoding":"utf8_lossy","gaps":"explicit markers","complete":true}),
+    )
+}
+
 #[cfg(test)]
 mod startup_tests {
     use super::verify_runner_launch;

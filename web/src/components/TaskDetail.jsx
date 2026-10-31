@@ -1,6 +1,8 @@
 import React from "react";
 import { Icon, Badge } from "./Icons.jsx";
 import { ActionsProgress } from "./ActionsProgress.jsx";
+import { RetainedLogs } from "./RetainedLogs.jsx";
+import { NotificationStatus } from "./NotificationStatus.jsx";
 import { RuleForm } from "./RuleForm.jsx";
 import {
   terminal,
@@ -15,6 +17,7 @@ import {
 } from "../view.js";
 export function TaskDetail({
   selected,
+  token,
   detail,
   busy,
   tab,
@@ -143,6 +146,7 @@ export function TaskDetail({
                 ))}
               </div>
             )}
+            <NotificationStatus detail={detail} token={token} />
             <div className="detail-meta">
               <span>
                 最近输出
@@ -257,6 +261,7 @@ export function TaskDetail({
                     显示最近 64 KiB；更早的输出可能已超出保留范围。
                   </p>
                 )}
+                <RetainedLogs job={job.job_id} stream={streamName} token={token} />
                 {job.detail && <p className="execution-detail">{job.detail}</p>}
               </div>
             )}

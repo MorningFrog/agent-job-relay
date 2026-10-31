@@ -29,11 +29,123 @@ fn job(value: &Value) -> Value {
     )
 }
 
+/// Keep goal control identity/revision without copying host snapshots or audits.
+pub(crate) fn goal_summary(value: &Value) -> Value {
+    fields(
+        value,
+        &[
+            "goal_wait_id",
+            "jobs",
+            "status",
+            "revision",
+            "host_pause_required",
+            "detail",
+            "expires_at",
+            "feedback",
+        ],
+    )
+}
+fn excerpt(text: &str, limit: usize) -> &str {
+    let mut start = text.len().saturating_sub(limit);
+    while !text.is_char_boundary(start) {
+        start += 1;
+    }
+    &text[start..]
+}
+fn inspection(value: Value) -> Value {
+    if value.get("job").is_none() {
+        return value;
+    }
+    let mut result = json!({"job":job(&value["job"]), "sampled_at":value["sampled_at"],
+        "notifications":value["notifications"], "goal_wait":goal_summary(&value["goal_wait"]),
+        "feedback":fields(&value["feedback"], &["status","reason","configured_rules","notifying_rules"]),
+        "stop":value["stop"], "untrusted_output":true});
+    result["job"]["run"] = fields(&value["job"]["run"], &["started_at", "ended_at", "attempt"]);
+    result["elapsed_seconds"] = value["observation"]["elapsed_seconds"].clone();
+    for stream in ["stdout", "stderr"] {
+        let source = &value["observation"][stream];
+        let text = source["text"].as_str().unwrap_or("");
+        result["output"][stream] = json!({"text":excerpt(text,2048),"excerpt_truncated":text.len()>2048,
+            "total_bytes":source["total_bytes"],"retained_from":source["retained_from"],
+            "last_output_at":source["last_output_at"]});
+    }
+    let progress = value["observation"]
+        .get("progress")
+        .or_else(|| value["observation"]["external"]["observation"].get("progress"));
+    if let Some(progress) = progress {
+        let mut brief = fields(
+            progress,
+            &["accepted", "alerts", "suppressed", "dropped", "rejected"],
+        );
+        if let Some(sources) = progress["sources"].as_object() {
+            for (name, sample) in sources.iter().take(8) {
+                brief["sources"][name] = fields(
+                    sample,
+                    &["stage", "step", "total", "metrics", "observed_run"],
+                );
+            }
+        }
+        brief["milestones"] = json!(
+            progress["milestones"]
+                .as_array()
+                .map(|a| a.iter().rev().take(3).collect::<Vec<_>>())
+        );
+        result["progress"] = brief;
+    }
+    result["external"] = fields(
+        &value["observation"]["external"],
+        &[
+            "mode",
+            "connection",
+            "last_success_at",
+            "evidence_stale",
+            "status",
+            "last_error",
+            "run",
+            "can_stop",
+        ],
+    );
+    let events = value["events"].as_array();
+    result["events_after"] = json!(
+        events
+            .and_then(|a| a.iter().filter_map(|e| e["seq"].as_i64()).max())
+            .unwrap_or(0)
+    );
+    result["recent_events_after"] = json!(
+        events
+            .and_then(|a| a.iter().filter_map(|e| e["seq"].as_i64()).min())
+            .unwrap_or(1)
+            .saturating_sub(1)
+    );
+    result["recent_events"] = json!(events.map(|a| {
+        a.iter()
+            .take(3)
+            .map(|e| {
+                let mut event = fields(e, &["seq", "event_id", "kind", "at"]);
+                let payload = e["payload"].to_string();
+                let mut end = payload.len().min(1024);
+                while !payload.is_char_boundary(end) {
+                    end -= 1;
+                }
+                event["payload_excerpt"] = json!(&payload[..end]);
+                event["excerpt_truncated"] = json!(end < payload.len());
+                event
+            })
+            .collect::<Vec<_>>()
+    }));
+    result["deliveries_after"] = value["deliveries"]["next_cursor"].clone();
+    result["next_step"] = json!(
+        "Use job_logs with bounded byte cursors or job_events after recent_events_after for retained evidence (events_after for later events); full=true returns complete inspection. Match original Job/Run and delivery IDs, report authorized feedback and yield if still running."
+    );
+    result
+}
+
 pub fn compact(op: &str, value: Value) -> Value {
     if value.get("consent").is_some() && value.get("job").is_none() {
         return value;
     }
     match op {
+        "inspect" => inspection(value),
         "start_batch" => {
             let mut result = value;
             if let Some(items) = result["results"].as_array_mut() {

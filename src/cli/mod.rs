@@ -411,9 +411,21 @@ pub(super) async fn run() -> Result<()> {
         Commands::Logs {
             job_id,
             stream,
+            export: Some(path),
+            ..
+        } => {
+            let result =
+                agent_job_relay::client::export_logs(&config, job_id, stream, path).await?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+            return Ok(());
+        }
+        Commands::Logs {
+            job_id,
+            stream,
             cursor,
             limit,
             follow: true,
+            ..
         } => {
             let mut cursor = cursor;
             loop {
@@ -427,6 +439,12 @@ pub(super) async fn run() -> Result<()> {
                     },
                 )
                 .await?;
+                if let Some(from) = v["skipped"]["from"].as_u64() {
+                    println!(
+                        "\n[AgentJobRelay missing bytes {from}..{}]",
+                        v["skipped"]["to"]
+                    );
+                }
                 cursor = v["next_cursor"].as_u64().unwrap();
                 let bytes = v["bytes"].as_u64().unwrap();
                 if bytes > 0 {
@@ -756,6 +774,7 @@ pub(super) async fn run() -> Result<()> {
             stream,
             cursor,
             limit,
+            ..
         } => Request::Logs {
             job_id,
             stream,
@@ -854,6 +873,7 @@ pub(super) async fn run() -> Result<()> {
             job_id,
             watch,
             json,
+            compact,
             before,
             limit,
         } => {
@@ -865,6 +885,11 @@ pub(super) async fn run() -> Result<()> {
                     limit,
                 )
                 .await?;
+                let value = if compact {
+                    agent_job_relay::output::compact("inspect", value)
+                } else {
+                    value
+                };
                 if json {
                     println!("{}", serde_json::to_string(&value)?);
                 } else {
