@@ -2,7 +2,7 @@
 mod common;
 use serde_json::{Value, json};
 use std::{fs::File, path::PathBuf, process::Stdio, time::Duration};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 
 struct Rig {
     dir: tempfile::TempDir,
@@ -45,6 +45,20 @@ impl Rig {
         );
         serde_json::from_slice(&output.stdout).unwrap()
     }
+    async fn state(&self, id: &str, expected: &str) -> Value {
+        let mut last = Value::Null;
+        tokio::time::timeout(Duration::from_secs(10), async {
+            loop {
+                last = self.cli(&["status", id]).await;
+                if last["status"] == expected {
+                    return last.clone();
+                }
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .unwrap_or_else(|_| panic!("job {id} did not enter {expected}; last state: {last}"))
+    }
     fn guard(&self) -> tokio::process::Command {
         let mut command = self.command();
         command
@@ -81,12 +95,45 @@ impl Drop for Rig {
     }
 }
 
+async fn guard_ready(child: &mut tokio::process::Child) -> Value {
+    let mut lines = BufReader::new(child.stdout.as_mut().unwrap()).lines();
+    let line = tokio::time::timeout(Duration::from_secs(10), lines.next_line())
+        .await
+        .expect("maintenance guard readiness timed out")
+        .expect("maintenance guard stdout failed");
+    let Some(line) = line else {
+        let status = child.wait().await.unwrap();
+        let mut stderr = String::new();
+        if let Some(mut pipe) = child.stderr.take() {
+            pipe.read_to_string(&mut stderr).await.unwrap();
+        }
+        panic!("maintenance guard exited before readiness ({status}): {stderr}");
+    };
+    serde_json::from_str(&line).unwrap()
+}
+
 #[tokio::test]
 async fn online_update_fences_replacement_restarts_only_online_profile_and_preserves_history() {
     let r = Rig::new();
-    let job = r.cli(&["start", "--shell", "printf preserved"]).await;
+    let job = r
+        .cli(&[
+            "start",
+            "--cwd",
+            r.dir.path().to_str().unwrap(),
+            "--shell",
+            "while [ ! -f finish ]; do sleep 0.02; done; printf preserved",
+        ])
+        .await;
     let id = job["job"]["job_id"].as_str().unwrap();
-    r.cli(&["wait", id, "--seconds", "5"]).await;
+    // Event waiting can return `started` while the original run is still active.
+    let event = r.cli(&["wait", id, "--seconds", "5"]).await;
+    assert_eq!(event["job"]["status"], "running");
+    assert_eq!(event["job"]["run_id"], job["job"]["run_id"]);
+    let refused = r.guard().arg("--apply").output().await.unwrap();
+    assert!(!refused.status.success());
+    assert!(String::from_utf8_lossy(&refused.stderr).contains("active jobs"));
+    std::fs::write(r.dir.path().join("finish"), b"").unwrap();
+    r.state(id, "completed").await;
     let mut child = r
         .guard()
         .arg("--apply")
@@ -95,15 +142,7 @@ async fn online_update_fences_replacement_restarts_only_online_profile_and_prese
         .stderr(Stdio::piped())
         .spawn()
         .unwrap();
-    let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
-    let ready: Value = serde_json::from_str(
-        &tokio::time::timeout(Duration::from_secs(5), lines.next_line())
-            .await
-            .unwrap()
-            .unwrap()
-            .unwrap(),
-    )
-    .unwrap();
+    let ready = guard_ready(&mut child).await;
     assert_eq!(ready["online_profiles"], json!([r.state]));
     assert_eq!(r.cli(&["doctor"]).await["daemon"], "stopped");
     for path in [
@@ -156,7 +195,7 @@ async fn active_work_and_downgrades_are_rejected_before_daemon_shutdown() {
         assert_ne!(r.cli(&["doctor"]).await["daemon"], "stopped");
     }
     std::fs::write(r.dir.path().join("finish"), b"").unwrap();
-    r.cli(&["wait", id, "--seconds", "5"]).await;
+    r.state(id, "completed").await;
     let output = r
         .command()
         .args(["update-guard", "--installation"])
@@ -247,15 +286,7 @@ async fn uninstall_defaults_to_idle_shutdown_and_force_cancels_exact_runs_withou
         .stderr(Stdio::piped())
         .spawn()
         .unwrap();
-    let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
-    let ready: Value = serde_json::from_str(
-        &tokio::time::timeout(Duration::from_secs(10), lines.next_line())
-            .await
-            .unwrap()
-            .unwrap()
-            .unwrap(),
-    )
-    .unwrap();
+    let ready = guard_ready(&mut child).await;
     assert_eq!(ready["stopped_runs"], json!([run]));
     assert_eq!(r.cli(&["doctor"]).await["daemon"], "stopped");
     child
@@ -280,10 +311,10 @@ async fn uninstall_defaults_to_idle_shutdown_and_force_cancels_exact_runs_withou
         .args(["--remove", "--apply"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .spawn()
         .unwrap();
-    let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
-    assert!(lines.next_line().await.unwrap().is_some());
+    assert_eq!(guard_ready(&mut child).await["ready"], true);
     child
         .stdin
         .take()
@@ -308,6 +339,7 @@ async fn compatible_daemon_handover_preserves_active_run_and_refuses_schema_mism
         ])
         .await;
     let id = job["job"]["job_id"].as_str().unwrap();
+    r.state(id, "running").await;
     let original_peer = r.peer().await;
     let database = rusqlite::Connection::open(r.state.join("relay.sqlite3")).unwrap();
     database.busy_timeout(Duration::from_secs(5)).unwrap();
@@ -355,8 +387,7 @@ async fn compatible_daemon_handover_preserves_active_run_and_refuses_schema_mism
         .stderr(Stdio::piped())
         .spawn()
         .unwrap();
-    let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
-    let ready: Value = serde_json::from_str(&lines.next_line().await.unwrap().unwrap()).unwrap();
+    let ready = guard_ready(&mut child).await;
     assert_eq!(ready["active_jobs"], 1);
     let store = agent_job_relay::storage::Store::readonly(agent_job_relay::config::Config {
         root: r.state.clone(),
@@ -373,13 +404,7 @@ async fn compatible_daemon_handover_preserves_active_run_and_refuses_schema_mism
         String::from_utf8_lossy(&output.stderr)
     );
     std::fs::write(r.dir.path().join("finish"), b"").unwrap();
-    tokio::time::timeout(Duration::from_secs(5), async {
-        while r.cli(&["status", id]).await["status"] != "completed" {
-            tokio::time::sleep(Duration::from_millis(25)).await;
-        }
-    })
-    .await
-    .unwrap();
+    r.state(id, "completed").await;
     assert_eq!(
         std::fs::read_to_string(r.dir.path().join("launches")).unwrap(),
         "once\n"
