@@ -715,6 +715,7 @@ async fn named_pipe_desktop_routing_recovery_and_renewal_are_fenced() {
     struct Host {
         endpoint: PathBuf,
         calls: std::sync::Arc<Mutex<Vec<Value>>>,
+        first_accept: tokio::sync::oneshot::Receiver<()>,
         task: tokio::task::JoinHandle<()>,
     }
     impl Host {
@@ -723,11 +724,17 @@ async fn named_pipe_desktop_routing_recovery_and_renewal_are_fenced() {
             let mut listener = platform::Listener::bind(&endpoint).unwrap();
             let calls = std::sync::Arc::new(Mutex::new(Vec::new()));
             let seen = calls.clone();
+            let (accepted, first_accept) = tokio::sync::oneshot::channel();
             let task = tokio::spawn(async move {
+                let mut accepted = Some(accepted);
                 loop {
                     let Ok(mut pipe) = listener.accept().await else {
                         break;
                     };
+                    // accept creates the next listener before returning the connection.
+                    if let Some(accepted) = accepted.take() {
+                        let _ = accepted.send(());
+                    }
                     let calls = seen.clone();
                     tokio::spawn(async move {
                         let result = tokio::time::timeout(Duration::from_secs(3), async {
@@ -746,6 +753,7 @@ async fn named_pipe_desktop_routing_recovery_and_renewal_are_fenced() {
             Self {
                 endpoint,
                 calls,
+                first_accept,
                 task,
             }
         }
@@ -760,7 +768,7 @@ async fn named_pipe_desktop_routing_recovery_and_renewal_are_fenced() {
     config.prepare().unwrap();
     let store = Store::new(config);
     store.init().await.unwrap();
-    let old_host = Host::new();
+    let mut old_host = Host::new();
     let registration = |host: &Host, instance: &str, chat: &str| Registration {
         agent_kind: "codex_desktop".into(),
         session_id: chat.into(),
@@ -776,6 +784,12 @@ async fn named_pipe_desktop_routing_recovery_and_renewal_are_fenced() {
     let old = store
         .register(registration(&old_host, "old", "chat-a"))
         .await
+        .unwrap();
+    // Registration fingerprints consume an instance; wait for the fake host's
+    // replacement before a second synchronous fingerprint on this runtime.
+    tokio::time::timeout(Duration::from_secs(3), &mut old_host.first_accept)
+        .await
+        .unwrap()
         .unwrap();
     let unrelated = store
         .register(registration(&old_host, "old", "chat-b"))
