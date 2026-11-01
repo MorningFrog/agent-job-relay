@@ -78,13 +78,22 @@ pub(crate) fn summarize(db: &Connection, detail: &Value) -> Result<Value> {
     let mut remaining = 0;
     let mut summaries = Vec::new();
     for rule in rules.into_iter().filter(|r| !r.deleted) {
+        let remote = matches!(
+            rule.spec.condition,
+            crate::monitor::Condition::RemoteAlert { .. }
+        );
         let progress = matches!(
             rule.spec.condition,
             crate::monitor::Condition::Progress { .. }
         );
         let can_trigger = rule.enabled
             && !terminal
-            && if progress {
+            && if remote {
+                detail["observation"]["remote_feedback"]["alerts"]
+                    .as_u64()
+                    .unwrap_or(0)
+                    < 128
+            } else if progress {
                 detail["observation"]["progress"]["alerts"]
                     .as_u64()
                     .unwrap_or(0)
@@ -107,7 +116,7 @@ pub(crate) fn summarize(db: &Connection, detail: &Value) -> Result<Value> {
             "notify_agent":rule.spec.notify_agent,
             "application":if terminal {"terminal"} else if !rule.enabled {"disabled"}
                 else if rule.applied_revision == rule.revision {"applied"} else {"pending"},
-            "trigger_policy":if progress {"progress_cooldown"} else {"once_per_revision"},
+            "trigger_policy":if remote {"remote_alert_cooldown"} else if progress {"progress_cooldown"} else {"once_per_revision"},
             "can_trigger_again":can_trigger,
         });
         if let crate::monitor::Condition::Progress { source, .. } = &rule.spec.condition {
@@ -194,7 +203,7 @@ pub(crate) fn summarize(db: &Connection, detail: &Value) -> Result<Value> {
     } else if remaining == 0 {
         (
             "exhausted",
-            "Notifying one-shot revisions or the job-wide progress alert budget are exhausted. Explicit edits can rearm one-shot rules; they cannot reset the progress budget.",
+            "Notifying one-shot revisions or a job-wide progress/remote-alert budget are exhausted. Explicit edits can rearm one-shot rules; they cannot reset repeated-feedback budgets.",
         )
     } else if targets.is_empty() {
         (

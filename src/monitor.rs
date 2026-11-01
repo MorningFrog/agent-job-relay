@@ -38,6 +38,11 @@ pub enum Condition {
         trigger: crate::progress::Trigger,
         cooldown_seconds: u64,
     },
+    /// Observe typed alerts from the pinned remote runner, never its commands.
+    RemoteAlert {
+        rule_id: Option<String>,
+        cooldown_seconds: u64,
+    },
 }
 #[derive(
     Clone, Copy, Debug, Default, Serialize, Deserialize, rmcp::schemars::JsonSchema, PartialEq,
@@ -72,6 +77,22 @@ pub struct RuleSpec {
 impl RuleSpec {
     pub fn validate(&self) -> Result<()> {
         match &self.condition {
+            Condition::RemoteAlert {
+                rule_id,
+                cooldown_seconds,
+            } => {
+                if let Some(rule_id) = rule_id {
+                    validate_id(rule_id)?;
+                }
+                ensure!(
+                    (1..=604800).contains(cooldown_seconds),
+                    "remote alert cooldown must be 1..604800 seconds"
+                );
+                ensure!(
+                    self.action == Action::Alert,
+                    "remote alert forwarding only records alerts; configure stop rules on the remote runner explicitly"
+                );
+            }
             Condition::Progress {
                 source,
                 trigger,
@@ -154,7 +175,7 @@ pub(crate) fn rules(db: &Connection, job: &str) -> Result<Vec<Rule>> {
 }
 pub(crate) fn add_rule(db: &Connection, job: &str, spec: &RuleSpec) -> Result<String> {
     spec.validate()?;
-    read_job(db, job)?.command.validate_rule(spec)?;
+    validate_runtime_rule(db, &read_job(db, job)?, spec)?;
     ensure!(
         db.query_row(
             "SELECT count(*) FROM monitor_rules WHERE job_id=?",
@@ -178,6 +199,19 @@ pub(crate) fn add_rule(db: &Connection, job: &str, spec: &RuleSpec) -> Result<St
     )?;
     audit(db, job, &id, 1, json!({"kind":"add","rule":spec}))?;
     Ok(id)
+}
+fn validate_runtime_rule(db: &Connection, job: &Job, spec: &RuleSpec) -> Result<()> {
+    job.command.validate_rule(spec)?;
+    if matches!(spec.condition, Condition::RemoteAlert { .. })
+        && matches!(job.status, JobState::Launching | JobState::Running)
+    {
+        ensure!(
+            crate::progress::read_observation(db, &job.job_id)?["external"]["remote_alert_feedback"]
+                == true,
+            "this observer has not advertised remote alert feedback support; retain the original job and update the same profile/observer before adding this rule"
+        );
+    }
+    Ok(())
 }
 fn audit(db: &Connection, job: &str, rule: &str, revision: i64, details: Value) -> Result<()> {
     db.execute(
@@ -233,7 +267,7 @@ impl Store {
                             _=>unreachable!(),
                         };
                         spec.validate()?;
-                        j.command.validate_rule(&spec)?;
+                        if enabled && !deleted { validate_runtime_rule(&tx,&j,&spec)?; } else { j.command.validate_rule(&spec)?; }
                         if spec.notify_agent {crate::goal_wait::notifying_rule_allowed(&tx,&key)?;ensure!(j.session.is_some(),"notify_agent requires an explicitly bound job session");}
                         tx.execute("UPDATE monitor_rules SET revision=revision+1,spec=?,enabled=?,deleted=? WHERE id=?",params![serde_json::to_string(&spec)?,enabled,deleted,rule_id])?;
                         audit(&tx,&key,rule_id,expected+1,json!({"before":old,"after":{"spec":spec,"enabled":enabled,"deleted":deleted}}))?;
@@ -242,7 +276,7 @@ impl Store {
                 tx.commit()?;Ok(())
             }).await?;
         }
-        self.read(move|db|{read_job(db,&job)?;Ok(json!({"job_id":job,"rules":rules(db,&job)?,"trigger_policy":"literal/time rules: once per revision; progress: new source sequences, cooldown and bounded repeated triggers"}))}).await
+        self.read(move|db|{read_job(db,&job)?;Ok(json!({"job_id":job,"rules":rules(db,&job)?,"trigger_policy":"literal/time rules: once per revision; progress/remote_alert: new source sequences, cooldown and bounded repeated triggers"}))}).await
     }
     pub(crate) async fn trigger_rule(
         &self,
@@ -293,8 +327,13 @@ impl Store {
     ) -> Result<()> {
         self.call(move|db| {
             let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-            if let Some(progress) = crate::progress::read_state(&tx, &job)? {
+            let previous = crate::progress::read_observation(&tx, &job)?;
+            if let Some(progress) = previous.get("progress") {
+                let progress: crate::progress::State = serde_json::from_value(progress.clone())?;
                 value["progress"] = serde_json::to_value(progress)?;
+            }
+            if let Some(feedback) = previous.get("remote_feedback") {
+                value["remote_feedback"] = feedback.clone();
             }
             tx.execute("INSERT INTO runtime_observations(job_id,data) VALUES(?,?) ON CONFLICT(job_id) DO UPDATE SET data=excluded.data",params![job,value.to_string()])?;
             for (id,revision) in applied {tx.execute("UPDATE monitor_rules SET applied_revision=?,applied_at=? WHERE id=? AND revision=? AND applied_revision<>?",params![revision,now(),id,revision,revision])?;}

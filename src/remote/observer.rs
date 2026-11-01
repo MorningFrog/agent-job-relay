@@ -166,9 +166,11 @@ pub async fn observe(config: &Config, store: &Store, job: &Job, spec: &StartSpec
         }
         if tokio::time::Instant::now() >= next {
             let mut catch_up = false;
+            let mut feedback_page = None;
             let result: Result<Option<Outcome>> = async {
                 match &spec.command {
                     CommandSpec::Remote { remote } => {
+                        external["remote_alert_feedback"] = json!(true);
                         external["target_id"] = json!(remote.target_id);
                         external["can_stop"] = json!(can_stop);
                         if run.is_none() {
@@ -187,6 +189,7 @@ pub async fn observe(config: &Config, store: &Store, job: &Job, spec: &StartSpec
                             external["stop"] = json!({"state":"requested","grace_seconds":grace,"at":now(),"terminal_observed":false});
                         }
                         let cursors = [logs[0].metadata()?.len(), logs[1].metadata()?.len()];
+                        let applied = live.lock().map_err(|_|anyhow::anyhow!("monitor state poisoned"))?.snapshot("running").1;
                         let value = exchange_at(&remote.transport, &request(remote, Operation::Sample { run: target.clone(), cursors, after_event }), Some(&spec.cwd)).await?;
                         let sample: Sample = serde_json::from_value(value).map_err(|_|anyhow::anyhow!("malformed remote sample"))?;
                         ensure!(sample.run == target, "remote sample execution identity mismatch");
@@ -208,6 +211,8 @@ pub async fn observe(config: &Config, store: &Store, job: &Job, spec: &StartSpec
                             logs[i].sync_data()?;
                             if !bytes.is_empty() { live.lock().map_err(|_| anyhow::anyhow!("monitor state poisoned"))?.output(i, bytes); }
                         }
+                        feedback_page = Some(super::feedback::Page { run:target, after:after_event, next:sample.next_event,
+                            events:sample.events.clone(), terminal:terminal(&sample.status), applied });
                         after_event = sample.next_event;
                         external["next_event"] = json!(after_event);
                         external["cursors"] = json!([logs[0].metadata()?.len(), logs[1].metadata()?.len()]);
@@ -259,7 +264,7 @@ pub async fn observe(config: &Config, store: &Store, job: &Job, spec: &StartSpec
             } else {
                 "running"
             };
-            publish(store, job, &live, &external, phase).await?;
+            publish_page(store, job, &live, &external, phase, feedback_page).await?;
             last_publish = tokio::time::Instant::now();
             if let Some((state, code, signal, mut detail)) = finish {
                 let mut end = detail.len().min(4096);
@@ -324,6 +329,16 @@ async fn publish(
     external: &Value,
     phase: &str,
 ) -> Result<()> {
+    publish_page(store, job, live, external, phase, None).await
+}
+async fn publish_page(
+    store: &Store,
+    job: &Job,
+    live: &crate::monitor::SharedLive,
+    external: &Value,
+    phase: &str,
+    page: Option<super::feedback::Page>,
+) -> Result<()> {
     let (mut value, applied) = live
         .lock()
         .map_err(|_| anyhow::anyhow!("monitor state poisoned"))?
@@ -336,5 +351,9 @@ async fn publish(
     } else {
         "running"
     });
-    store.observe(job.job_id.clone(), value, applied).await
+    if let Some(page) = page {
+        store.observe_remote(job.job_id.clone(), value, page).await
+    } else {
+        store.observe(job.job_id.clone(), value, applied).await
+    }
 }

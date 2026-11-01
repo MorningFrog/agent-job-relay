@@ -11,6 +11,32 @@ use std::{path::PathBuf, process::Stdio, time::Duration};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 #[tokio::test]
+async fn remote_feedback_requires_daemon_capability_before_admission() {
+    let r = Rig::new();
+    r.config.prepare().unwrap();
+    let listener = tokio::net::UnixListener::bind(r.config.socket()).unwrap();
+    let old = tokio::spawn(async move {
+        for _ in 0..2 {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let request = ipc::read_frame(&mut stream, 65536).await.unwrap();
+            assert_eq!(request["request"]["op"], "doctor");
+            ipc::write_frame(&mut stream,&json!({"protocol_version":1,"ok":true,"result":{"runner_launch_from_loaded_image":true,"version":env!("CARGO_PKG_VERSION"),"remote_execution":true,"github_actions_observation":true,"bounded_queue":{"default_timeout_seconds":86400}}})).await.unwrap();
+        }
+    });
+    let file = r.dir.path().join("remote.json");
+    std::fs::write(&file,json!({"command":{"kind":"remote","remote":{"target_id":id(),"transport":{"program":"must-not-run"},"intent":{"kind":"attach","run":{"job_id":id(),"run_id":id(),"attempt":1}}}},"cwd":r.dir.path(),"monitor_rules":[{"condition":{"kind":"remote_alert","cooldown_seconds":1}}]}).to_string()).unwrap();
+    let out = r
+        .cli(&["start-spec", "--file", file.to_str().unwrap()], None)
+        .await;
+    assert!(!out.status.success());
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("does not support remote alert feedback")
+    );
+    assert!(!r.config.root.join("relay.sqlite3").exists());
+    old.await.unwrap();
+}
+
+#[tokio::test]
 async fn missing_notification_capability_is_refused_before_registration_or_workload() {
     let r = Rig::new();
     let host = Host::new(&r, true);

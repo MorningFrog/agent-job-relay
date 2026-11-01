@@ -1,5 +1,6 @@
 //! Pinned external executions. Transport is replaceable; execution identity is not.
 mod actions;
+mod feedback;
 mod observer;
 mod protocol;
 mod transport;

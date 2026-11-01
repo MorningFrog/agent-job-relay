@@ -725,6 +725,7 @@ pub(super) async fn run() -> Result<()> {
                     || monitor.elapsed.is_some()
                     || monitor.contains.is_some()
                     || monitor.progress.is_some()
+                    || monitor.remote_alert.is_some()
                 {
                     vec![rule_spec(monitor)?]
                 } else {
@@ -733,7 +734,7 @@ pub(super) async fn run() -> Result<()> {
                             && !monitor.notify_agent
                             && monitor.grace == 5
                             && monitor.stream == "both",
-                        "monitor options require --no-output, --elapsed, --contains or --progress"
+                        "monitor options require --no-output, --elapsed, --contains, --progress or --remote-alert"
                     );
                     vec![]
                 },
@@ -977,6 +978,34 @@ pub(super) async fn run() -> Result<()> {
 
 fn rule_spec(args: RuleArgs) -> Result<agent_job_relay::monitor::RuleSpec> {
     use agent_job_relay::monitor::*;
+    if let Some(raw) = args.remote_alert {
+        anyhow::ensure!(
+            args.no_output.is_none()
+                && args.elapsed.is_none()
+                && args.contains.is_none()
+                && args.progress.is_none(),
+            "provide exactly one monitor condition"
+        );
+        let mut value: serde_json::Value =
+            serde_json::from_str(&raw).context("--remote-alert requires a JSON object")?;
+        anyhow::ensure!(
+            value.is_object() && value.get("kind").is_none(),
+            "--remote-alert takes rule_id and cooldown_seconds; omit kind"
+        );
+        value["kind"] = serde_json::json!("remote_alert");
+        let rule = RuleSpec {
+            condition: serde_json::from_value(value)?,
+            action: match args.action.as_str() {
+                "alert" => Action::Alert,
+                "stop" => Action::Stop,
+                _ => anyhow::bail!("action must be alert or stop"),
+            },
+            notify_agent: args.notify_agent,
+            grace_seconds: args.grace,
+        };
+        rule.validate()?;
+        return Ok(rule);
+    }
     let condition = match (args.no_output, args.elapsed, args.contains, args.progress) {
         (None, None, None, Some(raw)) => {
             let mut value: serde_json::Value =

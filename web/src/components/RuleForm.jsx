@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Icon } from "./Icons.jsx";
 export function RuleForm({ existing, preset, close, save, busy, externalKind }) {
-  const c = existing?.spec.condition || (preset === "stage" ? { kind: "progress", source: "training", trigger: { kind: "stage" }, cooldown_seconds: 600 } : preset === "elapsed" ? { kind: "elapsed", seconds: 1800 } : null);
+  const c = existing?.spec.condition || (preset === "remote" ? { kind: "remote_alert", cooldown_seconds: 600 } : preset === "stage" ? { kind: "progress", source: "training", trigger: { kind: "stage" }, cooldown_seconds: 600 } : preset === "elapsed" ? { kind: "elapsed", seconds: 1800 } : null);
   const [kind, setKind] = useState(
       c?.kind || (externalKind ? "elapsed" : "no_output"),
     ),
@@ -12,6 +12,7 @@ export function RuleForm({ existing, preset, close, save, busy, externalKind }) 
     [notify, setNotify] = useState(existing?.spec.notify_agent ?? Boolean(preset)),
     [grace, setGrace] = useState(existing?.spec.grace_seconds ?? 5),
     [source, setSource] = useState(c?.source || "training"),
+    [remoteRule, setRemoteRule] = useState(c?.rule_id || ""),
     [triggerKind, setTriggerKind] = useState(c?.trigger?.kind || "stage"),
     [stage, setStage] = useState(c?.trigger?.stage || ""),
     [every, setEvery] = useState(c?.trigger?.every || 100),
@@ -26,7 +27,7 @@ export function RuleForm({ existing, preset, close, save, busy, externalKind }) 
         e.preventDefault();
         save({
           condition:
-            kind === "progress"
+            kind === "remote_alert" ? { kind, rule_id: remoteRule || null, cooldown_seconds: Number(cooldown) } : kind === "progress"
               ? {
                   kind,
                   source,
@@ -66,7 +67,8 @@ export function RuleForm({ existing, preset, close, save, busy, externalKind }) 
       <div className="form-grid">
         <label>
           检测条件
-          <select value={kind} onChange={(e) => setKind(e.target.value)}>
+          <select value={kind} onChange={(e) => { setKind(e.target.value); if (e.target.value === "remote_alert") setAction("alert"); }}>
+            {externalKind === "remote" && <option value="remote_alert">远端运行器告警</option>}
             {!externalKind && <option value="no_output">连续无输出</option>}
             {externalKind !== "github_actions" && (
               <option value="contains">输出包含文本</option>
@@ -75,7 +77,11 @@ export function RuleForm({ existing, preset, close, save, busy, externalKind }) 
             {!externalKind && <option value="progress">结构化进度</option>}
           </select>
         </label>
-        {kind === "progress" ? (
+        {kind === "remote_alert" ? <>
+          <label>远端规则 ID（留空表示全部）<input value={remoteRule} onChange={e => setRemoteRule(e.target.value)} maxLength={36} /></label>
+          <label>反馈最短间隔（秒）<input type="number" required min="1" max="604800" value={cooldown} onChange={e => setCooldown(e.target.value)} /></label>
+          <p className="muted">订阅固定远端运行器产生的告警。远端须配置阶段、指标或异常规则；此订阅不授予停止权限。</p>
+        </> : kind === "progress" ? (
           <>
             <label>
               进度来源
@@ -205,7 +211,7 @@ export function RuleForm({ existing, preset, close, save, busy, externalKind }) 
           命中后执行
           <select value={action} onChange={(e) => setAction(e.target.value)}>
             <option value="alert">记录本地告警</option>
-            <option value="stop">停止任务并记录告警</option>
+            {kind !== "remote_alert" && <option value="stop">停止任务并记录告警</option>}
           </select>
         </label>
         {action === "stop" && (
@@ -231,7 +237,7 @@ export function RuleForm({ existing, preset, close, save, busy, externalKind }) 
         同时通知任务绑定的 Agent 会话
       </label>
       <p className="muted">
-        保存后等待运行器应用。文本和时长规则每版本触发一次。进度规则按新序号重复触发，受间隔和配额限制；仅检查生效后的新输出。
+        保存后等待运行器应用。文本和时长规则每版本触发一次。进度和远端告警按新序号重复触发，受间隔和配额限制。远端订阅会合并补读的历史告警，保留最新证据。
       </p>
       <p className="muted">阶段反馈需要程序输出对应来源的结构化进度。时长检查点只检查经过的时间，不表示完成百分比。未绑定会话时只能记录本地告警；勾选通知不会建立绑定。仅完成通知可编辑各条规则并关闭“同时通知”，保留本地告警和停止条件；完成通知独立保留。</p>
       <div className="form-actions">

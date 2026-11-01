@@ -83,7 +83,7 @@ export function TaskDetail({ selected, token, detail, busy, tab, streamName, for
         {tab === "progress" && <TaskProgress detail={detail} />}
         {tab === "feedback" && <div className="feedback-view">
           <FeedbackStatus feedback={detail.feedback} active={active}
-            external={job.command?.kind === "remote" || job.command?.kind === "github_actions"}
+            external={job.command?.kind === "remote" || job.command?.kind === "github_actions" ? job.command.kind : null}
             configure={preset => { setTab("rules"); setForm(preset === "manage" ? null : { preset }); }} />
           <NotificationStatus detail={detail} token={token} />
         </div>}

@@ -260,14 +260,6 @@ pub(crate) fn read_observation(db: &Connection, job: &str) -> Result<Value> {
         .transpose()?
         .unwrap_or_else(|| json!({})))
 }
-pub(crate) fn read_state(db: &Connection, job: &str) -> Result<Option<State>> {
-    read_observation(db, job)?
-        .get("progress")
-        .cloned()
-        .map(serde_json::from_value)
-        .transpose()
-        .map_err(Into::into)
-}
 /// Include bounded evidence even when terminal completion supersedes an alert.
 pub(crate) fn final_summary(db: &Connection, job: &str) -> Result<Value> {
     // Legacy maintenance/recovery may finish an intent before the v9 migration.
@@ -279,13 +271,26 @@ pub(crate) fn final_summary(db: &Connection, job: &str) -> Result<Value> {
     let state = observation
         .get("progress")
         .or_else(|| observation["external"]["observation"].get("progress"));
-    let Some(state) = state else {
+    if state.is_none() && observation.get("remote_feedback").is_none() {
         return Ok(Value::Null);
-    };
+    }
+    let state = state.unwrap_or(&Value::Null);
     let mut summary = json!({"sources":state["sources"], "milestones":state["milestones"], "accepted":state["accepted"], "suppressed":state["suppressed"], "dropped":state["dropped"], "rejected":state["rejected"], "truncated":false});
+    if let Some(feedback) = observation.get("remote_feedback") {
+        summary["remote_feedback"] = json!({"alerts":feedback["alerts"],"suppressed":feedback["suppressed"],"coalesced":feedback["coalesced"],"milestones":feedback["milestones"]});
+    }
     // Leave room for exit detail and other lifecycle fields in the 8-KiB event.
     while serde_json::to_vec(&summary)?.len() > 3000 {
         summary["truncated"] = json!(true);
+        if let Some(items) = summary
+            .get_mut("remote_feedback")
+            .and_then(|feedback| feedback.get_mut("milestones"))
+            .and_then(Value::as_array_mut)
+            && !items.is_empty()
+        {
+            items.remove(0);
+            continue;
+        }
         if let Some(sources) = summary["sources"].as_object_mut()
             && let Some(key) = sources.keys().next().cloned()
         {
@@ -953,6 +958,7 @@ mod limits_tests {
         assert!(serde_json::to_vec(payload).unwrap().len() < 8192);
         assert!(serde_json::to_vec(&payload["progress"]).unwrap().len() <= 3000);
         assert_eq!(payload["progress"]["truncated"], true);
+        assert!(payload["progress"].get("remote_feedback").is_none());
         assert_eq!(
             payload["progress"]["milestones"].as_array().unwrap().len(),
             2

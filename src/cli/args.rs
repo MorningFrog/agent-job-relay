@@ -696,6 +696,9 @@ pub(super) struct RuleArgs {
     /// JSON object with source, trigger and cooldown_seconds (unreleased)
     #[arg(long, group = "condition")]
     pub progress: Option<String>,
+    /// JSON object with optional rule_id and required cooldown_seconds
+    #[arg(long, group = "condition")]
+    pub remote_alert: Option<String>,
     #[arg(long, default_value = "both")]
     pub stream: String,
     #[arg(long, default_value = "alert")]

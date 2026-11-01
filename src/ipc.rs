@@ -513,6 +513,7 @@ pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
             value["history_search"] = json!(true);
             value["log_search"] = json!(true);
             value["structured_progress_v1"] = json!(true);
+            value["remote_alert_feedback"] = json!(true);
             value["batch_submission"] = json!(true);
             value["bounded_queue"] = json!({"execution_limit":crate::scheduling::EXECUTION_LIMIT,
                 "waiting_limit":crate::scheduling::WAITING_LIMIT,"policy":"fifo",

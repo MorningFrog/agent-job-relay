@@ -52,13 +52,16 @@ impl CommandSpec {
                     rule.condition,
                     Condition::NoOutput { .. } | Condition::Progress { .. }
                 ),
-                "remote silence/progress rules must run on the remote runner; put them in remote.intent.spec.monitor_rules; use an explicit local checker for origin notifications"
+                "remote silence/progress rules must run on the remote runner; put them in remote.intent.spec.monitor_rules and use an origin remote_alert rule for notifications"
             ),
             Self::GithubActions { .. } => ensure!(
                 matches!(rule.condition, Condition::Elapsed { .. }),
                 "workflow observation supports only elapsed rules; it has no workload output stream"
             ),
-            _ => {}
+            _ => ensure!(
+                !matches!(rule.condition, Condition::RemoteAlert { .. }),
+                "remote_alert requires a pinned native remote command"
+            ),
         }
         Ok(())
     }

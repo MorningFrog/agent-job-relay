@@ -83,7 +83,7 @@ export const taskTitle = (job) => {
 };
 
 export const ruleSummary = (r) =>
-  r.condition.kind === "progress"
+  r.condition.kind === "remote_alert" ? `远端告警 ${r.condition.rule_id || "全部规则"} · 间隔 ${r.condition.cooldown_seconds} 秒` : r.condition.kind === "progress"
     ? `${r.condition.source} · ${r.condition.trigger.kind === "stage" ? `阶段变化 ${r.condition.trigger.stage || ""}` : r.condition.trigger.kind === "step" ? `每 ${r.condition.trigger.every} 步` : `${r.condition.trigger.name} ${r.condition.trigger.comparison} ${r.condition.trigger.value}`} · 间隔 ${r.condition.cooldown_seconds} 秒`
     : r.condition.kind === "contains"
       ? `输出包含 “${r.condition.text}”`

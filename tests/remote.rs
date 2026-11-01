@@ -613,6 +613,10 @@ async fn remote_mcp_cli_retry_and_milestone_keep_the_origin_session_after_mcp_ex
         "printf x >> launches; sleep 1; echo checkpoint; sleep 3; echo done",
     ));
     inner.idempotency_key = None;
+    inner.monitor_rules = vec![
+        serde_json::from_value(json!({"condition":{"kind":"contains","text":"checkpoint"}}))
+            .unwrap(),
+    ];
     let mut spec = local.spec(CommandSpec::Remote {
         remote: Box::new(RemoteSpec {
             target_id: target,
@@ -625,7 +629,7 @@ async fn remote_mcp_cli_retry_and_milestone_keep_the_origin_session_after_mcp_ex
     spec.session = Some(session.key.clone());
     spec.monitor_rules = vec![
         serde_json::from_value(
-            json!({"condition":{"kind":"contains","text":"checkpoint"},"notify_agent":true}),
+            json!({"condition":{"kind":"remote_alert","cooldown_seconds":1},"notify_agent":true}),
         )
         .unwrap(),
     ];
@@ -729,6 +733,203 @@ async fn remote_mcp_cli_retry_and_milestone_keep_the_origin_session_after_mcp_ex
     assert_eq!(inbox["messages"].as_array().unwrap().len(), 2, "{inbox}");
     let inbox = local.store.inbox(control.key, 0, 20).await.unwrap();
     assert_eq!(inbox["messages"].as_array().unwrap().len(), 0, "{inbox}");
+}
+
+#[cfg(target_os = "linux")]
+#[tokio::test]
+async fn remote_progress_alerts_reach_only_the_origin_through_disconnect_and_observer_restart() {
+    use agent_job_relay::session::{Adapter, Registration};
+    let remote = Rig::new().await;
+    let mut local = Rig::new().await;
+    let endpoint = local.dir.path().join("host.sock");
+    let listener = tokio::net::UnixListener::bind(&endpoint).unwrap();
+    let (sent, mut received) = tokio::sync::mpsc::channel(8);
+    let host = tokio::spawn(async move {
+        loop {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let sent = sent.clone();
+            tokio::spawn(async move {
+                let catalog = ipc::read_frame(&mut stream, 1048576).await.unwrap();
+                ipc::write_frame(&mut stream,&json!({"jsonrpc":"2.0","id":catalog["id"],"result":{"tools":[{"namespace":"codex_app","name":"send_message_to_thread"}]}})).await.unwrap();
+                let call = ipc::read_frame(&mut stream, 1048576).await.unwrap();
+                sent.send(call.clone()).await.unwrap();
+                ipc::write_frame(
+                    &mut stream,
+                    &json!({"jsonrpc":"2.0","id":call["id"],"result":{"success":true}}),
+                )
+                .await
+                .unwrap();
+            });
+        }
+    });
+    let registration = |chat: &str| Registration {
+        agent_kind: "codex_desktop".into(),
+        session_id: chat.into(),
+        instance_id: id(),
+        host_id: "fake-host".into(),
+        adapter: Adapter::DesktopExperimental,
+        endpoint: Some(endpoint.clone()),
+        caller_thread_id: Some("original-caller".into()),
+        lease_seconds: 3600,
+        experimental: true,
+        renew_on_delivery: false,
+    };
+    let session = local
+        .store
+        .register(registration("original-chat"))
+        .await
+        .unwrap();
+    local
+        .store
+        .register(registration("other-chat"))
+        .await
+        .unwrap();
+    let (target, mut transport) = remote.target();
+    let flag = local.dir.path().join("offline");
+    let bridge = script(
+        &local.dir.path().join("bridge"),
+        "flag=$1; shift; [ ! -f \"$flag\" ] || exit 255; exec \"$@\"",
+    );
+    transport.args.insert(0, transport.program.clone());
+    transport.args.insert(0, flag.to_string_lossy().into());
+    transport.program = bridge;
+    let mut inner = remote.spec(command("printf x >> launches; while [ ! -f stage-one ]; do sleep 0.05; done; printf '%s\\n' 'AJR_PROGRESS {\"v\":1,\"source\":\"train\",\"seq\":1,\"stage\":\"warmup\"}'; while [ ! -f stage-two ]; do sleep 0.05; done; printf '%s\\n' 'AJR_PROGRESS {\"v\":1,\"source\":\"train\",\"seq\":2,\"stage\":\"checkpoint\"}'; while [ ! -f finish ]; do sleep 0.05; done"));
+    inner.idempotency_key = None;
+    inner.monitor_rules=vec![serde_json::from_value(json!({"condition":{"kind":"progress","source":"train","trigger":{"kind":"stage"},"cooldown_seconds":1}})).unwrap()];
+    let mut spec = local.spec(CommandSpec::Remote {
+        remote: Box::new(RemoteSpec {
+            target_id: target.clone(),
+            transport,
+            intent: Intent::Launch {
+                spec: Box::new(inner),
+            },
+        }),
+    });
+    spec.session = Some(session.key);
+    spec.monitor_rules = vec![
+        serde_json::from_value(
+            json!({"condition":{"kind":"remote_alert","cooldown_seconds":1},"notify_agent":true}),
+        )
+        .unwrap(),
+    ];
+    let job = local.start(spec).await;
+    let initial = local
+        .wait(&job.job_id, |v| {
+            v["observation"]["external"]["connection"] == "connected"
+                && v["rules"][0]["applied_revision"] == 1
+        })
+        .await;
+    let run: RunRef =
+        serde_json::from_value(initial["observation"]["external"]["run"].clone()).unwrap();
+    remote
+        .wait(&run.job_id, |v| v["rules"][0]["applied_revision"] == 1)
+        .await;
+    std::fs::write(remote.dir.path().join("stage-one"), "").unwrap();
+    let first = tokio::time::timeout(Duration::from_secs(8), received.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(first["params"]["arguments"]["threadId"], "original-chat");
+    assert!(
+        first["params"]["arguments"]["prompt"]
+            .as_str()
+            .unwrap()
+            .contains("monitor_alert")
+    );
+    let first_evidence = local
+        .wait(&job.job_id, |v| {
+            v["notifications"]["counts"]["accepted_by_host"] == 1
+        })
+        .await;
+    assert_eq!(
+        first_evidence["observation"]["remote_feedback"]["milestones"][0]["evidence"]["source_evidence"]
+            ["sample"]["stage"],
+        "warmup"
+    );
+    std::fs::write(&flag, "").unwrap();
+    let offline = local
+        .wait(&job.job_id, |v| {
+            v["observation"]["external"]["connection"] == "disconnected"
+        })
+        .await;
+    ipc::call(&local.config, Request::Shutdown).await.unwrap();
+    local.daemon.take().unwrap().wait().unwrap();
+    let pid = offline["job"]["runner_pid"].as_u64().unwrap() as u32;
+    assert_eq!(
+        agent_job_relay::platform::identity(pid).unwrap(),
+        offline["job"]["runner_identity"].as_str().unwrap()
+    );
+    assert_eq!(unsafe { libc::kill(pid as i32, libc::SIGKILL) }, 0);
+    std::fs::write(remote.dir.path().join("stage-two"), "").unwrap();
+    remote
+        .wait(&run.job_id, |v| v["observation"]["progress"]["alerts"] == 2)
+        .await;
+    assert!(received.try_recv().is_err());
+    std::fs::remove_file(flag).unwrap();
+    local.daemon = Some(
+        Command::new(EXE)
+            .arg("--state-dir")
+            .arg(&local.config.root)
+            .arg("daemon")
+            .env("AJR_WEB_UI", "off")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+    );
+    let second = tokio::time::timeout(Duration::from_secs(10), received.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(second["params"]["arguments"]["threadId"], "original-chat");
+    let prompt = second["params"]["arguments"]["prompt"].as_str().unwrap();
+    assert!(prompt.contains(&job.job_id) && prompt.contains("monitor_alert"));
+    let recovered = local
+        .wait(&job.job_id, |v| {
+            v["notifications"]["counts"]["accepted_by_host"] == 2
+        })
+        .await;
+    assert_eq!(recovered["job"]["run_id"], job.run_id);
+    assert_eq!(recovered["observation"]["remote_feedback"]["alerts"], 2);
+    assert_eq!(
+        recovered["observation"]["remote_feedback"]["milestones"][1]["evidence"]["source_evidence"]
+            ["sample"]["stage"],
+        "checkpoint"
+    );
+    assert_eq!(
+        recovered["observation"]["remote_feedback"]["milestones"][1]["evidence"]["remote"]["run"],
+        json!(run)
+    );
+    assert_eq!(recovered["job"]["status"], "running");
+    std::fs::write(remote.dir.path().join("finish"), "").unwrap();
+    let final_call = tokio::time::timeout(Duration::from_secs(8), received.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        final_call["params"]["arguments"]["threadId"],
+        "original-chat"
+    );
+    let final_state = local
+        .wait(&job.job_id, |v| {
+            v["job"]["status"] == "completed"
+                && v["notifications"]["counts"]["accepted_by_host"] == 3
+        })
+        .await;
+    assert_eq!(
+        final_state["notifications"]["agent_execution"],
+        "unconfirmed"
+    );
+    assert_eq!(final_state["observation"]["external"]["run"], json!(run));
+    assert_eq!(
+        std::fs::read(remote.dir.path().join("launches")).unwrap(),
+        b"x"
+    );
+    assert_eq!(local.store.list(0, 100).await.unwrap().len(), 1);
+    assert_eq!(remote.store.list(0, 100).await.unwrap().len(), 1);
+    assert!(received.try_recv().is_err());
+    host.abort();
 }
 
 #[cfg(target_os = "linux")]

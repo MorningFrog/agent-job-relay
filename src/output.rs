@@ -68,6 +68,25 @@ fn inspection(value: Value) -> Value {
         "stop":value["stop"], "untrusted_output":true});
     result["job"]["run"] = fields(&value["job"]["run"], &["started_at", "ended_at", "attempt"]);
     result["elapsed_seconds"] = value["observation"]["elapsed_seconds"].clone();
+    if let Some(feedback) = value["observation"].get("remote_feedback") {
+        result["remote_feedback"] = fields(feedback, &["alerts", "suppressed", "coalesced"]);
+        result["remote_feedback"]["milestones"] =
+            json!(feedback["milestones"].as_array().map(|m| {
+                m.iter()
+                    .rev()
+                    .take(2)
+                    .map(|item| {
+                        let mut brief = fields(item, &["rule_id", "revision", "at"]);
+                        brief["evidence"]["remote"] = item["evidence"]["remote"].clone();
+                        brief["evidence"]["source_excerpt"] = json!(excerpt(
+                            &item["evidence"]["source_evidence"].to_string(),
+                            512
+                        ));
+                        brief
+                    })
+                    .collect::<Vec<_>>()
+            }));
+    }
     for stream in ["stdout", "stderr"] {
         let source = &value["observation"][stream];
         let text = source["text"].as_str().unwrap_or("");
@@ -250,6 +269,7 @@ pub fn compact(op: &str, value: Value) -> Value {
                     "runtime_monitoring",
                     "structured_progress_v1",
                     "remote_execution",
+                    "remote_alert_feedback",
                     "github_actions_observation",
                     "goal_waiting",
                     "goal_wait_host_pause",

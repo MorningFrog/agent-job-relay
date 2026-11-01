@@ -15,6 +15,14 @@ export function TaskProgress({ detail }) {
       {!external.can_stop && <p className="execution-detail">仅观察：停止观察不会取消远端运行。</p>}
       {external.last_error && <p className="execution-detail">{external.last_error}；远端结果待核实。</p>}
     </section>}
+    {detail.observation?.remote_feedback && <section className="job-summary" aria-label="远端反馈证据">
+      <strong>远端告警反馈</strong>
+      <p className="small">已记录 {detail.observation.remote_feedback.alerts} 次 · 合并 {detail.observation.remote_feedback.coalesced} 次 · 受限 {detail.observation.remote_feedback.suppressed} 次</p>
+      {(detail.observation.remote_feedback.milestones || []).map(m => <div key={`${m.rule_id}:${m.at}`}>
+        <p className="small">{date(m.at)} · 远端事件 {m.evidence.remote.event_id}</p>
+        <pre>{JSON.stringify(m.evidence.source_evidence, null, 2)}</pre>
+      </div>)}
+    </section>}
     {progress ? <section className="job-summary">
       <strong>进度与里程碑</strong>
       {Object.values(progress.sources || {}).map(source => <div className="progress-source" key={source.source}>

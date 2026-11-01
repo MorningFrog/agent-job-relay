@@ -34,6 +34,7 @@ export function FeedbackStatus({ feedback, active, external, configure }) {
     <p className="muted small">规则保存、运行器应用、来源数据、通知送达和 Agent 实际继续分别判断。仅完成通知也是有效选择；Goal 中途反馈须沿用原聊天授权。</p>
     {active && <div className="rule-actions">
       {!external && <button className="button" onClick={() => configure("stage")}>配置阶段反馈</button>}
+      {external === "remote" && <button className="button" onClick={() => configure("remote")}>配置远端告警反馈</button>}
       <button className="button" onClick={() => configure("elapsed")}>配置时长检查点</button>
       <button className="button" onClick={() => configure("manage")}>管理规则／仅完成通知</button>
     </div>}

@@ -21,6 +21,22 @@ const { RuntimeStatus } = await server.ssrLoadModule(
 const { StorageNotice } = await server.ssrLoadModule("/src/components/RuntimeStatus.jsx");
 const { FeedbackStatus } = await server.ssrLoadModule("/src/components/FeedbackStatus.jsx");
 const { recoveryCommand } = await server.ssrLoadModule("/src/components/NotificationStatus.jsx");
+const { RuleForm } = await server.ssrLoadModule("/src/components/RuleForm.jsx");
+const { TaskProgress } = await server.ssrLoadModule("/src/components/TaskProgress.jsx");
+test("remote feedback subscriptions expose alert-only controls and escape original remote evidence", () => {
+  const form = renderToStaticMarkup(React.createElement(RuleForm, { externalKind: "remote", preset: "remote" }));
+  assert.ok(form.includes('value="remote_alert"'));
+  assert.ok(form.includes("远端规则 ID"));
+  assert.ok(!form.includes("停止任务并记录告警"));
+  const card = renderToStaticMarkup(React.createElement(FeedbackStatus, { active: true, external: "remote", feedback: { status: "configured", rules: [] } }));
+  assert.ok(card.includes("配置远端告警反馈"));
+  const progress = renderToStaticMarkup(React.createElement(TaskProgress, { detail: {
+    job: { command: { kind: "remote" } }, observation: { remote_feedback: { alerts: 1, coalesced: 2, suppressed: 0,
+      milestones: [{ rule_id: "rule", at: 1000, evidence: { remote: { event_id: "original-event" }, source_evidence: { stage: "<script>checkpoint</script>" } } }] } },
+  } }));
+  assert.ok(progress.includes("original-event") && progress.includes("&lt;script&gt;checkpoint"));
+  assert.ok(!progress.includes("<script>"));
+});
 test("storage warnings retain sample time, admission scope and escaped maintenance errors", () => {
   const html=renderToStaticMarkup(React.createElement(StorageNotice,{capacity:{disk_pressure:{status:"critical",available_bytes:1,sampled_at:1000,warn_below_bytes:1024,stop_new_jobs_below_bytes:64},backup_health:"overdue",last_error:"<script>backup</script>"}}));
   for(const text of ["新任务准入受限","已有任务","备份已超过配置间隔",new Date(1000).toLocaleString(),"&lt;script&gt;backup&lt;/script&gt;"])assert.ok(html.includes(text));

@@ -666,6 +666,16 @@ fn verify_queue_runtime(info: &Value) -> Result<()> {
     );
     Ok(())
 }
+fn verify_remote_feedback(info: &Value, rules: &[crate::monitor::RuleSpec]) -> Result<()> {
+    ensure!(
+        !rules
+            .iter()
+            .any(|r| matches!(r.condition, crate::monitor::Condition::RemoteAlert { .. }))
+            || info["remote_alert_feedback"] == true,
+        "selected daemon does not support remote alert feedback; no rule or job was submitted; update this same profile explicitly"
+    );
+    Ok(())
+}
 pub async fn start(config: &Config, mut spec: StartSpec, wake_me: bool) -> Result<Value> {
     ensure!(
         !wake_me || spec.session.is_none(),
@@ -679,7 +689,9 @@ pub async fn start(config: &Config, mut spec: StartSpec, wake_me: bool) -> Resul
         None
     };
     ensure_daemon(config).await?;
-    verify_queue_runtime(&ipc::call(config, Request::Doctor).await?)?;
+    let health = ipc::call(config, Request::Doctor).await?;
+    verify_queue_runtime(&health)?;
+    verify_remote_feedback(&health, &spec.monitor_rules)?;
     if spec.command.is_external() {
         verify_external_runtime(&ipc::call(config, Request::Doctor).await?)?;
     }
@@ -741,7 +753,9 @@ pub async fn start_batch(
     };
     ensure_daemon(config).await?;
     let health = ipc::call(config, Request::Doctor).await?;
-
+    for spec in &specs {
+        verify_remote_feedback(&health, &spec.monitor_rules)?;
+    }
     if specs.iter().any(|s| s.command.is_external()) {
         verify_external_runtime(&health)?;
     }
@@ -869,8 +883,20 @@ pub async fn call(config: &Config, request: Request) -> Result<Value> {
         | Request::PrepareGoalConsent { .. }
         | Request::GoalConsent { .. }) => {
             ensure_daemon(config).await?;
+            let health = ipc::call(config, Request::Doctor).await?;
+            match &request {
+                Request::StartGoal { spec, .. } => {
+                    verify_remote_feedback(&health, &spec.monitor_rules)?
+                }
+                Request::StartGoalBatch { specs, .. } => {
+                    for spec in specs {
+                        verify_remote_feedback(&health, &spec.monitor_rules)?;
+                    }
+                }
+                _ => {}
+            }
             ensure!(
-                ipc::call(config, Request::Doctor).await?["goal_wait_host_pause"] == true,
+                health["goal_wait_host_pause"] == true,
                 "selected daemon lacks originating-host goal pause acknowledgement; no goal-aware work was submitted; update this same profile explicitly"
             );
             ipc::call(config, request).await
@@ -945,6 +971,20 @@ pub async fn call(config: &Config, request: Request) -> Result<Value> {
         }
         | Request::Stop { .. }) => {
             ensure_daemon(config).await?;
+            if let Request::Monitor {
+                mutation:
+                    Some(
+                        crate::monitor::Mutation::Add { rule }
+                        | crate::monitor::Mutation::Update { rule, .. },
+                    ),
+                ..
+            } = &request
+            {
+                verify_remote_feedback(
+                    &ipc::call(config, Request::Doctor).await?,
+                    std::slice::from_ref(rule),
+                )?;
+            }
             ipc::call(config, request).await
         }
         request @ Request::RegisterSession { .. } => {
