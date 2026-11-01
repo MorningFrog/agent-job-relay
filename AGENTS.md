@@ -56,6 +56,14 @@ cargo build --release
 - Use `docs/TODO.md` as the sole project backlog; update completed, changed and newly identified tasks without creating a duplicate root TODO. Respect its explicit deferrals; a documentation/refactoring request does not authorize deferred features.
 - Keep `docs/IMPLEMENTATION_STATUS.md` a current handoff and `docs/live-e2e.md` a concise current live-verification summary. ADRs preserve design decisions and regression rationale, not run logs; use Git history for past results.
 
+## Published releases are immutable
+
+- **Never rewrite a published version's CHANGELOG section or release date, reuse its version number, move new changes into it, or replace its tag, candidate bytes or publication receipts.** Keep all later changes under the single `## [Unreleased]` heading until formal preparation of a new, unused version.
+- Before choosing or finalizing a release version, check Git tags, registry versions, the actual GitHub Release publication state and publication receipts. Local manifests, handoff documents and the overall workflow conclusion are not sufficient evidence that a version is unpublished.
+- Publication of any artifact freezes that version, even if another package, later verification, synchronization, installation check or parent workflow fails. Diagnose or rerun verification against the original published candidate; never republish, rebuild or relabel it as a recovery step.
+- Do not empty Unreleased, merge its entries into an existing release, or change a historical date merely to satisfy release preflight. A refusal means formal preparation must select an unused version and synchronize the intended new release; it is not permission to alter published history.
+- If local documentation contradicts actual publication evidence, correct the current status and release handoff, restore released notes from the original published tag, and keep subsequent changes Unreleased. Preserve relevant verification failures without claiming that publication was undone.
+
 ## Git and operating boundaries
 
 - Follow Conventional Commits: `<type>[optional scope]: <description>`, using appropriate types such as `feat`, `fix`, `docs`, `refactor`, `test` and `chore`. Write concise, descriptive subjects and any bodies in English.
