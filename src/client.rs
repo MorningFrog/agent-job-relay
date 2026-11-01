@@ -222,10 +222,10 @@ fn upgrade_preflight(config: &Config) -> Result<()> {
         rusqlite::Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
     let version: i64 = db.pragma_query_value(None, "user_version", |r| r.get(0))?;
     ensure!(
-        version <= 13,
+        version <= 14,
         "database schema is newer than this executable; downgrade refused"
     );
-    if version > 0 && version < 13 {
+    if version > 0 && version < 14 {
         let running: bool = db.query_row(
             "SELECT EXISTS(SELECT 1 FROM jobs WHERE status IN ('launching','running'))",
             [],
@@ -624,9 +624,7 @@ pub async fn start_waiting(
     if binding["status"] == "goal_wait_pending" {
         return Ok(brief_binding(binding));
     }
-    if specs.iter().any(|s| s.queue_timeout_seconds.is_some()) {
-        verify_queue_runtime(&ipc::call(config, Request::Doctor).await?)?;
-    }
+    verify_queue_runtime(&ipc::call(config, Request::Doctor).await?)?;
     let key = binding["session"]["key"]
         .as_str()
         .context("missing session")?;
@@ -662,8 +660,9 @@ fn verify_external_runtime(info: &Value) -> Result<()> {
 }
 fn verify_queue_runtime(info: &Value) -> Result<()> {
     ensure!(
-        info["bounded_queue"].is_object(),
-        "selected daemon does not support bounded queuing. No job was submitted. Finish active jobs, then update the same profile and retry"
+        info["bounded_queue"]["default_timeout_seconds"].as_u64()
+            == Some(crate::scheduling::DEFAULT_QUEUE_TIMEOUT_SECONDS),
+        "selected daemon does not support default bounded queuing. No job was submitted. Finish active jobs, then update the same profile and retry"
     );
     Ok(())
 }
@@ -680,9 +679,7 @@ pub async fn start(config: &Config, mut spec: StartSpec, wake_me: bool) -> Resul
         None
     };
     ensure_daemon(config).await?;
-    if spec.queue_timeout_seconds.is_some() {
-        verify_queue_runtime(&ipc::call(config, Request::Doctor).await?)?;
-    }
+    verify_queue_runtime(&ipc::call(config, Request::Doctor).await?)?;
     if spec.command.is_external() {
         verify_external_runtime(&ipc::call(config, Request::Doctor).await?)?;
     }
@@ -744,9 +741,7 @@ pub async fn start_batch(
     };
     ensure_daemon(config).await?;
     let health = ipc::call(config, Request::Doctor).await?;
-    if specs.iter().any(|s| s.queue_timeout_seconds.is_some()) {
-        verify_queue_runtime(&health)?;
-    }
+
     if specs.iter().any(|s| s.command.is_external()) {
         verify_external_runtime(&health)?;
     }
@@ -754,6 +749,7 @@ pub async fn start_batch(
         health["batch_submission"] == true,
         "selected daemon does not support batch submission. No batch was submitted. Let active jobs finish, then explicitly stop/update the daemon for the same profile and retry"
     );
+    verify_queue_runtime(&health)?;
     if let Some((registration, fingerprint)) = context {
         let session = if std::env::var_os("CODEX_APP_RUNTIME_CLI_PATH").is_some() {
             connect_context(config, std::env::current_dir()?, None).await?

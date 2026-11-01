@@ -145,6 +145,49 @@ pub(crate) fn load(db: &Connection, job: &str) -> Result<Option<Snapshot>> {
                 info.query_map([], |r| r.get::<_, String>(1))?
                     .collect::<rusqlite::Result<Vec<_>>>()?,
             );
+            if table == "jobs" && columns.iter().any(|c| c == "queue_timeout_seconds") {
+                for row in snapshot.tables.get_mut(table).expect("validated table") {
+                    if !row.contains_key("queue_timeout_seconds") {
+                        let spec: StartSpec = serde_json::from_str(&snapshot.spec)?;
+                        let legacy = spec.queue_timeout_seconds.filter(|seconds| *seconds > 0);
+                        ensure!(
+                            snapshot
+                                .job
+                                .queue
+                                .as_ref()
+                                .map(|queue| queue.timeout_seconds)
+                                == legacy,
+                            "archive is missing its resolved queue policy"
+                        );
+                        row.insert("queue_timeout_seconds".into(), json!(legacy));
+                    }
+                    let policy = row["queue_timeout_seconds"].as_u64();
+                    ensure!(
+                        row["queue_timeout_seconds"].is_null()
+                            || policy.is_some_and(|seconds| (1..=604800).contains(&seconds)),
+                        "invalid archived queue policy"
+                    );
+                    ensure!(
+                        snapshot
+                            .job
+                            .queue
+                            .as_ref()
+                            .map(|queue| queue.timeout_seconds)
+                            == policy,
+                        "archive queue policy disagrees with its Job"
+                    );
+                    if let Some(queue) = &snapshot.job.queue {
+                        ensure!(
+                            queue.expires_at
+                                == snapshot
+                                    .job
+                                    .created_at
+                                    .saturating_add((queue.timeout_seconds * 1000) as i64),
+                            "archive queue deadline disagrees with its admission"
+                        );
+                    }
+                }
+            }
             ensure!(
                 snapshot.tables[table]
                     .iter()

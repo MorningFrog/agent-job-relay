@@ -1042,7 +1042,7 @@ async fn schema_ten_upgrade_preserves_existing_history_and_adds_empty_consent_st
             .read(|db| Ok(db.pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0))?))
             .await
             .unwrap(),
-        13
+        14
     );
     assert_eq!(f.count("goal_consents").await, 0);
     assert_eq!(f.count("goal_consent_audits").await, 0);
@@ -1066,7 +1066,7 @@ async fn schema_eleven_upgrade_preserves_jobs_and_initializes_feedback_without_r
         .read(|db| Ok(db.pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0))?))
         .await
         .unwrap();
-    assert_eq!(version, 13);
+    assert_eq!(version, 14);
     let to = f.dir.path().join("schema-eleven-restored");
     maintenance::restore(PathBuf::from(backup["path"].as_str().unwrap()), to.clone())
         .await
@@ -1088,6 +1088,7 @@ async fn schema_twelve_queue_contract_migrates_only_after_original_runs_finish()
         .call(|db| {
             db.execute("UPDATE jobs SET status='running'", [])?;
             db.execute("UPDATE runs SET status='running',started=1", [])?;
+            db.execute_batch("ALTER TABLE jobs DROP COLUMN queue_timeout_seconds;")?;
             db.pragma_update(None, "user_version", 12)?;
             Ok(())
         })
@@ -1116,7 +1117,7 @@ async fn schema_twelve_queue_contract_migrates_only_after_original_runs_finish()
             .await
             .unwrap_err()
             .to_string()
-            .contains("requires schema 13")
+            .contains("requires schema 14")
     );
     f.store
         .finish(
@@ -1139,6 +1140,6 @@ async fn schema_twelve_queue_contract_migrates_only_after_original_runs_finish()
             .read(|db| Ok(db.pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0))?))
             .await
             .unwrap(),
-        13
+        14
     );
 }

@@ -105,6 +105,7 @@ async fn concurrent_batches_enforce_quota_and_retry_partial_admission() {
                 .map(|index| {
                     let mut spec = r.spec("sleep 30");
                     spec.timeout_seconds = Some(25);
+                    spec.queue_timeout_seconds = Some(0);
                     spec.idempotency_key = Some(format!("batch-{batch}-{index}"));
                     spec
                 })
@@ -686,9 +687,11 @@ async fn concurrent_jobs_distinct_workdirs_quota_and_pagination() {
         s.cwd = dir;
         jobs.push(store.start(s).await.unwrap());
     }
+    let mut no_queue = r.spec("true");
+    no_queue.queue_timeout_seconds = Some(0);
     assert!(
         store
-            .start(r.spec("true"))
+            .start(no_queue)
             .await
             .unwrap_err()
             .to_string()

@@ -74,7 +74,7 @@ pub struct StartSpec {
     #[serde(default)]
     pub env: BTreeMap<String, String>,
     pub timeout_seconds: Option<u64>,
-    /// Opt into bounded FIFO admission; deadline runs from submission, not launch.
+    /// Maximum queue wait: omitted defaults to 24 hours; zero rejects when full.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub queue_timeout_seconds: Option<u64>,
     pub session: Option<String>,
@@ -100,8 +100,8 @@ impl StartSpec {
     pub(crate) fn validate_options(&self) -> Result<()> {
         if let Some(seconds) = self.queue_timeout_seconds {
             ensure!(
-                (1..=604800).contains(&seconds),
-                "queue timeout must be 1..604800 seconds"
+                seconds <= 604800,
+                "queue timeout must be 0..604800 seconds (0 disables waiting)"
             );
         }
         if let Some(title) = &self.title {

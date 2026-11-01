@@ -343,7 +343,7 @@ async fn compatible_daemon_handover_preserves_active_run_and_refuses_schema_mism
     let original_peer = r.peer().await;
     let database = rusqlite::Connection::open(r.state.join("relay.sqlite3")).unwrap();
     database.busy_timeout(Duration::from_secs(5)).unwrap();
-    for version in [12, 14] {
+    for version in [13, 15] {
         database
             .pragma_update(None, "user_version", version)
             .unwrap();
@@ -360,7 +360,7 @@ async fn compatible_daemon_handover_preserves_active_run_and_refuses_schema_mism
                 error.contains(&format!("database schema {version}")),
                 "{error}"
             );
-            assert!(error.contains("requires schema 13"), "{error}");
+            assert!(error.contains("requires schema 14"), "{error}");
             assert!(error.contains(r.state.to_str().unwrap()), "{error}");
             assert!(error.contains("let tasks finish"), "{error}");
             assert!(error.contains("retry ajr update"), "{error}");
@@ -378,7 +378,7 @@ async fn compatible_daemon_handover_preserves_active_run_and_refuses_schema_mism
             assert_eq!(current["cancel_requested"], false);
         }
     }
-    database.pragma_update(None, "user_version", 13).unwrap();
+    database.pragma_update(None, "user_version", 14).unwrap();
     let mut child = r
         .guard()
         .args(["--allow-active", "--apply"])

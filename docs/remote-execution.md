@@ -2,7 +2,7 @@
 
 [Documentation index](README.md) · [Commands](commands.md) · [Protocol](protocol.md)
 
-Use runtime 0.1.12 or newer on the observing machine. Source 0.1.13 adds optional Actions job/step summaries and attempt links. Remote tasks share local execution slots, CLI/MCP, loopback Web UI, history and initiating-session notifications. Unreleased 0.1.20 supports [opt-in bounded waiting](usage.md#wait-for-an-execution-slot-unreleased-0120) for the local observer or a matching remote execution owner; queue expiry before first launch does not contact the remote target.
+Use runtime 0.1.12 or newer on the observing machine. Source 0.1.13 adds optional Actions job/step summaries and attempt links. Remote tasks share local execution slots, CLI/MCP, loopback Web UI, history and initiating-session notifications. Unreleased 0.1.20 supports [default bounded waiting](usage.md#wait-for-an-execution-slot-unreleased-0120) for the local observer or a matching remote execution owner; queue expiry before first launch does not contact the remote target.
 
 ## Choose an execution owner
 

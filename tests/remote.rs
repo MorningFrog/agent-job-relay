@@ -952,7 +952,7 @@ async fn observer_recovery_does_not_reopen_a_racing_terminal_run() {
         cwd: dir.path().into(),
         env: BTreeMap::new(),
         timeout_seconds: Some(3),
-        queue_timeout_seconds: None,
+        queue_timeout_seconds: Some(0),
         session: None,
         idempotency_key: None,
         monitor_rules: vec![],

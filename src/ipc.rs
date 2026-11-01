@@ -516,7 +516,8 @@ pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
             value["batch_submission"] = json!(true);
             value["bounded_queue"] = json!({"execution_limit":crate::scheduling::EXECUTION_LIMIT,
                 "waiting_limit":crate::scheduling::WAITING_LIMIT,"policy":"fifo",
-                "opt_in":"spec.queue_timeout_seconds","maximum_timeout_seconds":604800});
+                "enabled_by_default":true,"default_timeout_seconds":crate::scheduling::DEFAULT_QUEUE_TIMEOUT_SECONDS,
+                "disable_waiting":"spec.queue_timeout_seconds=0","maximum_timeout_seconds":604800});
             value["queued_jobs"] = store
                 .read(|db| {
                     Ok(db.query_row(

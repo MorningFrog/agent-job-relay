@@ -27,13 +27,13 @@ agent-job-relay codex start --help
 agent-job-relay codex monitor add --help
 ```
 
-Unreleased 0.1.20: `start --queue-timeout 30m` opts into bounded FIFO waiting; MCP/JSON uses `queue_timeout_seconds`. Waiting and execution timeouts are independent; unchanged-key retries retain the original deadline. See [queue behavior](usage.md#wait-for-an-execution-slot-unreleased-0120).
+Unreleased 0.1.20: new jobs default to bounded FIFO waiting for up to 24 hours. `start --queue-timeout 30m` overrides the limit; `start --no-queue` rejects when full. MCP/JSON omits `queue_timeout_seconds` for the default, sets 1–604800 for a custom limit, or sets 0 to disable waiting. Waiting and execution timeouts are independent; unchanged-key retries retain the original deadline. See [queue behavior](usage.md#wait-for-an-execution-slot-unreleased-0120).
 
 ## Start and read tasks
 
 | Command after the prefix | Purpose and useful options |
 |---|---|
-| `start -- <program> <args...>` | Submit explicit argv; `--title <purpose>` (0.1.17+); `--cwd`, `--timeout <seconds>`, Unreleased `--queue-timeout <duration>`, `--idempotency-key`, `--session` or current-terminal `--wake` |
+| `start -- <program> <args...>` | Submit explicit argv; `--title <purpose>` (0.1.17+); `--cwd`, `--timeout <seconds>`, Unreleased `--queue-timeout <duration>` / `--no-queue`, `--idempotency-key`, `--session` or current-terminal `--wake` |
 | `start --shell '<script>'` | Explicit shell execution; `--interpreter` selects the shell |
 | `start-batch --file <json-file>` (0.1.12+) | Submit a JSON array of 1–16 specs with distinct stable keys; `--file -` reads stdin, `--wake` binds every item to the actual caller; [partial-admission/retry semantics](usage.md#submit-independent-commands-together-0112) |
 | `start-spec --file <json-file>` (0.1.12+) | Submit one bounded JSON StartSpec, including remote launch/attach or GitHub Actions observation; `--file -` for stdin and `--wake` for the current caller |

@@ -162,15 +162,7 @@ async fn cli_and_shared_mcp_report_queued_admission_and_cancel_without_starting(
     let output = tokio::process::Command::new(env!("CARGO_BIN_EXE_agent-job-relay"))
         .arg("--state-dir")
         .arg(&r.config.root)
-        .args([
-            "start",
-            "--queue-timeout",
-            "2m",
-            "--timeout",
-            "1",
-            "--shell",
-            "touch must-not-run",
-        ])
+        .args(["start", "--timeout", "1", "--shell", "touch must-not-run"])
         .current_dir(r.dir.path())
         .output()
         .await
@@ -182,7 +174,17 @@ async fn cli_and_shared_mcp_report_queued_admission_and_cancel_without_starting(
     );
     let cli: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(cli["job"]["status"], "queued");
-    assert_eq!(cli["job"]["queue"]["timeout_seconds"], 120);
+    assert_eq!(cli["job"]["queue"]["timeout_seconds"], 86400);
+    let refused = tokio::process::Command::new(env!("CARGO_BIN_EXE_agent-job-relay"))
+        .arg("--state-dir")
+        .arg(&r.config.root)
+        .args(["start", "--no-queue", "--shell", "touch must-not-run"])
+        .current_dir(r.dir.path())
+        .output()
+        .await
+        .unwrap();
+    assert!(!refused.status.success());
+    assert!(String::from_utf8_lossy(&refused.stderr).contains("waiting was explicitly disabled"));
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
     let mut child = tokio::process::Command::new(env!("CARGO_BIN_EXE_agent-job-relay"))
         .arg("--state-dir")
@@ -206,7 +208,7 @@ async fn cli_and_shared_mcp_report_queued_admission_and_cancel_without_starting(
         (
             2,
             "tools/call",
-            json!({"name":"job_start","arguments":{"spec":{"command":{"kind":"exec","program":"must-not-execute"},"cwd":r.dir.path(),"queue_timeout_seconds":60,"idempotency_key":"mcp-queue"}}}),
+            json!({"name":"job_start","arguments":{"spec":{"command":{"kind":"exec","program":"must-not-execute"},"cwd":r.dir.path(),"idempotency_key":"mcp-queue"}}}),
         ),
     ] {
         input
@@ -236,6 +238,7 @@ async fn cli_and_shared_mcp_report_queued_admission_and_cancel_without_starting(
     child.wait().await.unwrap();
     assert_eq!(result["job"]["status"], "queued");
     assert_eq!(result["job"]["queue"]["position"], 2);
+    assert_eq!(result["job"]["queue"]["timeout_seconds"], 86400);
     for value in [cli, result] {
         let id = value["job"]["job_id"].as_str().unwrap();
         let stopped = r

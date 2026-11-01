@@ -17,11 +17,11 @@ async fn missing_notification_capability_is_refused_before_registration_or_workl
     r.config.prepare().unwrap();
     let listener = tokio::net::UnixListener::bind(r.config.socket()).unwrap();
     let old = tokio::spawn(async move {
-        for _ in 0..2 {
+        for _ in 0..3 {
             let (mut stream, _) = listener.accept().await.unwrap();
             let v = ipc::read_frame(&mut stream, 65536).await.unwrap();
             assert_eq!(v["request"]["op"], "doctor");
-            ipc::write_frame(&mut stream,&json!({"protocol_version":1,"ok":true,"result":{"runner_launch_from_loaded_image":true,"version":env!("CARGO_PKG_VERSION")}})).await.unwrap();
+            ipc::write_frame(&mut stream,&json!({"protocol_version":1,"ok":true,"result":{"runner_launch_from_loaded_image":true,"version":env!("CARGO_PKG_VERSION"),"bounded_queue":{"default_timeout_seconds":86400}}})).await.unwrap();
         }
     });
     let out = r
@@ -1323,8 +1323,6 @@ async fn missing_queue_capability_refuses_submission_without_work_or_daemon_rest
         .cli(
             &[
                 "start",
-                "--queue-timeout",
-                "30m",
                 "--cwd",
                 r.dir.path().to_str().unwrap(),
                 "--shell",
@@ -1334,7 +1332,9 @@ async fn missing_queue_capability_refuses_submission_without_work_or_daemon_rest
         )
         .await;
     assert!(!out.status.success());
-    assert!(String::from_utf8_lossy(&out.stderr).contains("does not support bounded queuing"));
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("does not support default bounded queuing")
+    );
     assert!(!r.config.root.join("relay.sqlite3").exists());
     assert!(!r.dir.path().join("must-not-run").exists());
     old.await.unwrap();

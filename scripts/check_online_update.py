@@ -110,7 +110,7 @@ else process.exit(2);
             database.execute("PRAGMA user_version=11")
             command(["ajr", "update"], "update-schema-refused", expected=1)
             error = (root / "update-schema-refused.stderr").read_text()
-            if not all(text in error for text in ("database schema 11", "requires schema 13", "let tasks finish", "retry ajr update", "No runtime package or host-plugin changes were applied")):
+            if not all(text in error for text in ("database schema 11", "requires schema 14", "let tasks finish", "retry ajr update", "No runtime package or host-plugin changes were applied")):
                 raise RuntimeError("schema refusal did not explain active-task recovery")
             if journal.exists() or "Completed steps remain recorded" in error:
                 raise RuntimeError("preflight refusal invented an unfinished update")

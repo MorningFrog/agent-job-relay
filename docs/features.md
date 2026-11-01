@@ -17,7 +17,7 @@ AgentJobRelay is a single-user local runtime for long commands initiated by an A
 | Controlled stopping | Request graceful then forced process-tree stopping with bounded observation; terminal outcomes are preserved |
 | Conservative recovery | Daemon restart reconciles stored work; uncertain execution is diagnosed rather than automatically replayed |
 
-See [daily usage](usage.md) and the [command reference](commands.md). Commands execute with your OS permissions. Eight execution slots are available. Unreleased 0.1.20 adds explicit deadline-bounded FIFO admission for up to 64 extra waiting jobs; default/published admission permits eight unfinished jobs. See [queue usage](usage.md#wait-for-an-execution-slot-unreleased-0120); raw stdout/stderr retain up to 16 MiB per stream. This runtime is not a command sandbox and does not resume processes across machine reboot.
+See [daily usage](usage.md) and the [command reference](commands.md). Commands execute with your OS permissions. Eight execution slots are available. Unreleased 0.1.20 defaults to FIFO admission for up to 64 extra waiting jobs with a persisted 24-hour wait limit; explicit no-wait admission and the published baseline permit eight unfinished jobs. See [queue usage](usage.md#wait-for-an-execution-slot-unreleased-0120); raw stdout/stderr retain up to 16 MiB per stream. This runtime is not a command sandbox and does not resume processes across machine reboot.
 
 ## Inspection, rules and task manager
 
