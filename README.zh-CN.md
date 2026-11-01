@@ -112,7 +112,7 @@ ajr inspect <job-id>
 
 已发布的 0.1.18 运行时新增任务级通知诊断与恢复指引、Agent 精简检查结果（`job_inspect`，或 `ajr inspect <job-id> --json --compact`）及有界近期日志轮转。使用 `ajr logs <job-id> --export <new-file>` 或任务面板可导出保留文本，缺失区间会明确标记；见[检查与日志](docs/runtime-monitoring.md)。
 
-当前 Unreleased 源码新增实际反馈状态卡片与可编辑的阶段／时长入口、具体的通知／Goal 恢复计划、全历史搜索（`ajr search --text "tests" --status failed`）及日志定位（`ajr search-logs <job-id> --stream stderr --text "error"`）。面板检索包含归档历史，日志保留原始字节上下文与缺口。磁盘策略默认低于 512 MiB 提醒、低于 64 MiB 拒绝新任务，保留活动任务及原键重试；使用 `ajr data policy --disk-warn-mib 1024 --disk-stop-new-jobs-mib 128` 预览调整。这些新增能力需要开发构建；见[检查功能](docs/runtime-monitoring.md)和[容量策略](docs/data-maintenance.md#disk-pressure-and-backup-health-current-source)。
+0.1.20 源码（尚未发布）新增实际反馈状态卡片与可编辑的阶段／时长入口、具体的通知／Goal 恢复计划、全历史搜索（`ajr search --text "tests" --status failed`）及日志定位（`ajr search-logs <job-id> --stream stderr --text "error"`）。面板检索包含归档历史，日志保留原始字节上下文与缺口。磁盘策略默认低于 512 MiB 提醒、低于 64 MiB 拒绝新任务，保留活动任务及原键重试；使用 `ajr data policy --disk-warn-mib 1024 --disk-stop-new-jobs-mib 128` 预览调整。这些新增能力需要开发构建；见[检查功能](docs/runtime-monitoring.md)和[容量策略](docs/data-maintenance.md#disk-pressure-and-backup-health-current-source)。
 
 任务详情默认显示终端输出，可选择跟随新内容。进度、反馈／通知、规则和事件放在独立标签中；展开执行信息可查看完整命令及原始 ID。
 

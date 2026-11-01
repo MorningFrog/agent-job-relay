@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.20] - 2026-11-02
+
 ### Added
 
 - Forward pinned native remote runner alerts directly to the originating chat through explicit alert-only `remote_alert` subscriptions in CLI/MCP/Web. Commit event cursors, bounded original-run/event/rule evidence and Outbox together, fence current revisions/terminal states, coalesce backlog and retain cooldown/budget/final-delivery semantics without a checker or remote caller credentials.

@@ -10,9 +10,9 @@
 
 The independent [Check Release **41298011740**](https://github.com/MorningFrog/agent-job-relay/actions/runs/41298011740) succeeded for that published source. The older 0.1.18 independent-check failure remains a separate historical-candidate follow-up in [TODO](TODO.md), without undoing its publication.
 
-Later feedback/recovery UI, history/log search, disk-pressure and bounded-queue changes are **Unreleased**, with synchronized development manifests/pins at **0.1.20**. These bytes are not a finalized/sealed candidate. Source uses schema v14, IPC v1 and 27 MCP tools; published 0.1.19 uses v12 and 25 tools.
+**0.1.20 is locally prepared, not published.** `finalize_release.py` passed all local gates and unused-version checks on 2026-11-02 and finalized the notes for feedback/recovery UI, history/log search, disk-pressure policy, bounded queuing and direct remote-alert feedback. Manifests/pins are synchronized. Remote preparation must still qualify and seal the candidate before publication. Source uses schema v14, IPC v1 and 27 MCP tools; published 0.1.19 uses v12 and 25 tools.
 
-Current verification and package/loader limits are in [implementation status](IMPLEMENTATION_STATUS.md#current-verification). Local developer payloads can require newer glibc and cannot replace published bytes. Future formal preparation must select an unused version, synchronize all manifests, run `finalize_release.py`, remotely qualify the reviewed revision and seal its own candidate before final publication confirmation.
+Current verification and package/loader limits are in [implementation status](IMPLEMENTATION_STATUS.md#current-verification). Local developer payloads can require newer glibc and cannot replace published bytes. The next step for 0.1.20 is to commit/push the reviewed preparation and run Release All with `dry_run=true`, `channel=latest` and an empty candidate ID. Retain the resulting original candidate for subsequent review and separately authorized publication.
 
 Consumer CLI/plugin installation and updates use `ajr update`; native offline and OpenCode routes remain separate. Unreleased 0.1.20 migrates older profiles to v14 after older active runs finish. See [updates](updating.md) and [current support/evidence](IMPLEMENTATION_STATUS.md).
 
