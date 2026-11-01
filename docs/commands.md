@@ -68,9 +68,9 @@ Current source adds `ajr search [--text <text>] [--status <state|active>] [--cwd
 | `monitor update <job-id> <rule-id> --revision <n>` | Replace the observed rule revision |
 | `monitor enable/disable/remove <job-id> <rule-id> --revision <n>` | Rearm, disable or remove a rule while retaining its audit |
 
-`--progress '{"source":"training","trigger":{"kind":"stage"},"cooldown_seconds":30}'` adds repeated structured feedback; see [progress/checker usage and limits](progress.md). The same option is accepted by start and monitor add/update, and the Web editor supports stage/step/metric rules.
+`--progress '{"source":"training","trigger":{"kind":"stage"},"cooldown_seconds":30}'` adds repeated structured feedback; see [progress/checker usage and limits](progress.md). The same option is accepted by start and monitor add/update, and the Web editor supports stage/step/metric rules. Unreleased native remote observers also accept `monitor add <job-id> --remote-alert '{"rule_id":null,"cooldown_seconds":600}' --notify-agent`; this alert-only subscription forwards remote runner rules to the already bound origin. [Remote setup and limits](remote-execution.md#send-intermediate-feedback-to-the-origin-unreleased-0120).
 
-Rules use one condition: `--no-output <duration>`, `--elapsed <duration>` or `--contains <literal>`. Options include `--stream stdout/stderr/both`, `--action alert/stop`, `--grace <duration>` and `--notify-agent` for an already bound job. Start accepts one initial rule with the same flags. Durations accept seconds or `s`, `m`, `h`, `d`; stop grace is bounded to 0–300 seconds and wait to 0–30. See [monitoring procedures and expected results](runtime-monitoring.md).
+Rules use one condition: `--no-output <duration>`, `--elapsed <duration>`, `--contains <literal>`, `--progress <json>` or native-remote-only `--remote-alert <json>`. Options include `--stream stdout/stderr/both`, `--action alert/stop`, `--grace <duration>` and `--notify-agent` for an already bound job. Start accepts one initial rule with the same flags. Durations accept seconds or `s`, `m`, `h`, `d`; stop grace is bounded to 0–300 seconds and wait to 0–30. See [monitoring procedures and expected results](runtime-monitoring.md).
 
 ## Bind sessions and recover notifications
 

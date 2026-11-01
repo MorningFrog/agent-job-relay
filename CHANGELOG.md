@@ -4,10 +4,15 @@
 
 ### Added
 
+- Forward pinned native remote runner alerts directly to the originating chat through explicit alert-only `remote_alert` subscriptions in CLI/MCP/Web. Commit event cursors, bounded original-run/event/rule evidence and Outbox together, fence current revisions/terminal states, coalesce backlog and retain cooldown/budget/final-delivery semantics without a checker or remote caller credentials.
 - Default new tasks to bounded FIFO waiting after eight execution slots fill, with at most 64 extra waiting jobs, persisted queue deadlines (24 hours by default, configurable or explicitly disabled), local pre-launch cancellation, preserved IDs/idempotency/Goal budgets and CLI/MCP/Web diagnostics. Fence older scheduling through schema v14; never replay uncertain native launches or restored queued work.
 - Show effective mid-run feedback, runner application/source evidence and notification limits in the task panel, with explicitly saved stage/time presets. Return read-only notification/goal recovery plans with original identities/revisions and profile-specific preview/apply commands.
 - Search hot and archived task history by text, status, directory and creation time through CLI/MCP/Web, with bounded scan cursors. Locate literal retained-log matches with original byte offsets, context, fixed-end pagination and explicit gaps; never rehydrate or replay execution for search.
 - Expose fresh disk-pressure and backup/maintenance health in admission receipts, Doctor and the panel. Configure warning/new-admission thresholds while preserving active runs, terminal persistence, stops and unchanged-key retries.
+
+### Fixed
+
+- Allow disabling/removing existing notifying rules after a Goal wait closes, while retaining revision checks and refusal of new/re-enabled notifications.
 
 ### Changed
 

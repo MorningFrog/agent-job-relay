@@ -97,7 +97,7 @@ Complete this handshake even if members finish during the report; Relay then res
 | Binding/controller/profile/image replaced | Require manual goal handling; never move consent or waits |
 | Backup restored | Invalidate consent and fence all restored controls/grouped notifications |
 
-Wait cancellation and manual member stops close future continuation, without stopping other members. Batches freeze accepted membership; rejected/uncommitted items cannot join on retry. Local monitoring/stopping remains available; closed waits cannot enable notifying rules. Running groups have no separate deadline beyond member timeouts, except each temporary feedback restoration's native re-pause deadline; completion must resolve within 24 hours of the last member outcome. Consent and wait history each have a 10,000-record quota. Delivery expiry/attempts and membership/audits survive retries and archival. Host acceptance is not proof of Agent execution.
+Wait cancellation and manual member stops close future continuation, without stopping other members. Batches freeze accepted membership; rejected/uncommitted items cannot join on retry. Local monitoring/stopping remains available; existing notifying rules can be disabled or removed after closure, while new/re-enabled notifications remain refused. Running groups have no separate deadline beyond member timeouts, except each temporary feedback restoration's native re-pause deadline; completion must resolve within 24 hours of the last member outcome. Consent and wait history each have a 10,000-record quota. Delivery expiry/attempts and membership/audits survive retries and archival. Host acceptance is not proof of Agent execution.
 
 ## Runtime updates and host limits
 

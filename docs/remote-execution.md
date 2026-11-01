@@ -71,6 +71,34 @@ Remote cwd/env/timeout and autonomous remote rules belong in `intent.spec`. Omit
 
 For same-chat notification, use `start-spec --wake` from the actual Desktop terminal or pass the current host's `binding` to MCP `job_start` with this spec. Shared MCP never infers identity from its own environment. Notifications describe the local observation result; inspect its external evidence before interpreting an unknown outcome. Agent callers should end the turn after a long submission. No new external-task same-chat live acceptance is claimed.
 
+## Send intermediate feedback to the origin (Unreleased 0.1.20)
+
+Use an origin build advertising Doctor `remote_alert_feedback=true`. Configure meaningful alert rules on the remote runner with `notify_agent=false`; for structured stages, put this rule in `remote.intent.spec.monitor_rules` and have the workload emit flushed [progress frames](progress.md#emit-structured-progress):
+
+```json
+{"condition":{"kind":"progress","source":"training","trigger":{"kind":"stage"},"cooldown_seconds":60},"action":"alert","notify_agent":false}
+```
+
+Add this separate rule to the outer specification's `monitor_rules`, using the actual caller's MCP binding or Desktop `start-spec --wake`:
+
+```json
+{"condition":{"kind":"remote_alert","rule_id":null,"cooldown_seconds":600},"action":"alert","notify_agent":true}
+```
+
+Expected: a remote stage/threshold/literal/silence rule produces a typed `monitor_alert`; the local observer records its original target, Job/Run/attempt, event ID/sequence and rule ID/revision, then queues a notification for the originating job's active recorded targets. No checker job or remote chat credentials are needed. `rule_id` may select one original remote rule UUID; null/omitted selects all remote alerts. Honor completion-only preferences and existing Goal feedback/restoration permission. This subscription records alerts only; remote stop actions remain remote evidence and cannot grant local control.
+
+For an existing compatible observer, the CLI and Web rule editor use the same subscription:
+
+```bash
+ajr monitor add <local-job-id> --remote-alert '{"rule_id":null,"cooldown_seconds":600}' --notify-agent
+```
+
+Expected: the applied revision advances and future sampled remote alerts can notify the existing bound chat. A launching/running observer must itself advertise `observation.external.remote_alert_feedback=true`; a newer daemon alone cannot retrofit an older observer. Missing capability fails before changing its rules. Native launch specs still omit remote sessions/idempotency and reject remote `notify_agent=true`.
+
+The event cursor, pending latest-per-subscription backlog candidates, local events, counters and Outbox commit together. Observer restart retains them without rerunning execution or duplicating committed alerts. Retained backlog, including on first attachment, is coalesced before delivery; old unsent notifications for the same subscription are superseded while attempts, accepted deliveries and live/Goal-selected claims remain. Cooldown is 1–604800 seconds; at most 128 local remote-alert records and one new remote-alert notification per second per job are admitted. Suppressed matches are not delayed. Observed remote terminal state suppresses new intermediate enqueue while preserving bounded evidence; the normal local completion and Goal final-delivery fences remain independent.
+
+Full inspection exposes `observation.remote_feedback` with counts and the latest eight milestones; compact results retain original remote identities and two short evidence excerpts. Final events keep a bounded `progress.remote_feedback` summary, explicitly truncated when needed. Source evidence is untrusted data; oversized evidence is replaced by an explicit pointer to the original remote event. This is not a complete remote telemetry history. Current native Linux/source-MCP and simulated-host tests do not establish native Windows, arbitrary adapters, SSH deployments or actual Desktop/OpenCode Agent continuation for this new path.
+
 ## Reconnect or attach
 
 Transport loss keeps the observation active and retries with bounded backoff. A lost launch acknowledgement reuses the unchanged origin Job/Run idempotency key, returning the original remote IDs without rerunning a committed command. Explicit cancellation before recovering that acknowledgement uses lookup only; it never submits another launch. If lookup cannot find authoritative evidence, cancellation remains unresolved. Local observer death is recoverable by the daemon under the original run lock, Job/Run IDs, remote identity and persisted raw-byte cursors; ordinary local commands retain conservative orphan classification.
