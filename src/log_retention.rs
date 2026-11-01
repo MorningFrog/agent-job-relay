@@ -420,7 +420,11 @@ mod tests {
         let mut prefix = vec![b'x'; crate::runner::LOG_CAP as usize];
         let len = prefix.len();
         prefix[len - 2..].copy_from_slice(b"NO");
-        std::fs::write(dir.join("stdout.log"), &prefix).unwrap();
+        // Match runner creation: elevated Windows defaults can select a group owner.
+        crate::platform::create_new_file(&dir.join("stdout.log"))
+            .unwrap()
+            .write_all(&prefix)
+            .unwrap();
         let mut writer = Writer::new(dir.join("stdout.recent"));
         for index in 0..5 {
             let mut data = vec![b'x'; SEGMENT];

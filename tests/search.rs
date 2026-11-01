@@ -157,7 +157,12 @@ async fn literal_log_search_uses_original_bytes_context_and_fixed_end() {
     bytes[524287..524293].copy_from_slice(b"needle");
     bytes[599990..599996].copy_from_slice(b"needle");
     bytes[0] = 255;
-    std::fs::write(path.join("stderr.log"), &bytes).unwrap();
+    // Use the runner's explicit owner/private permissions on Windows too.
+    std::io::Write::write_all(
+        &mut agent_job_relay::platform::create_new_file(&path.join("stderr.log")).unwrap(),
+        &bytes,
+    )
+    .unwrap();
     let request = |cursor, end, limit| Request::SearchLogs {
         job_id: job.job_id.clone(),
         text: "needle".into(),
