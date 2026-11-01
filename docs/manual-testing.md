@@ -95,6 +95,17 @@ Expected: the original state path is retained; the same unmodified bundle report
 
 Use pass/fail/not tested for each item. Record host/app version, OS, actual submission route and job/delivery IDs privately; do not publish endpoints, credentials, databases or raw private logs. Keep the runtime delivery state separate from your observation of continuation. Use the restart/rebind procedure below only when explicitly testing that scenario. Real multi-day renewal remains a separate check.
 
+## Optional: multi-round goal recovery (Unreleased)
+
+Use a user-created disposable goal chat and a runtime whose Doctor advertises `goal_wait_recovery=true`. This checks changed recovery behavior; it does not repeat the unchanged ordinary completion baseline.
+
+1. Request three separate bounded background runs in the same project. Expected: one actual pause decision covers the original request, each round retains its own Job/Run, and the Agent pauses/yields between rounds without polling or repeated questions.
+2. In an explicitly controlled interrupted-handoff case, retain the original IDs after the owning native pause succeeds and reconnect before Relay confirmation. Expected: `goal_wait_pending`, no submission binding/new question and `confirm_pause` with the original revision. Confirm only the success actually acknowledged by that chat; an uncertain native outcome requires host controls instead of replay.
+3. Include requested intermediate feedback and, separately, completion during its report. Expected: the same wait returns through native re-pause before final restoration, even with exhausted admission slots; ordinary submission cannot bypass it. A delayed final receipt must remain pending rather than count as Agent execution. After an actual receipt/continuation, remaining rounds reuse the original request and budget.
+4. If the host reports `blocked`, retain evidence and its status. Expected: explicit original-host Resume followed by original-request reconnection, without another approved-consent question. This check must record the actual blocker source before attributing it to Relay.
+
+Record host/runtime versions, model, route and pass/fail/not-tested privately. Native fixtures and the actual-Codex simulated-model script do not qualify real Desktop/model decisions or Windows goal behavior. Do not restart a user's host, mutate unrelated goals or reinstall configuration merely to manufacture this scenario.
+
 ## Optional: real-Agent mid-run feedback
 
 Use this check for a relevant feedback change or a new host/runtime combination. The [user-confirmed staged acceptance](live-e2e.md#real-agent-mid-run-feedback) is complete for its reported scope; do not repeat it merely to collect evidence. Open an ordinary chat without an active goal for that baseline; source 0.1.17 goal feedback has a separate [temporary-restoration/native re-pause acceptance](test-prompts.md#verify-goal-feedback-and-native-re-pause-source-0117).

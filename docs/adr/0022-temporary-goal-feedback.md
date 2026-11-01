@@ -8,6 +8,8 @@ Select one original-run alert addressed to the original active target, coalesce 
 
 After reporting, the originating Agent must invoke its native goal pause and confirm the current wait revision through the existing `confirm_paused` operation. Only that acknowledgement returns the same wait to `waiting` with a fresh paused snapshot; an external controller never performs the pause. The five-minute deadline is fixed, not renewed by retries. Lost restore acknowledgement, interrupted `resuming`, unconfirmed re-pause or explicit cancellation closes automatic control while workloads remain independent. Never replay an uncertain native mutation.
 
+Admission consent and re-pause remain independent: using the last authorized job slot cannot permit ordinary submission around an outstanding feedback handoff. Reconnection and compact inspection retain the original request/wait, current confirmation revision and report/re-pause action without creating another question or admitting another job.
+
 All-member completion wins before intermediate transmission: after verifying the active original goal, the dispatcher can fence its own untransmitted claim, retain attempt evidence and admit the single merged final notification without another restoration. Once a feedback effect may have been transmitted, finish the native re-pause handshake first, then perform the ordinary final restoration. An accepted transport effect is not actual Agent execution. Live claims retain existing per-chat exclusion; a late intermediate ACK cannot consume final notification state or reopen an earlier cycle.
 
 ## Recovery and compatibility

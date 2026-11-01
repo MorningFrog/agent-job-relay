@@ -88,6 +88,8 @@ ajr ui
 
 尚未发布的源码指引会为长任务规划有用的日志输出和少量中途汇报；明确要求“仅结束时通知”则保留完成时反馈。Goal 中间反馈仍须有实际用户授权。见[反馈规划与限制](docs/progress.md#choose-and-verify-feedback-before-yielding)；已安装宿主中的自主采用仍待验证。
 
+尚未发布的 Goal 恢复会在重连时返回原交接及下一步操作，不重新询问暂停许可或重复执行任务。多轮保留同一请求，并区分原生暂停回执与尚未确认的最终通知。需要 Doctor `goal_wait_recovery=true`；见[恢复方式及宿主限制](docs/goal-waiting.md#recover-an-existing-handoff-unreleased)。
+
 也可以提出：
 
 > 打开 AgentJobRelay 的任务面板，让我查看正在运行的任务。

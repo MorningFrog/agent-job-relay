@@ -239,7 +239,7 @@ impl Store {
             }
             if goal_wait.is_none() && let Some(session)=&spec.session {
                 ensure!(!tx.query_row("SELECT EXISTS(SELECT 1 FROM goal_consents WHERE session_key=? AND status IN ('pending','asking','approved') AND expires>? AND used<job_limit)",params![session,now()],|r|r.get::<_,bool>(0))?,"this request needs its approved goal-wait binding; ordinary submission cannot bypass pause consent");
-                ensure!(!tx.query_row("SELECT EXISTS(SELECT 1 FROM goal_waits WHERE session_key=? AND status IN ('prepared','sealed','pausing','waiting','resuming') AND expires>?)",params![session,now()],|r|r.get::<_,bool>(0))?,"this chat has a required goal handoff; preserve its goal_wait_id binding instead of submitting ordinary work");
+                ensure!(!tx.query_row("SELECT EXISTS(SELECT 1 FROM goal_waits WHERE session_key=? AND (status IN ('prepared','sealed','pausing','waiting','resuming') OR (status='resumed' AND feedback_delivery IS NOT NULL)) AND expires>?)",params![session,now()],|r|r.get::<_,bool>(0))?,"this chat has a required goal handoff; preserve its goal_wait_id binding instead of submitting ordinary work");
             }
             let active:i64=tx.query_row("SELECT count(*) FROM jobs WHERE status IN ('queued','launching','running')",[],|r|r.get(0))?;
             ensure!(active<8,"active job quota (8) reached; wait or stop a job");

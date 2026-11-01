@@ -315,8 +315,38 @@ pub async fn connect_request(
         .to_string();
     let goal_status = goal.as_ref().map(|(_, g)| g.status.as_str());
     value["goal_status"] = json!(goal_status);
+    let scoped = ipc::call(config, Request::Doctor).await?["scoped_goal_consent"] == true;
+    if scoped
+        && let Some(wait) = crate::storage::Store::readonly(config.clone())
+            .pending_goal_handoff(key.clone(), goal.clone())
+            .await?
+        && !(wait["continuation"]["can_admit"] == true
+            && options
+                .request_id
+                .as_deref()
+                .is_some_and(|id| Some(id) == wait["request_id"].as_str()))
+    {
+        if options.request_id.as_deref() == wait["request_id"].as_str()
+            && let Some(request_id) = &options.request_id
+        {
+            value["consent"] = ipc::call(
+                config,
+                Request::GoalConsent {
+                    request_id: request_id.clone(),
+                    session_key: key,
+                    decision: Default::default(),
+                    expected_revision: None,
+                },
+            )
+            .await?;
+        }
+        handoff_pending(&mut value, wait);
+        value["goal_state_verified"] =
+            json!(std::env::var_os("CODEX_APP_RUNTIME_CLI_PATH").is_some());
+        return Ok(value);
+    }
     if goal_status != Some("active") {
-        if ipc::call(config, Request::Doctor).await?["scoped_goal_consent"] == true {
+        if scoped {
             crate::storage::Store::new(config.clone())
                 .clear_obsolete_goal_consents(key.clone())
                 .await?;
@@ -349,13 +379,16 @@ pub async fn connect_request(
             value["binding"] = json!({"session_key":key,"cwd":cwd});
             value["status"] = json!("ready");
         }
+        if value["status"] == "goal_not_active" {
+            value["continuation"] = json!({"action":"host_control","requires_original_chat":true,"can_admit":false,"retry_native_mutation":false});
+        }
         value["goal_state_verified"] =
             json!(std::env::var_os("CODEX_APP_RUNTIME_CLI_PATH").is_some());
         return Ok(value);
     }
     let (controller, expected) = goal.context("active goal missing")?;
     ensure!(
-        ipc::call(config, Request::Doctor).await?["scoped_goal_consent"] == true,
+        scoped,
         "selected daemon lacks scoped goal consent; update the same profile before submission"
     );
     let consent = ipc::call(
@@ -397,11 +430,38 @@ pub async fn connect_request(
             },
         )
         .await?;
-        value["binding"] = json!({"session_key":key,"cwd":cwd,"goal_wait_id":wait["goal_wait_id"]});
-        value["goal_wait"] = wait;
+        if wait["continuation"]["can_admit"] == true {
+            value["binding"] =
+                json!({"session_key":key,"cwd":cwd,"goal_wait_id":wait["goal_wait_id"]});
+            value["goal_wait"] = wait;
+        } else {
+            handoff_pending(&mut value, wait);
+        }
     }
     value["consent"] = consent;
     Ok(value)
+}
+
+fn handoff_pending(value: &mut Value, mut wait: Value) {
+    if wait["continuation"]["can_admit"] == true {
+        wait["continuation"]["can_admit"] = json!(false);
+        if wait["request_id"].is_string() {
+            wait["continuation"]["action"] = json!("reconnect_request");
+            wait["next_step"] = json!(
+                "This chat already prepared an original handoff. Reconnect once with its request_id and original workspace, or inspect/cancel that exact wait. No new consent or submission binding was created; do not ask again or replay work."
+            );
+        } else {
+            wait["continuation"]["action"] = json!("host_control");
+            wait["next_step"] = json!(
+                "This existing compatibility handoff has no scoped request_id. Inspect/cancel this exact wait, or continue its original explicitly authorized --wait-goal path. Do not invent a request ID, ask another question or replay work."
+            );
+        }
+    }
+    value.as_object_mut().unwrap().remove("binding");
+    value["status"] = json!("goal_wait_pending");
+    value["next_step"] = wait["next_step"].clone();
+    value["continuation"] = wait["continuation"].clone();
+    value["goal_wait"] = wait;
 }
 
 async fn connect_context_inner(
@@ -465,8 +525,12 @@ async fn connect_context_inner(
             },
         )
         .await?;
-        value["binding"]["goal_wait_id"] = wait["goal_wait_id"].clone();
-        value["goal_wait"] = wait;
+        if wait["continuation"]["can_admit"] == true {
+            value["binding"]["goal_wait_id"] = wait["goal_wait_id"].clone();
+            value["goal_wait"] = wait;
+        } else {
+            handoff_pending(&mut value, wait);
+        }
     }
     value["goal_wait_policy"] = json!("required_for_active_desktop_goal");
     value["automatic_goal_pause_supported"] = json!(false);
@@ -475,10 +539,19 @@ async fn connect_context_inner(
     Ok(value)
 }
 pub fn brief_binding(value: Value) -> Value {
-    if value["status"] == "goal_not_active" {
+    if matches!(
+        value["status"].as_str(),
+        Some("goal_not_active" | "goal_wait_pending")
+    ) {
         let mut result = json!({"status":value["status"],"session_key":value["session"]["key"],"goal_status":value["goal_status"],"goal_state_verified":value["goal_state_verified"],"next_step":value["next_step"]});
         if let Some(consent) = value.get("consent") {
             result["consent"] = consent.clone();
+        }
+        if let Some(wait) = value.get("goal_wait") {
+            result["goal_wait"] = wait.clone();
+        }
+        if let Some(continuation) = value.get("continuation") {
+            result["continuation"] = continuation.clone();
         }
         return result;
     }
@@ -548,6 +621,9 @@ pub async fn start_waiting(
         specs[0].validate()?;
     }
     let binding = connect_with_goal(config, std::env::current_dir()?).await?;
+    if binding["status"] == "goal_wait_pending" {
+        return Ok(brief_binding(binding));
+    }
     let key = binding["session"]["key"]
         .as_str()
         .context("missing session")?;
@@ -607,7 +683,7 @@ pub async fn start(config: &Config, mut spec: StartSpec, wake_me: bool) -> Resul
         };
         if matches!(
             session["status"].as_str(),
-            Some("needs_confirmation" | "request_closed" | "goal_not_active")
+            Some("needs_confirmation" | "request_closed" | "goal_not_active" | "goal_wait_pending")
         ) {
             return Ok(brief_binding(session));
         }
@@ -670,7 +746,7 @@ pub async fn start_batch(
         };
         if matches!(
             session["status"].as_str(),
-            Some("needs_confirmation" | "request_closed" | "goal_not_active")
+            Some("needs_confirmation" | "request_closed" | "goal_not_active" | "goal_wait_pending")
         ) {
             return Ok(brief_binding(session));
         }

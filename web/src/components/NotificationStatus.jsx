@@ -6,6 +6,17 @@ const labels = {
   retry_wait: "等待重试", dead_letter: "通知需要处理", accepted_by_host: "宿主已接收",
   notification_recorded: "已写入收件箱", inbox_only: "仅收件箱", cancelled: "通知已关闭",
 };
+const continuationLabels = {
+  submit: "原请求已准备，可继续提交",
+  reconnect_request: "从原聊天继续已有请求",
+  native_pause: "等待原聊天完成暂停交接",
+  confirm_pause: "原目标已暂停，核对已有暂停回执",
+  wait: "后台任务继续运行，等待结果",
+  report_then_pause: "原聊天汇报中途结果后需再次暂停",
+  await_notification: "目标已恢复，等待最终通知确认",
+  inspect_results: "可查看原任务结果并继续下一轮",
+  host_control: "请回到原聊天检查目标状态并处理恢复",
+};
 export function NotificationStatus({ detail, token }) {
   const [history, setHistory] = useState(null), [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
@@ -37,6 +48,7 @@ export function NotificationStatus({ detail, token }) {
     </div>}
     {goal?.status && <div className="notice">
       <p>Goal 等待：{goal.status} · 版本 {goal.revision}</p>
+      {goal.continuation?.action && <p>{continuationLabels[goal.continuation.action] || "请在原聊天查看交接详情"}</p>}
       {goal.host_pause_required && <p>等待原聊天原生暂停及版本确认。</p>}
       {goal.detail && <p>{goal.detail}</p>}
     </div>}

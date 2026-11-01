@@ -9,6 +9,8 @@ use anyhow::{Context, Result, ensure};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde_json::{Value, json};
 mod feedback;
+mod recovery;
+pub(crate) use recovery::for_request;
 
 const OPEN: &str = "'prepared','sealed','pausing','waiting','resuming'";
 const DAY: i64 = 86_400_000;
@@ -107,6 +109,12 @@ fn brief(db: &Connection, id: &str) -> Result<Value> {
             "The original goal was temporarily restored for this feedback cycle. Match Job/Run/delivery, inspect bounded evidence and report requested feedback. Then use this chat's native update_goal(status='paused') under the original pause/feedback authorization, and confirm with job_goal_wait(confirm_paused=true, expected_revision=this revision). Do not submit or replay work. Complete this re-pause handshake even if members finished during the report; Relay will then restore once for the final merged outcome. If native pause fails or is uncertain, cancel this wait and report the limitation; never replay the native mutation."
         );
     }
+    value["request_id"] = json!(db.query_row(
+        "SELECT consent_id FROM goal_waits WHERE id=?",
+        [id],
+        |r| r.get::<_, Option<String>>(0),
+    )?);
+    recovery::describe(&mut value);
     Ok(value)
 }
 fn view(db: &Connection, id: &str) -> Result<Value> {
@@ -251,7 +259,7 @@ impl Store {
             if let Some(id)=busy {
                 let old=read(&tx,&id)?;
                 let old_consent:Option<String>=tx.query_row("SELECT consent_id FROM goal_waits WHERE id=?",[&id],|r|r.get(0))?;
-                if old.status=="prepared" && old.session_key==session_key && old_consent==consent_id && old.session_snapshot==session_snapshot && old.expected.same_identity(&current) && serde_json::to_value(&old.controller)?==serde_json::to_value(&controller)? {
+                if old.session_key==session_key && old_consent==consent_id && old.session_snapshot==session_snapshot && old.expected.same_identity(&current) && serde_json::to_value(&old.controller)?==serde_json::to_value(&controller)? {
                     let result=brief(&tx,&id)?;tx.commit()?;return Ok(result);
                 }
                 anyhow::bail!("this logical chat already has goal wait {id}; inspect or cancel that exact wait before creating another");

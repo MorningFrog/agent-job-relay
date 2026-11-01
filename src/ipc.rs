@@ -467,6 +467,7 @@ pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
             value["goal_waiting"] = json!(true);
             value["goal_wait_host_pause"] = json!(true);
             value["goal_wait_feedback"] = json!(true);
+            value["goal_wait_recovery"] = json!(true);
             value["scoped_goal_consent"] = json!(true);
             value["automatic_goal_pause_supported"] = json!(false);
             value["goal_pause_authorization_policy"] = json!("ask_once_per_request");

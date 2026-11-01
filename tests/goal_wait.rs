@@ -25,6 +25,7 @@ struct Fixture {
     session: String,
     host: tokio::task::JoinHandle<()>,
     messages: std::sync::Arc<std::sync::Mutex<Vec<Value>>>,
+    acknowledgements: std::sync::Arc<tokio::sync::Semaphore>,
 }
 struct OwnedDaemon(std::process::Child);
 impl std::ops::Deref for OwnedDaemon {
@@ -45,6 +46,15 @@ impl Drop for OwnedDaemon {
     }
 }
 impl Fixture {
+    async fn cli_value(&self, args: &[&str]) -> Value {
+        let out = self.cli().args(args).output().await.unwrap();
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        serde_json::from_slice(&out.stdout).unwrap()
+    }
     async fn daemon(&self) -> OwnedDaemon {
         let daemon = OwnedDaemon(
             Command::new(env!("CARGO_BIN_EXE_agent-job-relay"))
@@ -120,12 +130,15 @@ impl Fixture {
         let listener = tokio::net::UnixListener::bind(&endpoint).unwrap();
         let messages = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
         let output = messages.clone();
+        let acknowledgements = std::sync::Arc::new(tokio::sync::Semaphore::new(1));
+        let host_acknowledgements = acknowledgements.clone();
         let host = tokio::spawn(async move {
             loop {
                 let Ok((mut socket, _)) = listener.accept().await else {
                     break;
                 };
                 let output = output.clone();
+                let acknowledgements = host_acknowledgements.clone();
                 tokio::spawn(async move {
                     let Ok(request) = ipc::read_frame(&mut socket, 65536).await else {
                         return;
@@ -136,6 +149,7 @@ impl Fixture {
                     }
                     if let Ok(request) = ipc::read_frame(&mut socket, 65536).await {
                         output.lock().unwrap().push(request.clone());
+                        let _acknowledgement = acknowledgements.acquire().await.unwrap();
                         let _ = ipc::write_frame(
                             &mut socket,
                             &json!({"jsonrpc":"2.0","id":request["id"],"result":{"success":true}}),
@@ -172,6 +186,7 @@ impl Fixture {
             session,
             host,
             messages,
+            acknowledgements,
         }
     }
     async fn prepare(&self) -> String {
@@ -702,6 +717,63 @@ async fn storage_only_pause_never_acknowledges_the_host_and_confirmation_is_fenc
     );
     assert!(f.mutations().is_empty());
     assert_eq!(f.store.list(0, 100).await.unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn reconnect_never_acknowledges_or_overwrites_a_blocked_or_replaced_goal() {
+    for replaced in [false, true] {
+        let f = Fixture::new().await;
+        let mut daemon = f.daemon().await;
+        let connected = f
+            .cli_value(&[
+                "connect",
+                "--request-label",
+                "original scope",
+                "--job-count",
+                "2",
+                "--wait-goal",
+            ])
+            .await;
+        let wait = connected["binding"]["goal_wait_id"].as_str().unwrap();
+        let request = connected["consent"]["request_id"].as_str().unwrap();
+        ipc::call(
+            &f.store.config,
+            Request::StartGoal {
+                spec: StartSpec {
+                    session: Some(connected["session_key"].as_str().unwrap().into()),
+                    ..f.spec("original")
+                },
+                goal_wait_id: wait.into(),
+            },
+        )
+        .await
+        .unwrap();
+        let mut changed = f.goal.clone();
+        if replaced {
+            changed.objective = "unrelated replacement".into();
+        } else {
+            changed.status = "blocked".into();
+        }
+        changed.updated_at += 1;
+        f.write_goal(&changed);
+        let result = f.cli_value(&["connect", "--request-id", request]).await;
+        assert_eq!(result["status"], "goal_wait_pending");
+        assert_eq!(result["continuation"]["action"], "host_control");
+        assert_eq!(result["continuation"]["can_admit"], false);
+        assert!(result["continuation"]["confirmation_revision"].is_null());
+        assert!(result.get("binding").is_none());
+        assert_eq!(result["goal_wait"]["goal_wait_id"], wait);
+        assert_eq!(result["consent"]["jobs_admitted"], 1);
+        assert_eq!(
+            result["consent"]["status"],
+            if replaced { "invalidated" } else { "approved" }
+        );
+        assert_eq!(f.controller.read().await.unwrap().unwrap(), changed);
+        assert!(f.mutations().is_empty());
+        assert_eq!(f.store.list(0, 100).await.unwrap().len(), 1);
+        ipc::call(&f.store.config, Request::Shutdown).await.unwrap();
+        daemon.wait().unwrap();
+    }
 }
 
 #[tokio::test]
@@ -2647,6 +2719,333 @@ async fn scoped_terminal_request_reuses_one_answer_for_three_real_background_sub
     );
     ipc::call(&f.store.config, Request::Shutdown).await.unwrap();
     daemon.wait().unwrap();
+}
+
+#[tokio::test]
+async fn reconnect_recovers_the_original_native_handoff_after_daemon_loss() {
+    let f = Fixture::new().await;
+    let mut daemon = f.daemon().await;
+    let legacy = f.cli_value(&["connect", "--wait-goal"]).await;
+    let legacy_pending = f.cli_value(&["connect"]).await;
+    assert_eq!(legacy_pending["status"], "goal_wait_pending");
+    assert_eq!(legacy_pending["continuation"]["action"], "host_control");
+    assert!(legacy_pending["goal_wait"]["request_id"].is_null());
+    assert!(legacy_pending.get("binding").is_none());
+    ipc::call(
+        &f.store.config,
+        Request::GoalWait {
+            goal_wait_id: legacy["goal_wait"]["goal_wait_id"].as_str().unwrap().into(),
+            cancel: true,
+            confirm_paused: false,
+            expected_revision: legacy["goal_wait"]["revision"].as_i64(),
+        },
+    )
+    .await
+    .unwrap();
+    let connected = f
+        .cli_value(&[
+            "connect",
+            "--request-label",
+            "recover handoff",
+            "--job-count",
+            "2",
+            "--wait-goal",
+        ])
+        .await;
+    let request = connected["consent"]["request_id"].as_str().unwrap();
+    let session = connected["session_key"].as_str().unwrap();
+    let wait = connected["binding"]["goal_wait_id"].as_str().unwrap();
+    let prepared = f.cli_value(&["connect"]).await;
+    assert_eq!(prepared["status"], "goal_wait_pending");
+    assert_eq!(prepared["continuation"]["action"], "reconnect_request");
+    assert!(prepared.get("binding").is_none());
+    let spec = StartSpec {
+        session: Some(session.into()),
+        ..f.spec("recover-original")
+    };
+    let started = ipc::call(
+        &f.store.config,
+        Request::StartGoal {
+            spec: spec.clone(),
+            goal_wait_id: wait.into(),
+        },
+    )
+    .await
+    .unwrap();
+    let revision = started["goal_wait"]["revision"].as_i64();
+    f.native_pause();
+    // Native pause succeeded, but the submitting connection died before Relay
+    // confirmation. Recovery must expose that exact acknowledgement boundary.
+    ipc::call(&f.store.config, Request::Shutdown).await.unwrap();
+    daemon.wait().unwrap();
+    daemon = f.daemon().await;
+    let recovered = f.cli_value(&["connect", "--request-id", request]).await;
+    assert_eq!(recovered["status"], "goal_wait_pending");
+    assert_eq!(recovered["continuation"]["action"], "confirm_pause");
+    assert_eq!(
+        recovered["continuation"]["confirmation_revision"].as_i64(),
+        revision
+    );
+    assert_eq!(recovered["goal_wait"]["goal_wait_id"], wait);
+    assert_eq!(recovered["goal_wait"]["request_id"], request);
+    assert_eq!(recovered["consent"]["jobs_admitted"], 1);
+    assert_eq!(recovered["consent"]["waits"][0]["goal_wait_id"], wait);
+    assert!(recovered.get("binding").is_none());
+    let file = f.dir.path().join("pending-batch.json");
+    let mut unbound = f.spec("must-not-start");
+    unbound.session = None;
+    std::fs::write(&file, serde_json::to_vec(&vec![unbound]).unwrap()).unwrap();
+    for args in [
+        vec!["connect"],
+        vec!["start", "--wake", "--", "true"],
+        vec!["start-batch", "--wake", "--file", file.to_str().unwrap()],
+    ] {
+        let gated = f.cli_value(&args).await;
+        assert_eq!(gated["status"], "goal_wait_pending");
+        assert_eq!(gated["goal_wait"]["goal_wait_id"], wait);
+        assert!(gated.get("binding").is_none());
+    }
+    assert_eq!(f.store.list(0, 100).await.unwrap().len(), 1);
+    assert_eq!(
+        f.store
+            .read(
+                |db| Ok(db.query_row("SELECT count(*) FROM goal_consents", [], |r| r
+                    .get::<_, u32>(0))?)
+            )
+            .await
+            .unwrap(),
+        1
+    );
+    assert!(f.mutations().is_empty());
+    let confirmed = ipc::call(
+        &f.store.config,
+        Request::GoalWait {
+            goal_wait_id: wait.into(),
+            cancel: false,
+            confirm_paused: true,
+            expected_revision: revision,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(confirmed["status"], "waiting");
+    tokio::time::timeout(Duration::from_secs(8), async {
+        while f.state(wait).await["notification_accepted"] != true {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .unwrap();
+    let retried = ipc::call(
+        &f.store.config,
+        Request::StartGoal {
+            spec,
+            goal_wait_id: wait.into(),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(retried["job"]["job_id"], started["job"]["job_id"]);
+    assert_eq!(retried["job"]["run_id"], started["job"]["run_id"]);
+    assert_eq!(f.mutations().len(), 1);
+    ipc::call(&f.store.config, Request::Shutdown).await.unwrap();
+    daemon.wait().unwrap();
+}
+
+#[tokio::test]
+async fn reconnect_reports_an_inflight_final_ack_then_reuses_the_original_request() {
+    let f = Fixture::new().await;
+    let mut daemon = f.daemon().await;
+    let connected = f
+        .cli_value(&[
+            "connect",
+            "--request-label",
+            "two rounds",
+            "--job-count",
+            "2",
+            "--wait-goal",
+        ])
+        .await;
+    let request = connected["consent"]["request_id"].as_str().unwrap();
+    let wait = connected["binding"]["goal_wait_id"].as_str().unwrap();
+    let session = connected["session_key"].as_str().unwrap();
+    let acknowledgement = f.acknowledgements.acquire().await.unwrap();
+    let started = ipc::call(
+        &f.store.config,
+        Request::StartGoal {
+            spec: StartSpec {
+                session: Some(session.into()),
+                ..f.spec("first-round")
+            },
+            goal_wait_id: wait.into(),
+        },
+    )
+    .await
+    .unwrap();
+    f.pause_and_confirm(wait).await;
+    tokio::time::timeout(Duration::from_secs(8), async {
+        while f.messages.lock().unwrap().is_empty() {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+    let pending = f.cli_value(&["connect", "--request-id", request]).await;
+    assert_eq!(pending["status"], "goal_wait_pending");
+    assert_eq!(pending["continuation"]["action"], "await_notification");
+    assert_eq!(pending["goal_wait"]["goal_wait_id"], wait);
+    assert_eq!(pending["goal_wait"]["notification_accepted"], false);
+    assert_eq!(pending["consent"]["jobs_admitted"], 1);
+    assert!(pending.get("binding").is_none());
+    drop(acknowledgement);
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while f.state(wait).await["notification_accepted"] != true {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+    let next = f.cli_value(&["connect", "--request-id", request]).await;
+    assert_eq!(next["status"], "ready");
+    assert_ne!(next["binding"]["goal_wait_id"], wait);
+    assert_eq!(next["consent"]["request_id"], request);
+    assert_eq!(next["consent"]["jobs_admitted"], 1);
+    assert_eq!(f.messages.lock().unwrap().len(), 1);
+    assert_eq!(f.mutations().len(), 1);
+    assert_eq!(
+        f.store
+            .status(started["job"]["job_id"].as_str().unwrap().into())
+            .await
+            .unwrap()
+            .run_id,
+        started["job"]["run_id"]
+    );
+    // A prompt ACK inside the local settling window lets the final round
+    // finish directly, without another Agent reconnect/polling loop.
+    let second_wait = next["binding"]["goal_wait_id"].as_str().unwrap();
+    let acknowledgement = f.acknowledgements.acquire().await.unwrap();
+    ipc::call(
+        &f.store.config,
+        Request::StartGoal {
+            spec: StartSpec {
+                session: Some(session.into()),
+                ..f.spec("second-round")
+            },
+            goal_wait_id: second_wait.into(),
+        },
+    )
+    .await
+    .unwrap();
+    f.pause_and_confirm(second_wait).await;
+    tokio::time::timeout(Duration::from_secs(8), async {
+        while f.messages.lock().unwrap().len() != 2 {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+    let reconnect_args = ["connect", "--request-id", request];
+    let reconnect = f.cli_value(&reconnect_args);
+    let release = async {
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        drop(acknowledgement);
+    };
+    let (finished, ()) = tokio::join!(reconnect, release);
+    assert_eq!(finished["status"], "request_closed");
+    assert_eq!(finished["consent"]["jobs_admitted"], 2);
+    assert_eq!(f.messages.lock().unwrap().len(), 2);
+    assert_eq!(f.mutations().len(), 2);
+    ipc::call(&f.store.config, Request::Shutdown).await.unwrap();
+    daemon.wait().unwrap();
+}
+
+#[tokio::test]
+async fn exhausted_consent_does_not_allow_ordinary_submission_during_feedback_repause() {
+    use agent_job_relay::goal_consent::Decision;
+    let f = Fixture::new().await;
+    let c = f.consent(1).await;
+    let request = c["request_id"].as_str().unwrap().to_string();
+    f.store
+        .decide_goal_consent(
+            request.clone(),
+            f.session.clone(),
+            1,
+            Decision::Allow,
+            "fixture user answer",
+        )
+        .await
+        .unwrap();
+    let prepared = f
+        .store
+        .prepare_goal_wait_scoped(
+            f.session.clone(),
+            f.controller.clone(),
+            f.goal.clone(),
+            Some(request.clone()),
+        )
+        .await
+        .unwrap();
+    let wait = prepared["goal_wait_id"].as_str().unwrap();
+    let job = f.feedback_job(wait, "feedback-last-slot").await;
+    f.alert(&job).await;
+    goal_wait::progress(&f.store, wait).await.unwrap();
+    let feedback = f.state(wait).await;
+    assert_eq!(feedback["continuation"]["action"], "report_then_pause");
+    assert_eq!(feedback["request_id"], request);
+    let consent = f
+        .store
+        .goal_consent_view(request, f.session.clone())
+        .await
+        .unwrap();
+    assert_eq!(consent["status"], "exhausted");
+    assert_eq!(
+        consent["waits"][0]["continuation"]["action"],
+        "report_then_pause"
+    );
+    assert!(f.store.start(f.spec("ordinary-bypass")).await.is_err());
+    let full = f
+        .store
+        .inspect(
+            Some(job["job"]["job_id"].as_str().unwrap().into()),
+            None,
+            20,
+        )
+        .await
+        .unwrap();
+    let compact = agent_job_relay::output::compact("inspect", full);
+    assert_eq!(
+        compact["goal_wait"]["continuation"],
+        feedback["continuation"]
+    );
+    assert_eq!(
+        compact["notifications"]["goal"]["request_id"],
+        feedback["request_id"]
+    );
+    assert!(compact["goal_wait"]["next_step"].is_string());
+    assert_eq!(compact["notifications"]["agent_execution"], "unconfirmed");
+    f.pause_and_confirm(wait).await;
+    assert_eq!(f.state(wait).await["continuation"]["action"], "wait");
+    f.finish(&job).await;
+    goal_wait::progress(&f.store, wait).await.unwrap();
+    let claim = f.store.claim().await.unwrap().unwrap();
+    f.deliver(claim).await;
+    assert_eq!(
+        f.state(wait).await["continuation"]["action"],
+        "inspect_results"
+    );
+    assert_eq!(f.store.list(0, 100).await.unwrap().len(), 1);
+    let old_wait = wait.to_string();
+    f.store
+        .call(move |db| {
+            db.execute("UPDATE goal_waits SET expires=0 WHERE id=?", [old_wait])?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        f.state(wait).await["continuation"]["action"],
+        "inspect_results"
+    );
 }
 
 #[tokio::test]

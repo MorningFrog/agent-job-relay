@@ -5,10 +5,12 @@
 ### Changed
 
 - Guide Agents to preserve captured output and plan bounded milestone/progress or elapsed feedback for long work, honoring explicit completion-only preferences and actual goal authorization. Verify admitted rules against the announced plan without replaying execution.
+- Reconnect to an existing original-chat goal handoff without a new pause question or submission binding. Briefly settle an in-flight final notification receipt locally before preparing the next round; unfinished feedback re-pause also gates ordinary submission after admission consent is exhausted.
 
 ### Added
 
 - Include read-only output visibility and ten-minute quiet-output/missing-notifying-rule advisories in feedback receipts and compact inspection. Keep stale, incomplete, terminal and external evidence separate; diagnostics never create rules, notifications or stop requests.
+- Expose bounded goal continuation actions, original request IDs, native confirmation revisions and per-request wait summaries through CLI/MCP inspection and the panel, with `goal_wait_recovery=true` capability. Keep uncertain host controls, host acceptance and actual Agent execution separate.
 
 ## [0.1.18] - 2026-10-31
 

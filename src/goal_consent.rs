@@ -127,6 +127,7 @@ fn view_db(db: &Connection, c: &Consent) -> Result<Value> {
     let mut value = view(c);
     let mut q=db.prepare("SELECT m.job_id,m.run_id,w.id,w.status FROM goal_wait_jobs m JOIN goal_waits w ON w.id=m.wait_id WHERE w.consent_id=? ORDER BY m.rowid LIMIT 16")?;
     value["jobs"]=json!(q.query_map([&c.id],|r|Ok(json!({"job_id":r.get::<_,String>(0)?,"run_id":r.get::<_,String>(1)?,"goal_wait_id":r.get::<_,String>(2)?,"handoff_status":r.get::<_,String>(3)?})))?.collect::<rusqlite::Result<Vec<_>>>()?);
+    value["waits"] = json!(crate::goal_wait::for_request(db, &c.id)?);
     Ok(value)
 }
 

@@ -42,6 +42,11 @@ pub(crate) fn goal_summary(value: &Value) -> Value {
             "detail",
             "expires_at",
             "feedback",
+            "request_id",
+            "continuation",
+            "next_step",
+            "notification_accepted",
+            "feedback_policy",
         ],
     )
 }
@@ -247,6 +252,7 @@ pub fn compact(op: &str, value: Value) -> Value {
                     "goal_waiting",
                     "goal_wait_host_pause",
                     "goal_wait_feedback",
+                    "goal_wait_recovery",
                     "goal_wait_policy",
                     "automatic_goal_pause_supported",
                     "goal_pause_authorization_policy",

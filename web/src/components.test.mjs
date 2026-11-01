@@ -143,3 +143,23 @@ test("notification diagnostics show recovery and goal attention without claiming
   assert.ok(html.includes("&lt;script&gt;host changed&lt;/script&gt;"));
   assert.ok(!html.includes("<script>"));
 });
+
+test("goal continuation diagnostics distinguish re-pause, notification and host recovery", () => {
+  for (const [action, expected] of [
+    ["report_then_pause", "原聊天汇报中途结果后需再次暂停"],
+    ["confirm_pause", "原目标已暂停，核对已有暂停回执"],
+    ["await_notification", "目标已恢复，等待最终通知确认"],
+    ["host_control", "请回到原聊天检查目标状态并处理恢复"],
+  ]) {
+    const html = renderToStaticMarkup(React.createElement(TaskDetail, {
+      selected: "job", tab: "output", streamName: "stdout", detail: {
+        job: { job_id: "job", status: "running" },
+        notifications: { status: "pending", counts: {}, goal: {
+          status: "resumed", revision: 7, continuation: { action },
+        } },
+      },
+    }));
+    assert.ok(html.includes(expected));
+    assert.ok(html.includes("Agent 是否继续仍待核实"));
+  }
+});
