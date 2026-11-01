@@ -324,8 +324,19 @@ async fn native_soak_bounds_resources_and_survives_restarts_backup_and_restore()
             spec,
         ));
     }
-    for (_, _, spec) in &jobs {
-        until(|| spec.cwd.join("ready").exists()).await;
+    for (_, run, spec) in &jobs {
+        // Workload readiness can precede scheduling the runner's capture tasks.
+        // Observe both prefix files before sampling their retention bounds.
+        until(|| {
+            spec.cwd.join("ready").exists()
+                && ["stdout", "stderr"].iter().all(|stream| {
+                    r.config
+                        .run_dir(run)
+                        .join(format!("{stream}.log"))
+                        .is_file()
+                })
+        })
+        .await;
     }
     let started = tokio::time::Instant::now();
     let mut baseline = std::collections::BTreeMap::new();
