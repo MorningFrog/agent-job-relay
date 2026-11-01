@@ -219,7 +219,7 @@ ws.addEventListener('close', () => process.exit());
             async def active_checks():
                 return sum(objective in json.dumps(r["body"].get("input", [])) for r in requests[request_offset:]) >= 2
             await until(active_checks, "active goal did not produce repeated control turns before pause")
-            pending=await relay("connect", "--request-label", scenario, "--job-count", 2 if scenario == "resume" else 1, "--cwd", work, caller=thread)
+            pending=await relay("connect", "--request-label", scenario, "--job-count", 3 if scenario == "resume" else 1, "--cwd", work, caller=thread)
             if pending["status"]!="needs_confirmation" or pending.get("binding"):
                 raise RuntimeError("active-goal preflight did not return a gated confirmation state")
             consent=pending["consent"]
@@ -309,6 +309,7 @@ ws.addEventListener('close', () => process.exit());
             goal = (await rpc.call("thread/goal/get", {"threadId": thread}))["goal"]
             if scenario == "feedback" and (goal is None or goal["status"] != "active"):
                 raise RuntimeError("final completion did not restore the original feedback goal")
+            rounds = [{"job_id": job, "run_id": started["job"]["run_id"], "goal_wait_id": wait_id}]
             if scenario == "resume":
                 if goal is None or goal["status"] != "active":
                     raise RuntimeError("the result turn did not retain the restored active goal")
@@ -321,10 +322,53 @@ ws.addEventListener('close', () => process.exit());
                 if gated["consent"]["status"] != "approved" or gated["consent"]["jobs_admitted"] != 1:
                     raise RuntimeError("blocked host goal destroyed the original approval or budget")
                 await rpc.call("thread/goal/set", {"threadId": thread, "status": "active", "origin": "user"})
-                continued = await relay("connect", "--request-id", consent["request_id"], "--cwd", work, caller=thread)
-                if continued["status"] != "ready" or continued["consent"]["request_id"] != consent["request_id"]:
-                    raise RuntimeError("host resume could not reuse the original approved request")
-                await relay("goal-wait", continued["goal_wait"]["goal_wait_id"], "--cancel", "--expected-revision", continued["goal_wait"]["revision"])
+                for number in (2, 3):
+                    continued = await relay("connect", "--request-id", consent["request_id"], "--cwd", work, caller=thread)
+                    if continued["status"] != "ready" or continued["consent"]["request_id"] != consent["request_id"]:
+                        raise RuntimeError("host resume could not reuse the original approved request")
+                    round_wait = continued["binding"]["goal_wait_id"]
+                    round_gate = work / f"resume-round-{number}.gate"
+                    round_script = "import pathlib,sys,time; p=pathlib.Path(sys.argv[1]); p.with_suffix('.launches').open('a').write('once\\n'); deadline=time.monotonic()+30\nwhile not p.exists():\n assert time.monotonic()<deadline\n time.sleep(.05)\nprint('RELAY_WORK_FINISHED')"
+                    round_request = {"op": "start_goal", "goal_wait_id": round_wait, "spec": {
+                        "command": {"kind": "exec", "program": shutil.which("python3"), "args": ["-c", round_script, str(round_gate)]},
+                        "cwd": str(work), "session": continued["session_key"], "idempotency_key": f"resume-round-{number}"}}
+                    round_started = await relay("request", json.dumps(round_request))
+                    round_job = round_started["job"]["job_id"]
+                    owned.append(round_job)
+                    bindings[thread] = (round_job, round_started["job"]["run_id"])
+                    retried = await relay("request", json.dumps(round_request))
+                    if retried["job"]["job_id"] != round_job or retried["job"]["run_id"] != round_started["job"]["run_id"]:
+                        raise RuntimeError("retry moved a round's original execution")
+                    event_offset = len(rpc.events)
+                    await rpc.call("thread/goal/set", {"threadId": thread, "status": "paused", "origin": "user"})
+                    await until(owner_pause_event, "the owning runtime did not acknowledge the next round pause")
+                    if number == 2:
+                        await relay("daemon", "stop")
+                    recovered = await relay("connect", "--request-id", consent["request_id"], "--cwd", work, caller=thread)
+                    if recovered["status"] != "goal_wait_pending" or recovered.get("binding") or recovered["goal_wait"]["goal_wait_id"] != round_wait:
+                        raise RuntimeError("reconnection did not preserve the admitted round")
+                    if recovered["continuation"]["action"] != "confirm_pause" or recovered["consent"]["jobs_admitted"] != number:
+                        raise RuntimeError("reconnection lost the native acknowledgement boundary or admission count")
+                    await relay("goal-wait", round_wait, "--confirm-paused", "--expected-revision", recovered["goal_wait"]["revision"])
+                    await until(idle, "next round did not yield after native pause")
+                    before = len(requests)
+                    await asyncio.sleep(args.wait_seconds)
+                    if len(requests) != before:
+                        raise RuntimeError("next round continued model requests during confirmed pause")
+                    turn_offset = len(rpc.events)
+                    round_gate.touch()
+                    async def round_resolved():
+                        return (await relay("goal-wait", round_wait))["notification_accepted"]
+                    await until(round_resolved, "next round did not resolve")
+                    async def round_executed():
+                        return any(e.get("method") == "turn/completed" and e.get("params", {}).get("threadId") == thread and "RELAY_GOAL_RESUMED" in json.dumps(e) for e in rpc.events[turn_offset:])
+                    await until(round_executed, "next round result did not execute in the original thread")
+                    if round_gate.with_suffix('.launches').read_text() != "once\n":
+                        raise RuntimeError("next round command was replayed")
+                    rounds.append({"job_id": round_job, "run_id": round_started["job"]["run_id"], "goal_wait_id": round_wait})
+                exhausted = await relay("connect", "--request-id", consent["request_id"], "--cwd", work, caller=thread)
+                if exhausted["status"] != "request_closed" or exhausted["consent"]["jobs_admitted"] != 3 or len(exhausted["consent"]["jobs"]) != 3:
+                    raise RuntimeError("three-round request did not retain its exact admission budget/history")
             if scenario == "deleted" and goal is not None:
                 raise RuntimeError("deleted goal was recreated")
             if scenario == "replaced" and (goal["objective"] != "New unrelated user goal" or goal["status"] != "paused"):
@@ -332,7 +376,7 @@ ws.addEventListener('close', () => process.exit());
             final = await relay("status", job)
             if final["status"] != "completed" or final["exit_code"] != 0:
                 raise RuntimeError("member did not complete successfully")
-            report["cases"].append({"scenario": scenario, "job_id": job, "run_id": final["run_id"], "thread_id": thread, "goal_wait": await relay("goal-wait", wait_id), "waiting_seconds": args.wait_seconds, "active_checks_observed_before_pause": True, "owning_runtime_pause_event_observed": True, "submitting_agent": "simulated explicitly authorized native-goal action on owning connection", "automatic_goal_pause_supported": False, "ordinary_active_goal_authorization_required": True, "scoped_confirmation_recorded": True, "model_requests_during_wait": 0, "feedback_turn_and_native_repause_observed": scenario == "feedback", "result_turn_observed": scenario in ("resume", "feedback")})
+            report["cases"].append({"scenario": scenario, "job_id": job, "run_id": final["run_id"], "thread_id": thread, "goal_wait": await relay("goal-wait", wait_id), "rounds": rounds, "daemon_restart_between_native_pause_and_confirmation": scenario == "resume", "waiting_seconds": args.wait_seconds, "active_checks_observed_before_pause": True, "owning_runtime_pause_event_observed": True, "submitting_agent": "simulated explicitly authorized native-goal action on owning connection", "automatic_goal_pause_supported": False, "ordinary_active_goal_authorization_required": True, "scoped_confirmation_recorded": True, "model_requests_during_wait": 0, "feedback_turn_and_native_repause_observed": scenario == "feedback", "result_turn_observed": scenario in ("resume", "feedback")})
             if goal is not None:
                 await rpc.call("thread/goal/clear", {"threadId": thread, "origin": "user"})
             print(json.dumps({"scenario": scenario, "result": "passed"}), flush=True)
