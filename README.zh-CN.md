@@ -86,9 +86,9 @@ ajr ui
 
 日常提示词无需程序路径或会话 ID。插件会绑定真实发起会话、提交任务并保存结果。ChatGPT Desktop 在已验证版本中可自动续接同一聊天；OpenCode V1 的续接仍属实验性支持。Codex CLI 使用收件箱，需要时再让 Agent 检查结果。
 
-尚未发布的源码指引会为长任务规划有用的日志输出和少量中途汇报；明确要求“仅结束时通知”则保留完成时反馈。Goal 中间反馈仍须有实际用户授权。见[反馈规划与限制](docs/progress.md#choose-and-verify-feedback-before-yielding)；已安装宿主中的自主采用仍待验证。
+0.1.18 源码指引会为长任务规划有用的日志输出和少量中途汇报；明确要求“仅结束时通知”则保留完成时反馈。Goal 中间反馈仍须有实际用户授权。见[反馈规划与限制](docs/progress.md#choose-and-verify-feedback-before-yielding)；已安装宿主中的自主采用仍待验证。
 
-尚未发布的 Goal 恢复会在重连时返回原交接及下一步操作，不重新询问暂停许可或重复执行任务。多轮保留同一请求，并区分原生暂停回执与尚未确认的最终通知。需要 Doctor `goal_wait_recovery=true`；见[恢复方式及宿主限制](docs/goal-waiting.md#recover-an-existing-handoff-unreleased)。
+0.1.18 源码的 Goal 恢复会在重连时返回原交接及下一步操作，不重新询问暂停许可或重复执行任务。多轮保留同一请求，并区分原生暂停回执与尚未确认的最终通知。需要 Doctor `goal_wait_recovery=true`；见[恢复方式及宿主限制](docs/goal-waiting.md#recover-an-existing-handoff-0118)。
 
 也可以提出：
 

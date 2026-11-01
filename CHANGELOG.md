@@ -2,37 +2,28 @@
 
 ## [Unreleased]
 
-### Fixed
-
-- Refuse formal release preparation or sealed-candidate reuse while Unreleased notes remain, even when a dated section for the selected version already exists; keep explicitly marked development checks available.
-
-### Changed
-
-- Guide Agents to preserve captured output and plan bounded milestone/progress or elapsed feedback for long work, honoring explicit completion-only preferences and actual goal authorization. Verify admitted rules against the announced plan without replaying execution.
-- Reconnect to an existing original-chat goal handoff without a new pause question or submission binding. Briefly settle an in-flight final notification receipt locally before preparing the next round; unfinished feedback re-pause also gates ordinary submission after admission consent is exhausted.
-
-### Added
-
-- Include read-only output visibility and ten-minute quiet-output/missing-notifying-rule advisories in feedback receipts and compact inspection. Keep stale, incomplete, terminal and external evidence separate; diagnostics never create rules, notifications or stop requests.
-- Expose bounded goal continuation actions, original request IDs, native confirmation revisions and per-request wait summaries through CLI/MCP inspection and the panel, with `goal_wait_recovery=true` capability. Keep uncertain host controls, host acceptance and actual Agent execution separate.
-
-## [0.1.18] - 2026-10-31
+## [0.1.18] - 2026-11-01
 
 ### Added
 
 - Show task-level notification counts, unresolved errors, delivery-attempt history, original-chat recovery instructions and goal handoff status in the bundled panel. Keep host acceptance independent from unconfirmed Agent execution.
 - Return compact default MCP task inspections with original IDs, timing, 2-KiB output excerpts per stream, recent progress and notification/control diagnostics. Add CLI `inspect --compact`; `full=true` and ordinary CLI/HTTP inspection retain complete detail.
 - Retain four checksummed 1-MiB recent output segments beyond each native stream's existing 16-MiB prefix, preserving absolute cursors and explicit missing ranges. Include segments in verified archives/backups and expose bounded range browsing and text export in CLI/Web.
+- Include read-only output visibility and ten-minute quiet-output/missing-notifying-rule advisories in feedback receipts and compact inspection. Keep stale, incomplete, terminal and external evidence separate; diagnostics never create rules, notifications or stop requests.
+- Expose bounded goal continuation actions, original request IDs, native confirmation revisions and per-request wait summaries through CLI/MCP inspection and the panel, with `goal_wait_recovery=true` capability. Keep uncertain host controls, host acceptance and actual Agent execution separate.
 
 ### Fixed
 
 - Restrict backup file locking to mutable recent-log rings; append-only log capture does not participate in these locks and must remain writable on Windows during backup.
 - Explain online update refusals with the affected profile, actual/required database schemas and instructions to finish old tasks before retrying. Distinguish the AgentJobRelay runtime from the Codex application and retain the active-run migration fence.
 - Report a preflight refusal without claiming unfinished update steps were recorded when no runtime/package or host-plugin changes were applied.
+- Refuse formal release preparation or sealed-candidate reuse while Unreleased notes remain, even when a dated section for the selected version already exists; keep explicitly marked development checks available.
 
 ### Changed
 
 - Allow explicitly marked development/CI package checks to accept Unreleased notes while preventing promotion of development-only packages. Formal release preparation requires finalized dated notes.
+- Guide Agents to preserve captured output and plan bounded milestone/progress or elapsed feedback for long work, honoring explicit completion-only preferences and actual goal authorization. Verify admitted rules against the announced plan without replaying execution.
+- Reconnect to an existing original-chat goal handoff without a new pause question or submission binding. Briefly settle an in-flight final notification receipt locally before preparing the next round; unfinished feedback re-pause also gates ordinary submission after admission consent is exhausted.
 
 ## [0.1.17] - 2026-10-30
 

@@ -86,9 +86,9 @@ Select the installed AgentJobRelay plugin in your host. On first use, ask it to 
 
 Everyday prompts need no executable path or session ID. The plugin binds the actual initiating session, submits the task and keeps its results. ChatGPT Desktop can continue the same chat on verified versions; OpenCode V1 continuation remains experimental. With Codex CLI's inbox, ask the Agent to inspect the result when needed.
 
-Unreleased source guidance plans useful captured output and a few mid-run reports for long work; explicit “only notify at the end” keeps completion-only behavior. Goal feedback still requires actual user authorization. See [feedback planning and limits](docs/progress.md#choose-and-verify-feedback-before-yielding); adoption in installed hosts remains to be verified.
+Source 0.1.18 guidance plans useful captured output and a few mid-run reports for long work; explicit “only notify at the end” keeps completion-only behavior. Goal feedback still requires actual user authorization. See [feedback planning and limits](docs/progress.md#choose-and-verify-feedback-before-yielding); adoption in installed hosts remains to be verified.
 
-Unreleased goal recovery returns the original handoff and next action after interrupted reconnection, without another pause question or duplicate work. It retains the same request across rounds and keeps native pause acknowledgements separate from pending final notifications. Requires Doctor `goal_wait_recovery=true`; see [recovery and host limits](docs/goal-waiting.md#recover-an-existing-handoff-unreleased).
+Source 0.1.18 goal recovery returns the original handoff and next action after interrupted reconnection, without another pause question or duplicate work. It retains the same request across rounds and keeps native pause acknowledgements separate from pending final notifications. Requires Doctor `goal_wait_recovery=true`; see [recovery and host limits](docs/goal-waiting.md#recover-an-existing-handoff-0118).
 
 You can also ask:
 

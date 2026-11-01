@@ -42,7 +42,7 @@ Consent is pinned to the original registration/endpoint, goal/controller, worksp
 
 If a later round returns `status=goal_not_active`, inspect `goal_status` and keep the original request ID. `blocked` and other inactive states gate admission without permanently invalidating unexpired consent. An acknowledged wait handles its original paused goal on completion; a separate blocked/user-paused state requires the user's host Resume control. After the original goal becomes active, reconnect with the same `--request-id`; approved consent needs no new question and retains its remaining job budget. Do not create a replacement request, mark the goal blocked to wait or overwrite an unexplained blocker automatically. Controller/read errors fail the current call without cancelling consent or waits; explicit decline/revocation remains available while the controller is unavailable. Previously invalidated requests are not reopened.
 
-### Recover an existing handoff (Unreleased)
+### Recover an existing handoff (0.1.18+)
 
 With Doctor `goal_wait_recovery=true`, reconnection first checks this fresh original registration's outstanding handoff. `status=goal_wait_pending` returns its original `request_id`, Job/Run/wait IDs, revision, `continuation` and `next_step`, without a new question or submission binding. This applies to ordinary connect and automatic single/batch wake submission too; it does not transfer another request's consent. A prepared original request still needs its explicit `--request-id` and original workspace before obtaining a submission binding. Consent inspection includes the latest 16 `waits`; compact task inspection and the panel preserve continuation diagnostics.
 

@@ -95,7 +95,7 @@ Expected: the original state path is retained; the same unmodified bundle report
 
 Use pass/fail/not tested for each item. Record host/app version, OS, actual submission route and job/delivery IDs privately; do not publish endpoints, credentials, databases or raw private logs. Keep the runtime delivery state separate from your observation of continuation. Use the restart/rebind procedure below only when explicitly testing that scenario. Real multi-day renewal remains a separate check.
 
-## Optional: multi-round goal recovery (Unreleased)
+## Optional: multi-round goal recovery (0.1.18+)
 
 Use a user-created disposable goal chat and a runtime whose Doctor advertises `goal_wait_recovery=true`. This checks changed recovery behavior; it does not repeat the unchanged ordinary completion baseline.
 
