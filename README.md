@@ -86,9 +86,9 @@ Select the installed AgentJobRelay plugin in your host. On first use, ask it to 
 
 Everyday prompts need no executable path or session ID. The plugin binds the actual initiating session, submits the task and keeps its results. ChatGPT Desktop can continue the same chat on verified versions; OpenCode V1 continuation remains experimental. With Codex CLI's inbox, ask the Agent to inspect the result when needed.
 
-Source 0.1.18 guidance plans useful captured output and a few mid-run reports for long work; explicit “only notify at the end” keeps completion-only behavior. Goal feedback still requires actual user authorization. See [feedback planning and limits](docs/progress.md#choose-and-verify-feedback-before-yielding); adoption in installed hosts remains to be verified.
+Unreleased source guidance plans useful captured output and a few mid-run reports for long work; explicit “only notify at the end” keeps completion-only behavior. Goal feedback still requires actual user authorization. See [feedback planning and limits](docs/progress.md#choose-and-verify-feedback-before-yielding); adoption in installed hosts remains to be verified.
 
-Source 0.1.18 goal recovery returns the original handoff and next action after interrupted reconnection, without another pause question or duplicate work. It retains the same request across rounds and keeps native pause acknowledgements separate from pending final notifications. Requires Doctor `goal_wait_recovery=true`; see [recovery and host limits](docs/goal-waiting.md#recover-an-existing-handoff-0118).
+Unreleased goal recovery returns the original handoff and next action after interrupted reconnection, without another pause question or duplicate work. It retains the same request across rounds and keeps native pause acknowledgements separate from pending final notifications. Requires Doctor `goal_wait_recovery=true`; see [recovery and host limits](docs/goal-waiting.md#recover-an-existing-handoff-unreleased).
 
 You can also ask:
 
@@ -109,7 +109,7 @@ ajr inspect <job-id>
 
 Runtime 0.1.17+ also supports `start --title "Run project tests" -- cargo test` and MCP `spec.title`. The task manager displays this short purpose, keeps the full command in details and uses compact command/project hints for unnamed history. This requires an updated runtime; published-version support is tracked in [implementation status](docs/IMPLEMENTATION_STATUS.md).
 
-Source 0.1.18 adds task-level notification diagnostics/recovery guidance, compact Agent inspection (`job_inspect`, or `ajr inspect <job-id> --json --compact`) and bounded recent-log rotation. Use `ajr logs <job-id> --export <new-file>` or the task panel to export retained text with explicit gap markers. These additions require runtime 0.1.18, whose packages are not yet published; see [inspection and logs](docs/runtime-monitoring.md).
+Published runtime 0.1.18 adds task-level notification diagnostics/recovery guidance, compact Agent inspection (`job_inspect`, or `ajr inspect <job-id> --json --compact`) and bounded recent-log rotation. Use `ajr logs <job-id> --export <new-file>` or the task panel to export retained text with explicit gap markers; see [inspection and logs](docs/runtime-monitoring.md). The Unreleased guidance and goal-recovery changes above require a development build.
 
 Use the returned job ID in the last command; the first submission starts the daemon automatically. OpenCode uses `ajr opencode`; native offline installations use their recorded launcher/profile. See the [command reference](docs/commands.md).
 

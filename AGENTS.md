@@ -58,7 +58,7 @@ cargo build --release
 
 ## Published releases are immutable
 
-- **Never rewrite a published version's CHANGELOG section or release date, reuse its version number, move new changes into it, or replace its tag, candidate bytes or publication receipts.** Keep all later changes under the single `## [Unreleased]` heading until formal preparation of a new, unused version.
+- **Never rewrite a published version's CHANGELOG section or release date, reuse its version number for another release, move new changes into it, or replace its tag, candidate bytes or publication receipts.** Keep all later changes under the single `## [Unreleased]` heading until formal preparation of a new, unused version.
 - Before choosing or finalizing a release version, check Git tags, registry versions, the actual GitHub Release publication state and publication receipts. Local manifests, handoff documents and the overall workflow conclusion are not sufficient evidence that a version is unpublished.
 - Publication of any artifact freezes that version, even if another package, later verification, synchronization, installation check or parent workflow fails. Diagnose or rerun verification against the original published candidate; never republish, rebuild or relabel it as a recovery step.
 - Do not empty Unreleased, merge its entries into an existing release, or change a historical date merely to satisfy release preflight. A refusal means formal preparation must select an unused version and synchronize the intended new release; it is not permission to alter published history.

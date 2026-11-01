@@ -86,9 +86,9 @@ ajr ui
 
 日常提示词无需程序路径或会话 ID。插件会绑定真实发起会话、提交任务并保存结果。ChatGPT Desktop 在已验证版本中可自动续接同一聊天；OpenCode V1 的续接仍属实验性支持。Codex CLI 使用收件箱，需要时再让 Agent 检查结果。
 
-0.1.18 源码指引会为长任务规划有用的日志输出和少量中途汇报；明确要求“仅结束时通知”则保留完成时反馈。Goal 中间反馈仍须有实际用户授权。见[反馈规划与限制](docs/progress.md#choose-and-verify-feedback-before-yielding)；已安装宿主中的自主采用仍待验证。
+尚未发布的源码指引会为长任务规划有用的日志输出和少量中途汇报；明确要求“仅结束时通知”则保留完成时反馈。Goal 中间反馈仍须有实际用户授权。见[反馈规划与限制](docs/progress.md#choose-and-verify-feedback-before-yielding)；已安装宿主中的自主采用仍待验证。
 
-0.1.18 源码的 Goal 恢复会在重连时返回原交接及下一步操作，不重新询问暂停许可或重复执行任务。多轮保留同一请求，并区分原生暂停回执与尚未确认的最终通知。需要 Doctor `goal_wait_recovery=true`；见[恢复方式及宿主限制](docs/goal-waiting.md#recover-an-existing-handoff-0118)。
+尚未发布的 Goal 恢复会在重连时返回原交接及下一步操作，不重新询问暂停许可或重复执行任务。多轮保留同一请求，并区分原生暂停回执与尚未确认的最终通知。需要 Doctor `goal_wait_recovery=true`；见[恢复方式及宿主限制](docs/goal-waiting.md#recover-an-existing-handoff-unreleased)。
 
 也可以提出：
 
@@ -109,7 +109,7 @@ ajr inspect <job-id>
 
 运行时 0.1.17+ 还支持 `start --title "运行项目测试" -- cargo test` 和 MCP `spec.title`。任务面板显示简短用途，详情保留完整命令；未命名的历史任务显示精简命令／项目提示。此功能需要更新运行时，已发布版本的支持情况见[实施状态](docs/IMPLEMENTATION_STATUS.md)。
 
-0.1.18 源码新增任务级通知诊断与恢复指引、Agent 精简检查结果（`job_inspect`，或 `ajr inspect <job-id> --json --compact`）及有界近期日志轮转。使用 `ajr logs <job-id> --export <new-file>` 或任务面板可导出保留文本，缺失区间会明确标记。这些新增能力需要 0.1.18 运行时，该版本软件包尚未发布；见[检查与日志](docs/runtime-monitoring.md)。
+已发布的 0.1.18 运行时新增任务级通知诊断与恢复指引、Agent 精简检查结果（`job_inspect`，或 `ajr inspect <job-id> --json --compact`）及有界近期日志轮转。使用 `ajr logs <job-id> --export <new-file>` 或任务面板可导出保留文本，缺失区间会明确标记；见[检查与日志](docs/runtime-monitoring.md)。上文 Unreleased 中的指引和 Goal 恢复变更需要开发构建。
 
 最后一条命令使用提交后返回的任务 ID；首次提交会自动启动 daemon。OpenCode 使用 `ajr opencode`，原生离线安装使用其记录的启动器及数据目录，具体见[命令参考](docs/commands.md)。
 
