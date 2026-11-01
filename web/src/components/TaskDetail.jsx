@@ -43,6 +43,7 @@ export function TaskDetail({ selected, token, detail, busy, tab, streamName, for
     {job && <>
       <div className="detail-overview">
         <div className="detail-status"><Badge status={job.status} /><span>{elapsed(job)}</span>
+          {job.status === "queued" && job.queue && <span>排队第 {job.queue.position} 位 · {job.run?.started_at ? "等待恢复观察" : `截止 ${date(job.queue.expires_at)}`}</span>}
           {job.exit_code != null && <span>退出码 {job.exit_code}</span>}
           {detail.stop && <span>{active ? phaseNames[detail.observation?.stop_phase] || "已请求停止" : detail.observation?.stop_phase === "forced" ? "已强制结束" : "已结束"}</span>}
         </div>
@@ -55,6 +56,7 @@ export function TaskDetail({ selected, token, detail, busy, tab, streamName, for
           </button>
         </div>}
       </div>
+      {job.queue && job.status === "timeout" && !job.run?.started_at && <p className="sample-warning">排队期限已到，任务未启动。</p>}
       {hint && <div className="detail-signals">
         <button className={`detail-feedback-link ${hint.attention ? "needs-attention" : ""}`} onClick={() => setTab("feedback")}>
           <Icon name={hint.attention ? "bell" : "shield"} size={13} />{hint.text}<Icon name="arrow" size={12} />

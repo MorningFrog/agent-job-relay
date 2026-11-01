@@ -10,16 +10,24 @@ pub async fn tick(store: &Store) -> Result<()> {
 async fn reconcile(store: &Store) -> Result<bool> {
     let active = store.active().await?;
     let has_active = !active.is_empty();
+    let occupied = active
+        .iter()
+        .filter(|job| matches!(job.status, JobState::Launching | JobState::Running))
+        .count() as u32;
+    let mut slots = crate::scheduling::EXECUTION_LIMIT.saturating_sub(occupied);
     for job in active {
         match job.status {
             JobState::Queued => {
-                let j = job.job_id.clone();
-                let nonce=store.call(move|db|{let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-                    let changed=tx.execute("UPDATE jobs SET status='launching',updated=? WHERE id=? AND status='queued'",params![now(),j])?;
-                    if changed==0 {return Ok(None);}
-                    tx.execute("UPDATE runs SET status='launching' WHERE job_id=?",[&j])?;
-                    let n:String=tx.query_row("SELECT nonce FROM runs WHERE job_id=?",[&j],|r|r.get(0))?;tx.commit()?;Ok(Some(n)) }).await?;
+                // A full queue is read-only while waiting. The transactional
+                // claim still rechecks capacity before every real launch.
+                let expired = job.run.started_at.is_none()
+                    && job.queue.as_ref().is_some_and(|q| q.expires_at <= now());
+                if slots == 0 && !expired {
+                    continue;
+                }
+                let nonce = store.claim_queued(job.job_id.clone()).await?;
                 if let Some(nonce) = nonce {
+                    slots = slots.saturating_sub(1);
                     let mut c = std::process::Command::new(crate::platform::self_image()?);
                     c.arg("--state-dir")
                         .arg(&store.config.root)

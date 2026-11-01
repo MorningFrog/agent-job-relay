@@ -39,7 +39,9 @@ export function RuntimeStatus({ connection, overview }) {
         <dt>备份状态</dt><dd>{{ recorded: "已记录备份", overdue: "超过配置间隔", not_recorded: "尚无备份记录" }[capacity?.backup_health] || "待核实"}</dd>
         <dt>暂缓归档任务</dt><dd>{capacity?.last_scan?.deferred ?? "—"}</dd>
         <dt>运行中任务</dt>
-        <dd>{overview?.active_jobs?.length || 0}</dd>
+        <dd>{(overview?.active_jobs || []).filter(job => ["launching", "running"].includes(job.status)).length} / {overview?.health?.bounded_queue?.execution_limit || 8}</dd>
+        <dt>等待启动的任务</dt>
+        <dd>{(overview?.active_jobs || []).filter(job => job.status === "queued").length}</dd>
         <dt>等待重试的通知</dt>
         <dd>{overview?.health?.retrying_deliveries || 0}</dd>
         <dt>停止重试的通知</dt>

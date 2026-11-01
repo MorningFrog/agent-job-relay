@@ -686,6 +686,7 @@ pub(super) async fn run() -> Result<()> {
             interpreter,
             cwd,
             timeout,
+            queue_timeout,
             session,
             wake,
             wait_goal,
@@ -716,6 +717,7 @@ pub(super) async fn run() -> Result<()> {
                 cwd,
                 env: BTreeMap::new(),
                 timeout_seconds: timeout,
+                queue_timeout_seconds: queue_timeout,
                 session,
                 idempotency_key,
                 monitor_rules: if monitor.no_output.is_some()

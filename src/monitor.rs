@@ -199,7 +199,8 @@ pub(crate) fn stop_tx(db: &Connection, job: &str, grace: u32, reason: &str) -> R
     let control_attachment = matches!(&j.command, CommandSpec::Remote { remote }
         if matches!(remote.intent, crate::remote::Intent::Attach { allow_stop: true, .. }));
     if j.status == JobState::Queued
-        && (!j.command.is_external() || (j.run.started_at.is_none() && !control_attachment))
+        && (!j.command.is_external()
+            || (j.run.started_at.is_none() && (!control_attachment || j.queue.is_some())))
     {
         crate::storage::finish_tx(db, job, JobState::Cancelled, None, None, reason)?;
     }
@@ -661,5 +662,5 @@ pub(crate) fn summary(job: Job) -> Value {
             workflow.repository, workflow.run_id, workflow.attempt
         ),
     };
-    json!({"job_id":job.job_id,"title":job.title,"run_id":job.run_id,"sequence":job.sequence,"status":job.status,"created_at":job.created_at,"updated_at":job.updated_at,"cancel_requested":job.cancel_requested,"exit_code":job.exit_code,"command_preview":preview.chars().take(256).collect::<String>(),"cwd":job.cwd.to_string_lossy().chars().take(512).collect::<String>(),"run":{"started_at":job.run.started_at,"ended_at":job.run.ended_at}})
+    json!({"job_id":job.job_id,"title":job.title,"run_id":job.run_id,"sequence":job.sequence,"queue":job.queue,"status":job.status,"created_at":job.created_at,"updated_at":job.updated_at,"cancel_requested":job.cancel_requested,"exit_code":job.exit_code,"command_preview":preview.chars().take(256).collect::<String>(),"cwd":job.cwd.to_string_lossy().chars().take(512).collect::<String>(),"run":{"started_at":job.run.started_at,"ended_at":job.run.ended_at}})
 }

@@ -74,6 +74,9 @@ pub struct StartSpec {
     #[serde(default)]
     pub env: BTreeMap<String, String>,
     pub timeout_seconds: Option<u64>,
+    /// Opt into bounded FIFO admission; deadline runs from submission, not launch.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub queue_timeout_seconds: Option<u64>,
     pub session: Option<String>,
     pub idempotency_key: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -95,6 +98,12 @@ impl StartSpec {
     }
     /// Validate a remote intent without resolving its cwd on the observing host.
     pub(crate) fn validate_options(&self) -> Result<()> {
+        if let Some(seconds) = self.queue_timeout_seconds {
+            ensure!(
+                (1..=604800).contains(&seconds),
+                "queue timeout must be 1..604800 seconds"
+            );
+        }
         if let Some(title) = &self.title {
             ensure!(
                 !title.is_empty()
@@ -202,6 +211,8 @@ pub struct Run {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Job {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub queue: Option<QueueInfo>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
     pub run: Run,
     pub sequence: i64,
@@ -221,6 +232,13 @@ pub struct Job {
     pub exit_code: Option<i32>,
     pub signal: Option<i32>,
     pub detail: Option<String>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct QueueInfo {
+    pub timeout_seconds: u64,
+    pub expires_at: i64,
+    /// One-based position among queued jobs; absent once launching or terminal.
+    pub position: Option<u32>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Event {

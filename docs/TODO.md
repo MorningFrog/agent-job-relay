@@ -59,7 +59,10 @@ This is the sole project backlog. Current functionality, completed acceptance an
 
 ## Parallel task submission
 
-The runtime executes independent jobs concurrently, with a maximum of eight active jobs per profile and separate IDs, workspaces, logs and notifications. Runtime 0.1.12+ submits 1–16 specifications through CLI `start-batch` / MCP `job_start_batch`, with ordered partial admission, required per-item keys and safe retry of unchanged specifications. See [batch usage](usage.md#submit-independent-commands-together-0112), `src/batch.rs` and `tests/runtime.rs`.
+- [x] Add explicit per-job bounded FIFO queuing beyond eight execution slots, at most 64 additional waiting jobs, independent immutable queue deadlines, queued cancellation, shared diagnostics and schema-v13 fencing. Preserve original identities/Goal budgets through restart and never replay restored/uncertain native execution.
+- [ ] **P1:** qualify bounded queuing through native Windows and installed host workflows, including loaded-image updates with schema-v12 work. Linux native/portable storage fixtures do not qualify those paths.
+
+The runtime executes independent jobs concurrently, with eight execution slots per profile and separate IDs, workspaces, logs and notifications. Runtime 0.1.12+ submits 1–16 specifications through CLI `start-batch` / MCP `job_start_batch`, with ordered partial admission, required per-item keys and safe retry of unchanged specifications. See [batch usage](usage.md#submit-independent-commands-together-0112), `src/batch.rs` and `tests/runtime.rs`.
 
 - [x] Add bounded shared CLI/MCP batch submission, preserving per-command options/rules/identity, indexed admission failures, independent completion/notifications/stopping and unchanged-key retry after response loss/restart. Linux behavior covers overlap, transaction rollback on invalid sessions, mixed failures, quota races and fake-Desktop routing; actual OpenCode 1.19.4 batch loader/caller/session behavior passes with a simulated model. No dependency graph or workflow scheduler.
 - [ ] **P2:** qualify batch submission through Windows native/installed entry points and real ChatGPT Desktop/provider-backed host calls. Published 0.1.12 installed-package checks do not independently qualify batch-specific host behavior.

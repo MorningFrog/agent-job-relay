@@ -7,7 +7,7 @@ export function TerminalOutput({ job, observation, streamName, setStreamName, to
   const [follow, setFollow] = useState(true);
   const output = useRef(null);
   const stream = observation?.[streamName];
-  const text = stream?.text || (job.command?.kind === "github_actions"
+  const text = stream?.text || (job.status === "queued" ? (job.run?.started_at ? "正在等待恢复观察，远端任务可能仍在运行。" : "任务正在排队，尚未启动运行器。排队时间不计入运行超时。") : job.command?.kind === "github_actions"
     ? "此观察任务不提供终端日志。请在“进度”中查看工作流和步骤。"
     : active ? "等待输出…" : `此视图暂无 ${streamName} 输出。`);
   useEffect(() => {

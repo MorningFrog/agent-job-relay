@@ -228,6 +228,9 @@ pub(super) enum Commands {
         cwd: Option<PathBuf>,
         #[arg(long)]
         timeout: Option<u64>,
+        /// Opt into FIFO waiting when full; maximum wait from admission (e.g. 30m)
+        #[arg(long, value_parser = parse_seconds)]
+        queue_timeout: Option<u64>,
         #[arg(long)]
         session: Option<String>,
         #[arg(

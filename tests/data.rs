@@ -35,6 +35,7 @@ impl Fixture {
             cwd: self.dir.path().into(),
             env: Default::default(),
             timeout_seconds: None,
+            queue_timeout_seconds: None,
             session,
             idempotency_key: Some(key.into()),
             monitor_rules: vec![],
@@ -1041,7 +1042,7 @@ async fn schema_ten_upgrade_preserves_existing_history_and_adds_empty_consent_st
             .read(|db| Ok(db.pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0))?))
             .await
             .unwrap(),
-        12
+        13
     );
     assert_eq!(f.count("goal_consents").await, 0);
     assert_eq!(f.count("goal_consent_audits").await, 0);
@@ -1065,7 +1066,7 @@ async fn schema_eleven_upgrade_preserves_jobs_and_initializes_feedback_without_r
         .read(|db| Ok(db.pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0))?))
         .await
         .unwrap();
-    assert_eq!(version, 12);
+    assert_eq!(version, 13);
     let to = f.dir.path().join("schema-eleven-restored");
     maintenance::restore(PathBuf::from(backup["path"].as_str().unwrap()), to.clone())
         .await
@@ -1077,4 +1078,67 @@ async fn schema_eleven_upgrade_preserves_jobs_and_initializes_feedback_without_r
         job.run_id
     );
     assert!(restored.data_check().await.is_ok());
+}
+
+#[tokio::test]
+async fn schema_twelve_queue_contract_migrates_only_after_original_runs_finish() {
+    let f = Fixture::new().await;
+    let original = f.job("schema-twelve", None, false).await;
+    f.store
+        .call(|db| {
+            db.execute("UPDATE jobs SET status='running'", [])?;
+            db.execute("UPDATE runs SET status='running',started=1", [])?;
+            db.pragma_update(None, "user_version", 12)?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+    assert!(
+        f.store
+            .init()
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("finish active runs")
+    );
+    assert_eq!(
+        f.store
+            .read(|db| Ok(db.pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0))?))
+            .await
+            .unwrap(),
+        12
+    );
+    let mut queued = f.spec("must-not-admit", None);
+    queued.queue_timeout_seconds = Some(60);
+    assert!(
+        f.store
+            .start(queued)
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("requires schema 13")
+    );
+    f.store
+        .finish(
+            original.job_id.clone(),
+            "completed",
+            Some(0),
+            None,
+            "original run finished".into(),
+        )
+        .await
+        .unwrap();
+    f.store.init().await.unwrap();
+    let retried = f.store.start(f.spec("schema-twelve", None)).await.unwrap();
+    assert_eq!(retried.job_id, original.job_id);
+    assert_eq!(retried.run_id, original.run_id);
+    assert_eq!(retried.status, JobState::Completed);
+    assert!(retried.queue.is_none());
+    assert_eq!(
+        f.store
+            .read(|db| Ok(db.pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0))?))
+            .await
+            .unwrap(),
+        13
+    );
 }

@@ -37,7 +37,7 @@ Only the official Git marketplace at an unmodified matching release tag is manag
 
 ### Update reports an unsupported database schema
 
-An older AgentJobRelay daemon can still own running tasks after the CLI package is updated. For example, runtime 0.1.15 uses schema v11, while 0.1.17+ requires v12. The updater cannot migrate that profile while old tasks are active. This error does not require updating the Codex application. Source 0.1.18 identifies the profile and actual/required schemas; older versions may report `offline schema is unsupported; use the matching runtime`.
+An older AgentJobRelay daemon can still own running tasks after the CLI package is updated. For example, published runtime 0.1.19 uses schema v12, while Unreleased 0.1.20 requires v13. The updater cannot migrate that profile while old tasks are active. This error does not require updating the Codex application. Source 0.1.18 identifies the profile and actual/required schemas; older versions may report `offline schema is unsupported; use the matching runtime`.
 
 Use the same profile's `ajr doctor` and `ajr list` to inspect the original daemon/tasks. Let those tasks finish, then repeat `ajr update` with the original profile/options. Expected: the idle profile migrates forward and its previously online daemon restarts from the installed runtime. `daemon stop` alone leaves runners active and does not resolve the migration fence. A refusal during preflight does not replace packages or host plugins; do not delete history or an existing update journal.
 
@@ -53,7 +53,7 @@ Use the same launcher and profile to check `--version`, `doctor` and `list`. Fin
 
 Runtime 0.1.12+ replaces older same-profile daemons on runtime-starting operations, including session binding/submission and `ui`; applied native runtime updates also restart an online daemon. Equal/newer peers are reused. Doctor and ordinary read-only queries do not start or replace daemons. Versions before 0.1.12 need a manual same-profile `daemon stop` after their jobs finish; an updated native bundle can select that profile with `daemon stop --install-root <original-installation>`.
 
-Current storage is schema v12 in source 0.1.17; 0.1.12–0.1.16 use v11. Older profiles migrate only after old daemons stop and old runs finish. Older binaries refuse newer schemas and may not understand external-task records. Preserve backups, never downgrade a used database and keep matching runtimes/target identity for remote tasks. See [data maintenance](data-maintenance.md) and [remote task requirements](remote-execution.md).
+Unreleased 0.1.20 requires schema v13 for bounded queuing; published 0.1.17–0.1.19 use v12 and 0.1.12–0.1.16 use v11. Older profiles migrate only after old daemons stop and old runs finish. Older binaries refuse newer schemas and may not understand external-task records. Preserve backups, never downgrade a used database and keep matching runtimes/target identity for remote tasks. See [data maintenance](data-maintenance.md) and [remote task requirements](remote-execution.md).
 
 ## Update the terminal command
 

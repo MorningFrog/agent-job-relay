@@ -10,14 +10,14 @@ AgentJobRelay is a single-user local runtime for long commands initiated by an A
 |---|---|
 | Explicit commands | Execute argv or an explicitly selected shell with a working directory, timeout and idempotency key |
 | Goal waiting (experimental) | One native or Agent question when pause permission is absent; durable approval covers the original request’s bounded rounds. Native handoff/restoration and one merged completion avoid Agent polling; [scope, interruption and host limits](goal-waiting.md) |
-| Batch submission (0.1.12+) | CLI/MCP accepts 1–16 independent specs with per-item results, stable-key retries and the existing eight-active-job quota; see [batch usage](usage.md#submit-independent-commands-together-0112) |
+| Batch submission (0.1.12+) | CLI/MCP accepts 1–16 independent specs with per-item results, stable-key retries and per-item admission limits; see [batch usage](usage.md#submit-independent-commands-together-0112) |
 | Remote execution/observation (0.1.12+) | Pinned native remote launch/attach, reconnect and exact-run stop; existing GitHub Actions attempt observation through `gh`; [requirements and limits](remote-execution.md) |
 | Independent lifetime | A detached runner owns the workload; closing the submitting chat, MCP client, terminal viewer or browser does not stop it |
 | Durable results | Separate job/run IDs, exit outcomes, events, stdout/stderr and byte cursors remain available after completion |
 | Controlled stopping | Request graceful then forced process-tree stopping with bounded observation; terminal outcomes are preserved |
 | Conservative recovery | Daemon restart reconciles stored work; uncertain execution is diagnosed rather than automatically replayed |
 
-See [daily usage](usage.md) and the [command reference](commands.md). Commands execute with your OS permissions. Eight active jobs are allowed; raw stdout/stderr retain up to 16 MiB per stream. This runtime is not a command sandbox and does not resume processes across machine reboot.
+See [daily usage](usage.md) and the [command reference](commands.md). Commands execute with your OS permissions. Eight execution slots are available. Unreleased 0.1.20 adds explicit deadline-bounded FIFO admission for up to 64 extra waiting jobs; default/published admission permits eight unfinished jobs. See [queue usage](usage.md#wait-for-an-execution-slot-unreleased-0120); raw stdout/stderr retain up to 16 MiB per stream. This runtime is not a command sandbox and does not resume processes across machine reboot.
 
 ## Inspection, rules and task manager
 

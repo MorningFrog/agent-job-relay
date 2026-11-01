@@ -163,6 +163,7 @@ Job、Run、Session、Delivery 必须独立拥有生命周期。**Job 完成 != 
 - Linux/macOS 使用恰当的 session/process-group 处理及子进程回收；不能仅 `nohup`、`disown` 就认定问题已解决。对 PTY/interactive stdin 不作为 v0.1 必备。
 - Windows 使用适当 Job Objects/handle 继承策略，**谨慎检查 `KILL_ON_JOB_CLOSE` 等标志是否会误杀应存活的工作负载**；不把 Windows 实现简单等同 Unix `setsid`。
 - 实现 graceful stop + 有界强制终止；取消应尽可能处理整棵进程树，精确记录结果和原因。
+- 支持显式选择的本地有界排队：八个执行槽之外最多再接收 64 个等待任务，按准入顺序事务性占用槽位。排队期限从原始准入计算，与运行超时独立；取消或排队到期不启动命令。重启保留原始 ID／期限／Goal 额度，备份恢复及不确定原生启动不得重新排队执行。
 - 超时机制、最大并发数和资源配额应有基本实现或明确限制；资源限制不应被描述为安全沙箱。
 - Daemon、MCP 与 Runner 子进程之间避免不必要的共享 process group，尤其不能因为 stdio MCP cleanup 而停止整个后台作业。
 - 防止僵尸进程、错误的文件描述符继承、标准输出 deadlock 和 Runner 永不退出；平台兼容用真实操作系统集成测试验证。

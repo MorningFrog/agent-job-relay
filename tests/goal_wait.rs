@@ -212,6 +212,7 @@ impl Fixture {
             cwd: self.dir.path().into(),
             env: Default::default(),
             timeout_seconds: None,
+            queue_timeout_seconds: None,
             session: Some(self.session.clone()),
             idempotency_key: Some(key.into()),
             monitor_rules: vec![],
@@ -3072,4 +3073,91 @@ async fn native_mcp_does_not_prompt_for_an_inactive_original_goal() {
     mcp.close().await;
     ipc::call(&f.store.config, Request::Shutdown).await.unwrap();
     daemon.wait().unwrap();
+}
+
+#[tokio::test]
+async fn queued_goal_members_keep_original_consent_budget_and_wait_for_terminal_runs() {
+    let f = Fixture::new().await;
+    for index in 0..8 {
+        let mut blocker = f.spec(&format!("blocker-{index}"));
+        blocker.session = None;
+        f.store.start(blocker).await.unwrap();
+    }
+    let consent = f.consent(2).await;
+    f.approve_consent(&consent).await;
+    let request = consent["request_id"].as_str().unwrap().to_owned();
+    let prepared = f
+        .store
+        .prepare_goal_wait_scoped(
+            f.session.clone(),
+            f.controller.clone(),
+            f.goal.clone(),
+            Some(request.clone()),
+        )
+        .await
+        .unwrap();
+    let wait = prepared["goal_wait_id"].as_str().unwrap();
+    let specs: Vec<_> = (0..2)
+        .map(|index| {
+            let mut spec = f.spec(&format!("queued-goal-{index}"));
+            spec.queue_timeout_seconds = Some(60);
+            spec
+        })
+        .collect();
+    let submit = || Request::StartGoalBatch {
+        specs: specs.clone(),
+        goal_wait_id: wait.into(),
+    };
+    let first = ipc::dispatch(&f.store, submit()).await.unwrap();
+    assert_eq!(first["accepted"], 2);
+    for item in first["results"].as_array().unwrap() {
+        assert_eq!(item["result"]["job"]["status"], "queued");
+    }
+    let repeated = ipc::dispatch(&f.store, submit()).await.unwrap();
+    assert_eq!(
+        repeated["results"][0]["result"]["job"]["job_id"],
+        first["results"][0]["result"]["job"]["job_id"]
+    );
+    let used = f
+        .store
+        .read(move |db| {
+            Ok(db.query_row(
+                "SELECT used FROM goal_consents WHERE id=?",
+                [request],
+                |r| r.get::<_, u32>(0),
+            )?)
+        })
+        .await
+        .unwrap();
+    assert_eq!(used, 2);
+    assert_eq!(f.pause_and_confirm(wait).await["status"], "waiting");
+    goal_wait::progress(&f.store, wait).await.unwrap();
+    assert!(f.store.claim().await.unwrap().is_none());
+    assert_eq!(f.controller.read().await.unwrap().unwrap().status, "paused");
+    f.finish(&first["results"][0]["result"]).await;
+    goal_wait::progress(&f.store, wait).await.unwrap();
+    assert!(f.store.claim().await.unwrap().is_none());
+    // Queue expiry uses the same terminal transaction as native completion.
+    let last = first["results"][1]["result"]["job"]["job_id"]
+        .as_str()
+        .unwrap();
+    f.store
+        .finish(
+            last.into(),
+            "timeout",
+            None,
+            None,
+            "queue deadline expired before first launch".into(),
+        )
+        .await
+        .unwrap();
+    goal_wait::progress(&f.store, wait).await.unwrap();
+    let restored = f.controller.read().await.unwrap().unwrap();
+    assert_eq!(restored.status, "active");
+    assert_eq!(restored.tokens_used, f.goal.tokens_used);
+    let claim = f.store.claim().await.unwrap().unwrap();
+    assert_eq!(claim.session.key, f.session);
+    let last = f.store.status(last.into()).await.unwrap();
+    assert_eq!(last.status, JobState::Timeout);
+    assert!(last.run.started_at.is_none());
 }

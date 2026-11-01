@@ -514,6 +514,19 @@ pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
             value["log_search"] = json!(true);
             value["structured_progress_v1"] = json!(true);
             value["batch_submission"] = json!(true);
+            value["bounded_queue"] = json!({"execution_limit":crate::scheduling::EXECUTION_LIMIT,
+                "waiting_limit":crate::scheduling::WAITING_LIMIT,"policy":"fifo",
+                "opt_in":"spec.queue_timeout_seconds","maximum_timeout_seconds":604800});
+            value["queued_jobs"] = store
+                .read(|db| {
+                    Ok(db.query_row(
+                        "SELECT count(*) FROM jobs WHERE status='queued'",
+                        [],
+                        |r| r.get::<_, u32>(0),
+                    )?)
+                })
+                .await?
+                .into();
             value["goal_waiting"] = json!(true);
             value["goal_wait_host_pause"] = json!(true);
             value["goal_wait_feedback"] = json!(true);

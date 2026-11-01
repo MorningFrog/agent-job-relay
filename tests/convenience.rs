@@ -1300,3 +1300,42 @@ async fn explicit_daemon_start_is_idempotent_without_jobs_or_sessions() {
     );
     success(r.cli(&["daemon", "stop"], None).await);
 }
+
+#[tokio::test]
+async fn missing_queue_capability_refuses_submission_without_work_or_daemon_restart() {
+    let r = Rig::new();
+    r.config.prepare().unwrap();
+    let listener = tokio::net::UnixListener::bind(r.config.socket()).unwrap();
+    let old = tokio::spawn(async move {
+        for _ in 0..2 {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let request = ipc::read_frame(&mut stream, 65536).await.unwrap();
+            assert_eq!(request["request"]["op"], "doctor");
+            ipc::write_frame(&mut stream, &json!({"protocol_version":1,"ok":true,"result":{"runner_launch_from_loaded_image":true,"version":env!("CARGO_PKG_VERSION")}})).await.unwrap();
+        }
+        assert!(
+            tokio::time::timeout(Duration::from_millis(200), listener.accept())
+                .await
+                .is_err()
+        );
+    });
+    let out = r
+        .cli(
+            &[
+                "start",
+                "--queue-timeout",
+                "30m",
+                "--cwd",
+                r.dir.path().to_str().unwrap(),
+                "--shell",
+                "touch must-not-run",
+            ],
+            None,
+        )
+        .await;
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("does not support bounded queuing"));
+    assert!(!r.config.root.join("relay.sqlite3").exists());
+    assert!(!r.dir.path().join("must-not-run").exists());
+    old.await.unwrap();
+}

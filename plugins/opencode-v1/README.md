@@ -12,7 +12,7 @@ Add the latest published package to your project's `opencode.json`:
 
 Restart OpenCode. Ask it to run your project's tests in the background and tell you when they finish. The plugin provides MCP tools and binds the actual tool caller. It refuses a pre-existing `agent_job_relay` MCP entry; review that entry instead of enabling both. Commands run with your OS permissions; output is untrusted data. Completion admission is not proof that a model ran.
 
-Runtime 0.1.12+ supports `job_start_batch` for 1–16 independent commands. Each item needs a distinct stable idempotency key and receives the actual caller binding. Admission is partial under the eight-active-job quota; retain individual results and retry unchanged keys/specs after a lost response. Use matching runtime/plugin versions, 0.1.12 or newer.
+Runtime 0.1.12+ supports `job_start_batch` for 1–16 independent commands. Each item needs a distinct stable idempotency key and receives the actual caller binding. Admission is partial under the default eight-unfinished-job limit or an explicit bounded-queue opt-in; retain individual results and retry unchanged keys/specs after a lost response. Use matching runtime/plugin versions, 0.1.12 or newer.
 
 State defaults to `$XDG_STATE_HOME/agent-job-relay/opencode`, else `$HOME/.local/state/agent-job-relay/opencode`; an absolute `AJR_STATE_DIR` or plugin `stateDir` option overrides it. State must stay outside npm/host caches. Long Unix socket paths fail explicitly: select a shorter persistent state path once, rather than changing an existing profile to conceal an error. Development can supply absolute `executable` and `stateDir` options in the plugin tuple.
 

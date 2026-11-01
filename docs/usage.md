@@ -47,6 +47,22 @@ Lists/events/deliveries return `next_cursor`; use `--after` for the next page. L
 
 Runtime 0.1.17+ supports `ajr start --title "Run project tests" -- cargo test`, or set `spec.title` in MCP / JSON single or batch submissions. Give each task a short purpose in the user’s language. Titles accept 1–80 Unicode characters without surrounding whitespace or control characters; omit the field for unnamed work. The Web list/detail heading and compact MCP results retain the title, while details keep the original command and IDs. Titles are part of the immutable submission: retries must preserve the original title and specification. There is no rename operation. Existing unnamed history remains readable and its unchanged-key retries retain their original IDs, including after archival.
 
+## Wait for an execution slot (Unreleased 0.1.20)
+
+```bash
+ajr start --queue-timeout 30m --timeout 600 --title "Run project tests" -- cargo test
+```
+
+Expected: accepted as `queued` even when all eight execution slots are occupied. The daemon reserves free slots in admission order. Each profile admits at most 72 unfinished jobs: eight execution slots plus 64 extra waiting jobs. Without `--queue-timeout`, admission retains the eight-unfinished-job limit. There is no priority, dependency graph or configurable concurrency.
+
+MCP/JSON single or batch submission sets `spec.queue_timeout_seconds` to 1–604800 seconds. This immutable opt-in is part of the specification; unchanged-key retries return original Job/Run IDs without extending the original deadline. Each accepted item keeps its own rules, deadline, session and result. Validation, queue capacity and disk-pressure failures retain indexed partial-admission semantics.
+
+The queue deadline runs from durable admission until the first launch reservation. Expiry records `timeout` with an explicit queue-expiry detail and no runner/workload start. Execution timeout and elapsed/silence monitoring start with execution. `job.queue` exposes timeout, absolute deadline and one-based queued position; position is a snapshot, not a start-time estimate. Compact MCP results and Web details retain these fields.
+
+Use the normal stop command/tool/panel to cancel queued work. Before its first launch, an opted-in job is cancelled locally without running a command or contacting a remote target, including a control-enabled attachment. Launching/running jobs retain existing exact-run stop semantics. Native launch uncertainty is never requeued; recovered external observers retain their original IDs and are not subject to the first-launch deadline again.
+
+The daemon must run to schedule/expire queued work. Restart preserves original order/IDs/deadlines and checks expiry before launch; backup restore instead orphans unfinished jobs without starting commands. Queued Goal members consume their original admission budget once and join the same all-member terminal wait; queuing supplies no consent or extra budget. Upgrade to schema v13 after older runs finish; published 0.1.19 does not support this option.
+
 ## Submit independent commands together (0.1.12+)
 
 Runtime 0.1.12+ supports `start-batch --file <json-file>` and MCP `job_start_batch`; use matching runtime/plugin versions. An older loaded daemon fails the batch capability preflight; finish active work and explicitly update/stop only that same profile before retrying.
@@ -72,7 +88,7 @@ MCP takes `{"specs":[...],"binding":<fresh-current-caller-binding>}`. The bindin
 
 Every item requires a distinct nonempty `idempotency_key` (at most 128 bytes); keys share the profile's existing single-job namespace. The encoded IPC request must fit 128 KiB. Invalid JSON/types, empty/oversized batches, missing/duplicate keys or conflicting caller bindings reject the entire request before any item is admitted. Once the envelope is valid, command/rule/session validation errors, key conflicts and quota failures are returned individually; later items are still attempted.
 
-Admission proceeds in input order using one transaction per item. Other submissions and running jobs may interleave. The existing eight-active-job quota is checked for each new job; there is no reserved batch capacity, waiting admission queue or rollback of accepted items. Short jobs may free slots during submission. `accepted` counts newly admitted **or already existing identical** jobs, not completed commands. CLI exits successfully when the request is processed, including partial/all item rejection; inspect `rejected` and each result.
+Admission proceeds in input order using one transaction per item. Other submissions and running jobs may interleave. Each new item checks the default eight-unfinished-job limit or its explicit bounded-queue opt-in. There is no reserved batch capacity or rollback of accepted items. Short jobs may free slots during submission. `accepted` counts newly admitted **or already existing identical** jobs, not completed commands. CLI exits successfully when the request is processed, including partial/all item rejection; inspect `rejected` and each result.
 
 The response is `{"accepted":1,"rejected":1,"results":[{"index":0,"idempotency_key":"checks-001","accepted":true,"result":{"job":{...},"wake":{...}}},{"index":1,"idempotency_key":"tests-001","accepted":false,"error":"..."}]}`. Each zero-based index maps to the original input; accepted items retain independent Job/Run IDs, logs, rules, notifications and stopping.
 
@@ -153,7 +169,7 @@ For OpenCode V1, use the plugin's actual tool-context binding and MCP tools; Cha
 
 ## Automatic data maintenance
 
-The daemon automatically archives eligible terminal history and creates rolling local backups; no recurring manual command is required. Use `data status` through the selected command prefix for budgets/backup IDs/errors, `data policy` for configuration previews, `data backup` for an additional snapshot and `data check` for explicit integrity validation. Existing history/log queries include cold records. Upgrade/restore instructions and the default policy are in [data maintenance](data-maintenance.md); source 0.1.17 uses schema v12, while earlier 0.1.12–0.1.16 runtime profiles use v11 and 0.1.11 uses v9; finish older runs before migration.
+The daemon automatically archives eligible terminal history and creates rolling local backups; no recurring manual command is required. Use `data status` through the selected command prefix for budgets/backup IDs/errors, `data policy` for configuration previews, `data backup` for an additional snapshot and `data check` for explicit integrity validation. Existing history/log queries include cold records. Upgrade/restore instructions and the default policy are in [data maintenance](data-maintenance.md); Unreleased 0.1.20 uses schema v13, published 0.1.17–0.1.19 use v12, earlier 0.1.12–0.1.16 use v11 and 0.1.11 uses v9; finish older runs before migration.
 
 ## Remote commands and workflow attempts (0.1.12+)
 

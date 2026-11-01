@@ -24,6 +24,7 @@ async fn fixture() -> (tempfile::TempDir, Store, StartSpec) {
         cwd: dir.path().into(),
         env: Default::default(),
         timeout_seconds: None,
+        queue_timeout_seconds: None,
         session: None,
         idempotency_key: None,
         monitor_rules: vec![],

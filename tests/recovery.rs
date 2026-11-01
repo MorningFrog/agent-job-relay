@@ -104,6 +104,7 @@ impl Fixture {
                 cwd: self.dir.path().into(),
                 env: Default::default(),
                 timeout_seconds: None,
+                queue_timeout_seconds: None,
                 session: Some(session.key.clone()),
                 idempotency_key: None,
                 monitor_rules: vec![],

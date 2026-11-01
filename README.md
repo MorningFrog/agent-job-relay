@@ -17,6 +17,7 @@ Run long commands independently of the Agent connection, keep their results, and
 |---|---|
 | Durable background jobs | Builds, tests, training and data processing that continue after a chat or viewer closes |
 | Goal waiting (experimental) | One scoped pause approval, original-goal restoration and deletion safeguards. Source 0.1.17 adds requested intermediate restoration/report/native re-pause cycles; [usage and host limits](docs/goal-waiting.md) |
+| Bounded queue (Unreleased) | Opt into FIFO waiting beyond eight execution slots with a per-job deadline; [usage](docs/usage.md#wait-for-an-execution-slot-unreleased-0120) |
 | Batch submission | Submit 1–16 independent commands through CLI/MCP, with per-item results and safe retries; [usage](docs/usage.md#submit-independent-commands-together-0112) |
 | Remote tasks | Launch/attach on a pinned remote runtime or observe a fixed GitHub Actions attempt, including job/step status and an attempt link; [setup and boundaries](docs/remote-execution.md) |
 | Mid-run feedback | Structured stages/steps/metrics, repeated milestone or threshold alerts and a bounded checker recipe; [usage and limits](docs/progress.md) |

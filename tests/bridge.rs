@@ -49,6 +49,7 @@ async fn claim(store: &Store, key: String, cwd: PathBuf) -> agent_job_relay::del
             cwd,
             env: Default::default(),
             timeout_seconds: None,
+            queue_timeout_seconds: None,
             session: Some(key),
             idempotency_key: None,
             monitor_rules: vec![],

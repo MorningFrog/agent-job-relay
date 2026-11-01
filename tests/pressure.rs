@@ -25,6 +25,7 @@ async fn disk_pressure_refuses_only_new_admissions_and_keeps_original_runs_and_c
         cwd: dir.path().into(),
         env: Default::default(),
         timeout_seconds: None,
+        queue_timeout_seconds: None,
         session: None,
         idempotency_key: Some("original".into()),
         monitor_rules: vec![],

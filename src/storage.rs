@@ -99,8 +99,8 @@ impl Store {
                         let version =
                             db.pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0))?;
                         ensure!(
-                            version == 12,
-                            "database schema {version} does not match runtime {} (requires schema 12); use the matching AgentJobRelay runtime",
+                            version == 13,
+                            "database schema {version} does not match runtime {} (requires schema 13); use the matching AgentJobRelay runtime",
                             env!("CARGO_PKG_VERSION")
                         );
                     }
@@ -143,7 +143,7 @@ impl Store {
             .await?;
         // Older daemons allocate rowids independently of the archive high-water
         // marks. Never migrate underneath one or an older in-flight runner.
-        let _migration_lock = if version < 12 {
+        let _migration_lock = if version < 13 {
             Some(
                 self.config
                     .daemon_lock()
@@ -155,10 +155,10 @@ impl Store {
         self.call(|db| {
             let v: i64 = db.pragma_query_value(None, "user_version", |r| r.get(0))?;
             ensure!(
-                v <= 12,
+                v <= 13,
                 "database schema is newer than this executable; downgrade refused"
             );
-            if v > 0 && v < 12 {
+            if v > 0 && v < 13 {
                 let running:bool=db.query_row("SELECT EXISTS(SELECT 1 FROM jobs WHERE status IN ('launching','running'))",[],|r|r.get(0))?;
                 ensure!(!running,"finish active runs with the previous runtime before upgrading the data schema");
             }
@@ -213,6 +213,8 @@ impl Store {
             if v < 10 { db.execute_batch(include_str!("goal_wait.sql"))?; }
             if v < 11 { db.execute_batch(include_str!("goal_consent.sql"))?; }
             if v < 12 { db.execute_batch(include_str!("goal_feedback.sql"))?; }
+            // Contract fence: older daemons must never launch the expanded queue without slot limits.
+            if v < 13 { db.execute_batch("BEGIN IMMEDIATE; PRAGMA user_version=13; COMMIT;")?; }
             Ok(())
         })
         .await
@@ -239,12 +241,20 @@ impl Store {
                 ensure!(hash==crate::archive::hash(raw.as_bytes()),"idempotency key already used with a different specification");crate::goal_wait::check_retry(&tx, &id, goal_wait.as_deref())?;return read_job(&tx,&id);
             }
             crate::maintenance::admit_disk(&tx, &disk_root)?;
+            if spec.queue_timeout_seconds.is_some() {
+                ensure!(tx.pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0))? == 13,
+                    "bounded queuing requires schema 13; finish older runs and upgrade this profile first");
+            }
             if goal_wait.is_none() && let Some(session)=&spec.session {
                 ensure!(!tx.query_row("SELECT EXISTS(SELECT 1 FROM goal_consents WHERE session_key=? AND status IN ('pending','asking','approved') AND expires>? AND used<job_limit)",params![session,now()],|r|r.get::<_,bool>(0))?,"this request needs its approved goal-wait binding; ordinary submission cannot bypass pause consent");
                 ensure!(!tx.query_row("SELECT EXISTS(SELECT 1 FROM goal_waits WHERE session_key=? AND (status IN ('prepared','sealed','pausing','waiting','resuming') OR (status='resumed' AND feedback_delivery IS NOT NULL)) AND expires>?)",params![session,now()],|r|r.get::<_,bool>(0))?,"this chat has a required goal handoff; preserve its goal_wait_id binding instead of submitting ordinary work");
             }
             let active:i64=tx.query_row("SELECT count(*) FROM jobs WHERE status IN ('queued','launching','running')",[],|r|r.get(0))?;
-            ensure!(active<8,"active job quota (8) reached; wait or stop a job");
+            if spec.queue_timeout_seconds.is_some() {
+                ensure!(active < i64::from(crate::scheduling::EXECUTION_LIMIT + crate::scheduling::WAITING_LIMIT), "waiting job quota (64 beyond 8 execution slots) reached; wait or cancel a queued job");
+            } else {
+                ensure!(active<8,"active job quota (8) reached; use queue_timeout_seconds to opt into bounded waiting, wait or stop a job");
+            }
             let total:i64=tx.query_row("SELECT count(*) FROM jobs",[],|r|r.get(0))?;
             ensure!(total<10000,"job history quota (10000) reached; archive state before starting more jobs");
             let j=id(); let r=id(); let nonce=id(); let t=now();
@@ -334,8 +344,8 @@ impl Store {
     }
 }
 pub fn read_job(db: &Connection, j: &str) -> Result<Job> {
-    let row=db.query_row("SELECT j.id,j.run_id,j.status,j.spec,j.created,j.updated,j.cancel,r.runner_pid,r.runner_identity,r.workload_pid,r.workload_identity,r.exit_code,r.signal,r.detail,j.rowid,r.attempt,r.status,r.started,r.ended FROM jobs j JOIN runs r ON r.id=j.run_id WHERE j.id=?",[j],|r|{
-        Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,String>(3)?,r.get::<_,i64>(4)?,r.get::<_,i64>(5)?,r.get::<_,bool>(6)?,r.get::<_,Option<u32>>(7)?,r.get::<_,Option<String>>(8)?,r.get::<_,Option<u32>>(9)?,r.get::<_,Option<String>>(10)?,r.get::<_,Option<i32>>(11)?,r.get::<_,Option<i32>>(12)?,r.get::<_,Option<String>>(13)?,r.get::<_,i64>(14)?,r.get::<_,u32>(15)?,r.get::<_,String>(16)?,r.get::<_,Option<i64>>(17)?,r.get::<_,Option<i64>>(18)?))
+    let row=db.query_row("SELECT j.id,j.run_id,j.status,j.spec,j.created,j.updated,j.cancel,r.runner_pid,r.runner_identity,r.workload_pid,r.workload_identity,r.exit_code,r.signal,r.detail,j.rowid,r.attempt,r.status,r.started,r.ended,CASE WHEN j.status='queued' THEN (SELECT count(*) FROM jobs q WHERE q.status='queued' AND q.rowid<=j.rowid) END FROM jobs j JOIN runs r ON r.id=j.run_id WHERE j.id=?",[j],|r|{
+        Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,String>(3)?,r.get::<_,i64>(4)?,r.get::<_,i64>(5)?,r.get::<_,bool>(6)?,r.get::<_,Option<u32>>(7)?,r.get::<_,Option<String>>(8)?,r.get::<_,Option<u32>>(9)?,r.get::<_,Option<String>>(10)?,r.get::<_,Option<i32>>(11)?,r.get::<_,Option<i32>>(12)?,r.get::<_,Option<String>>(13)?,r.get::<_,i64>(14)?,r.get::<_,u32>(15)?,r.get::<_,String>(16)?,r.get::<_,Option<i64>>(17)?,r.get::<_,Option<i64>>(18)?,r.get::<_,Option<u32>>(19)?))
     }).optional()?;
     let Some((
         job_id,
@@ -357,6 +367,7 @@ pub fn read_job(db: &Connection, j: &str) -> Result<Job> {
         run_status,
         started_at,
         ended_at,
+        queue_position,
     )) = row
     else {
         return crate::archive::load(db, j)?
@@ -378,7 +389,14 @@ pub fn read_job(db: &Connection, j: &str) -> Result<Job> {
         exit_code,
         signal,
     };
+    let queue = spec.queue_timeout_seconds.map(|seconds| QueueInfo {
+        timeout_seconds: seconds,
+        expires_at: created_at
+            .saturating_add((seconds.saturating_mul(1000)).min(i64::MAX as u64) as i64),
+        position: queue_position,
+    });
     Ok(Job {
+        queue,
         title: spec.title,
         run,
         sequence,

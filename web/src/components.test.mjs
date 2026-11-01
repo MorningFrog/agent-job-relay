@@ -217,3 +217,16 @@ test("task detail opens on output with concise attention and deferred execution 
   const feedback=renderToStaticMarkup(React.createElement(TaskDetail,{...props,tab:"feedback"}));
   assert.ok(feedback.includes("failure diagnostics"));assert.ok(feedback.includes('aria-label="中途反馈状态"'));
 });
+
+test("queued tasks show their position and deadline separately from execution", () => {
+  const job = {job_id:"queued-job",status:"queued",created_at:Date.now(),
+    queue:{position:3,expires_at:Date.now()+60000},command:{kind:"exec",program:"build"},run:{started_at:null}};
+  const html=renderToStaticMarkup(React.createElement(TaskDetail,{selected:job.job_id,detail:{job},tab:"output",streamName:"stdout",grace:5}));
+  assert.ok(html.includes("排队第 3 位"));
+  assert.ok(html.includes("截止"));
+  assert.ok(html.includes("尚未启动运行器"));
+  assert.ok(html.includes("排队时间不计入运行超时"));
+  const status=renderToStaticMarkup(React.createElement(RuntimeStatus,{connection:"connected",overview:{active_jobs:[job,{status:"running"},{status:"launching"}],health:{bounded_queue:{execution_limit:8}}}}));
+  assert.match(status,/运行中任务<\/dt><dd>2 \/ 8<\/dd>/);
+  assert.match(status,/等待启动的任务<\/dt><dd>1<\/dd>/);
+});

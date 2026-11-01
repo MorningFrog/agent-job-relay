@@ -17,6 +17,7 @@ Tasks run in the background. Agents pick up when needed.
 |---|---|
 | 持久后台任务 | 运行构建、测试、训练和数据处理，关闭聊天或查看器后仍可继续 |
 | Goal 等待（实验性） | 一次限定范围的暂停批准，保留原 goal 恢复和删除保护。源码 0.1.17 新增按需临时恢复、汇报并原生再次暂停的中间反馈；见[用法及宿主限制](docs/goal-waiting.md) |
+| 有界排队（尚未发布） | 显式选择满额后的 FIFO 等待，保留八个执行槽并设置逐任务排队期限；见[使用指南](docs/usage.md#wait-for-an-execution-slot-unreleased-0120) |
 | 批量提交 | 通过 CLI/MCP 一次提交 1–16 个独立命令，逐项返回结果并支持安全重试，见[使用指南](docs/usage.md#submit-independent-commands-together-0112) |
 | 远程任务 | 在固定身份的远端运行时启动或附加命令，或观察固定的 GitHub Actions attempt，包含作业／步骤状态和 attempt 直达链接，见[配置与边界](docs/remote-execution.md) |
 | 中间反馈 | 结构化阶段、步数和指标，重复里程碑或阈值告警，以及有界 checker 示例；见[用法与边界](docs/progress.md) |
