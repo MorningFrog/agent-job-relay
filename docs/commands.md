@@ -1,7 +1,5 @@
 # Command reference
 
-Current source adds `ajr search [--text <text>] [--status <state|active>] [--cwd <substring>] [--created-after <unix-ms>] [--created-before <unix-ms>] [--before <cursor>] [--limit <1..100>]` across hot/archived history, and `ajr search-logs <job-id> --text <literal> [--stream stdout|stderr] [--cursor <byte>] [--end <fixed-end>] [--limit <1..100>]` for retained-log locations/context. Both are read-only, support stopped existing profiles and return JSON continuation evidence; see [search semantics](runtime-monitoring.md#read-and-export-retained-logs).
-
 [Documentation index](README.md) · [Usage walkthrough](usage.md) · [Troubleshooting](troubleshooting.md)
 
 This reference groups public commands by purpose: [tasks](#start-and-read-tasks), [monitoring](#inspect-monitor-and-open-the-task-manager), [sessions/delivery](#bind-sessions-and-recover-notifications), [daemon/diagnostics](#manage-the-daemon-and-diagnose), [installation](#install-update-and-remove-integrations), [data](#maintain-data) and [MCP tools](#mcp-tools-by-purpose). Use `<command> --help` for exact flags supported by your installed version. Step-by-step procedures live in the linked guides; hidden runner and Windows bootstrap modes are internal implementation details.
@@ -52,6 +50,10 @@ agent-job-relay codex stop <job-id> --grace 30s --wait 10s
 ```
 
 Use returned IDs and `next_cursor`; do not use PIDs as job IDs. Reusing a key with an identical specification returns the original job; a deliberate rerun needs a new key. Long Agent jobs should end the turn after a capable-host submission rather than poll. See [execution and result workflow](usage.md#run-and-inspect-commands-through-cli).
+
+## Search history and retained logs (Unreleased)
+
+Current source adds `ajr search [--text <text>] [--status <state|active>] [--cwd <substring>] [--created-after <unix-ms>] [--created-before <unix-ms>] [--before <cursor>] [--limit <1..100>]` across hot/archived history, and `ajr search-logs <job-id> --text <literal> [--stream stdout|stderr] [--cursor <byte>] [--end <fixed-end>] [--limit <1..100>]` for retained-log locations/context. Both are read-only, support stopped existing profiles and return JSON continuation evidence; see [search semantics](runtime-monitoring.md#read-and-export-retained-logs).
 
 ## Inspect, monitor and open the task manager
 
@@ -150,6 +152,7 @@ Policy flags are `--hot-jobs`, `--archive-after-days`, `--hot-log-mib`, `--backu
 | Execution and results | `job_start`, `job_status`, `job_list`, `job_logs`, `job_events`, `job_wait`, `job_stop` |
 | Batch and experimental goal control | `job_start_batch`, `job_goal_consent`, `job_goal_wait`; scoped consent and native handoff use the actual terminal binding |
 | Inspection and rules | `job_inspect`, `job_monitor` |
+| Unreleased history and log search | `job_search`, `job_search_logs`; bounded read-only cursors cover hot/archived records and retained byte ranges |
 | Health | `job_doctor` |
 | Session binding and inbox | `job_connect_session`, `job_register_session`, `job_sessions`, `job_probe_session`, `job_recover_session`, `job_invalidate_session`, `job_inbox` |
 | Targets and delivery | `job_add_wake_target`, `job_rebind_target`, `job_deliveries`, `job_retry_delivery`, `job_delivery_attempts` |

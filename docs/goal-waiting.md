@@ -4,7 +4,7 @@
 
 An active Desktop goal must pause through its native tool while Relay work runs. If pause permission is missing, ask once: **“允许本次后台任务暂停目标，完成后继续吗？”** A natural affirmative answer is enough for the remaining rounds of this same request and goal. No fixed authorization phrase or per-round question is required. The user has verified locally that automatic pause works after approval; the new direct MCP confirmation form and full multi-round restoration workflow have separate acceptance boundaries.
 
-This is experimental behavior, with 25 MCP tools. Ordinary goal waiting requires runtime 0.1.12+; source 0.1.17 adds intermediate feedback and schema v12. Finish existing runs before migration, preserve the original profile and backups, and never downgrade a used database. `goal_wait_host_pause=true` advertises the native handoff and `goal_wait_feedback=true` the temporary-restoration protocol; neither proves host/model acceptance. `automatic_goal_pause_supported=false` means consent-free pause is unavailable.
+This is experimental behavior. Published 0.1.19 has 25 MCP tools; Unreleased source adds two read-only search tools. Ordinary goal waiting requires runtime 0.1.12+; source 0.1.17 adds intermediate feedback and schema v12. Finish existing runs before migration, preserve the original profile and backups, and never downgrade a used database. `goal_wait_host_pause=true` advertises the native handoff and `goal_wait_feedback=true` the temporary-restoration protocol; neither proves host/model acceptance. `automatic_goal_pause_supported=false` means consent-free pause is unavailable.
 
 ## 1. Prepare this request
 
@@ -42,7 +42,7 @@ Consent is pinned to the original registration/endpoint, goal/controller, worksp
 
 If a later round returns `status=goal_not_active`, inspect `goal_status` and keep the original request ID. `blocked` and other inactive states gate admission without permanently invalidating unexpired consent. An acknowledged wait handles its original paused goal on completion; a separate blocked/user-paused state requires the user's host Resume control. After the original goal becomes active, reconnect with the same `--request-id`; approved consent needs no new question and retains its remaining job budget. Do not create a replacement request, mark the goal blocked to wait or overwrite an unexplained blocker automatically. Controller/read errors fail the current call without cancelling consent or waits; explicit decline/revocation remains available while the controller is unavailable. Previously invalidated requests are not reopened.
 
-### Recover an existing handoff (Unreleased)
+### Recover an existing handoff
 
 With Doctor `goal_wait_recovery=true`, reconnection first checks this fresh original registration's outstanding handoff. `status=goal_wait_pending` returns its original `request_id`, Job/Run/wait IDs, revision, `continuation` and `next_step`, without a new question or submission binding. This applies to ordinary connect and automatic single/batch wake submission too; it does not transfer another request's consent. A prepared original request still needs its explicit `--request-id` and original workspace before obtaining a submission binding. Consent inspection includes the latest 16 `waits`; compact task inspection and the panel preserve continuation diagnostics.
 

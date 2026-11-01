@@ -24,11 +24,15 @@ Use the same launcher and state profile as the affected plugin or task. Keep the
 | Ownership check refuses changes | Preserve the files and inspect the reported changes/backup. Never remove a parent directory containing foreign content. |
 | History appears missing | Compare explicit state arguments, AJR_STATE_DIR and the launcher's [recorded/default profile](commands.md#choose-the-entry-point-and-profile). |
 | Notification does not arrive | Inspect session/delivery state and preview [same-chat recovery](usage.md#recover-notifications). |
-| `goal_wait_pending` during reconnect | Follow the original wait's continuation action; do not submit again or repeat the pause question. See [goal handoff recovery](goal-waiting.md#recover-an-existing-handoff-unreleased). |
+| `goal_wait_pending` during reconnect | Follow the original wait's continuation action; do not submit again or repeat the pause question. See [goal handoff recovery](goal-waiting.md#recover-an-existing-handoff). |
 | Monitor rule has not fired | Check saved/applied revision, condition and trigger evidence. Rules fire once per revision; see [monitoring](runtime-monitoring.md#install-persistent-rules). |
 | Storage quota or backup error | Inspect `data status`; use [data maintenance](data-maintenance.md) for protected records, budgets and backup diagnostics. |
 
 ## Understand the checks
+
+For Unreleased source, `disk pressure` admission errors identify the sampled free bytes and configured threshold. Run `ajr data status`, inspect backup/maintenance errors and free the intended profile volume explicitly; preview any threshold change with `ajr data policy` before applying it. Existing work, original-key retries and stopping remain available. A capacity sample is not a disk reservation, and the workload may write to another volume.
+
+History search pages can contain no matches while `has_more=true`; continue their decreasing `next_cursor`. The panel does this until 50 matches or the real end, showing scanned counts. Log search uses its returned fixed `end` with `next_cursor`, and only retained ranges are searchable. A gap or rotated segment cannot be recovered by resubmitting the workload. For notification/goal issues, inspect `notifications.recovery.plan` and retain its original IDs/revision; exact-profile commands remain usable only from the original caller and a still-available trusted entry point.
 
 | Check | What it establishes |
 |---|---|
@@ -55,4 +59,4 @@ After host replacement, obtain a fresh binding from the same chat and preview `c
 
 ## Goal handoff remains pending
 
-On a runtime with `goal_wait_recovery=true`, ordinary reconnection and automatic wake submission return `goal_wait_pending` rather than creating another question around an existing handoff. Keep its original request/Job/Run/wait IDs and read `continuation.action`. An already paused goal needs only confirmation of native success actually acknowledged in that chat; never repeat an uncertain pause. A feedback report must finish its original re-pause even after admission slots run out. `await_notification` means the final host receipt is still pending; do not claim acceptance or add an Agent polling loop. A genuine `blocked`/changed-host/uncertain-control condition requires the original host's explicit controls; preserved approval is not permission to overwrite it. See [goal recovery](goal-waiting.md#recover-an-existing-handoff-unreleased).
+On a runtime with `goal_wait_recovery=true`, ordinary reconnection and automatic wake submission return `goal_wait_pending` rather than creating another question around an existing handoff. Keep its original request/Job/Run/wait IDs and read `continuation.action`. An already paused goal needs only confirmation of native success actually acknowledged in that chat; never repeat an uncertain pause. A feedback report must finish its original re-pause even after admission slots run out. `await_notification` means the final host receipt is still pending; do not claim acceptance or add an Agent polling loop. A genuine `blocked`/changed-host/uncertain-control condition requires the original host's explicit controls; preserved approval is not permission to overwrite it. See [goal recovery](goal-waiting.md#recover-an-existing-handoff).

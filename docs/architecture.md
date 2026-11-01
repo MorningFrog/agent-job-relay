@@ -11,6 +11,7 @@ One package and executable; CLI, stdio MCP, daemon and runner modes.
 | Process initialization | `src/main.rs` |
 | CLI syntax and dispatch | `src/cli/args.rs`, `src/cli/mod.rs` (binary-private) |
 | MCP tools and client convenience | `src/mcp.rs`, `src/mcp_runtime.rs`, `src/client.rs`, `src/diagnostics.rs`, `src/output.rs`, `src/feedback.rs`, `src/notifications.rs`, `src/monitor.rs`, `src/progress.rs` |
+| Bounded hot/cold and log search | `src/search.rs`, `src/log_retention.rs`; read-only CLI/MCP/Web queries, original cursors/gaps |
 | External execution and observation | `src/remote/` (pinned contract/stdio helper, bounded transport, native observer and read-only Actions adapter) |
 | Bounded batch admission | `src/batch.rs`, shared CLI/MCP client and IPC dispatch; existing per-item storage transactions |
 | Job intent, execution and persistence | `src/core.rs`, `src/core/state.rs`, `src/daemon.rs`, `src/runner.rs`, `src/runner/{supervisor,output}.rs`, `src/log_retention.rs`, `src/storage.rs` |
@@ -18,6 +19,7 @@ One package and executable; CLI, stdio MCP, daemon and runner modes.
 | Scoped goal consent/waiting | `src/goal_consent.rs`, `src/goal_consent.sql`, `src/goal_question.rs`, `src/goal_wait.rs`, `src/goal_wait/{feedback,recovery}.rs`, `src/goal_wait.sql`, `src/goal_control.rs`; one question, bounded admission, native handoff and delivery gate |
 | Idle scheduling and local wake signals | `src/scheduling.rs`, `src/storage.rs` |
 | Automatic archive, budgets, backup and restore | `src/archive.rs`, `src/maintenance.rs`, `src/maintenance.sql` |
+| Disk pressure and admission | `src/maintenance/pressure.rs`; fresh profile-volume samples and policy checks after idempotency lookup |
 | Local Web UI and bundled assets | `src/web.rs`, `src/web/sampling.rs`, `web/src/{App,components,transport,useTaskStream,view}`, `build.rs` |
 | Local transport and OS primitives | `src/ipc.rs`, `src/platform/` |
 | Configuration and plugin lifecycle | `src/config.rs`, `src/integration.rs`, `src/deployment.rs`, `src/plugin.rs`, `src/lifecycle.rs`, `src/online_update.rs` |
@@ -62,6 +64,10 @@ Schema v9 separates hot relational history from compressed cold snapshots in the
 SQLite online backups pin a read snapshot; exact-path staging journals, manifest-last publication and checksum/inventory validation support bounded forward recovery and safe rolling rotation. Restore publishes only a new profile after orphaning old active intents, invalidating registrations and fencing outstanding claims. Migration to v9 requires daemon exclusivity and no old launching/running jobs. See [data maintenance](data-maintenance.md) and [ADR 0014](adr/0014-automatic-data-maintenance.md).
 
 Task-detail inspection reads all sections in one short database read transaction. A cold task loads and validates its compressed snapshot once, then derives bounded events, deliveries, rules and observations from that same snapshot; goal-wait summaries still read current relational state. No cross-request archive cache or schema migration is introduced.
+
+Unreleased shared search scans at most 128 hot/cold task identities per page with a soft 500-ms budget, matches full local commands/title/directory/state/time and returns a scan cursor even for empty matching pages. Cold snapshots are verified without rehydration. The panel continues pages until 50 matches or exhaustion and fences changed queries. Literal log search snapshots bounded recent segments, scans 512 KiB of candidate starts per request plus bounded lookahead/context, joins adjacent ranges but never gaps, and preserves absolute offsets with a fixed end cursor. Neither query mutates execution or delivery state; no schema/index migration is added.
+
+Unreleased `notifications.recovery.plan` selects original-goal continuation before ordinary delivery recovery, retains IDs/revisions/expiry and derives profile-specific argv without host probes or mutation. Panel feedback renders existing rule/source/target evidence; presets only open explicitly saved rule forms. Disk policy defaults to 512-MiB warnings and 64-MiB new-admission refusal. The short admission transaction samples free space after original-key lookup; terminal persistence, stop and existing runs bypass this gate. Doctor/admission receipts and ten-second Web health expose fresh samples plus recorded backup/maintenance health. Samples do not reserve disk space or qualify physical disk loss.
 
 Read-only feedback receipts share `feedback.rs` across single/batch admission and detailed CLI/MCP/Web inspection. They derive rules, application revisions, source observations and active recorded targets in a short read transaction, without host probes or delivery mutations. Recovery/rebind targets take precedence over the original job session; terminal cold records need no target lookup or rehydration. Admission remains successful with original IDs when later receipt diagnostics fail. Configuration, observed samples, delivery and actual Agent execution remain separate.
 

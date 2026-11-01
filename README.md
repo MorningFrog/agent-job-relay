@@ -86,9 +86,9 @@ Select the installed AgentJobRelay plugin in your host. On first use, ask it to 
 
 Everyday prompts need no executable path or session ID. The plugin binds the actual initiating session, submits the task and keeps its results. ChatGPT Desktop can continue the same chat on verified versions; OpenCode V1 continuation remains experimental. With Codex CLI's inbox, ask the Agent to inspect the result when needed.
 
-Source 0.1.19 guidance plans useful captured output and a few mid-run reports for long work; explicit “only notify at the end” keeps completion-only behavior. Goal feedback still requires actual user authorization. See [feedback planning and limits](docs/progress.md#choose-and-verify-feedback-before-yielding); adoption in installed hosts remains to be verified.
+Runtime 0.1.19 guidance plans useful captured output and a few mid-run reports for long work; explicit “only notify at the end” keeps completion-only behavior. Goal feedback still requires actual user authorization. See [feedback planning and limits](docs/progress.md#choose-and-verify-feedback-before-yielding); adoption in installed hosts remains to be verified.
 
-Source 0.1.19 goal recovery returns the original handoff and next action after interrupted reconnection, without another pause question or duplicate work. It retains the same request across rounds and keeps native pause acknowledgements separate from pending final notifications. Requires Doctor `goal_wait_recovery=true`; see [recovery and host limits](docs/goal-waiting.md#recover-an-existing-handoff-unreleased).
+Runtime 0.1.19 goal recovery returns the original handoff and next action after interrupted reconnection, without another pause question or duplicate work. It retains the same request across rounds and keeps native pause acknowledgements separate from pending final notifications. Requires Doctor `goal_wait_recovery=true`; see [recovery and host limits](docs/goal-waiting.md#recover-an-existing-handoff).
 
 You can also ask:
 
@@ -109,7 +109,9 @@ ajr inspect <job-id>
 
 Runtime 0.1.17+ also supports `start --title "Run project tests" -- cargo test` and MCP `spec.title`. The task manager displays this short purpose, keeps the full command in details and uses compact command/project hints for unnamed history. This requires an updated runtime; published-version support is tracked in [implementation status](docs/IMPLEMENTATION_STATUS.md).
 
-Published runtime 0.1.18 adds task-level notification diagnostics/recovery guidance, compact Agent inspection (`job_inspect`, or `ajr inspect <job-id> --json --compact`) and bounded recent-log rotation. Use `ajr logs <job-id> --export <new-file>` or the task panel to export retained text with explicit gap markers; see [inspection and logs](docs/runtime-monitoring.md). The 0.1.19 guidance and goal-recovery changes above require a development build until that version is published.
+Published runtime 0.1.18 adds task-level notification diagnostics/recovery guidance, compact Agent inspection (`job_inspect`, or `ajr inspect <job-id> --json --compact`) and bounded recent-log rotation. Use `ajr logs <job-id> --export <new-file>` or the task panel to export retained text with explicit gap markers; see [inspection and logs](docs/runtime-monitoring.md).
+
+Current Unreleased source adds an effective-feedback card and editable stage/time shortcuts, specific notification/goal recovery plans, full-history search (`ajr search --text "tests" --status failed`) and log locations (`ajr search-logs <job-id> --stream stderr --text "error"`). The panel includes archived history and original byte context/gaps. Disk policy warns below 512 MiB and refuses new jobs below 64 MiB while preserving active work and original-key retries; preview changes with `ajr data policy --disk-warn-mib 1024 --disk-stop-new-jobs-mib 128`. These additions require a development build; see [inspection](docs/runtime-monitoring.md) and [capacity policy](docs/data-maintenance.md#disk-pressure-and-backup-health-current-source).
 
 Use the returned job ID in the last command; the first submission starts the daemon automatically. OpenCode uses `ajr opencode`; native offline installations use their recorded launcher/profile. See the [command reference](docs/commands.md).
 
