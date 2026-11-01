@@ -349,24 +349,38 @@ mod tests {
         let job = store.start(spec.clone()).await.unwrap();
         let backup = store.backup().await.unwrap();
         let destination = dir.path().join("restored");
-        crate::maintenance::restore(
+        let restore = crate::maintenance::restore(
             std::path::PathBuf::from(backup["path"].as_str().unwrap()),
             destination.clone(),
         )
-        .await
-        .unwrap();
-        let restored = Store::new(Config::new(Some(destination)).unwrap());
-        restored.init().await.unwrap();
-        let result = restored.status(job.job_id.clone()).await.unwrap();
-        assert_eq!(result.status, JobState::Orphaned);
-        assert_eq!(result.run_id, job.run_id);
-        assert!(
-            restored
-                .claim_queued(job.job_id.clone())
-                .await
-                .unwrap()
-                .is_none()
-        );
+        .await;
+        #[cfg(any(target_os = "linux", windows))]
+        {
+            restore.unwrap();
+            let restored = Store::new(Config::new(Some(destination)).unwrap());
+            restored.init().await.unwrap();
+            let result = restored.status(job.job_id.clone()).await.unwrap();
+            assert_eq!(result.status, JobState::Orphaned);
+            assert_eq!(result.run_id, job.run_id);
+            assert!(
+                restored
+                    .claim_queued(job.job_id.clone())
+                    .await
+                    .unwrap()
+                    .is_none()
+            );
+        }
+        #[cfg(not(any(target_os = "linux", windows)))]
+        {
+            assert!(restore.unwrap_err().to_string().contains(
+                "atomic new data-directory publication is supported only on Linux and Windows"
+            ));
+            assert!(!destination.exists());
+            assert_eq!(
+                store.status(job.job_id.clone()).await.unwrap().status,
+                JobState::Queued
+            );
+        }
         store.stop(job.job_id.clone()).await.unwrap();
         store.archive_job(job.job_id.clone()).await.unwrap();
         let retry = store.start(spec).await.unwrap();
