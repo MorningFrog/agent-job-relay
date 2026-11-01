@@ -3,6 +3,7 @@ import { Icon, Badge } from "./Icons.jsx";
 import { ActionsProgress } from "./ActionsProgress.jsx";
 import { RetainedLogs } from "./RetainedLogs.jsx";
 import { NotificationStatus } from "./NotificationStatus.jsx";
+import { FeedbackStatus } from "./FeedbackStatus.jsx";
 import { RuleForm } from "./RuleForm.jsx";
 import {
   terminal,
@@ -147,6 +148,9 @@ export function TaskDetail({
               </div>
             )}
             <NotificationStatus detail={detail} token={token} />
+            <FeedbackStatus feedback={detail.feedback} active={active}
+              external={job.command?.kind === "remote" || job.command?.kind === "github_actions"}
+              configure={(preset) => { setTab("rules"); setForm(preset === "manage" ? null : { preset }); }} />
             <div className="detail-meta">
               <span>
                 最近输出
@@ -284,8 +288,9 @@ export function TaskDetail({
                         ? job.command.kind
                         : null
                     }
-                    key={form.id || "new"}
+                    key={form.id || form.preset || "new"}
                     existing={form.id ? form : null}
+                    preset={form.preset}
                     close={() => setForm(null)}
                     busy={busy}
                     save={(spec) =>

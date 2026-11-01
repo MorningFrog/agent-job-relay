@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Show effective mid-run feedback, runner application/source evidence and notification limits in the task panel, with explicitly saved stage/time presets. Return read-only notification/goal recovery plans with original identities/revisions and profile-specific preview/apply commands.
+
 ## [0.1.19] - 2026-11-01
 
 ### Added

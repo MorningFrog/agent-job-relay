@@ -468,6 +468,10 @@ async fn notification_diagnostics_preserve_delivery_identity_and_archive_equival
         .unwrap();
     let initial = inspect(&store, &job.job_id).await;
     assert_eq!(initial["notifications"]["status"], "pending");
+    assert_eq!(
+        initial["notifications"]["recovery"]["plan"]["action"],
+        "wait_delivery"
+    );
     let claim = store.claim().await.unwrap().unwrap();
     let delivery = claim.delivery.id.clone();
     store
@@ -486,6 +490,22 @@ async fn notification_diagnostics_preserve_delivery_identity_and_archive_equival
         failed["notifications"]["latest_problem"]["failure_kind"],
         "rebind_required"
     );
+    assert_eq!(
+        failed["notifications"]["recovery"]["plan"]["action"],
+        "recover_binding"
+    );
+    assert_eq!(
+        failed["notifications"]["recovery"]["plan"]["run_id"],
+        job.run_id
+    );
+    assert_eq!(
+        failed["notifications"]["recovery"]["desktop_preview"]["args"][1],
+        store.config.root.to_string_lossy().as_ref()
+    );
+    assert_eq!(
+        failed["notifications"]["recovery"]["plan"]["automatic_mutation"],
+        false
+    );
     store.retry_delivery(delivery.clone()).await.unwrap();
     let claim = store.claim().await.unwrap().unwrap();
     store
@@ -495,6 +515,10 @@ async fn notification_diagnostics_preserve_delivery_identity_and_archive_equival
     let hot = inspect(&store, &job.job_id).await;
     assert_eq!(hot["notifications"]["status"], "accepted_by_host");
     assert_eq!(hot["notifications"]["agent_execution"], "unconfirmed");
+    assert_eq!(
+        hot["notifications"]["recovery"]["plan"]["action"],
+        "inspect_results"
+    );
     store
         .data_policy(
             Some(agent_job_relay::maintenance::Policy {

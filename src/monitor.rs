@@ -333,6 +333,7 @@ impl Store {
                 Ok(value)
             }).await?;
             value["profile"] = json!(self.config.root);
+            crate::notifications::profile_commands(&mut value, &self.config);
             return Ok(value);
         }
         let mut value=self.read(move|db| {
@@ -639,7 +640,7 @@ pub fn human(value: &Value) -> String {
     safe_text(&lines.join("\n"))
 }
 
-fn summary(job: Job) -> Value {
+pub(crate) fn summary(job: Job) -> Value {
     let preview = match &job.command {
         CommandSpec::Exec { program, args } => std::iter::once(program.as_str())
             .chain(args.iter().map(String::as_str))

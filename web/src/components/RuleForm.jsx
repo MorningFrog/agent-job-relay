@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Icon } from "./Icons.jsx";
-export function RuleForm({ existing, close, save, busy, externalKind }) {
-  const c = existing?.spec.condition;
+export function RuleForm({ existing, preset, close, save, busy, externalKind }) {
+  const c = existing?.spec.condition || (preset === "stage" ? { kind: "progress", source: "training", trigger: { kind: "stage" }, cooldown_seconds: 600 } : preset === "elapsed" ? { kind: "elapsed", seconds: 1800 } : null);
   const [kind, setKind] = useState(
       c?.kind || (externalKind ? "elapsed" : "no_output"),
     ),
@@ -9,7 +9,7 @@ export function RuleForm({ existing, close, save, busy, externalKind }) {
     [seconds, setSeconds] = useState(c?.seconds || 600),
     [which, setWhich] = useState(c?.stream || "both"),
     [action, setAction] = useState(existing?.spec.action || "alert"),
-    [notify, setNotify] = useState(existing?.spec.notify_agent || false),
+    [notify, setNotify] = useState(existing?.spec.notify_agent ?? Boolean(preset)),
     [grace, setGrace] = useState(existing?.spec.grace_seconds ?? 5),
     [source, setSource] = useState(c?.source || "training"),
     [triggerKind, setTriggerKind] = useState(c?.trigger?.kind || "stage"),
@@ -233,6 +233,7 @@ export function RuleForm({ existing, close, save, busy, externalKind }) {
       <p className="muted">
         保存后等待运行器应用。文本和时长规则每版本触发一次。进度规则按新序号重复触发，受间隔和配额限制；仅检查生效后的新输出。
       </p>
+      <p className="muted">阶段反馈需要程序输出对应来源的结构化进度。时长检查点只检查经过的时间，不表示完成百分比。仅完成通知可在规则列表逐条禁用中途通知规则；完成通知独立保留。</p>
       <div className="form-actions">
         <button type="button" className="button" onClick={close}>
           取消

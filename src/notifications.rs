@@ -64,4 +64,147 @@ pub(crate) fn context(detail: &mut Value) {
         "inbox":"inspect retained results; no automatic continuation",
         "reason":"Use the original host caller binding to preview eligible recovery: Desktop uses its recorded launcher/profile connect --recover; OpenCode uses relay_recover. Inbox-only hosts inspect retained results. Accepted/expired events are not recovered; inspect attempt history before an explicit retry. Goal waits retain their original binding and require explicit host goal handling."
     });
+    detail["notifications"]["recovery"]["plan"] = plan(detail);
+}
+
+fn plan(detail: &Value) -> Value {
+    let n = &detail["notifications"];
+    let goal = &n["goal"];
+    let problem = &n["latest_problem"];
+    let action = goal["continuation"]["action"].as_str();
+    let (action, reason) = if let Some(action) = action {
+        (
+            action,
+            match action {
+                "submit" | "reconnect_request" => {
+                    "Continue the original approved request from its originating chat."
+                }
+                "native_pause" => {
+                    "Finish the authorized native pause in the originating chat, then acknowledge its observed revision."
+                }
+                "confirm_pause" => {
+                    "Confirm only an existing native pause whose success was acknowledged in the originating chat. An uncertain pause must not be repeated."
+                }
+                "report_then_pause" => {
+                    "Report the requested intermediate evidence, then finish native re-pause and revision confirmation on this same wait."
+                }
+                "wait" | "await_notification" => {
+                    "The existing handoff or final delivery is in progress. Yield; no Agent polling or new submission is needed."
+                }
+                "inspect_results" => {
+                    "Inspect the original results and continue through the original request if it has remaining admission budget."
+                }
+                _ => {
+                    "Inspect the original results and use the original host's explicit goal controls. Do not overwrite blockers or repeat uncertain pause/restore operations."
+                }
+            },
+        )
+    } else if problem["expires_at"]
+        .as_i64()
+        .is_some_and(|at| at <= crate::core::now())
+        || problem["failure_kind"] == "expired"
+    {
+        (
+            "inspect_expired",
+            "Inspect retained results and attempt history. Automatic recovery excludes expired events; an explicit retry changes the expiry and needs a deliberate decision.",
+        )
+    } else if problem["failure_kind"] == "rebind_required" {
+        (
+            "recover_binding",
+            "From the original chat, preview recovery using a fresh caller binding, review eligible deliveries, then explicitly apply. Preserve original delivery IDs and expiry.",
+        )
+    } else if problem["failure_kind"] == "permanent" || n["status"] == "dead_letter" {
+        (
+            "inspect_failure",
+            "Inspect the failed attempt and correct its host/configuration cause before deciding on an explicit delivery retry.",
+        )
+    } else {
+        match n["status"].as_str() {
+            Some("pending" | "retry_wait") => (
+                "wait_delivery",
+                "Delivery is pending or scheduled for bounded automatic retry. Yield and retain the original task; no resubmission is needed.",
+            ),
+            Some("accepted_by_host") => (
+                "inspect_results",
+                "The host accepted this notification. Inspect results if handling that event; Agent execution remains unconfirmed and automatic recovery excludes accepted events.",
+            ),
+            Some("inbox_only") => (
+                "inspect_inbox",
+                "Inspect retained results or the originating session inbox. This adapter does not automatically continue an Agent.",
+            ),
+            Some("cancelled") => (
+                "inspect_results",
+                "Automatic notification is closed. Retained results remain available.",
+            ),
+            _ if detail["feedback"]["status"] == "binding_unavailable" => (
+                "recover_binding",
+                "Preview notification recovery from the original chat with a fresh caller binding.",
+            ),
+            _ => (
+                "inspect_results",
+                "Inspect the original task and its configured notification capability.",
+            ),
+        }
+    };
+    json!({"action":action,"reason":reason,"requires_original_caller":true,
+        "job_id":detail["job"]["job_id"],"run_id":detail["job"]["run_id"],
+        "delivery_id":problem["delivery_id"],"expires_at":problem["expires_at"],
+        "next_attempt_at":problem["next_attempt_at"],"goal_wait_id":goal["goal_wait_id"],
+        "request_id":goal["request_id"],"expected_revision":goal["revision"],
+        "confirmation_revision":goal["continuation"]["confirmation_revision"],
+        "automatic_mutation":false,"replay_execution":false})
+}
+
+pub(crate) fn profile_commands(detail: &mut Value, config: &crate::config::Config) {
+    if let Ok(program) = std::env::current_exe() {
+        for (name, apply) in [("desktop_preview", false), ("desktop_apply", true)] {
+            let mut args = vec![
+                "--state-dir".to_owned(),
+                config.root.to_string_lossy().into_owned(),
+                "connect".into(),
+                "--recover".into(),
+            ];
+            if apply {
+                args.push("--apply".into());
+            }
+            detail["notifications"]["recovery"][name] = json!({"program":program,"args":args});
+        }
+        detail["notifications"]["recovery"]["shell"] =
+            json!(if cfg!(windows) { "powershell" } else { "posix" });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn recovery_selects_goal_fences_and_expiry_without_mutation() {
+        for action in [
+            "native_pause",
+            "confirm_pause",
+            "report_then_pause",
+            "wait",
+            "await_notification",
+            "host_control",
+        ] {
+            let detail = json!({"job":{"job_id":"job","run_id":"run"},"notifications":{
+                "status":"retry_wait","goal":{"goal_wait_id":"wait","request_id":"request","revision":7,
+                    "continuation":{"action":action,"confirmation_revision":7}},
+                "latest_problem":{"failure_kind":"rebind_required"}}});
+            let original = detail.clone();
+            let value = plan(&detail);
+            assert_eq!(value["action"], action);
+            assert_eq!(value["expected_revision"], 7);
+            assert_eq!(value["confirmation_revision"], 7);
+            assert_eq!(value["request_id"], "request");
+            assert_eq!(value["replay_execution"], false);
+            assert_eq!(detail, original);
+        }
+        let mut detail = json!({"notifications":{"status":"retry_wait","latest_problem":{"failure_kind":"rebind_required","expires_at":1}}});
+        assert_eq!(plan(&detail)["action"], "inspect_expired");
+        detail["notifications"]["latest_problem"] = json!({"failure_kind":"permanent"});
+        assert_eq!(plan(&detail)["action"], "inspect_failure");
+        detail["notifications"] = json!({"status":"inbox_only"});
+        assert_eq!(plan(&detail)["action"], "inspect_inbox");
+    }
 }

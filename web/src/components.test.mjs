@@ -18,6 +18,28 @@ const { TaskDetail } = await server.ssrLoadModule(
 const { RuntimeStatus } = await server.ssrLoadModule(
   "/src/components/RuntimeStatus.jsx",
 );
+const { FeedbackStatus } = await server.ssrLoadModule("/src/components/FeedbackStatus.jsx");
+const { recoveryCommand } = await server.ssrLoadModule("/src/components/NotificationStatus.jsx");
+
+test("feedback card distinguishes configuration, applied revisions, sources and notification limits", () => {
+  const html = renderToStaticMarkup(React.createElement(FeedbackStatus, { active: true, feedback: {
+    status: "inbox_only", configured_rules: 1, notifying_rules: 1,
+    rules: [{ rule_id: "rule", enabled: true, application: "pending", sample_observed: false, can_trigger_again: true,
+      condition: { kind: "progress", source: "<script>source</script>", trigger: { kind: "stage" }, cooldown_seconds: 60 } }],
+    targets: [{ target_id: "target", status: "configured", can_resume: false }],
+    visibility: { status: "quiet", advisories: [{ code: "quiet_output" }] },
+  } }));
+  for (const text of ["等待运行器应用", "尚无该来源数据", "仅收件箱", "静默不能证明任务卡住", "配置阶段反馈", "配置时长检查点"]) assert.ok(html.includes(text));
+  assert.ok(!html.includes("<script>"));
+  assert.ok(html.includes("&lt;script&gt;source"));
+});
+
+test("recovery command preserves argv quoting for the original profile", () => {
+  const command = { program: "/tools/relay", args: ["--state-dir", "/state/user's $(data)", "connect", "--recover"] };
+  assert.ok(recoveryCommand(command, "posix").includes("'/state/user'\\''s $(data)'"));
+  assert.ok(recoveryCommand(command, "powershell").startsWith("& '/tools/relay'"));
+  assert.ok(recoveryCommand(command, "powershell").includes("'/state/user''s $(data)'"));
+});
 
 test("split detail components render output, editable rules and events from the runtime contract", () => {
   const job = {

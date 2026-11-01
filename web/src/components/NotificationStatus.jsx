@@ -17,6 +17,17 @@ const continuationLabels = {
   inspect_results: "可查看原任务结果并继续下一轮",
   host_control: "请回到原聊天检查目标状态并处理恢复",
 };
+const recoveryLabels = { ...continuationLabels,
+  recover_binding: "回到原聊天，预览并恢复通知绑定", inspect_expired: "查看已过期通知的结果与尝试历史",
+  inspect_failure: "检查投递失败原因后决定是否重试", wait_delivery: "等待现有自动投递或重试",
+  inspect_inbox: "检查原会话收件箱和保留结果",
+};
+export function recoveryCommand(command, shell) {
+  if (!command?.program || !Array.isArray(command.args)) return "";
+  const quote = shell === "powershell" ? value => `'${String(value).replaceAll("'", "''")}'`
+    : value => `'${String(value).replaceAll("'", "'\\''")}'`;
+  return `${shell === "powershell" ? "& " : ""}${[command.program, ...command.args].map(quote).join(" ")}`;
+}
 export function NotificationStatus({ detail, token }) {
   const [history, setHistory] = useState(null), [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
@@ -27,6 +38,7 @@ export function NotificationStatus({ detail, token }) {
   const n = detail?.notifications;
   if (!n) return null;
   const problem = n.latest_problem, goal = n.goal;
+  const recovery = n.recovery, plan = recovery?.plan;
   async function attempts(id, after = 0) {
     const current = ++generation.current;
     setBusy(true); setError("");
@@ -52,9 +64,20 @@ export function NotificationStatus({ detail, token }) {
       {goal.host_pause_required && <p>等待原聊天原生暂停及版本确认。</p>}
       {goal.detail && <p>{goal.detail}</p>}
     </div>}
+    {plan && <div className="notice">
+      <strong>下一步：{recoveryLabels[plan.action] || "在原聊天检查恢复计划"}</strong>
+      <p className="small">{plan.reason}</p>
+      {plan.expected_revision != null && <p className="small">沿用 Goal 版本 {plan.expected_revision}；原生暂停结果不确定时请使用宿主控制核实。</p>}
+    </div>}
     <details><summary>查看恢复步骤</summary>
       <p>请回到发起任务的原聊天，让 Agent 通过该宿主的绑定接口预览可恢复通知。ChatGPT Desktop 使用记录的启动器和数据目录执行 <code>connect --recover</code>，核对后使用 <code>connect --recover --apply</code>。OpenCode 使用 <code>relay_recover</code> 预览并明确应用；仅收件箱宿主请检查保留结果。</p>
       <p>此面板不能证明聊天身份。恢复保留任务、投递 ID、有效期和尝试历史，不重新执行命令。已接收和已过期通知不自动补投；Goal 等待保留原绑定，需通过原聊天的 Goal 控制处理。</p>
+      {plan?.action === "recover_binding" && <>
+        <p>从原聊天的终端预览（已包含此任务的数据目录）：</p>
+        <pre className="log">{recoveryCommand(recovery.desktop_preview, recovery.shell)}</pre>
+        <p>核对可恢复项后，在同一原聊天明确应用：</p>
+        <pre className="log">{recoveryCommand(recovery.desktop_apply, recovery.shell)}</pre>
+      </>}
     </details>
     <details><summary>投递记录与尝试历史</summary>
       {(detail.deliveries?.deliveries || []).map(d => <p key={d.id}>
