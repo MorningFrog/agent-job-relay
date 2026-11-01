@@ -508,6 +508,8 @@ pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
             let active:i64=db.query_row("SELECT count(*) FROM jobs WHERE status IN ('queued','launching','running')",[],|r|r.get(0))?;
             Ok(json!({"daemon":"reachable","runner_launch_from_loaded_image":cfg!(target_os="linux")&&crate::platform::self_image().is_ok(),"protocol_version":1,"version":env!("CARGO_PKG_VERSION"),"store":integrity,"capacity":crate::maintenance::capacity(db)?,"store_check":"connection and schema; use data check for full integrity","active_jobs":active,"orphaned_jobs":db.query_row("SELECT count(*) FROM jobs WHERE status='orphaned'",[],|r|r.get::<_,i64>(0))?,"delivery_recovery":true,"same_chat_recovery":true,"plugin_bridge":true,"delivery_time_renewal":true,"rebind_required":db.query_row("SELECT count(*) FROM deliveries WHERE status='retry_wait' AND failure_kind='rebind_required'",[],|r|r.get::<_,i64>(0))?,"retrying_deliveries":db.query_row("SELECT count(*) FROM deliveries WHERE status='retry_wait'",[],|r|r.get::<_,i64>(0))?,"sessions":db.query_row("SELECT count(*) FROM sessions WHERE connected=1 AND expires>?",[now()],|r|r.get::<_,i64>(0))?,"dead_letters":db.query_row("SELECT count(*) FROM deliveries WHERE status='dead_letter'",[],|r|r.get::<_,i64>(0))?,"runtime":std::env::consts::OS,"daemon_launch_method":std::env::var("AJR_DAEMON_LAUNCH_METHOD").unwrap_or_else(|_| "foreground".into()),"auto_resume":"not verified","next_step":"Use start --wake or job_start with wake_me=true from the current Desktop host context; no service is installed."})) }).await?;
             value["runtime_monitoring"] = json!(true);
+            value["capacity"]["disk_pressure"] = store.disk_pressure().await?;
+            value["disk_pressure_admission"] = json!(true);
             value["history_search"] = json!(true);
             value["log_search"] = json!(true);
             value["structured_progress_v1"] = json!(true);
@@ -555,7 +557,8 @@ pub(crate) async fn start_result(store: &Store, job: Job) -> Value {
     let feedback = store.feedback(job.job_id.clone()).await.unwrap_or_else(|error| {
         json!({"status":"unknown","reason":format!("job admitted; feedback diagnostics unavailable: {error:#}")})
     });
-    json!({"job":job,"wake":wake,"feedback":feedback})
+    let storage = store.disk_pressure().await.unwrap_or_else(|error| json!({"status":"unavailable","reason":format!("job admitted; capacity diagnostics unavailable: {error:#}")}));
+    json!({"job":job,"wake":wake,"feedback":feedback,"storage":storage})
 }
 pub async fn call(config: &Config, request: Request) -> Result<Value> {
     Ok(exchange(config, request, None).await?.0)

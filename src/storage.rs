@@ -227,6 +227,7 @@ impl Store {
     ) -> Result<Job> {
         spec.validate()?;
         let raw = serde_json::to_string(&spec)?;
+        let disk_root = self.config.root.clone();
         self.call(move |db|{
             let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
             if let Some(key)=&spec.idempotency_key
@@ -237,6 +238,7 @@ impl Store {
                 && let Some((id,hash))=tx.query_row("SELECT id,spec_hash FROM archive_jobs WHERE idem=?",[key],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?))).optional()? {
                 ensure!(hash==crate::archive::hash(raw.as_bytes()),"idempotency key already used with a different specification");crate::goal_wait::check_retry(&tx, &id, goal_wait.as_deref())?;return read_job(&tx,&id);
             }
+            crate::maintenance::admit_disk(&tx, &disk_root)?;
             if goal_wait.is_none() && let Some(session)=&spec.session {
                 ensure!(!tx.query_row("SELECT EXISTS(SELECT 1 FROM goal_consents WHERE session_key=? AND status IN ('pending','asking','approved') AND expires>? AND used<job_limit)",params![session,now()],|r|r.get::<_,bool>(0))?,"this request needs its approved goal-wait binding; ordinary submission cannot bypass pause consent");
                 ensure!(!tx.query_row("SELECT EXISTS(SELECT 1 FROM goal_waits WHERE session_key=? AND (status IN ('prepared','sealed','pausing','waiting','resuming') OR (status='resumed' AND feedback_delivery IS NOT NULL)) AND expires>?)",params![session,now()],|r|r.get::<_,bool>(0))?,"this chat has a required goal handoff; preserve its goal_wait_id binding instead of submitting ordinary work");

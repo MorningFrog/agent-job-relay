@@ -34,6 +34,14 @@ agent-job-relay codex data maintain --apply
 
 Expected: preview reports eligible archival work without compressing/deleting logs or making a backup. Apply also creates a due backup and rotates verified backups. A running maintenance operation holds the profile's lock; another invocation reports that it is busy. File errors and protected notifications can defer archiving. Inspect `data status` or `job_doctor` if the hot quota is near its limit.
 
+## Disk pressure and backup health (current source)
+
+Default policy warns below 512 MiB available and refuses new job admission below 64 MiB. Configure `ajr data policy --disk-warn-mib 1024 --disk-stop-new-jobs-mib 128 --apply`; omit `--apply` to preview. Zero disables the respective threshold; a nonzero warning threshold must be at least the refusal threshold. Existing stored policies receive these defaults without migration. Policy changes affect the next admission; automatic maintenance retains its ordinary cadence.
+
+Admission samples actual profile-volume free space inside the existing transaction after hot/cold idempotency lookup and before recording a new intent. Failed capacity sampling also refuses new admission when refusal is enabled. Original unchanged-key retries, terminal persistence, stopping, existing workloads and protected history/deliveries remain available. Each batch item follows the same independent admission path. Capacity is sampled, not reserved, and the workload's own files may live on another volume.
+
+`data status`, Doctor `capacity.disk_pressure`, single/batch admission `storage` receipts and the Web panel expose status, available bytes, sample time, thresholds and whether new admissions are allowed. Panel health is sampled at its existing ten-second interval; admission always checks again. Backup health distinguishes no recorded backup, a recent recorded backup and an exceeded configured interval; it does not reverify backup bytes on every health read. Maintenance errors and deferred archival remain visible. These notices do not delete history, cancel jobs, change notification targets or add host messages. Backups remain on the profile volume; independent-disk backup and destructive purge require separate designs.
+
 ## Back up and restore
 
 ```bash

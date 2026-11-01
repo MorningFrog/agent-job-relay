@@ -21,7 +21,7 @@ import {
 } from "./view.js";
 import { Icon, Badge } from "./components/Icons.jsx";
 import { TaskDetail } from "./components/TaskDetail.jsx";
-import { RuntimeStatus } from "./components/RuntimeStatus.jsx";
+import { RuntimeStatus, StorageNotice } from "./components/RuntimeStatus.jsx";
 const initialNavigation = consumePanelNavigation();
 const compactLayout = matchMedia("(max-width: 1250px)");
 const subscribeLayout = (listener) => {
@@ -79,7 +79,7 @@ export default function App() {
           isCurrent: () => generation === searchGeneration.current && !controller.signal.aborted,
           onProgress: setSearchScanned,
         });
-        setSearchResult(result);
+        if (generation === searchGeneration.current && !controller.signal.aborted) setSearchResult(result);
       } catch (error) { if (generation === searchGeneration.current && !controller.signal.aborted) setSearchError(error.message); }
       finally { if (generation === searchGeneration.current && !controller.signal.aborted) setSearchBusy(false); }
     }, 250);
@@ -341,6 +341,7 @@ export default function App() {
             {connection === "connected" ? "实时更新" : "等待连接"}
           </div>
         </header>
+        <StorageNotice capacity={overview?.health?.capacity} />
         {(error || connectionError) && (
           <div className="error" role="alert">
             <span>{error || connectionError}</span>

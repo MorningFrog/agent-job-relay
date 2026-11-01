@@ -233,7 +233,7 @@ export function RuleForm({ existing, preset, close, save, busy, externalKind }) 
       <p className="muted">
         保存后等待运行器应用。文本和时长规则每版本触发一次。进度规则按新序号重复触发，受间隔和配额限制；仅检查生效后的新输出。
       </p>
-      <p className="muted">阶段反馈需要程序输出对应来源的结构化进度。时长检查点只检查经过的时间，不表示完成百分比。仅完成通知可在规则列表逐条禁用中途通知规则；完成通知独立保留。</p>
+      <p className="muted">阶段反馈需要程序输出对应来源的结构化进度。时长检查点只检查经过的时间，不表示完成百分比。未绑定会话时只能记录本地告警；勾选通知不会建立绑定。仅完成通知可在规则列表逐条禁用中途通知规则；完成通知独立保留。</p>
       <div className="form-actions">
         <button type="button" className="button" onClick={close}>
           取消

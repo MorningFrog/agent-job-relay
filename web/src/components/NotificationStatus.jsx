@@ -21,6 +21,23 @@ const recoveryLabels = { ...continuationLabels,
   recover_binding: "回到原聊天，预览并恢复通知绑定", inspect_expired: "查看已过期通知的结果与尝试历史",
   inspect_failure: "检查投递失败原因后决定是否重试", wait_delivery: "等待现有自动投递或重试",
   inspect_inbox: "检查原会话收件箱和保留结果",
+  inspect_results: "检查任务状态与保留结果",
+};
+const recoveryHelp = {
+  submit: "回到原聊天，通过原请求继续提交剩余额度内的任务。",
+  reconnect_request: "回到原聊天，使用已有请求继续连接。",
+  native_pause: "由原聊天完成已授权的原生暂停，再确认当前交接版本。",
+  confirm_pause: "仅在原聊天已收到暂停成功回执时确认已有暂停；结果不确定时请先用宿主控制核实。",
+  report_then_pause: "原聊天汇报本次中途结果后，完成同一等待组的原生再次暂停和版本确认。",
+  wait: "交接已确认，等待后台任务和既有通知即可。",
+  await_notification: "最终通知的接收回执仍在处理中，保留原任务并等待后续事件。",
+  host_control: "保留原任务和请求，回到原聊天检查宿主目标状态；被阻止或控制结果不确定时，使用宿主的明确恢复操作。",
+  recover_binding: "回到发起任务的原聊天，预览可恢复通知；核对后明确应用，沿用原任务、投递记录和有效期。",
+  inspect_expired: "查看保留结果与尝试历史。过期事件不会自动补投；如需显式重试，请先核对原因及新的有效期。",
+  inspect_failure: "先检查失败尝试并处理对应的宿主或配置问题，再决定是否显式重试通知。",
+  wait_delivery: "已有通知正在等待投递或自动重试，无需重新提交任务或反复查询。",
+  inspect_inbox: "此宿主将反馈写入原会话收件箱，需要检查收件箱或保留结果。",
+  inspect_results: "检查原任务及通知记录。宿主接收通知与 Agent 实际继续仍分别判断。",
 };
 export function recoveryCommand(command, shell) {
   if (!command?.program || !Array.isArray(command.args)) return "";
@@ -66,7 +83,7 @@ export function NotificationStatus({ detail, token }) {
     </div>}
     {plan && <div className="notice">
       <strong>下一步：{recoveryLabels[plan.action] || "在原聊天检查恢复计划"}</strong>
-      <p className="small">{plan.reason}</p>
+      <p className="small">{recoveryHelp[plan.action] || "请在原聊天检查任务的恢复计划。"}</p>
       {plan.expected_revision != null && <p className="small">沿用 Goal 版本 {plan.expected_revision}；原生暂停结果不确定时请使用宿主控制核实。</p>}
     </div>}
     <details><summary>查看恢复步骤</summary>

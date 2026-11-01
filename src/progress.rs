@@ -656,6 +656,7 @@ mod tests {
                     hot_log_mib: 1024,
                     backup_hours: 24,
                     backup_keep: 2,
+                    ..Default::default()
                 }),
                 true,
             )

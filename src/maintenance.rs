@@ -12,6 +12,8 @@ use std::{
     path::{Path, PathBuf},
     time::Duration,
 };
+mod pressure;
+pub(crate) use pressure::admit as admit_disk;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -21,6 +23,8 @@ pub struct Policy {
     pub hot_log_mib: u32,
     pub backup_hours: u32,
     pub backup_keep: u32,
+    pub disk_warn_mib: u32,
+    pub disk_stop_new_jobs_mib: u32,
 }
 impl Default for Policy {
     fn default() -> Self {
@@ -30,11 +34,17 @@ impl Default for Policy {
             hot_log_mib: 256,
             backup_hours: 24,
             backup_keep: 3,
+            disk_warn_mib: 512,
+            disk_stop_new_jobs_mib: 64,
         }
     }
 }
 impl Policy {
     pub fn validate(&self) -> Result<()> {
+        ensure!(
+            self.disk_warn_mib == 0 || self.disk_stop_new_jobs_mib <= self.disk_warn_mib,
+            "disk_stop_new_jobs_mib must not exceed disk_warn_mib (0 disables the respective threshold)"
+        );
         ensure!(
             (1..=9000).contains(&self.hot_jobs),
             "hot_jobs must be 1..9000"
@@ -95,6 +105,14 @@ pub(crate) fn capacity(db: &Connection) -> Result<Value> {
         .optional()?;
     let last_backup: Option<i64> =
         db.query_row("SELECT max(at) FROM maintenance_backups", [], |r| r.get(0))?;
+    let policy = policy(db)?;
+    let backup_health = match last_backup {
+        None => "not_recorded",
+        Some(at) if now().saturating_sub(at) > i64::from(policy.backup_hours) * 3_600_000 => {
+            "overdue"
+        }
+        Some(_) => "recorded",
+    };
     let backups = {
         let mut q = db.prepare(
             "SELECT id,at FROM maintenance_backups ORDER BY at DESC,rowid DESC LIMIT 30",
@@ -111,7 +129,7 @@ pub(crate) fn capacity(db: &Connection) -> Result<Value> {
         |r| r.get(0),
     )?;
     Ok(
-        json!({"policy":policy(db)?,"hot_jobs":hot,"hot_job_limit":10000,"archived_jobs":count("SELECT count(*) FROM archive_jobs")?,
+        json!({"policy":policy,"backup_health":backup_health,"hot_jobs":hot,"hot_job_limit":10000,"archived_jobs":count("SELECT count(*) FROM archive_jobs")?,
         "active_sessions":sessions,"active_session_limit":1000,"historical_sessions":count("SELECT count(*) FROM sessions")?,
         "database_bytes":count("PRAGMA page_count")?*count("PRAGMA page_size")?,"reusable_database_bytes":count("PRAGMA freelist_count")?*count("PRAGMA page_size")?,
         "last_backup_at":last_backup,"backups":backups,"last_error":error.filter(|s|!s.is_empty()),"last_scan":metrics.map(|s|serde_json::from_str::<Value>(&s)).transpose()?,
@@ -143,6 +161,7 @@ impl Store {
             })
             .await?;
         value["backup_directory"] = json!(self.config.root.join("backups"));
+        value["disk_pressure"] = self.disk_pressure().await?;
         Ok(value)
     }
     pub async fn data_policy(&self, update: Option<Policy>, apply: bool) -> Result<Value> {

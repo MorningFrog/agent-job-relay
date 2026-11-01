@@ -220,6 +220,8 @@ pub(super) async fn run() -> Result<()> {
                         hot_log_mib,
                         backup_hours,
                         backup_keep,
+                        disk_warn_mib,
+                        disk_stop_new_jobs_mib,
                         apply,
                     } => {
                         let mut policy: maintenance::Policy = serde_json::from_value(
@@ -239,6 +241,12 @@ pub(super) async fn run() -> Result<()> {
                         }
                         if let Some(value) = backup_keep {
                             policy.backup_keep = value;
+                        }
+                        if let Some(value) = disk_warn_mib {
+                            policy.disk_warn_mib = value;
+                        }
+                        if let Some(value) = disk_stop_new_jobs_mib {
+                            policy.disk_stop_new_jobs_mib = value;
                         }
                         store.data_policy(Some(policy), apply).await?
                     }

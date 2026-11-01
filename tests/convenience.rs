@@ -477,6 +477,33 @@ async fn batch_cli_and_shared_mcp_bind_every_item_to_the_actual_caller() {
         assert_eq!(detail.get("observation").is_some(), full);
         assert_eq!(detail.get("output").is_some(), !full);
         assert_eq!(detail["notifications"]["agent_execution"], "unconfirmed");
+        assert_eq!(detail["notifications"]["recovery"]["plan"]["job_id"], job);
+    }
+    for (name, args) in [
+        ("job_search", json!({"query":{"text":job}})),
+        (
+            "job_search_logs",
+            json!({"job_id":job,"text":"nonexistent","stream":"stderr"}),
+        ),
+    ] {
+        let response = rpc(
+            &mut input,
+            &mut lines,
+            61,
+            "tools/call",
+            json!({"name":name,"arguments":args}),
+        )
+        .await;
+        assert_ne!(response["result"]["isError"], true, "{response}");
+        let value: Value =
+            serde_json::from_str(response["result"]["content"][0]["text"].as_str().unwrap())
+                .unwrap();
+        if name == "job_search" {
+            assert_eq!(value["jobs"][0]["job_id"], job);
+        } else {
+            assert_eq!(value["job_id"], job);
+            assert_eq!(value["complete"], true);
+        }
     }
     drop(input);
     assert!(

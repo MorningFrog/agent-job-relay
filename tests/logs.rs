@@ -62,6 +62,19 @@ async fn native_rotation_preserves_absolute_cursors_gaps_archives_and_restored_b
     assert!(!r.config.run_dir(&run).join("stdout.recent").exists());
     assert!(r.config.run_dir(&run).join("stdout.recent.gz").exists());
     assert_eq!(read(r.config.clone(), 16 * MIB).await.unwrap(), gap);
+    let located = r
+        .call(Request::SearchLogs {
+            job_id: job.clone(),
+            text: "FINAL".into(),
+            stream: "stdout".into(),
+            cursor: 24 * MIB,
+            end: None,
+            limit: 20,
+        })
+        .await;
+    assert_eq!(located["matches"][0]["offset"], 24 * MIB);
+    assert_eq!(located["run_id"], run);
+    assert_eq!(located["complete"], true);
     assert_eq!(
         read(r.config.clone(), 24 * MIB).await.unwrap()["text"],
         "FINAL"

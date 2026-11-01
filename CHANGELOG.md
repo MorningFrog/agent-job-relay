@@ -6,6 +6,7 @@
 
 - Show effective mid-run feedback, runner application/source evidence and notification limits in the task panel, with explicitly saved stage/time presets. Return read-only notification/goal recovery plans with original identities/revisions and profile-specific preview/apply commands.
 - Search hot and archived task history by text, status, directory and creation time through CLI/MCP/Web, with bounded scan cursors. Locate literal retained-log matches with original byte offsets, context, fixed-end pagination and explicit gaps; never rehydrate or replay execution for search.
+- Expose fresh disk-pressure and backup/maintenance health in admission receipts, Doctor and the panel. Configure warning/new-admission thresholds while preserving active runs, terminal persistence, stops and unchanged-key retries.
 
 ## [0.1.19] - 2026-11-01
 

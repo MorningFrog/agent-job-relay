@@ -181,6 +181,7 @@ pub fn compact(op: &str, value: Value) -> Value {
             } else {
                 "Use job_wait once for a short job, or inspect job_status later; no automatic continuation is bound."
             }});
+            result["storage"] = value["storage"].clone();
             if let Some(wait) = value.get("goal_wait") {
                 result["goal_wait"] = wait.clone();
                 result["next_step"] = wait["next_step"].clone();

@@ -18,8 +18,14 @@ const { TaskDetail } = await server.ssrLoadModule(
 const { RuntimeStatus } = await server.ssrLoadModule(
   "/src/components/RuntimeStatus.jsx",
 );
+const { StorageNotice } = await server.ssrLoadModule("/src/components/RuntimeStatus.jsx");
 const { FeedbackStatus } = await server.ssrLoadModule("/src/components/FeedbackStatus.jsx");
 const { recoveryCommand } = await server.ssrLoadModule("/src/components/NotificationStatus.jsx");
+test("storage warnings retain sample time, admission scope and escaped maintenance errors", () => {
+  const html=renderToStaticMarkup(React.createElement(StorageNotice,{capacity:{disk_pressure:{status:"critical",available_bytes:1,sampled_at:1000,warn_below_bytes:1024,stop_new_jobs_below_bytes:64},backup_health:"overdue",last_error:"<script>backup</script>"}}));
+  for(const text of ["新任务准入受限","已有任务","备份已超过配置间隔",new Date(1000).toLocaleString(),"&lt;script&gt;backup&lt;/script&gt;"])assert.ok(html.includes(text));
+  assert.ok(!html.includes("<script>"));
+});
 
 test("feedback card distinguishes configuration, applied revisions, sources and notification limits", () => {
   const html = renderToStaticMarkup(React.createElement(FeedbackStatus, { active: true, feedback: {

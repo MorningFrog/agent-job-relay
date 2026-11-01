@@ -405,6 +405,12 @@ pub(super) enum DataCommand {
         backup_hours: Option<u32>,
         #[arg(long)]
         backup_keep: Option<u32>,
+        /// Warn below this free-space threshold; 0 disables the warning
+        #[arg(long)]
+        disk_warn_mib: Option<u32>,
+        /// Refuse new jobs below this free-space threshold; 0 disables refusal
+        #[arg(long)]
+        disk_stop_new_jobs_mib: Option<u32>,
         #[arg(long)]
         apply: bool,
     },

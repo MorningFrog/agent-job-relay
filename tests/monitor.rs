@@ -974,6 +974,8 @@ mod native {
             .unwrap();
         let doctor = ipc::call(&r.config, Request::Doctor).await.unwrap();
         assert_eq!(doctor["web_ui"]["enabled"], true);
+        assert_eq!(doctor["disk_pressure_admission"], true);
+        assert!(doctor["capacity"]["disk_pressure"]["sampled_at"].is_i64());
         assert!(doctor["web_ui"].get("access_url").is_none());
         let page = http(url, "/", None, None, None).await;
         assert!(page.starts_with("HTTP/1.1 200"));
@@ -1031,5 +1033,29 @@ mod native {
         .await;
         assert!(response.contains("monitor_alert"));
         assert!(response.contains("cancelled"));
+        let response = http(
+            url,
+            "/api/request",
+            Some(token),
+            None,
+            Some(json!({"op":"search","query":{"text":id},"limit":20})),
+        )
+        .await;
+        assert!(
+            response.starts_with("HTTP/1.1 200") && response.contains(&id),
+            "{response}"
+        );
+        let response = http(
+            url,
+            "/api/request",
+            Some(token),
+            None,
+            Some(json!({"op":"search_logs","job_id":id,"stream":"stderr","text":"missing"})),
+        )
+        .await;
+        assert!(
+            response.starts_with("HTTP/1.1 200") && response.contains("\"complete\":true"),
+            "{response}"
+        );
     }
 }
