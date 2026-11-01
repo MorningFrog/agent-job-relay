@@ -31,6 +31,11 @@ def changelog_notes(text, selected, *, allow_unreleased=False):
     if not matches and allow_unreleased:
         matches = list(re.finditer(r"^## \[Unreleased\][ \t]*$", text, re.M))
     require(len(matches) == 1, f"CHANGELOG.md must contain exactly one section for {selected}")
+    if not allow_unreleased:
+        for pending in re.finditer(r"^## \[Unreleased\][ \t]*$", text, re.M):
+            following = re.search(r"^## ", text[pending.end():], re.M)
+            pending_end = pending.end() + following.start() if following else len(text)
+            require(not text[pending.end():pending_end].strip(), "Finalize Unreleased changes into the selected version before release")
     heading = matches[0]
     next_heading = re.search(r"^## ", text[heading.end():], re.M)
     end = heading.end() + next_heading.start() if next_heading else len(text)

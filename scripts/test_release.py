@@ -105,7 +105,20 @@ class ReleaseTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 metadata.changelog_notes(text, self.version)
         text = f"## [Unreleased]\n- Future\n## [{self.version}] - 2026-10-27\n- Actual change\n## 0.0.1 — old\n- History\n"
-        self.assertEqual(metadata.changelog_notes(text, self.version), "- Actual change\n")
+        with self.assertRaisesRegex(ValueError, "Finalize Unreleased"):
+            metadata.changelog_notes(text, self.version)
+        self.assertEqual(metadata.changelog_notes(text, self.version, allow_unreleased=True), "- Actual change\n")
+
+    def test_pending_changes_block_formal_preparation_and_sealed_candidate_reuse(self):
+        path = self.root / "CHANGELOG.md"
+        path.write_text(path.read_text().replace("## [Unreleased]\n", "## [Unreleased]\n\n### Fixed\n\n- Pending runtime change.\n", 1))
+        self.assertEqual(metadata.source_metadata(self.root, allow_unreleased=True)["version"], self.version)
+        with self.assertRaisesRegex(ValueError, "Finalize Unreleased"):
+            metadata.source_metadata(self.root)
+        with self.assertRaisesRegex(ValueError, "Finalize Unreleased"):
+            metadata.seal_candidate(self.directory, "next", actions.REPOSITORY, self.revision, "123", self.root)
+        with self.assertRaisesRegex(ValueError, "Finalize Unreleased"):
+            self.validate()
 
     def test_unreleased_notes_allow_development_checks_but_never_release_promotion(self):
         path = self.root / "CHANGELOG.md"

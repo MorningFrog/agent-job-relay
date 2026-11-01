@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Refuse formal release preparation or sealed-candidate reuse while Unreleased notes remain, even when a dated section for the selected version already exists; keep explicitly marked development checks available.
+
 ### Changed
 
 - Guide Agents to preserve captured output and plan bounded milestone/progress or elapsed feedback for long work, honoring explicit completion-only preferences and actual goal authorization. Verify admitted rules against the announced plan without replaying execution.
