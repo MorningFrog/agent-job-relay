@@ -1,5 +1,7 @@
 # Command reference
 
+Current source adds `ajr search [--text <text>] [--status <state|active>] [--cwd <substring>] [--created-after <unix-ms>] [--created-before <unix-ms>] [--before <cursor>] [--limit <1..100>]` across hot/archived history, and `ajr search-logs <job-id> --text <literal> [--stream stdout|stderr] [--cursor <byte>] [--end <fixed-end>] [--limit <1..100>]` for retained-log locations/context. Both are read-only, support stopped existing profiles and return JSON continuation evidence; see [search semantics](runtime-monitoring.md#read-and-export-retained-logs).
+
 [Documentation index](README.md) · [Usage walkthrough](usage.md) · [Troubleshooting](troubleshooting.md)
 
 This reference groups public commands by purpose: [tasks](#start-and-read-tasks), [monitoring](#inspect-monitor-and-open-the-task-manager), [sessions/delivery](#bind-sessions-and-recover-notifications), [daemon/diagnostics](#manage-the-daemon-and-diagnose), [installation](#install-update-and-remove-integrations), [data](#maintain-data) and [MCP tools](#mcp-tools-by-purpose). Use `<command> --help` for exact flags supported by your installed version. Step-by-step procedures live in the linked guides; hidden runner and Windows bootstrap modes are internal implementation details.

@@ -258,6 +258,38 @@ pub(super) enum Commands {
     },
     /// Show durable job/run state, exit outcome and process identity
     Status { job_id: String },
+    /// Search all hot/archived history; continue with next_cursor even on an empty page
+    Search {
+        #[arg(long, default_value = "")]
+        text: String,
+        #[arg(long)]
+        status: Option<String>,
+        #[arg(long)]
+        cwd: Option<String>,
+        /// Inclusive Unix timestamp in milliseconds
+        #[arg(long)]
+        created_after: Option<i64>,
+        #[arg(long)]
+        created_before: Option<i64>,
+        #[arg(long)]
+        before: Option<i64>,
+        #[arg(long, default_value_t = 20)]
+        limit: u32,
+    },
+    /// Locate literal text in retained logs, with original byte offsets and context
+    SearchLogs {
+        job_id: String,
+        #[arg(long)]
+        text: String,
+        #[arg(long, default_value = "stdout")]
+        stream: String,
+        #[arg(long, default_value_t = 0)]
+        cursor: u64,
+        #[arg(long)]
+        end: Option<u64>,
+        #[arg(long, default_value_t = 20)]
+        limit: u32,
+    },
     /// List jobs with a bounded page and continuation cursor
     List {
         #[arg(long, default_value_t = 0)]

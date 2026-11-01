@@ -846,6 +846,9 @@ async fn wait_for_daemon_stop(config: &Config) -> Result<()> {
 /// Shared high-level entry for CLI and MCP; submissions and explicit registrations auto-start a daemon.
 pub async fn call(config: &Config, request: Request) -> Result<Value> {
     match request {
+        request @ (Request::Search { .. } | Request::SearchLogs { .. }) => {
+            crate::search::client(config, request).await
+        }
         Request::Start { spec } => start(config, spec, false).await,
         Request::StartBatch { specs } => start_batch(config, specs, false).await,
         request @ (Request::StartGoal { .. }

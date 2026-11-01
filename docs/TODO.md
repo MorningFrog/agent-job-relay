@@ -76,6 +76,7 @@ Runtime 0.1.12+ implements the [remote contract and reference path](remote-execu
 ## Runtime inspection and monitoring
 
 - [x] Surface effective feedback/application/source/target limits in the panel, provide explicitly saved stage/time presets and derive actionable read-only notification/goal recovery plans with original identities, revisions and exact-profile commands. Native fixtures/rendering are covered; new installed-host/browser acceptance remains separate.
+- [x] Add shared read-only hot/cold history search with status/directory/time filters and bounded scan cursors, plus retained-log literal search with byte context, gap-aware matching and fixed-end pagination. Expose CLI/MCP/Web and prevent stale browser queries from replacing current results.
 
 - [x] Add task-level notification/goal diagnostics, bounded attempt history and original-chat recovery guidance without browser caller inference or mutation.
 - [x] Add compact default MCP task inspection and opt-in CLI summaries with original identities, bounded excerpts/progress and evidence cursors; retain complete `full=true`/HTTP/ordinary CLI detail.

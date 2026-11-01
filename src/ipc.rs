@@ -78,6 +78,24 @@ pub enum Request {
     Status {
         job_id: String,
     },
+    Search {
+        #[serde(default)]
+        query: crate::search::TaskQuery,
+        before: Option<i64>,
+        #[serde(default = "default_limit")]
+        limit: u32,
+    },
+    SearchLogs {
+        job_id: String,
+        text: String,
+        #[serde(default = "default_stream")]
+        stream: String,
+        #[serde(default)]
+        cursor: u64,
+        end: Option<u64>,
+        #[serde(default = "default_limit")]
+        limit: u32,
+    },
     List {
         #[serde(default)]
         after: i64,
@@ -373,6 +391,34 @@ pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
             }
             Ok(result)
         }
+        Request::Search {
+            query,
+            before,
+            limit,
+        } => store.search_tasks(query, before, limit).await,
+        Request::SearchLogs {
+            job_id,
+            text,
+            stream,
+            cursor,
+            end,
+            limit,
+        } => {
+            let job = store.status(job_id).await?;
+            let mut result = crate::log_retention::search(
+                store.config.clone(),
+                job.run_id.clone(),
+                stream,
+                text,
+                cursor,
+                end,
+                limit,
+            )
+            .await?;
+            result["job_id"] = json!(job.job_id);
+            result["run_id"] = json!(job.run_id);
+            Ok(result)
+        }
         Request::List { after, limit } => {
             let jobs = store.list(after, limit).await?;
             Ok(json!({"next_cursor":jobs.last().map_or(after,|j|j.sequence),"jobs":jobs}))
@@ -462,6 +508,8 @@ pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
             let active:i64=db.query_row("SELECT count(*) FROM jobs WHERE status IN ('queued','launching','running')",[],|r|r.get(0))?;
             Ok(json!({"daemon":"reachable","runner_launch_from_loaded_image":cfg!(target_os="linux")&&crate::platform::self_image().is_ok(),"protocol_version":1,"version":env!("CARGO_PKG_VERSION"),"store":integrity,"capacity":crate::maintenance::capacity(db)?,"store_check":"connection and schema; use data check for full integrity","active_jobs":active,"orphaned_jobs":db.query_row("SELECT count(*) FROM jobs WHERE status='orphaned'",[],|r|r.get::<_,i64>(0))?,"delivery_recovery":true,"same_chat_recovery":true,"plugin_bridge":true,"delivery_time_renewal":true,"rebind_required":db.query_row("SELECT count(*) FROM deliveries WHERE status='retry_wait' AND failure_kind='rebind_required'",[],|r|r.get::<_,i64>(0))?,"retrying_deliveries":db.query_row("SELECT count(*) FROM deliveries WHERE status='retry_wait'",[],|r|r.get::<_,i64>(0))?,"sessions":db.query_row("SELECT count(*) FROM sessions WHERE connected=1 AND expires>?",[now()],|r|r.get::<_,i64>(0))?,"dead_letters":db.query_row("SELECT count(*) FROM deliveries WHERE status='dead_letter'",[],|r|r.get::<_,i64>(0))?,"runtime":std::env::consts::OS,"daemon_launch_method":std::env::var("AJR_DAEMON_LAUNCH_METHOD").unwrap_or_else(|_| "foreground".into()),"auto_resume":"not verified","next_step":"Use start --wake or job_start with wake_me=true from the current Desktop host context; no service is installed."})) }).await?;
             value["runtime_monitoring"] = json!(true);
+            value["history_search"] = json!(true);
+            value["log_search"] = json!(true);
             value["structured_progress_v1"] = json!(true);
             value["batch_submission"] = json!(true);
             value["goal_waiting"] = json!(true);

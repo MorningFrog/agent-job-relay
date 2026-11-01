@@ -1,6 +1,6 @@
 const MAX_FRAME = 4 * 1024 * 1024;
 
-export async function api(body, token, request = fetch) {
+export async function api(body, token, request = fetch, signal) {
   const response = await request("/api/request", {
     method: "POST",
     headers: {
@@ -8,6 +8,7 @@ export async function api(body, token, request = fetch) {
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(body),
+    signal,
   });
   const value = await response.json();
   if (!response.ok) {
@@ -16,6 +17,26 @@ export async function api(body, token, request = fetch) {
     throw error;
   }
   return value;
+}
+
+// A search page can contain no matches while still having unscanned history.
+// Continue bounded server pages until a useful result page or the true end.
+export async function searchHistory(query, before, token, { send = api, isCurrent = () => true, onProgress = () => {} } = {}) {
+  const jobs = [];
+  let scanned = 0, cursor = before ?? null, more = true;
+  while (more && jobs.length < 50) {
+    if (!isCurrent()) throw new Error("检索已取消。");
+    const value = await send({ op: "search", query, before: cursor, limit: 50 - jobs.length }, token);
+    if (!isCurrent()) throw new Error("检索已取消。");
+    more = value.has_more;
+    const next = value.next_cursor;
+    if (more && (!Number.isSafeInteger(next) || next <= 0 || (cursor != null && next >= cursor))) throw new Error("历史检索游标未前进。");
+    jobs.push(...value.jobs);
+    scanned += value.scanned;
+    cursor = next;
+    onProgress(scanned);
+  }
+  return { jobs, cursor, more, scanned };
 }
 
 export async function mutateTask(

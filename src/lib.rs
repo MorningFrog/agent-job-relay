@@ -32,6 +32,7 @@ pub mod remote;
 pub mod renewal;
 pub mod runner;
 mod scheduling;
+pub mod search;
 pub mod session;
 pub mod storage;
 

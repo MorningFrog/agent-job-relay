@@ -281,7 +281,10 @@ async fn retained_mcp_and_cached_launcher_follow_verified_same_version_runtime_u
         json!({}),
     )
     .await;
-    assert_eq!(first["result"]["tools"].as_array().unwrap().len(), 25);
+    assert_eq!(
+        first["result"]["tools"].as_array().unwrap().len(),
+        agent_job_relay::mcp::tools().len()
+    );
     let native = format!("payload/{}", agent_job_relay::platform::NATIVE_FILE);
     // ELF permits trailing bytes: this is a real native runtime with a distinct
     // image identity and the same version, exercising the actual MCP worker.

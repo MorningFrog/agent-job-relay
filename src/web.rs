@@ -124,6 +124,8 @@ async fn request(State(state): State<Web>, Json(req): Json<Request>) -> Response
     if !matches!(
         &req,
         Request::Inspect { .. }
+            | Request::Search { .. }
+            | Request::SearchLogs { .. }
             | Request::Monitor { .. }
             | Request::Stop { .. }
             | Request::Status { .. }

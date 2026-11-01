@@ -54,6 +54,17 @@ MCP `job_inspect` defaults to a compact result: original Job/Run and title, exit
 
 ## Read and export retained logs
 
+Current source supports full-history search through the panel, CLI `ajr search` and MCP `job_search`. Text matches title, full local command, directory and Job/Run IDs using Unicode lowercase substring matching; `status` accepts an execution state or `active`, `cwd` is a directory substring, and inclusive `created_after`/`created_before` use Unix milliseconds. Each read-only page examines at most 128 hot/cold records with a 500-ms soft budget and validates each accessed cold snapshot. `has_more=true` requires continuing with `next_cursor`, including empty result pages. The panel continues bounded pages until 50 matches or the real end, shows scanned counts and cancels changed queries. This is cursor-based scanning without a full-text index or schema migration; a large archive can take time, and pagination is not a cross-request snapshot. CLI search also works against an existing stopped profile without starting a daemon.
+
+```bash
+ajr search --text "project tests" --status failed --cwd project --limit 20
+ajr search --text "project tests" --before <next-cursor>
+ajr search-logs <job-id> --stream stderr --text "error" --limit 20
+ajr search-logs <job-id> --stream stderr --text "error" --cursor <next-cursor> --end <end>
+```
+
+MCP `job_search_logs` and the panel's log finder share the same case-sensitive literal byte search. Each request scans at most 512 KiB of candidate starts, plus bounded match/context lookahead, and returns at most 100 nonoverlapping matches with original `offset`/`end`, `context_from` and lossy UTF-8 text. Continue `next_cursor` with the returned fixed `end` until `complete=true`, including pages without matches. Adjacent retained blocks can match across their boundary; missing intervals cannot. `gaps` identify output that cannot be searched. Running recent segments may rotate between reads; retained evidence is sampled, not an atomic whole-log snapshot. Clicking a panel match reads context at its original byte position. Search never changes rules, deliveries or task execution.
+
 Runtime 0.1.18+ native exec/shell runs keep the original 16-MiB prefix plus four rotating 1-MiB segments per stream after that prefix. Full segments publish while running; a final partial segment publishes at normal output completion, replacing the oldest slot. Up to one pending MiB remains in capture memory; use the independently sampled 64-KiB tail for the newest output. Abrupt runner loss can lose that pending segment and leave the tail stale. Missing middle output is not recoverable. Old runs and remote observer copies retain their existing prefix/tail limits.
 
 ```bash

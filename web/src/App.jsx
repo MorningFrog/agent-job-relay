@@ -8,7 +8,7 @@ import {
   consumePanelNavigation,
   subscribePanelNavigation,
 } from "./navigation.js";
-import { api, mutateTask } from "./transport.js";
+import { api, mutateTask, searchHistory } from "./transport.js";
 import { useTaskStream } from "./useTaskStream.js";
 import {
   terminal,
@@ -57,6 +57,34 @@ export default function App() {
     [older, setOlder] = useState([]),
     [cursor, setCursor] = useState(null),
     [more, setMore] = useState(true);
+  const [project, setProject] = useState(""), [createdAfter, setCreatedAfter] = useState(""),
+    [createdBefore, setCreatedBefore] = useState(""), [searchResult, setSearchResult] = useState(null),
+    [searchBusy, setSearchBusy] = useState(false), [searchScanned, setSearchScanned] = useState(0),
+    [searchError, setSearchError] = useState("");
+  const searchGeneration = useRef(0);
+  const searching = Boolean(filter || status !== "all" || project || createdAfter || createdBefore);
+  const searchQuery = { text: filter, status: status === "all" ? null : status, cwd: project || null,
+    created_after: createdAfter ? new Date(createdAfter).getTime() : null,
+    created_before: createdBefore ? new Date(createdBefore).getTime() : null };
+  const searchKey = JSON.stringify(searchQuery);
+  useEffect(() => {
+    const generation = ++searchGeneration.current;
+    const controller = new AbortController();
+    setSearchResult(null); setSearchError(""); setSearchScanned(0); setSearchBusy(searching);
+    if (!searching) return () => { searchGeneration.current++; controller.abort(); };
+    const timer = setTimeout(async () => {
+      try {
+        const result = await searchHistory(JSON.parse(searchKey), null, token, {
+          send: (body, token) => api(body, token, fetch, controller.signal),
+          isCurrent: () => generation === searchGeneration.current && !controller.signal.aborted,
+          onProgress: setSearchScanned,
+        });
+        setSearchResult(result);
+      } catch (error) { if (generation === searchGeneration.current && !controller.signal.aborted) setSearchError(error.message); }
+      finally { if (generation === searchGeneration.current && !controller.signal.aborted) setSearchBusy(false); }
+    }, 250);
+    return () => { searchGeneration.current++; clearTimeout(timer); controller.abort(); };
+  }, [searchKey, searching, token, navigation]);
   useEffect(
     () =>
       subscribePanelNavigation((next) => {
@@ -67,6 +95,7 @@ export default function App() {
         setError("");
         setFilter("");
         setStatus("all");
+        setProject(""); setCreatedAfter(""); setCreatedBefore("");
         setPage("tasks");
         setTab("output");
       }),
@@ -97,7 +126,7 @@ export default function App() {
       Number(!terminal.has(b.status)) - Number(!terminal.has(a.status)) ||
       b.sequence - a.sequence,
   );
-  const displayed = jobs.filter(
+  const displayed = searching ? searchResult?.jobs || [] : jobs.filter(
     (j) =>
       (status === "all" ||
         (status === "active"
@@ -152,6 +181,18 @@ export default function App() {
     } finally {
       setBusy(false);
     }
+  }
+  async function loadSearchMore() {
+    const generation = searchGeneration.current;
+    setSearchBusy(true); setSearchError("");
+    try {
+      const result = await searchHistory(searchQuery, searchResult.cursor, token, {
+        isCurrent: () => generation === searchGeneration.current,
+        onProgress: count => setSearchScanned((searchResult.scanned || 0) + count),
+      });
+      if (generation === searchGeneration.current) setSearchResult(old => ({ ...result, jobs: [...old.jobs, ...result.jobs], scanned: old.scanned + result.scanned }));
+    } catch (error) { if (generation === searchGeneration.current) setSearchError(error.message); }
+    finally { if (generation === searchGeneration.current) setSearchBusy(false); }
   }
   const detailPanel = (
     <TaskDetail
@@ -376,6 +417,15 @@ export default function App() {
                     {date(overview?.sampled_at)}
                   </span>
                 </div>
+                <details className="history-filters"><summary>目录与时间范围</summary>
+                  <div className="toolbar">
+                    <label>项目目录<input aria-label="项目目录筛选" value={project} onChange={e => setProject(e.target.value)} placeholder="目录包含…" /></label>
+                    <label>创建时间起<input aria-label="创建时间起" type="datetime-local" value={createdAfter} onChange={e => setCreatedAfter(e.target.value)} /></label>
+                    <label>创建时间止<input aria-label="创建时间止" type="datetime-local" value={createdBefore} onChange={e => setCreatedBefore(e.target.value)} /></label>
+                  </div>
+                </details>
+                {searching && <p className="muted small" role="status">{searchBusy ? "正在检索完整历史（含归档）…" : "完整历史检索（含归档）"} · 已检查 {searchScanned} 条记录</p>}
+                {searchError && <p className="notice" role="alert">{searchError}</p>}
                 <div className="toolbar">
                   <div className="search">
                     <Icon name="search" />
@@ -469,11 +519,11 @@ export default function App() {
                     </React.Fragment>
                   ))}
                 </div>
-                {!displayed.length && (
+                {!displayed.length && !searchBusy && !searchError && (
                   <div className="empty">
                     <Icon name="terminal" size={32} />
                     <h3>
-                      {jobs.length ? "没有匹配的任务" : "这里会显示后台任务"}
+                      {searching || jobs.length ? "没有匹配的任务" : "这里会显示后台任务"}
                     </h3>
                     <p>
                       {jobs.length
@@ -482,7 +532,8 @@ export default function App() {
                     </p>
                   </div>
                 )}
-                {jobs.length > 0 && more && (
+                {searching && searchResult?.more && <div className="table-footer"><button className="button" disabled={searchBusy} onClick={loadSearchMore}>继续检索更早的任务</button></div>}
+                {!searching && jobs.length > 0 && more && (
                   <div className="table-footer">
                     <button
                       className="button"

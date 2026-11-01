@@ -767,6 +767,56 @@ pub(super) async fn run() -> Result<()> {
             println!("{}", serde_json::to_string_pretty(&result)?);
             return Ok(());
         }
+        Commands::Search {
+            text,
+            status,
+            cwd,
+            created_after,
+            created_before,
+            before,
+            limit,
+        } => {
+            let value = agent_job_relay::search::client(
+                &config,
+                Request::Search {
+                    query: agent_job_relay::search::TaskQuery {
+                        text,
+                        status,
+                        cwd,
+                        created_after,
+                        created_before,
+                    },
+                    before,
+                    limit,
+                },
+            )
+            .await?;
+            println!("{}", serde_json::to_string_pretty(&value)?);
+            return Ok(());
+        }
+        Commands::SearchLogs {
+            job_id,
+            text,
+            stream,
+            cursor,
+            end,
+            limit,
+        } => {
+            let value = agent_job_relay::search::client(
+                &config,
+                Request::SearchLogs {
+                    job_id,
+                    text,
+                    stream,
+                    cursor,
+                    end,
+                    limit,
+                },
+            )
+            .await?;
+            println!("{}", serde_json::to_string_pretty(&value)?);
+            return Ok(());
+        }
         Commands::List { after, limit } => Request::List { after, limit },
         Commands::Logs {
             follow: false,

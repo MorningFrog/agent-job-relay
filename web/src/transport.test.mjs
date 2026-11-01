@@ -1,6 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { api, mutateTask, observeTask, streamTask, exportLogText } from "./transport.js";
+import { api, mutateTask, observeTask, streamTask, exportLogText, searchHistory } from "./transport.js";
+
+test("history search continues empty scanned pages, stops on stale queries and rejects stuck cursors", async () => {
+  const calls=[];
+  const result=await searchHistory({text:"old"},null,"token",{send:async body=>{
+    calls.push(body);
+    return calls.length===1 ? {jobs:[],has_more:true,next_cursor:3,scanned:128} : {jobs:[{job_id:"cold"}],has_more:false,next_cursor:null,scanned:2};
+  }});
+  assert.equal(calls[1].before,3);assert.equal(result.scanned,130);assert.equal(result.jobs[0].job_id,"cold");assert.equal(result.more,false);
+  await assert.rejects(searchHistory({},4,"token",{send:async()=>({jobs:[],has_more:true,next_cursor:4,scanned:1})}),/游标未前进/);
+  let current=true;
+  await assert.rejects(searchHistory({},null,"token",{isCurrent:()=>current,send:async()=>{current=false;return {jobs:[],has_more:false,scanned:0};}}),/检索已取消/);
+});
 
 const settle = async () => {
   await Promise.resolve();
