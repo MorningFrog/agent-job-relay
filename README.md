@@ -86,6 +86,8 @@ Select the installed AgentJobRelay plugin in your host. On first use, ask it to 
 
 Everyday prompts need no executable path or session ID. The plugin binds the actual initiating session, submits the task and keeps its results. ChatGPT Desktop can continue the same chat on verified versions; OpenCode V1 continuation remains experimental. With Codex CLI's inbox, ask the Agent to inspect the result when needed.
 
+Unreleased source guidance plans useful captured output and a few mid-run reports for long work; explicit “only notify at the end” keeps completion-only behavior. Goal feedback still requires actual user authorization. See [feedback planning and limits](docs/progress.md#choose-and-verify-feedback-before-yielding); adoption in installed hosts remains to be verified.
+
 You can also ask:
 
 > Open AgentJobRelay's task manager so I can inspect the running tasks.

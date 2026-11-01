@@ -5,6 +5,69 @@ use anyhow::Result;
 use rusqlite::{Connection, OptionalExtension};
 use serde_json::{Value, json};
 
+const QUIET_NOTICE_SECONDS: u64 = 600;
+
+/// Describe captured evidence, never infer workload health from a quiet pipe.
+/// Use the runner's sample time so an old snapshot cannot invent new silence.
+fn visibility(job: &Job, observation: &Value, notifying: usize) -> Value {
+    let mut value = json!({"status":"awaiting_sample","quiet_after_seconds":QUIET_NOTICE_SECONDS,
+        "sampled_at":observation["sampled_at"],"advisories":[]});
+    if job.status.is_terminal() {
+        value["status"] = json!("terminal");
+        return value;
+    }
+    if job.command.is_external() {
+        value["status"] = json!("external");
+        return value;
+    }
+    let Some(sampled_at) = observation["sampled_at"].as_i64() else {
+        return value;
+    };
+    let (Some(elapsed), Some(stdout), Some(stderr)) = (
+        observation["elapsed_seconds"].as_u64(),
+        observation["stdout"]["total_bytes"].as_u64(),
+        observation["stderr"]["total_bytes"].as_u64(),
+    ) else {
+        value["status"] = json!("unavailable");
+        return value;
+    };
+    value["elapsed_seconds"] = json!(elapsed);
+    value["output_bytes"] = json!(stdout.saturating_add(stderr));
+    let last = ["stdout", "stderr"]
+        .iter()
+        .filter_map(|stream| observation[stream]["last_output_at"].as_i64())
+        .max();
+    let idle = match last {
+        Some(last) if last <= sampled_at => {
+            Some((sampled_at.saturating_sub(last) as u64 / 1000).min(elapsed))
+        }
+        None if stdout == 0 && stderr == 0 => Some(elapsed),
+        _ => None,
+    };
+    value["output_idle_seconds"] = json!(idle);
+    let age = now().saturating_sub(sampled_at);
+    if !(0..=5000).contains(&age) {
+        value["status"] = json!("stale");
+        return value;
+    }
+    value["status"] = json!(match idle {
+        Some(idle) if idle >= QUIET_NOTICE_SECONDS => "quiet",
+        Some(_) => "observed",
+        None => "unavailable",
+    });
+    let mut advisories = Vec::new();
+    if idle.is_some_and(|idle| idle >= QUIET_NOTICE_SECONDS) {
+        advisories.push(json!({"code":"quiet_output","message":
+            "No captured output for at least 10 minutes at the runner sample. Check output routing, buffering or a real progress source; silence does not establish a hang. Keep the original run."}));
+    }
+    if elapsed >= QUIET_NOTICE_SECONDS && notifying == 0 {
+        advisories.push(json!({"code":"no_mid_run_notification","message":
+            "This long run has no enabled mid-run notifying rule. If completion-only was not intentional, select a bounded milestone or elapsed alert on the existing job with the original caller's authorization. Goal feedback also needs actual user pause/restoration consent. Do not restart work or poll."}));
+    }
+    value["advisories"] = json!(advisories);
+    value
+}
+
 pub(crate) fn summarize(db: &Connection, detail: &Value) -> Result<Value> {
     let job: Job = serde_json::from_value(detail["job"].clone())?;
     let rules: Vec<Rule> = serde_json::from_value(detail["rules"].clone())?;
@@ -157,6 +220,7 @@ pub(crate) fn summarize(db: &Connection, detail: &Value) -> Result<Value> {
     Ok(
         json!({"status":status,"reason":reason,"configured_rules":configured,
         "notifying_rules":notifying,"rules":summaries,"targets":targets,
+        "visibility":visibility(&job,&detail["observation"],notifying),
         "can_confirm_resume":false}),
     )
 }

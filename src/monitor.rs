@@ -590,6 +590,13 @@ pub fn human(value: &Value) -> String {
                 value["feedback"]["reason"].as_str().unwrap_or("")
             ));
         }
+        if let Some(advisories) = value["feedback"]["visibility"]["advisories"].as_array() {
+            for advisory in advisories {
+                if let Some(message) = advisory["message"].as_str() {
+                    lines.push(format!("Visibility: {message}"));
+                }
+            }
+        }
         if let Some(progress) = value["observation"]
             .get("progress")
             .or_else(|| value.get("progress"))

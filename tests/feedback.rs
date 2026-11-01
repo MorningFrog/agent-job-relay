@@ -54,6 +54,168 @@ async fn inspect(store: &Store, id: &str) -> Value {
     store.inspect(Some(id.into()), None, 20).await.unwrap()
 }
 
+async fn record_sample(store: &Store, id: &str, sample: Value) {
+    let id = id.to_owned();
+    store.call(move |db| {
+        db.execute("INSERT INTO runtime_observations(job_id,data) VALUES(?,?) ON CONFLICT(job_id) DO UPDATE SET data=excluded.data",
+            rusqlite::params![id, sample.to_string()])?;
+        Ok(())
+    }).await.unwrap();
+}
+
+fn quiet_sample(at: i64, elapsed: u64) -> Value {
+    json!({"sampled_at":at,"elapsed_seconds":elapsed,
+        "stdout":{"total_bytes":0,"last_output_at":null},
+        "stderr":{"total_bytes":116,"last_output_at":at-(elapsed as i64)*1000}})
+}
+
+#[tokio::test]
+async fn long_run_visibility_surfaces_output_and_notification_gaps_without_mutation() {
+    let (_dir, store, mut spec) = fixture().await;
+    spec.session = Some(
+        store
+            .register(registration("visibility"))
+            .await
+            .unwrap()
+            .key,
+    );
+    let initial = submit(&store, &spec).await;
+    let id = initial["job"]["job_id"].as_str().unwrap();
+    assert_eq!(
+        initial["feedback"]["visibility"]["status"],
+        "awaiting_sample"
+    );
+    record_sample(&store, id, quiet_sample(now(), 599)).await;
+    let short = inspect(&store, id).await;
+    assert_eq!(short["feedback"]["visibility"]["status"], "observed");
+    assert_eq!(short["feedback"]["visibility"]["advisories"], json!([]));
+
+    record_sample(&store, id, quiet_sample(now(), 600)).await;
+    let quiet = inspect(&store, id).await;
+    let visibility = &quiet["feedback"]["visibility"];
+    assert_eq!(visibility["status"], "quiet");
+    assert_eq!(visibility["output_bytes"], 116);
+    assert_eq!(visibility["output_idle_seconds"], 600);
+    assert_eq!(visibility["advisories"][0]["code"], "quiet_output");
+    assert_eq!(
+        visibility["advisories"][1]["code"],
+        "no_mid_run_notification"
+    );
+    let compact = agent_job_relay::output::compact("inspect", quiet.clone());
+    assert_eq!(compact["feedback"]["visibility"], *visibility);
+    let retry = submit(&store, &spec).await;
+    assert_eq!(retry["job"], initial["job"]);
+    assert_eq!(retry["feedback"]["visibility"], *visibility);
+    assert_eq!(
+        store.monitor(id.into(), None).await.unwrap()["rules"],
+        json!([])
+    );
+    assert_eq!(quiet["deliveries"]["deliveries"], json!([]));
+    assert!(store.events(id.into(), 0, 20).await.unwrap().is_empty());
+
+    // Output and chat feedback are independent: fresh output clears only the
+    // quiet advisory; selecting a rule clears only the notification advisory.
+    let mut active = quiet_sample(now(), 601);
+    active["stdout"] = json!({"total_bytes":17,"last_output_at":active["sampled_at"]});
+    record_sample(&store, id, active).await;
+    let active = inspect(&store, id).await;
+    assert_eq!(active["feedback"]["visibility"]["status"], "observed");
+    assert_eq!(active["feedback"]["visibility"]["output_idle_seconds"], 0);
+    assert_eq!(
+        active["feedback"]["visibility"]["advisories"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        active["feedback"]["visibility"]["advisories"][0]["code"],
+        "no_mid_run_notification"
+    );
+    store
+        .monitor(
+            id.into(),
+            Some(Mutation::Add {
+                rule: serde_json::from_value(json!({
+                    "condition":{"kind":"elapsed","seconds":1800},"notify_agent":true
+                }))
+                .unwrap(),
+            }),
+        )
+        .await
+        .unwrap();
+    record_sample(&store, id, quiet_sample(now(), 602)).await;
+    let selected = inspect(&store, id).await;
+    assert_eq!(
+        selected["feedback"]["visibility"]["advisories"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        selected["feedback"]["visibility"]["advisories"][0]["code"],
+        "quiet_output"
+    );
+    assert_eq!(selected["feedback"]["status"], "inbox_only");
+    assert_eq!(selected["feedback"]["rules"][0]["application"], "pending");
+    assert_eq!(selected["feedback"]["can_confirm_resume"], false);
+    store
+        .finish(id.into(), "completed", Some(0), None, "fixture".into())
+        .await
+        .unwrap();
+    let terminal = inspect(&store, id).await;
+    assert_eq!(terminal["feedback"]["visibility"]["status"], "terminal");
+    assert_eq!(terminal["feedback"]["visibility"]["advisories"], json!([]));
+}
+
+#[tokio::test]
+async fn visibility_does_not_invent_silence_from_stale_incomplete_or_external_evidence() {
+    let (_dir, store, spec) = fixture().await;
+    let initial = submit(&store, &spec).await;
+    let id = initial["job"]["job_id"].as_str().unwrap();
+    for at in [now() - 6000, now() + 60000] {
+        record_sample(&store, id, quiet_sample(at, 3600)).await;
+        let stale = inspect(&store, id).await;
+        assert_eq!(stale["feedback"]["visibility"]["status"], "stale");
+        assert_eq!(stale["feedback"]["visibility"]["output_idle_seconds"], 3600);
+        assert_eq!(stale["feedback"]["visibility"]["advisories"], json!([]));
+    }
+    for sample in [
+        json!({"sampled_at":now()}),
+        json!({"sampled_at":now(),"elapsed_seconds":1,"stdout":{"total_bytes":1},"stderr":{"total_bytes":0}}),
+        json!({"sampled_at":now(),"elapsed_seconds":1,"stdout":{"total_bytes":1,"last_output_at":now()+60000},"stderr":{"total_bytes":0}}),
+    ] {
+        record_sample(&store, id, sample).await;
+        let unknown = inspect(&store, id).await;
+        assert_eq!(unknown["feedback"]["visibility"]["status"], "unavailable");
+        assert_eq!(unknown["feedback"]["visibility"]["advisories"], json!([]));
+    }
+    let at = now();
+    record_sample(
+        &store,
+        id,
+        json!({"sampled_at":at,"elapsed_seconds":600,
+        "stdout":{"total_bytes":0},"stderr":{"total_bytes":0}}),
+    )
+    .await;
+    let empty = inspect(&store, id).await;
+    assert_eq!(empty["feedback"]["visibility"]["status"], "quiet");
+    assert_eq!(empty["feedback"]["visibility"]["output_idle_seconds"], 600);
+
+    let mut external = spec;
+    external.idempotency_key = Some("external".into());
+    external.command = serde_json::from_value(json!({"kind":"github_actions",
+        "workflow":{"repository":"owner/repo","run_id":1,"attempt":1}}))
+    .unwrap();
+    let external = submit(&store, &external).await;
+    let external_id = external["job"]["job_id"].as_str().unwrap();
+    record_sample(&store, external_id, quiet_sample(now(), 3600)).await;
+    let external = inspect(&store, external_id).await;
+    assert_eq!(external["feedback"]["visibility"]["status"], "external");
+    assert_eq!(external["feedback"]["visibility"]["advisories"], json!([]));
+}
+
 #[tokio::test]
 async fn receipts_follow_persisted_rule_changes_and_do_not_replay_on_diagnostic_failure() {
     let (_dir, store, spec) = fixture().await;

@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Guide Agents to preserve captured output and plan bounded milestone/progress or elapsed feedback for long work, honoring explicit completion-only preferences and actual goal authorization. Verify admitted rules against the announced plan without replaying execution.
+
+### Added
+
+- Include read-only output visibility and ten-minute quiet-output/missing-notifying-rule advisories in feedback receipts and compact inspection. Keep stale, incomplete, terminal and external evidence separate; diagnostics never create rules, notifications or stop requests.
+
 ## [0.1.18] - 2026-10-31
 
 ### Added

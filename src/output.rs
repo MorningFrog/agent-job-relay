@@ -58,7 +58,7 @@ fn inspection(value: Value) -> Value {
     }
     let mut result = json!({"job":job(&value["job"]), "sampled_at":value["sampled_at"],
         "notifications":value["notifications"], "goal_wait":goal_summary(&value["goal_wait"]),
-        "feedback":fields(&value["feedback"], &["status","reason","configured_rules","notifying_rules"]),
+        "feedback":fields(&value["feedback"], &["status","reason","configured_rules","notifying_rules","visibility"]),
         "stop":value["stop"], "untrusted_output":true});
     result["job"]["run"] = fields(&value["job"]["run"], &["started_at", "ended_at", "attempt"]);
     result["elapsed_seconds"] = value["observation"]["elapsed_seconds"].clone();
@@ -172,13 +172,19 @@ pub fn compact(op: &str, value: Value) -> Value {
             } else if feedback_status == "configured" {
                 "End this turn. On a mid-run or completion notification, match Job/Run and deduplicate delivery_id, inspect bounded evidence once, report only authorized feedback and yield again if still running. Do not poll or replay the command."
             } else if resume {
-                "End this turn; inspect job_status on completion. Check feedback for mid-run configuration and limitations."
+                "Before yielding, check feedback against the announced output/notification plan. For long work, repair missing authorized rules on this original job or state the completion-only/host/goal limitation. End this turn after this check; do not poll or replay."
             } else {
                 "Use job_wait once for a short job, or inspect job_status later; no automatic continuation is bound."
             }});
             if let Some(wait) = value.get("goal_wait") {
                 result["goal_wait"] = wait.clone();
                 result["next_step"] = wait["next_step"].clone();
+                if wait["status"] == "sealed" {
+                    result["next_step"] = json!(format!(
+                        "Before handoff, verify feedback against the announced long-task plan and actual user goal-feedback authorization; retain this original job. {}",
+                        wait["next_step"].as_str().unwrap_or("")
+                    ));
+                }
             }
             result
         }
