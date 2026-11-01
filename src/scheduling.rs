@@ -347,12 +347,16 @@ mod tests {
         let (dir, store, mut spec) = fixture().await;
         spec.idempotency_key = Some("restore-queue".into());
         let job = store.start(spec.clone()).await.unwrap();
-        let backup = store.backup().await.unwrap();
         let destination = dir.path().join("restored");
-        let restore = crate::maintenance::restore(
-            std::path::PathBuf::from(backup["path"].as_str().unwrap()),
-            destination.clone(),
-        )
+        // Backup and restore both require atomic new-directory publication.
+        let restore = async {
+            let backup = store.backup().await?;
+            crate::maintenance::restore(
+                std::path::PathBuf::from(backup["path"].as_str().unwrap()),
+                destination.clone(),
+            )
+            .await
+        }
         .await;
         #[cfg(any(target_os = "linux", windows))]
         {
