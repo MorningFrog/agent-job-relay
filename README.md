@@ -113,6 +113,8 @@ Published runtime 0.1.18 adds task-level notification diagnostics/recovery guida
 
 Current Unreleased source adds an effective-feedback card and editable stage/time shortcuts, specific notification/goal recovery plans, full-history search (`ajr search --text "tests" --status failed`) and log locations (`ajr search-logs <job-id> --stream stderr --text "error"`). The panel includes archived history and original byte context/gaps. Disk policy warns below 512 MiB and refuses new jobs below 64 MiB while preserving active work and original-key retries; preview changes with `ajr data policy --disk-warn-mib 1024 --disk-stop-new-jobs-mib 128`. These additions require a development build; see [inspection](docs/runtime-monitoring.md) and [capacity policy](docs/data-maintenance.md#disk-pressure-and-backup-health-current-source).
 
+Task details open on terminal output, with optional following of new text. Separate tabs hold progress, feedback/notifications, rules and events; expand execution information for the full command and original IDs.
+
 Use the returned job ID in the last command; the first submission starts the daemon automatically. OpenCode uses `ajr opencode`; native offline installations use their recorded launcher/profile. See the [command reference](docs/commands.md).
 
 Commands run with your OS permissions. Job completion, host acknowledgement (`accepted_by_host`) and observed Agent continuation are separate results. Removal retains task history and logs; see [uninstallation](docs/uninstalling.md) and [troubleshooting](docs/troubleshooting.md).

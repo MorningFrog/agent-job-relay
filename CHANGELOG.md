@@ -8,6 +8,10 @@
 - Search hot and archived task history by text, status, directory and creation time through CLI/MCP/Web, with bounded scan cursors. Locate literal retained-log matches with original byte offsets, context, fixed-end pagination and explicit gaps; never rehydrate or replay execution for search.
 - Expose fresh disk-pressure and backup/maintenance health in admission receipts, Doctor and the panel. Configure warning/new-admission thresholds while preserving active runs, terminal persistence, stops and unchanged-key retries.
 
+### Changed
+
+- Open task details directly on a compact terminal with stdout/stderr selection and pausable output following. Move progress, feedback/notification, rules and events into keyboard-accessible tabs, keep attention hints and stopping near the title, and collapse full command/identity details below the main view.
+
 ## [0.1.19] - 2026-11-01
 
 ### Added

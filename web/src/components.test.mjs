@@ -154,7 +154,7 @@ test("unnamed legacy jobs have bounded project hints without inline script bodie
 
 test("notification diagnostics show recovery and goal attention without claiming Agent execution", () => {
   const html = renderToStaticMarkup(React.createElement(TaskDetail, {
-    selected:"job", tab:"output", streamName:"stdout", detail:{
+    selected:"job", tab:"feedback", streamName:"stdout", detail:{
       job:{job_id:"job", status:"completed"},
       notifications:{status:"dead_letter", counts:{dead_letter:1},
         latest_problem:{delivery_id:"delivery", failure_kind:"rebind_required", error:"<script>host changed</script>"},
@@ -180,7 +180,7 @@ test("goal continuation diagnostics distinguish re-pause, notification and host 
     ["host_control", "请回到原聊天检查目标状态并处理恢复"],
   ]) {
     const html = renderToStaticMarkup(React.createElement(TaskDetail, {
-      selected: "job", tab: "output", streamName: "stdout", detail: {
+      selected: "job", tab: "feedback", streamName: "stdout", detail: {
         job: { job_id: "job", status: "running" },
         notifications: { status: "pending", counts: {}, goal: {
           status: "resumed", revision: 7, continuation: { action },
@@ -190,4 +190,30 @@ test("goal continuation diagnostics distinguish re-pause, notification and host 
     assert.ok(html.includes(expected));
     assert.ok(html.includes("Agent 是否继续仍待核实"));
   }
+});
+
+test("task detail opens on output with concise attention and deferred execution metadata", () => {
+  const detail = {
+    job: {job_id:"original-job", run_id:"original-run", title:"运行训练", status:"running", created_at:1,
+      command:{kind:"shell",script:"large command ".repeat(1000)}, cwd:"/project", run:{started_at:1}},
+    observation:{stdout:{text:"live terminal output",total_bytes:20},progress:{sources:{training:{source:"training",stage:"training",step:2,total:10}}}},
+    notifications:{status:"dead_letter",counts:{dead_letter:1},latest_problem:{delivery_id:"original-delivery",error:"failure diagnostics"}},
+    feedback:{status:"configured",configured_rules:1,notifying_rules:1},
+  };
+  const props={selected:"original-job",detail,tab:"output",streamName:"stdout",grace:5};
+  const output=renderToStaticMarkup(React.createElement(TaskDetail,props));
+  assert.ok(output.includes("live terminal output"));
+  assert.ok(output.includes("通知需要处理"));
+  assert.ok(!output.includes("failure diagnostics"));
+  assert.ok(!output.includes('aria-label="中途反馈状态"'));
+  assert.ok(output.indexOf("live terminal output") < output.indexOf("large command"));
+  assert.match(output,/<details class="execution-info">/);
+  assert.match(output,/role="tab" id="task-tab-output" aria-selected="true"/);
+  const pending = renderToStaticMarkup(React.createElement(TaskDetail,{...props,detail:{...detail,notifications:{goal:{host_pause_required:true}}}}));
+  assert.match(pending,/detail-feedback-link needs-attention/);
+  assert.ok(pending.includes("Goal 等待交接"));
+  const progress=renderToStaticMarkup(React.createElement(TaskDetail,{...props,tab:"progress"}));
+  assert.ok(progress.includes("training 进度"));assert.ok(progress.includes("进度与里程碑"));
+  const feedback=renderToStaticMarkup(React.createElement(TaskDetail,{...props,tab:"feedback"}));
+  assert.ok(feedback.includes("failure diagnostics"));assert.ok(feedback.includes('aria-label="中途反馈状态"'));
 });

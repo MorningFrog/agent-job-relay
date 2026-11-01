@@ -113,6 +113,8 @@ ajr inspect <job-id>
 
 当前 Unreleased 源码新增实际反馈状态卡片与可编辑的阶段／时长入口、具体的通知／Goal 恢复计划、全历史搜索（`ajr search --text "tests" --status failed`）及日志定位（`ajr search-logs <job-id> --stream stderr --text "error"`）。面板检索包含归档历史，日志保留原始字节上下文与缺口。磁盘策略默认低于 512 MiB 提醒、低于 64 MiB 拒绝新任务，保留活动任务及原键重试；使用 `ajr data policy --disk-warn-mib 1024 --disk-stop-new-jobs-mib 128` 预览调整。这些新增能力需要开发构建；见[检查功能](docs/runtime-monitoring.md)和[容量策略](docs/data-maintenance.md#disk-pressure-and-backup-health-current-source)。
 
+任务详情默认显示终端输出，可选择跟随新内容。进度、反馈／通知、规则和事件放在独立标签中；展开执行信息可查看完整命令及原始 ID。
+
 最后一条命令使用提交后返回的任务 ID；首次提交会自动启动 daemon。OpenCode 使用 `ajr opencode`，原生离线安装使用其记录的启动器及数据目录，具体见[命令参考](docs/commands.md)。
 
 命令以当前用户的系统权限执行。任务完成、宿主接收（`accepted_by_host`）和实际观察到 Agent 继续执行是三项独立结果。卸载默认保留任务历史和日志，具体见[卸载指南](docs/uninstalling.md)及[故障排查](docs/troubleshooting.md)。
