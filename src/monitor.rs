@@ -268,7 +268,7 @@ impl Store {
                         };
                         spec.validate()?;
                         if enabled && !deleted { validate_runtime_rule(&tx,&j,&spec)?; } else { j.command.validate_rule(&spec)?; }
-                        if spec.notify_agent {crate::goal_wait::notifying_rule_allowed(&tx,&key)?;ensure!(j.session.is_some(),"notify_agent requires an explicitly bound job session");}
+                        if spec.notify_agent && enabled && !deleted {crate::goal_wait::notifying_rule_allowed(&tx,&key)?;ensure!(j.session.is_some(),"notify_agent requires an explicitly bound job session");}
                         tx.execute("UPDATE monitor_rules SET revision=revision+1,spec=?,enabled=?,deleted=? WHERE id=?",params![serde_json::to_string(&spec)?,enabled,deleted,rule_id])?;
                         audit(&tx,&key,rule_id,expected+1,json!({"before":old,"after":{"spec":spec,"enabled":enabled,"deleted":deleted}}))?;
                     }

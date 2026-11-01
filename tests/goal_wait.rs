@@ -558,6 +558,46 @@ async fn feedback_uncertainty_expiry_cancellation_and_budget_never_replay_host_c
                 .await
                 .unwrap();
             let job = result["job"]["job_id"].as_str().unwrap().to_string();
+            let old = f.store.monitor(job.clone(), None).await.unwrap();
+            let rule_id = old["rules"][0]["id"].as_str().unwrap().to_string();
+            let disabled = f
+                .store
+                .monitor(
+                    job.clone(),
+                    Some(agent_job_relay::monitor::Mutation::Enable {
+                        rule_id: rule_id.clone(),
+                        enabled: false,
+                        expected_revision: 1,
+                    }),
+                )
+                .await
+                .unwrap();
+            assert_eq!(disabled["rules"][0]["enabled"], false);
+            assert!(
+                f.store
+                    .monitor(
+                        job.clone(),
+                        Some(agent_job_relay::monitor::Mutation::Enable {
+                            rule_id: rule_id.clone(),
+                            enabled: true,
+                            expected_revision: 2
+                        })
+                    )
+                    .await
+                    .is_err()
+            );
+            let removed = f
+                .store
+                .monitor(
+                    job.clone(),
+                    Some(agent_job_relay::monitor::Mutation::Remove {
+                        rule_id,
+                        expected_revision: 2,
+                    }),
+                )
+                .await
+                .unwrap();
+            assert_eq!(removed["rules"][0]["deleted"], true);
             let notifying = serde_json::from_value(
                 json!({"condition":{"kind":"contains","text":"new-alert"},"notify_agent":true}),
             )
