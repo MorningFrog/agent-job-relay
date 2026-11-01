@@ -19,6 +19,7 @@ import release_actions as actions
 import release_metadata as metadata
 import release_pipeline as pipeline
 import check_online_update as online_fixture
+import finalize_release as finalizer
 
 
 class ReleaseTests(unittest.TestCase):
@@ -119,6 +120,170 @@ class ReleaseTests(unittest.TestCase):
             metadata.seal_candidate(self.directory, "next", actions.REPOSITORY, self.revision, "123", self.root)
         with self.assertRaisesRegex(ValueError, "Finalize Unreleased"):
             self.validate()
+
+    def pending_notes(self):
+        path = self.root / "CHANGELOG.md"
+        original = f"# Changelog\n\n## [Unreleased]\n\n### Added\n\n- Preserve UTF-8: 测试.\n\n## [0.0.1] - 2026-01-01\n\n- Original history.\n"
+        path.write_bytes(original.encode("utf-8"))
+        return path, original
+
+    def test_finalize_notes_preserves_history_and_is_idempotent_across_dates(self):
+        _, original = self.pending_notes()
+        for newline in ("\n", "\r\n"):
+            with self.subTest(newline=repr(newline)):
+                source = original.replace("\n", newline)
+                result = metadata.finalized_changelog(source, self.version, "2026-11-01")
+                expected = source.replace("## [Unreleased]", f"## [Unreleased]{newline}{newline}## [{self.version}] - 2026-11-01", 1)
+                self.assertEqual(result, expected)
+                self.assertEqual(metadata.finalized_changelog(result, self.version, "2026-11-02"), result)
+                self.assertEqual(metadata.changelog_notes(result, self.version).replace("\r\n", "\n"), "### Added\n\n- Preserve UTF-8: 测试.\n")
+
+    def test_finalize_notes_refuses_ambiguous_empty_or_unfinished_sections(self):
+        _, original = self.pending_notes()
+        cases = [
+            original.replace("## [Unreleased]", "## [Unreleased]\n\n## [Unreleased]"),
+            original.replace("## [Unreleased]", "## [Future]"),
+            original.replace("- Preserve UTF-8: 测试.", ""),
+            original.replace("- Preserve UTF-8: 测试.", "- TODO finish notes."),
+            original.replace("## [0.0.1]", f"## [{self.version}]"),
+            original.replace("# Changelog", "# Changelog\n\n## [0.0.2]\n- Earlier section."),
+        ]
+        for text in cases:
+            with self.subTest(text=text), self.assertRaises(ValueError):
+                metadata.finalized_changelog(text, self.version, "2026-11-01")
+        for day in ("2026-02-30", "20261101", "not-a-date"):
+            with self.subTest(day=day), self.assertRaises(ValueError):
+                metadata.finalized_changelog(original, self.version, day)
+
+    def test_finalize_runs_checks_before_writing_and_rechecks_availability(self):
+        path, original = self.pending_notes()
+        events = []
+
+        def available(selected, root):
+            self.assertEqual((selected, root), (self.version, self.root))
+            self.assertEqual(path.read_text(), original)
+            events.append("available")
+
+        def checks(root):
+            self.assertEqual(root, self.root)
+            self.assertEqual(path.read_text(), original)
+            events.append("checks")
+
+        with patch.object(finalizer, "check_available", side_effect=available), patch.object(finalizer, "source_snapshot", return_value=b"same"), patch.object(finalizer, "run_checks", side_effect=checks), patch("builtins.print"):
+            finalizer.finalize(self.root, "2026-11-01")
+        self.assertEqual(events, ["available", "checks", "available"])
+        self.assertEqual(metadata.source_metadata(self.root)["version"], self.version)
+        self.assertEqual(path.read_text(), metadata.finalized_changelog(original, self.version, "2026-11-01"))
+
+    def test_failed_checks_or_late_publication_leave_notes_unchanged(self):
+        for phase in ("checks", "publication"):
+            path, original = self.pending_notes()
+            with self.subTest(phase=phase), patch.object(finalizer, "check_available", side_effect=[None, ValueError("already published")] if phase == "publication" else None), patch.object(finalizer, "source_snapshot", return_value=b"same"), patch.object(finalizer, "run_checks", side_effect=subprocess.CalledProcessError(1, ["cargo", "test"]) if phase == "checks" else None):
+                with self.assertRaises((ValueError, subprocess.CalledProcessError)):
+                    finalizer.finalize(self.root, "2026-11-01")
+            self.assertEqual(path.read_bytes(), original.encode())
+
+    def test_finalized_retry_keeps_existing_date_and_does_not_replace_file(self):
+        path = self.root / "CHANGELOG.md"
+        original = path.read_bytes()
+        with patch.object(finalizer, "check_available"), patch.object(finalizer, "source_snapshot", return_value=b"same"), patch.object(finalizer, "run_checks") as checks, patch.object(finalizer.os, "replace") as replace, patch("builtins.print"):
+            finalizer.finalize(self.root, "2026-11-01")
+        checks.assert_called_once_with(self.root)
+        replace.assert_not_called()
+        self.assertEqual(path.read_bytes(), original)
+
+    def test_source_change_during_initial_inventory_cannot_finalize_stale_notes(self):
+        path, original = self.pending_notes()
+        cargo = self.root / "Cargo.toml"
+
+        def available(*_):
+            cargo.write_text(cargo.read_text().replace(self.version, "99.0.0"))
+
+        with patch.object(finalizer, "source_snapshot", side_effect=lambda root: actions.hashlib.sha256(cargo.read_bytes()).digest()), patch.object(finalizer, "check_available", side_effect=available), patch.object(finalizer, "run_checks"):
+            with self.assertRaisesRegex(ValueError, "Source changed"):
+                finalizer.finalize(self.root, "2026-11-01")
+        self.assertEqual(path.read_bytes(), original.encode())
+
+    def test_changed_sources_or_version_pins_prevent_finalization(self):
+        for change in ("source", "notes", "version"):
+            path, original = self.pending_notes()
+
+            def checks(root):
+                if change == "notes":
+                    path.write_text(original + "\n- Concurrent edit.\n")
+
+            with self.subTest(change=change), patch.object(finalizer, "check_available") as available, patch.object(finalizer, "source_snapshot", side_effect=[b"before", b"after"] if change == "source" else [b"same", b"same"]), patch.object(finalizer, "run_checks", side_effect=checks):
+                if change == "version":
+                    package = self.root / "packages/runtime/package.json"
+                    package.write_text(package.read_text().replace(self.version, "0.0.1"))
+                with self.assertRaises(ValueError):
+                    finalizer.finalize(self.root, "2026-11-01")
+                if change == "version":
+                    available.assert_not_called()
+            self.assertNotIn(f"## [{self.version}]", path.read_text())
+
+    def test_finalize_gate_runner_stops_at_a_failure_after_frontend_build(self):
+        calls = []
+
+        def run(argv, **kwargs):
+            self.assertEqual(kwargs, {"cwd": self.root, "check": True})
+            calls.append(argv)
+            if argv[:2] == ["cargo", "test"]:
+                raise subprocess.CalledProcessError(1, argv)
+
+        with patch.object(finalizer.subprocess, "run", side_effect=run), patch("builtins.print"), self.assertRaises(subprocess.CalledProcessError):
+            finalizer.run_checks(self.root)
+        self.assertLess(next(i for i, argv in enumerate(calls) if argv[1:3] == ["run", "build"]), next(i for i, argv in enumerate(calls) if argv[0] == "cargo"))
+        self.assertEqual(calls[-1], ["cargo", "test", "--all-targets", "--locked"])
+        self.assertFalse(any(argv[:2] == ["cargo", "build"] for argv in calls))
+
+    def test_local_publication_inventory_refuses_tags_drafts_and_either_package(self):
+        repo = {"full_name": actions.REPOSITORY, "permissions": {"push": True}}
+        for conflict in ("local-tag", "remote-tag", "draft", "receipt", "runtime", "opencode", "permission", "transport"):
+            with self.subTest(conflict=conflict):
+                responses = [repo, [{"ref": f"refs/tags/v{self.version}"}] if conflict == "remote-tag" else []]
+                responses.append([{"tag_name": f"v{self.version}", "draft": conflict == "draft", "assets": [{"name": "npm-publish-receipt-123-1-runtime.json"}] if conflict == "receipt" else []}] if conflict in ("draft", "receipt") else [])
+                if conflict == "permission":
+                    responses[0] = {"full_name": actions.REPOSITORY}
+                published = lambda entry: {} if entry["name"] == metadata.PACKAGES.get(conflict) else None
+                with patch.object(finalizer, "capture", return_value=f"v{self.version}\n".encode() if conflict == "local-tag" else b""), patch.object(finalizer, "github", side_effect=RuntimeError("transport failed") if conflict == "transport" else responses), patch.object(finalizer, "registry_version", side_effect=published):
+                    with self.assertRaises((ValueError, RuntimeError)):
+                        finalizer.check_available(self.version, self.root)
+        with patch.object(finalizer, "capture", return_value=b""), patch.object(finalizer, "github", side_effect=[repo, [{"ref": f"refs/tags/v{self.version}0"}], []]), patch.object(finalizer, "registry_version", return_value=None) as registry:
+            finalizer.check_available(self.version, self.root)
+        self.assertEqual(registry.call_count, 2)
+
+    def test_source_snapshot_covers_edits_untracked_deletions_and_ignored_outputs(self):
+        root = self.root / "snapshot"
+        root.mkdir()
+        subprocess.run(["git", "init", "--quiet", root], check=True, capture_output=True)
+        tracked = root / "tracked"
+        tracked.write_text("one")
+        (root / ".gitignore").write_text(".tmp/\n")
+        subprocess.run(["git", "add", "."], cwd=root, check=True)
+        subprocess.run(["git", "-c", "user.name=Release fixture", "-c", "user.email=fixture@example.invalid", "commit", "--quiet", "-m", "test: snapshot"], cwd=root, check=True)
+        initial = finalizer.source_snapshot(root)
+        ignored = root / ".tmp"
+        ignored.mkdir()
+        (ignored / "log").write_text("generated")
+        self.assertEqual(finalizer.source_snapshot(root), initial)
+        if os.name != "nt":
+            link = root / "linked"
+            link.symlink_to(tracked.name)
+            with self.assertRaisesRegex(ValueError, "symlinks"):
+                finalizer.source_snapshot(root)
+            link.unlink()
+        tracked.write_text("changed")
+        self.assertNotEqual(finalizer.source_snapshot(root), initial)
+        tracked.unlink()
+        self.assertNotEqual(finalizer.source_snapshot(root), initial)
+        tracked.write_text("one")
+        self.assertEqual(finalizer.source_snapshot(root), initial)
+        (root / "untracked").write_text("new source")
+        self.assertNotEqual(finalizer.source_snapshot(root), initial)
+        (root / "untracked").unlink()
+        subprocess.run(["git", "-c", "user.name=Release fixture", "-c", "user.email=fixture@example.invalid", "commit", "--quiet", "--allow-empty", "-m", "test: changed revision"], cwd=root, check=True)
+        self.assertNotEqual(finalizer.source_snapshot(root), initial)
 
     def test_unreleased_notes_allow_development_checks_but_never_release_promotion(self):
         path = self.root / "CHANGELOG.md"

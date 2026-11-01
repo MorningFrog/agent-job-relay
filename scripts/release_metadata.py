@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Version, changelog and immutable candidate checks shared by release tooling."""
 import base64
+from datetime import date
 import hashlib
 import json
 import re
@@ -43,6 +44,27 @@ def changelog_notes(text, selected, *, allow_unreleased=False):
     require(any(line.strip() and not line.startswith("#") for line in body.splitlines()), "Release notes must not be empty")
     require(not re.search(r"\b(?:TODO|TBD)\b", body), "Finish CHANGELOG placeholders before release")
     return body + "\n"
+
+
+def finalized_changelog(text, selected, release_date):
+    require(re.fullmatch(r"\d{4}-\d{2}-\d{2}", release_date) and date.fromisoformat(release_date).isoformat() == release_date, "Release date must be YYYY-MM-DD")
+    headings = list(re.finditer(r"^## [^\r\n]*", text, re.M))
+    pending = [h for h in headings if h[0].strip() == "## [Unreleased]"]
+    require(len(pending) == 1 and pending[0] == headings[0], "CHANGELOG.md must start with exactly one Unreleased section")
+    heading = pending[0]
+    end = headings[1].start() if len(headings) > 1 else len(text)
+    existing = [h for h in headings if re.match(rf"^## \[?{re.escape(selected)}\]?(?=\s|$)", h[0])]
+    if existing:
+        require(len(existing) == 1 and not text[heading.end():end].strip(), "Refusing to merge Unreleased changes into an existing version")
+        match = re.fullmatch(rf"## \[{re.escape(selected)}\] - (\d{{4}}-\d{{2}}-\d{{2}})", existing[0][0])
+        require(match is not None, "Existing release heading must have a finalized date")
+        date.fromisoformat(match[1])
+        changelog_notes(text, selected)
+        return text
+    newline = "\r\n" if text[heading.end():].startswith("\r\n") else "\n"
+    result = text[:heading.end()] + newline * 2 + f"## [{selected}] - {release_date}" + text[heading.end():]
+    changelog_notes(result, selected)
+    return result
 
 
 def source_metadata(root=REPO, *, allow_unreleased=False):

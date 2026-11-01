@@ -10,9 +10,9 @@
 
 The subsequent [independent Check Release **41173129229**](https://github.com/MorningFrog/agent-job-relay/actions/runs/41173129229) failed. This leaves public verification follow-up open; it does not undo successful publication or permit republishing 0.1.18. Diagnose or recheck the original published candidate without replacing its artifacts. Publication and verification are separate outcomes.
 
-Current workspace changes to long-task visibility/feedback planning, original goal-handoff recovery and release-note admission remain under **Unreleased**. The manifests still say 0.1.18, but current source and local package acceptance are development evidence, not the published payloads. Formal preparation must choose an unused version, synchronize its pins and then finalize its new notes. Keep the published 0.1.18 section unchanged. Schema v12, IPC v1 and 25 MCP tools remain.
+The next release is **0.1.19**, with matching Cargo/npm/plugin versions. It includes long-task visibility/feedback planning, original goal-handoff recovery, release-note admission and automatic local CHANGELOG finalization after successful checks. Preparation checks Git tags, authenticated GitHub Releases/drafts and both npm versions before and after its gates; it preserves published 0.1.18 history. Local preparation is not publication or a sealed Linux/Windows candidate. Schema v12, IPC v1 and 25 MCP tools remain.
 
-Current local Linux gates, 64 release-flow fixtures and isolated package/loader checks pass; see [verification](IMPLEMENTATION_STATUS.md#current-verification). The Linux-only local development package requires glibc 2.39 and cannot replace the published payloads. A future authorized release must qualify its complete revision remotely, seal a fresh candidate under the new version and receive final publication confirmation naming that candidate.
+Current verification and package/loader limits are in [implementation status](IMPLEMENTATION_STATUS.md#current-verification). Local developer payloads can require newer glibc and cannot replace published bytes. Before publication, qualify the complete 0.1.19 revision remotely, seal a fresh candidate and receive final publication confirmation naming that candidate.
 
 Consumer CLI/plugin installation and updates use `ajr update`; native offline and OpenCode routes remain separate. Runtime 0.1.17+ migrates v11 profiles forward to v12 after older active runs finish. See [updates](updating.md) and [current support/evidence](IMPLEMENTATION_STATUS.md).
 
@@ -29,7 +29,7 @@ Publication and verification have separate outcomes: **Publication submitted** m
 
 ## Quick path: Release All
 
-1. Update Cargo.toml and all pins, finish that version's CHANGELOG section, pass the [delivery gates](testing.md), commit/review and push main. Keep main unchanged during the release.
+1. Update Cargo.toml and all pins, then run `python3 scripts/finalize_release.py`. It runs the local checks and automatically finalizes CHANGELOG only on success. Review/commit the changes and push main with maintainer authorization. Keep main unchanged during the release.
 2. Open **Actions → Release All → Run workflow**, branch main. For a new unused version, leave candidate_run_id empty and channel=latest. Keep dry_run checked. The prepare job outputs the original candidate Run ID; the preview job checks credentials through the real Publish Release workflow. Download/review the candidate and notes.
 3. Run **Release All** again with that original candidate_run_id and dry_run unchecked. The candidate is reused, then preview, publication and checking run as separate jobs. Channel comes from the sealed candidate; the channel selector is ignored for reuse.
 4. A maintainer may choose dry_run unchecked with an empty candidate ID for a single manual prepare → preview → publish → check operation on a new unused version. The default remains dry-run for review. Never leave the ID empty for a partially published version.
@@ -58,12 +58,15 @@ Prepare Release, Check Release and Release All are not npm publishing identities
 
 ### Prepare and review
 
-During development, keep changes under the single `## [Unreleased]` CHANGELOG heading; Cargo.toml may temporarily advance without finalizing the release version. At formal release preparation, choose the final unused numeric x.y.z, synchronize Cargo.lock, both npm manifests, OpenCode's exact runtime dependency, plugin descriptors, both online MCP declarations/launchers and the stable online skill entry. Skills load the selected runtime workflow rather than carrying a version pin. Move the release's entries into exactly one dated version section and retain one empty Unreleased heading above it. The release preflight requires that finalized version section. Validate locally:
+During development, keep changes under the single `## [Unreleased]` CHANGELOG heading. At formal release preparation, select the intended numeric x.y.z in Cargo.toml and synchronize Cargo.lock, both npm manifests, OpenCode's exact runtime dependency, plugin descriptors and both online MCP declarations/launchers. The stable skill loads the selected runtime workflow without a version pin. With Python 3.11+, Git, authenticated GitHub CLI maintainer access, Node/npm and the Rust toolchain available, run from the checkout:
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 python3 scripts/release_actions.py source
-PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts -p test_release.py -v
+python3 scripts/finalize_release.py
 ```
+
+Expected: version/pin/notes validation and read-only local/remote tag, GitHub Release/draft/receipt and npm availability checks pass; frontend install/tests/build, release-flow and online-maintenance fixtures, fmt, all-target Clippy/tests and release build pass. Only then does CHANGELOG gain `## [x.y.z] - YYYY-MM-DD` beneath one empty Unreleased heading. The date defaults to Asia/Shanghai; `--date YYYY-MM-DD` explicitly pins a preparation date. Existing finalized dates are retained on retries; pending notes are never merged into an existing version. A failed check, unavailable inventory or changed tracked/untracked source leaves finalization unapplied. Review the diff and commit it before Actions; the command neither commits nor pushes/publishes. Its gates qualify the local native platform, not the remote Linux/Windows candidate or real hosts.
+
+This local step runs before the existing manual workflows so every job checks out the same committed notes and source revision. Actions preflight remains strict; candidate reuse, publication and checking never rewrite CHANGELOG or rebuild a used version. To validate versions during development without finalizing, use `python3 scripts/release_actions.py source --allow-unreleased`.
 
 Run **Prepare Release** on main, channel=latest for a formal release. It runs native Linux/Windows gates, Ubuntu 22.04 packaging and actual Codex/OpenCode installed-package/loader checks. OpenCode uses a simulated model; this does not establish new provider/UI acceptance. Preparation refuses a version already public or represented by a GitHub draft/release so a used version is not rebuilt.
 

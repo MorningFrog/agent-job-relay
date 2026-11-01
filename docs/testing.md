@@ -20,7 +20,7 @@ cargo build --release --locked
 
 Current counts, toolchains and results are maintained in [implementation status](IMPLEMENTATION_STATUS.md). CI defines all-target Linux/Windows native tests, installed Linux/Windows package checks and macOS compilation/portable library checks. A configured matrix alone does not establish native OS support. CI keeps a separate Rust 1.89 minimum-version `cargo check --all-targets --locked` job; stable native behavior gates remain separate.
 
-Development notes stay under `## [Unreleased]`; validate synchronized versions with `python3 scripts/release_actions.py source --allow-unreleased`. Local/CI package checks use `prepare_release.py --allow-unreleased`, which marks the packages as development-only. Formal release preparation requires finalized dated notes, does not accept that option and refuses promotion of development-only packages.
+Development notes stay under `## [Unreleased]`; validate synchronized versions with `python3 scripts/release_actions.py source --allow-unreleased`. Local/CI package checks use `prepare_release.py --allow-unreleased`, which marks the packages as development-only. For formal local preparation, `python3 scripts/finalize_release.py` runs frontend/native/release-flow/online-maintenance gates before automatically finalizing the notes; see [requirements and expected result](release.md#prepare-and-review). Actions still requires committed dated notes and refuses development-only promotion. Release fixtures cover successful ordering, failure preservation, repeated dates, malformed/duplicate/empty notes, partial publication, source changes and inventory refusal without real publication.
 
 ## Test selection and artifacts
 

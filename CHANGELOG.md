@@ -2,8 +2,11 @@
 
 ## [Unreleased]
 
+## [0.1.19] - 2026-11-01
+
 ### Added
 
+- Add local formal-release preparation that checks version availability and synchronized pins, runs frontend/native/release gates, then automatically finalizes Unreleased notes using the Cargo version and an Asia/Shanghai date. Preserve history, refuse concurrent source changes and leave notes untouched on failure; never push or publish.
 - Include read-only output visibility and ten-minute quiet-output/missing-notifying-rule advisories in feedback receipts and compact inspection. Keep stale, incomplete, terminal and external evidence separate; diagnostics never create rules, notifications or stop requests.
 - Expose bounded goal continuation actions, original request IDs, native confirmation revisions and per-request wait summaries through CLI/MCP inspection and the panel, with `goal_wait_recovery=true` capability. Keep uncertain host controls, host acceptance and actual Agent execution separate.
 
