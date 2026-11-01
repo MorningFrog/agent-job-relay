@@ -59,4 +59,4 @@ nav button .nav-label{background:none;margin:0;min-width:0;font:inherit;text-ali
   margin-top: 10px;
 }
  .history-filters{margin:12px 0}.history-filters .toolbar{flex-wrap:wrap;align-items:end}.history-filters label,.log-search label{display:flex;flex-direction:column;gap:6px;min-width:0}.history-filters input,.log-search input{max-width:100%;min-width:0;box-sizing:border-box}.log-search{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin:14px 0}.log-search label{flex:1 1 160px}.job-summary .rule-actions{display:flex;flex-wrap:wrap;gap:8px}.job-summary details p{overflow-wrap:anywhere}
- .storage-notice{margin-bottom:14px;overflow-wrap:anywhere}.storage-notice p{margin:6px 0}
+ .storage-notice{display:block;margin:0 0 14px;overflow-wrap:anywhere}.storage-notice p{margin:6px 0}

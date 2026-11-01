@@ -610,6 +610,25 @@ async fn daemon_launches_runner_after_its_executable_is_replaced_by_a_rebuild() 
     let health = ipc::call(&r.config, Request::Doctor).await.unwrap();
     assert_eq!(health["daemon_executable_path_available"], false);
     assert_eq!(health["runner_launch_from_loaded_image"], true);
+    let detail = ipc::call(
+        &r.config,
+        Request::Inspect {
+            job_id: Some(job.job_id),
+            before: None,
+            limit: 20,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        detail["notifications"]["recovery"]["commands_available"],
+        false
+    );
+    assert!(
+        detail["notifications"]["recovery"]
+            .get("desktop_preview")
+            .is_none()
+    );
 }
 
 #[tokio::test]

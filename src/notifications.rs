@@ -156,7 +156,12 @@ fn plan(detail: &Value) -> Value {
 }
 
 pub(crate) fn profile_commands(detail: &mut Value, config: &crate::config::Config) {
-    if let Ok(program) = std::env::current_exe() {
+    detail["notifications"]["recovery"]["commands_available"] = json!(false);
+    if let Ok(program) = std::env::current_exe()
+        && std::fs::symlink_metadata(&program)
+            .is_ok_and(|m| m.is_file() && !crate::platform::is_link(&m))
+    {
+        detail["notifications"]["recovery"]["commands_available"] = json!(true);
         for (name, apply) in [("desktop_preview", false), ("desktop_apply", true)] {
             let mut args = vec![
                 "--state-dir".to_owned(),
