@@ -12,6 +12,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 PACKAGES = {"runtime": "agent-job-relay-runtime", "opencode": "agent-job-relay-opencode-v1"}
 PACKAGE_PATHS = {"runtime": "packages/runtime", "opencode": "plugins/opencode-v1"}
+PLUGIN_MANIFESTS = ("plugins/chatgpt/plugin.json", "plugins/chatgpt/.codex-plugin/plugin.json", "plugins/agent-job-relay/plugin.json")
+RUNTIME_LAUNCHERS = ("plugins/chatgpt/.mcp.json", "plugins/chatgpt/mcp.json", "plugins/chatgpt/relay", "plugins/chatgpt/relay.cmd")
 
 
 def require(condition, message):
@@ -21,7 +23,11 @@ def require(condition, message):
 
 def version(root=REPO):
     value = tomllib.loads((root / "Cargo.toml").read_text())["package"]["version"]
-    require(re.fullmatch(r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)", value), "Cargo version must be numeric x.y.z")
+    return validate_version(value)
+
+
+def validate_version(value):
+    require(isinstance(value, str) and re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", value), "Release version must be numeric x.y.z")
     return value
 
 
@@ -67,26 +73,90 @@ def finalized_changelog(text, selected, release_date):
     return result
 
 
-def source_metadata(root=REPO, *, allow_unreleased=False):
-    selected = version(root)
-    lock = tomllib.loads((root / "Cargo.lock").read_text())
+def source_metadata(root=REPO, *, allow_unreleased=False, contents=None):
+    # Preparation validates a complete proposed edit before touching any file.
+    def read(relative):
+        if contents is not None and relative in contents:
+            return contents[relative].decode("utf-8")
+        return (root / relative).read_text(encoding="utf-8")
+
+    selected = validate_version(tomllib.loads(read("Cargo.toml"))["package"]["version"])
+    lock = tomllib.loads(read("Cargo.lock"))
     require([p["version"] for p in lock["package"] if p["name"] == "agent-job-relay"] == [selected], "Cargo.lock version differs from Cargo.toml")
     for key, name in PACKAGES.items():
-        package = json.loads((root / PACKAGE_PATHS[key] / "package.json").read_text())
+        package = json.loads(read(f"{PACKAGE_PATHS[key]}/package.json"))
         require(package["name"] == name and package["version"] == selected, f"{PACKAGE_PATHS[key]}/package.json name/version mismatch")
         require(not package.get("private") and not package.get("scripts"), f"{name} must be public without lifecycle scripts")
         require(package["publishConfig"]["registry"] == "https://registry.npmjs.org" and package["publishConfig"]["access"] == "public", "Unexpected npm publication destination")
         require(package["repository"]["url"] == "git+https://github.com/MorningFrog/agent-job-relay.git", "npm provenance repository mismatch")
         if key == "opencode":
             require(package["dependencies"][PACKAGES["runtime"]] == selected, "OpenCode must pin the exact Cargo runtime version")
-    for relative in ["plugins/chatgpt/plugin.json", "plugins/chatgpt/.codex-plugin/plugin.json", "plugins/agent-job-relay/plugin.json"]:
-        require(json.loads((root / relative).read_text())["version"] == selected, f"{relative} version mismatch")
+    for relative in PLUGIN_MANIFESTS:
+        require(json.loads(read(relative))["version"] == selected, f"{relative} version mismatch")
     pin = f"agent-job-relay-runtime@{selected}"
-    for relative in ["plugins/chatgpt/.mcp.json", "plugins/chatgpt/mcp.json", "plugins/chatgpt/relay", "plugins/chatgpt/relay.cmd"]:
-        pins = re.findall(r"agent-job-relay-runtime@[^\s\"']+", (root / relative).read_text())
+    for relative in RUNTIME_LAUNCHERS:
+        pins = re.findall(r"agent-job-relay-runtime@[^\s\"']+", read(relative))
         require(pins and all(p == pin for p in pins), f"{relative} runtime pin mismatch")
-    require(json.loads((root / "plugins/chatgpt/.mcp.json").read_text())["mcpServers"] == json.loads((root / "plugins/chatgpt/mcp.json").read_text())["mcpServers"], "MCP declarations differ")
-    return {"version": selected, "tag": f"v{selected}", "notes": changelog_notes((root / "CHANGELOG.md").read_text(), selected, allow_unreleased=allow_unreleased)}
+    require(json.loads(read("plugins/chatgpt/.mcp.json"))["mcpServers"] == json.loads(read("plugins/chatgpt/mcp.json"))["mcpServers"], "MCP declarations differ")
+    return {"version": selected, "tag": f"v{selected}", "notes": changelog_notes(read("CHANGELOG.md"), selected, allow_unreleased=allow_unreleased)}
+
+
+def release_version_updates(selected, root=REPO):
+    """Plan only release metadata edits; do not resolve or upgrade dependencies."""
+    validate_version(selected)
+    originals, updated = {}, {}
+
+    def read(relative):
+        path = root / relative
+        require(path.is_file() and not path.is_symlink(), f"{relative} must be a regular file")
+        originals[relative] = path.read_bytes()
+        return originals[relative].decode("utf-8")
+
+    def save(relative, text):
+        updated[relative] = text.encode("utf-8")
+
+    def toml_version(block):
+        pattern = r"(?m)^([ \t]*version[ \t]*=[ \t]*)([\"'])([^\"'\r\n]*)(\2)"
+        result, count = re.subn(pattern, lambda m: m[1] + m[2] + selected + m[4], block)
+        require(count == 1, "Expected exactly one package version assignment")
+        return result
+
+    text = read("Cargo.toml")
+    require(tomllib.loads(text)["package"]["name"] == "agent-job-relay", "Unexpected Cargo package")
+    text, count = re.subn(r"(?ms)^\[package\][ \t]*\r?\n.*?(?=^\[|\Z)", lambda m: toml_version(m[0]), text)
+    require(count == 1, "Expected one Cargo package table")
+    save("Cargo.toml", text)
+
+    text = read("Cargo.lock")
+    matches = []
+    for match in re.finditer(r"(?ms)^\[\[package\]\][ \t]*\r?\n.*?(?=^\[|\Z)", text):
+        if tomllib.loads(match[0])["package"][0]["name"] == "agent-job-relay":
+            matches.append(match)
+    require(len(matches) == 1, "Expected exactly one agent-job-relay lockfile entry")
+    match = matches[0]
+    save("Cargo.lock", text[:match.start()] + toml_version(match[0]) + text[match.end():])
+
+    manifests = [f"{relative}/package.json" for relative in PACKAGE_PATHS.values()] + list(PLUGIN_MANIFESTS)
+    for relative in manifests:
+        text = read(relative)
+        doc = json.loads(text)
+        changed = doc.get("version") != selected
+        if relative == f"{PACKAGE_PATHS['opencode']}/package.json":
+            require(PACKAGES["runtime"] in doc["dependencies"], "Missing OpenCode runtime dependency")
+            changed |= doc["dependencies"][PACKAGES["runtime"]] != selected
+            doc["dependencies"][PACKAGES["runtime"]] = selected
+        require("version" in doc, f"Missing version in {relative}")
+        doc["version"] = selected
+        newline = "\r\n" if "\r\n" in text else "\n"
+        save(relative, (json.dumps(doc, indent=2, ensure_ascii=False) + "\n").replace("\n", newline) if changed else text)
+
+    for relative in RUNTIME_LAUNCHERS:
+        text, count = re.subn(r"agent-job-relay-runtime@[^\s\"']+", f"agent-job-relay-runtime@{selected}", read(relative))
+        require(count > 0, f"Missing runtime pin in {relative}")
+        save(relative, text)
+    # Validate names, publication destinations and matching launchers as well as pins.
+    source_metadata(root, allow_unreleased=True, contents=updated)
+    return {name: (originals[name], content) for name, content in updated.items() if content != originals[name]}
 
 
 def sha256(path):

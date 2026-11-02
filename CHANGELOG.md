@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Prepare a new release with `finalize_release.py --version x.y.z`: synchronize Cargo/lockfile, both public npm packages, plugin versions and runtime pins before delivery gates, then finalize the dated CHANGELOG heading only on success. Validate availability before edits, preserve pending notes on failure and support explicit-version retry after interrupted metadata replacement. Add a script responsibility index without changing CI entry points.
+
 ### Fixed
 
 - Show submitted remote launch commands in task details and bounded list summaries, distinguish local observer/remote execution directories and identities, and search full retained launch commands across hot/archived history. Label attached runs without command metadata explicitly; keep environment/transport details out of the command view and retain existing execution/protocol semantics.

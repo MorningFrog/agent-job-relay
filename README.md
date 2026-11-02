@@ -135,6 +135,6 @@ The **[documentation index / 文档导航](docs/README.md)** groups all guides b
 | Update, remove, back up or fix an installation | [Updates](docs/updating.md), [uninstallation](docs/uninstalling.md), [data maintenance](docs/data-maintenance.md), [troubleshooting](docs/troubleshooting.md) |
 | Check progress or verification | [Implementation status](docs/IMPLEMENTATION_STATUS.md), [live evidence](docs/live-e2e.md), [roadmap](docs/TODO.md), [changelog](CHANGELOG.md) |
 | Contribute or understand the design | [Contributing](CONTRIBUTING.md), [testing](docs/testing.md), [architecture](docs/architecture.md), [protocol](docs/protocol.md), [security](docs/security.md) |
-| Prepare a maintainer release | [Manual release guide](docs/release.md) |
+| Prepare a maintainer release or find a developer script | [Manual release guide](docs/release.md), [script index](scripts/README.md) |
 
 Community testing and PRs are welcome, especially for Claude Code and additional host versions. Releases use npm and a self-hosted marketplace; official-directory approval is separate. Licensed under [MIT](LICENSE).

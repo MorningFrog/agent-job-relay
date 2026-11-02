@@ -192,6 +192,108 @@ class ReleaseTests(unittest.TestCase):
         replace.assert_not_called()
         self.assertEqual(path.read_bytes(), original)
 
+    def test_explicit_version_synchronizes_release_inputs_before_gates_and_notes_after(self):
+        path, original = self.pending_notes()
+        selected = "98.7.6"
+        lock = (self.root / "Cargo.lock").read_text()
+        launcher = self.root / "plugins/chatgpt/relay"
+        launcher.chmod(0o755)
+        runtime = self.root / "packages/runtime/package.json"
+        doc = json.loads(runtime.read_text())
+        doc["custom"] = {"version": self.version, "label": "保留用户字段"}
+        runtime.write_text(json.dumps(doc, ensure_ascii=False) + "\n", encoding="utf-8")
+        windows = self.root / "plugins/chatgpt/relay.cmd"
+        windows.write_bytes(windows.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))
+        web = self.root / "web/package.json"
+        web.parent.mkdir()
+        web.write_text('{"name":"private-web","private":true,"version":"0.1.0"}\n')
+        before_web = web.read_bytes()
+        subprocess.run(["git", "init", "--quiet", self.root], check=True, capture_output=True)
+        subprocess.run(["git", "add", "."], cwd=self.root, check=True, capture_output=True)
+        subprocess.run(["git", "-c", "user.name=Release fixture", "-c", "user.email=fixture@example.invalid", "commit", "--quiet", "-m", "test: version synchronization"], cwd=self.root, check=True, capture_output=True)
+        events = []
+
+        def available(value, root):
+            self.assertEqual((value, root), (selected, self.root))
+            self.assertEqual(path.read_text(), original)
+            events.append("available")
+
+        def checks(root):
+            self.assertEqual(metadata.source_metadata(root, allow_unreleased=True)["version"], selected)
+            self.assertEqual(path.read_text(), original)
+            events.append("checks")
+
+        with patch.object(finalizer, "check_available", side_effect=available), patch.object(finalizer, "run_checks", side_effect=checks), patch("builtins.print"):
+            finalizer.finalize(self.root, "2026-11-02", selected)
+        self.assertEqual(events, ["available", "checks", "available"])
+        self.assertEqual(metadata.source_metadata(self.root)["version"], selected)
+        self.assertEqual(path.read_text(), metadata.finalized_changelog(original, selected, "2026-11-02"))
+        self.assertEqual((self.root / "Cargo.lock").read_text(), lock.replace(f'name = "agent-job-relay"\nversion = "{self.version}"', f'name = "agent-job-relay"\nversion = "{selected}"', 1))
+        self.assertEqual(web.read_bytes(), before_web)
+        self.assertEqual(json.loads(runtime.read_text(encoding="utf-8"))["custom"], doc["custom"])
+        self.assertNotIn(b"\n", windows.read_bytes().replace(b"\r\n", b""))
+        if os.name != "nt":
+            self.assertEqual(launcher.stat().st_mode & 0o777, 0o755)
+
+    def test_version_preflight_refuses_invalid_inputs_and_publication_before_any_write(self):
+        self.pending_notes()
+        baseline = {p.relative_to(self.root): p.read_bytes() for p in self.root.rglob("*") if p.is_file()}
+        for failure in ("format", "missing-pin", "destination", "history", "publication", "source"):
+            for relative, content in baseline.items():
+                (self.root / relative).write_bytes(content)
+            if failure == "missing-pin":
+                (self.root / "plugins/chatgpt/relay.cmd").write_text("@echo off\n")
+            if failure == "destination":
+                package = self.root / "packages/runtime/package.json"
+                package.write_text(package.read_text().replace("https://registry.npmjs.org", "https://invalid.example"))
+            before = {p: (self.root / p).read_bytes() for p in baseline}
+            selected = "v98.7.6" if failure == "format" else "0.0.1" if failure == "history" else "98.7.6"
+            with self.subTest(failure=failure), patch.object(finalizer, "check_available", side_effect=ValueError("already published") if failure == "publication" else None), patch.object(finalizer, "source_snapshot", side_effect=[b"before", b"after"] if failure == "source" else lambda _: b"same"), patch.object(finalizer, "run_checks") as checks:
+                with self.assertRaises(ValueError):
+                    finalizer.finalize(self.root, "2026-11-02", selected)
+                checks.assert_not_called()
+            self.assertEqual({p: (self.root / p).read_bytes() for p in baseline}, before)
+
+    def test_failed_versioned_gates_keep_pending_notes_and_allow_same_version_retry(self):
+        path, original = self.pending_notes()
+        selected = "98.7.6"
+        with patch.object(finalizer, "check_available"), patch.object(finalizer, "source_snapshot", return_value=b"same"), patch.object(finalizer, "run_checks", side_effect=subprocess.CalledProcessError(1, ["cargo", "test"])), patch("builtins.print"):
+            with self.assertRaises(subprocess.CalledProcessError):
+                finalizer.finalize(self.root, "2026-11-01", selected)
+        self.assertEqual(metadata.source_metadata(self.root, allow_unreleased=True)["version"], selected)
+        self.assertEqual(path.read_text(), original)
+        with patch.object(finalizer, "check_available"), patch.object(finalizer, "source_snapshot", return_value=b"same"), patch.object(finalizer, "run_checks"), patch("builtins.print"):
+            finalizer.finalize(self.root, "2026-11-02", selected)
+        finalized = path.read_bytes()
+        self.assertIn(b"## [98.7.6] - 2026-11-02", finalized)
+        with patch.object(finalizer, "check_available"), patch.object(finalizer, "source_snapshot", return_value=b"same"), patch.object(finalizer, "run_checks"), patch.object(finalizer.os, "replace") as replace, patch("builtins.print"):
+            finalizer.finalize(self.root, "2026-11-03", selected)
+        replace.assert_not_called()
+        self.assertEqual(path.read_bytes(), finalized)
+
+    def test_interrupted_multi_file_version_update_finishes_on_explicit_retry(self):
+        path, original = self.pending_notes()
+        replace = os.replace
+        calls = 0
+
+        def interrupt(staged, target):
+            nonlocal calls
+            calls += 1
+            if calls == 3:
+                raise OSError("injected interrupted metadata replacement")
+            replace(staged, target)
+
+        with patch.object(finalizer, "check_available"), patch.object(finalizer, "source_snapshot", return_value=b"same"), patch.object(finalizer.os, "replace", side_effect=interrupt), patch.object(finalizer, "run_checks") as checks:
+            with self.assertRaises(OSError):
+                finalizer.finalize(self.root, "2026-11-02", "98.7.6")
+            checks.assert_not_called()
+        self.assertEqual(path.read_text(), original)
+        with self.assertRaisesRegex(ValueError, "mismatch"):
+            metadata.source_metadata(self.root, allow_unreleased=True)
+        with patch.object(finalizer, "check_available"), patch.object(finalizer, "source_snapshot", return_value=b"same"), patch.object(finalizer, "run_checks"), patch("builtins.print"):
+            finalizer.finalize(self.root, "2026-11-02", "98.7.6")
+        self.assertEqual(metadata.source_metadata(self.root)["version"], "98.7.6")
+
     def test_source_change_during_initial_inventory_cannot_finalize_stale_notes(self):
         path, original = self.pending_notes()
         cargo = self.root / "Cargo.toml"

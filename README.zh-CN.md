@@ -135,6 +135,6 @@ ajr inspect <job-id>
 | 更新、卸载、备份或修复安装 | [更新](docs/updating.md)、[卸载](docs/uninstalling.md)、[数据维护](docs/data-maintenance.md)、[排障](docs/troubleshooting.md) |
 | 查看进度和验证情况 | [实施状态](docs/IMPLEMENTATION_STATUS.md)、[实测记录](docs/live-e2e.md)、[路线图](docs/TODO.md)、[变更记录](CHANGELOG.md) |
 | 参与开发或理解设计 | [贡献指南](CONTRIBUTING.md)、[测试](docs/testing.md)、[架构](docs/architecture.md)、[协议](docs/protocol.md)、[安全](docs/security.md) |
-| 准备维护者发布 | [手动发布指南](docs/release.md) |
+| 准备维护者发布或查找开发脚本 | [手动发布指南](docs/release.md)、[脚本索引](scripts/README.md) |
 
 欢迎社区测试和 PR，尤其是 Claude Code 和更多宿主版本的验证。项目通过 npm 和自建 marketplace 分发，官方目录审批属于独立事项。采用 [MIT](LICENSE) 许可证。

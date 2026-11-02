@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run local release gates, then finalize CHANGELOG; never push or publish."""
+"""Synchronize release versions, run local gates, then finalize CHANGELOG; never publish."""
 import argparse
 from datetime import datetime, timedelta, timezone
 import hashlib
@@ -13,7 +13,8 @@ import tempfile
 
 sys.dont_write_bytecode = True
 from release_actions import REPOSITORY, registry_version
-from release_metadata import PACKAGES, REPO, finalized_changelog, require, source_metadata
+from release_metadata import (PACKAGES, REPO, finalized_changelog, release_version_updates,
+                              require, source_metadata, validate_version)
 
 
 def capture(argv, root):
@@ -83,40 +84,64 @@ def run_checks(root):
         subprocess.run(argv, cwd=root, check=True)
 
 
-def finalize(root=REPO, release_date=None):
+def replace_files(root, changes):
+    """Stage all replacements first; preserve modes and refuse stale file contents.
+
+    Each replacement is atomic, not the group. An interrupted version update can
+    be completed by rerunning with the same explicit --version.
+    """
+    temporary = root / ".tmp"
+    temporary.mkdir(exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="finalize-release-", dir=temporary) as directory:
+        replacements = []
+        for index, (relative, (original, updated)) in enumerate(changes.items()):
+            path = root / relative
+            require(path.is_file() and not path.is_symlink() and path.read_bytes() == original, f"Source changed before writing {relative}; rerun preparation")
+            staged = Path(directory) / str(index)
+            staged.write_bytes(updated)
+            staged.chmod(stat.S_IMODE(path.stat().st_mode))
+            replacements.append((staged, path, original))
+        for staged, path, original in replacements:
+            require(not path.is_symlink() and path.read_bytes() == original, f"Source changed before writing {path.relative_to(root)}; rerun preparation")
+            os.replace(staged, path)
+
+
+def finalize(root=REPO, release_date=None, selected_version=None):
     root = root.resolve()
     require(sys.platform in ("linux", "win32"), "Formal release gates require Linux or Windows native support")
     path = root / "CHANGELOG.md"
     require(path.is_file() and not path.is_symlink(), "CHANGELOG.md must be a regular file")
     snapshot = source_snapshot(root)
     original = path.read_bytes()
-    selected = source_metadata(root, allow_unreleased=True)["version"]
+    selected = validate_version(selected_version) if selected_version is not None else source_metadata(root, allow_unreleased=True)["version"]
     # Pin one preparation date across the checks, independently of machine TZ.
     release_date = release_date or datetime.now(timezone(timedelta(hours=8))).date().isoformat()
     updated = finalized_changelog(original.decode("utf-8"), selected, release_date).encode("utf-8")
+    changes = release_version_updates(selected, root) if selected_version is not None else {}
     check_available(selected, root)
+    if changes:
+        require(source_snapshot(root) == snapshot and path.read_bytes() == original, "Source changed during version inventory; rerun preparation")
+        replace_files(root, changes)
+        snapshot = source_snapshot(root)
+        print(f"Synchronized release metadata to {selected}. Version edits remain for review if a gate fails; CHANGELOG is finalized only after all gates pass.", flush=True)
     run_checks(root)
     # Recheck publication and the exact tested sources immediately before writing.
     check_available(selected, root)
     require(source_snapshot(root) == snapshot and path.read_bytes() == original, "Source changed during release checks; rerun preparation before finalizing notes")
+    source_metadata(root, contents={"CHANGELOG.md": updated})
     if updated != original:
-        temporary = root / ".tmp"
-        temporary.mkdir(exist_ok=True)
-        with tempfile.TemporaryDirectory(prefix="finalize-notes-", dir=temporary) as directory:
-            staged = Path(directory) / "CHANGELOG.md"
-            staged.write_bytes(updated)
-            staged.chmod(stat.S_IMODE(path.stat().st_mode))
-            os.replace(staged, path)
+        replace_files(root, {"CHANGELOG.md": (original, updated)})
     source_metadata(root)
     print(f"Release {selected} checks passed; CHANGELOG.md is finalized. Review and commit before manual Actions preparation. No push or publication performed.", flush=True)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--version", help="Set numeric x.y.z in Cargo/npm/plugin metadata and runtime pins before checks; default: validate the current Cargo version")
     parser.add_argument("--date", help="Preparation date YYYY-MM-DD; default: today in Asia/Shanghai")
     args = parser.parse_args()
     try:
-        finalize(release_date=args.date)
+        finalize(release_date=args.date, selected_version=args.version)
     except (ValueError, RuntimeError, KeyError, OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
         parser.exit(1, f"Release preparation stopped: {error}\n")
 
