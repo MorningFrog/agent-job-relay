@@ -122,7 +122,7 @@ Only after that succeeds, use your next real long task:
 
 Expected: the Agent obtains a fresh terminal binding, submits through AgentJobRelay MCP `job_start`, reports the job ID and ends its turn. Observed same-chat continuation is a separate acceptance result; host acceptance alone does not prove it. See [manual acceptance](manual-testing.md) for evidence boundaries.
 
-Desktop goal pause asks once when permission is absent. Preflight returns `needs_confirmation`; `job_goal_consent` uses native input or one Agent question, then `connect --request-id` reuses the approved scope for later rounds. The user has confirmed automatic pause after approval locally. Direct MCP form UI/full multi-round restoration remain separate acceptance. See [goal waiting](goal-waiting.md).
+Desktop goal pause asks once when permission is absent. Preflight returns `needs_confirmation`; `job_goal_consent` uses native input or one Agent question, then `connect --request-id` reuses the approved scope for later rounds. See [goal waiting](goal-waiting.md) for the protocol and [live evidence](live-e2e.md#user-reported-sustained-real-work-use) for current acceptance and the occasional resume failure.
 
 ## If the skill appears but job_start is missing
 

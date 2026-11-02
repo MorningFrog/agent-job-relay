@@ -122,7 +122,7 @@ codex plugin add agent-job-relay@agent-job-relay-local
 
 预期：Agent 从当前聊天终端取得新的绑定，通过 AgentJobRelay MCP `job_start` 提交，报告任务 ID，然后结束本轮。实际观察到同聊天续接是另一项验收结果，宿主接收本身不能证明续接成功。验证边界见[人工验收](manual-testing.md)。
 
-Desktop goal 暂停仅在缺少许可时询问一次。预检查返回 `needs_confirmation`，`job_goal_consent` 使用原生确认或一次 Agent 提问，再通过 `connect --request-id` 在后续轮次沿用批准范围。用户已确认本地批准后自动暂停有效；新的直接 MCP 确认界面和完整多轮恢复分别验收。见 [goal 等待](goal-waiting.md)。
+Desktop goal 暂停仅在缺少许可时询问一次。预检查返回 `needs_confirmation`，`job_goal_consent` 使用原生确认或一次 Agent 提问，再通过 `connect --request-id` 在后续轮次沿用批准范围。协议见 [goal 等待](goal-waiting.md)，当前验收及偶发无法 resume 的限制见[实测记录](live-e2e.md#user-reported-sustained-real-work-use)。
 
 ## 能看到技能，但没有 job_start 时
 
