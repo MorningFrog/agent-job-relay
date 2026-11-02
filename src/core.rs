@@ -44,6 +44,31 @@ pub enum CommandSpec {
     },
 }
 impl CommandSpec {
+    /// Submitted workload text for display/search, never a command to execute.
+    pub(crate) fn display_text(&self) -> String {
+        match self {
+            Self::Exec { program, args } => std::iter::once(program.as_str())
+                .chain(args.iter().map(String::as_str))
+                .collect::<Vec<_>>()
+                .join(" "),
+            Self::Shell { script, .. } => script.clone(),
+            Self::Remote { remote } => match &remote.intent {
+                crate::remote::Intent::Launch { spec } => format!(
+                    "{} [remote {} (launch)]",
+                    spec.command.display_text(),
+                    remote.target_id
+                ),
+                crate::remote::Intent::Attach { .. } => {
+                    format!("remote {} (attach; command unavailable)", remote.target_id)
+                }
+            },
+            Self::GithubActions { workflow } => format!(
+                "GitHub Actions {} run {} attempt {}",
+                workflow.repository, workflow.run_id, workflow.attempt
+            ),
+        }
+    }
+
     pub(crate) fn validate_rule(&self, rule: &crate::monitor::RuleSpec) -> Result<()> {
         use crate::monitor::Condition;
         match self {

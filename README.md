@@ -116,6 +116,8 @@ Source 0.1.20 (not yet published) adds an effective-feedback card and editable s
 
 Task details open on terminal output, with optional following of new text. Separate tabs hold progress, feedback/notifications, rules and events; expand execution information for the full command and original IDs.
 
+Later Unreleased source shows submitted remote launch commands in the list/details and full-command search, distinguishes local observer and remote execution directories, and labels missing attach command metadata. This requires a build newer than sealed 0.1.20; see [remote command inspection](docs/remote-execution.md#inspect-submitted-commands-unreleased).
+
 Use the returned job ID in the last command; the first submission starts the daemon automatically. OpenCode uses `ajr opencode`; native offline installations use their recorded launcher/profile. See the [command reference](docs/commands.md).
 
 Commands run with your OS permissions. Job completion, host acknowledgement (`accepted_by_host`) and observed Agent continuation are separate results. Removal retains task history and logs; see [uninstallation](docs/uninstalling.md) and [troubleshooting](docs/troubleshooting.md).

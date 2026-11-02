@@ -681,25 +681,12 @@ pub fn human(value: &Value) -> String {
 }
 
 pub(crate) fn summary(job: Job) -> Value {
-    let preview = match &job.command {
-        CommandSpec::Exec { program, args } => std::iter::once(program.as_str())
-            .chain(args.iter().map(String::as_str))
-            .collect::<Vec<_>>()
-            .join(" "),
-        CommandSpec::Shell { script, .. } => script.clone(),
-        CommandSpec::Remote { remote } => format!(
-            "remote {} ({})",
-            remote.target_id,
-            if matches!(remote.intent, crate::remote::Intent::Launch { .. }) {
-                "launch"
-            } else {
-                "attach"
-            }
-        ),
-        CommandSpec::GithubActions { workflow } => format!(
-            "GitHub Actions {} run {} attempt {}",
-            workflow.repository, workflow.run_id, workflow.attempt
-        ),
+    let preview = job.command.display_text();
+    let command_kind = match &job.command {
+        CommandSpec::Exec { .. } => "exec",
+        CommandSpec::Shell { .. } => "shell",
+        CommandSpec::Remote { .. } => "remote",
+        CommandSpec::GithubActions { .. } => "github_actions",
     };
-    json!({"job_id":job.job_id,"title":job.title,"run_id":job.run_id,"sequence":job.sequence,"queue":job.queue,"status":job.status,"created_at":job.created_at,"updated_at":job.updated_at,"cancel_requested":job.cancel_requested,"exit_code":job.exit_code,"command_preview":preview.chars().take(256).collect::<String>(),"cwd":job.cwd.to_string_lossy().chars().take(512).collect::<String>(),"run":{"started_at":job.run.started_at,"ended_at":job.run.ended_at}})
+    json!({"job_id":job.job_id,"title":job.title,"run_id":job.run_id,"sequence":job.sequence,"queue":job.queue,"status":job.status,"created_at":job.created_at,"updated_at":job.updated_at,"cancel_requested":job.cancel_requested,"exit_code":job.exit_code,"command_kind":command_kind,"command_preview":preview.chars().take(256).collect::<String>(),"cwd":job.cwd.to_string_lossy().chars().take(512).collect::<String>(),"run":{"started_at":job.run.started_at,"ended_at":job.run.ended_at}})
 }

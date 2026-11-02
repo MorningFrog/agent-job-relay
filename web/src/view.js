@@ -39,17 +39,20 @@ export const elapsed = (job) => {
     ? `${seconds} 秒`
     : `${Math.floor(seconds / 60)} 分 ${seconds % 60} 秒`;
 };
-export const command = (job) =>
-  job?.command_preview ||
-  (job?.command?.kind === "remote"
-    ? `远程 ${job.command.remote.target_id} · ${job.command.remote.intent.kind}`
-    : job?.command?.kind === "github_actions"
-      ? `GitHub Actions ${job.command.workflow.repository} · ${job.command.workflow.run_id} / ${job.command.workflow.attempt}`
-      : job?.command?.kind === "shell"
-        ? job.command.script
-        : [job?.command?.program, ...(job?.command?.args || [])]
-            .filter(Boolean)
-            .join(" "));
+const commandText = (spec) => spec?.kind === "shell" ? spec.script :
+  [spec?.program, ...(spec?.args || [])].filter(Boolean).join(" ");
+export const command = (job) => {
+  const spec = job?.command;
+  if (spec?.kind === "remote") {
+    return spec.remote?.intent?.kind === "launch"
+      ? commandText(spec.remote.intent.spec.command)
+      : "未提供远端命令（附加观察）";
+  }
+  if (spec?.kind === "github_actions") {
+    return `GitHub Actions ${spec.workflow.repository} · ${spec.workflow.run_id} / ${spec.workflow.attempt}`;
+  }
+  return spec ? commandText(spec) : job?.command_preview || "";
+};
 
 const basename = (path) => path?.replace(/[\\/]+$/, "").split(/[\\/]/).pop();
 const shorten = (text, limit) => {

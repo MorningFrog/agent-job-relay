@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createServer } from "vite";
-import { taskTitle } from "./view.js";
+import { command, taskTitle } from "./view.js";
 
 const server = await createServer({
   root: fileURLToPath(new URL("../", import.meta.url)),
@@ -150,6 +150,52 @@ test("named task details retain the purpose, original ID and complete escaped co
   assert.ok(html.includes(script.replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll("'", "&#x27;")));
   assert.ok(!html.includes("<script>"));
   assert.equal(taskTitle(job), job.title);
+});
+
+test("remote launch details show the full submitted workload and distinct execution identities", () => {
+  for (const workload of [
+    { kind: "exec", program: "python", args: ["train.py", "<unsafe>", "尾".repeat(300)] },
+    { kind: "shell", interpreter: "pwsh", script: "Write-Output '<unsafe>'; " + "尾".repeat(300) },
+  ]) {
+    const remote = { target_id: "pinned-target", intent: { kind: "launch", spec: {
+      command: workload, cwd: "C:\\remote\\训练", env: { TOKEN: "hidden-environment" },
+    } }, transport: { program: "ssh", args: ["hidden-transport"] } };
+    const job = { job_id: "local-job", run_id: "local-run", title: "训练模型", status: "running",
+      cwd: "/local/observer", command: { kind: "remote", remote }, command_preview: "truncated preview" };
+    const html = renderToStaticMarkup(React.createElement(TaskDetail, {
+      selected: job.job_id, detail: { job, observation: { external: {
+        run: { job_id: "remote-job", run_id: "remote-run", attempt: 1 },
+      } } }, tab: "output", streamName: "stdout",
+    }));
+    for (const expected of ["提交的远端命令", "本地观察目录", "/local/observer", "远端工作目录",
+      "C:\\remote\\训练", "pinned-target", "local-job", "local-run", "remote-job", "remote-run", "尾".repeat(300), "&lt;unsafe&gt;"]) {
+      assert.ok(html.includes(expected), expected);
+    }
+    for (const absent of ["<unsafe>", "hidden-environment", "hidden-transport", "truncated preview"]) {
+      assert.ok(!html.includes(absent), absent);
+    }
+    if (workload.kind === "shell") assert.ok(html.includes("远端解释器") && html.includes("pwsh"));
+    assert.equal(command(job), workload.kind === "shell" ? workload.script : [workload.program, ...workload.args].join(" "));
+    const pending = renderToStaticMarkup(React.createElement(TaskDetail, {
+      selected: job.job_id, detail: { job }, tab: "output", streamName: "stdout",
+    }));
+    assert.ok(pending.includes("尚未确认"));
+    assert.ok(!pending.includes("未提供远端命令"));
+  }
+});
+
+test("remote attach details disclose missing command metadata and retain the pinned run before sampling", () => {
+  const job = { job_id: "observer", status: "running", cwd: "/local/observer",
+    command: { kind: "remote", remote: { target_id: "pinned-target", intent: {
+      kind: "attach", run: { job_id: "attached-job", run_id: "attached-run", attempt: 1 }, allow_stop: false,
+    } } } };
+  const html = renderToStaticMarkup(React.createElement(TaskDetail, {
+    selected: job.job_id, detail: { job }, tab: "output", streamName: "stdout",
+  }));
+  for (const expected of ["未提供远端命令（附加观察）", "未提供（附加观察）", "attached-job", "attached-run", "pinned-target", "停止观察"]) {
+    assert.ok(html.includes(expected), expected);
+  }
+  assert.ok(!html.includes("提交的远端命令"));
 });
 
 test("unnamed legacy jobs have bounded project hints without inline script bodies", () => {

@@ -1,4 +1,5 @@
 mod common;
+use agent_job_relay::remote::{Intent, RemoteSpec, RunRef, Transport};
 use agent_job_relay::{
     config::Config,
     core::*,
@@ -145,6 +146,156 @@ async fn history_search_reaches_cold_records_after_empty_pages_and_preserves_sta
             .await
             .is_err()
     );
+}
+
+#[tokio::test]
+async fn remote_command_search_and_summaries_preserve_hot_and_archived_intent() {
+    let (_dir, store, spec) = fixture().await;
+    let target = id();
+    let mut remote_spec = spec.clone();
+    remote_spec.title = Some("Remote training".into());
+    remote_spec
+        .env
+        .insert("TOKEN".into(), "not-searchable-env".into());
+    let transport = Transport {
+        program: "never-execute-transport".into(),
+        args: vec!["not-searchable-transport".into()],
+    };
+    let mut jobs = Vec::new();
+    for (command, expected_preview) in [
+        (
+            CommandSpec::Exec {
+                program: "python".into(),
+                args: vec!["train.py".into(), format!("{}深处参数", "测".repeat(300))],
+            },
+            "python train.py",
+        ),
+        (
+            CommandSpec::Shell {
+                interpreter: "searchable-interpreter".into(),
+                script: format!("printf '%s' '{}深处参数'", "测".repeat(300)),
+            },
+            "printf",
+        ),
+    ] {
+        remote_spec.command = command;
+        let mut outer = spec.clone();
+        outer.command = CommandSpec::Remote {
+            remote: Box::new(RemoteSpec {
+                target_id: target.clone(),
+                transport: transport.clone(),
+                intent: Intent::Launch {
+                    spec: Box::new(remote_spec.clone()),
+                },
+            }),
+        };
+        let job = store.start(outer).await.unwrap();
+        store
+            .finish(
+                job.job_id.clone(),
+                "completed",
+                Some(0),
+                None,
+                "fixture; no execution".into(),
+            )
+            .await
+            .unwrap();
+        jobs.push((job, expected_preview));
+    }
+    let attached = RunRef {
+        job_id: id(),
+        run_id: id(),
+        attempt: 1,
+    };
+    let mut attach_spec = spec.clone();
+    attach_spec.command = CommandSpec::Remote {
+        remote: Box::new(RemoteSpec {
+            target_id: target.clone(),
+            transport,
+            intent: Intent::Attach {
+                run: attached,
+                allow_stop: false,
+            },
+        }),
+    };
+    let attach = store.start(attach_spec).await.unwrap();
+    store
+        .finish(
+            attach.job_id.clone(),
+            "cancelled",
+            None,
+            None,
+            "fixture; no execution".into(),
+        )
+        .await
+        .unwrap();
+
+    for archived in [false, true] {
+        if archived {
+            store
+                .data_policy(
+                    Some(agent_job_relay::maintenance::Policy {
+                        archive_after_days: 0,
+                        ..Default::default()
+                    }),
+                    true,
+                )
+                .await
+                .unwrap();
+            store.maintain(true).await.unwrap();
+        }
+        let query = |text: &str| TaskQuery {
+            text: text.into(),
+            ..Default::default()
+        };
+        let deep = store
+            .search_tasks(query("深处参数"), None, 20)
+            .await
+            .unwrap();
+        assert_eq!(deep["jobs"].as_array().unwrap().len(), 2);
+        for (summary, (original, expected_preview)) in deep["jobs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .zip(jobs.iter().rev())
+        {
+            assert_eq!(summary["job_id"], original.job_id);
+            assert_eq!(summary["run_id"], original.run_id);
+            assert_eq!(summary["command_kind"], "remote");
+            let preview = summary["command_preview"].as_str().unwrap();
+            assert_eq!(preview.chars().count(), 256);
+            assert!(!preview.contains("深处参数"));
+            assert!(preview.starts_with(*expected_preview));
+            let detail = store
+                .inspect(Some(original.job_id.clone()), None, 20)
+                .await
+                .unwrap();
+            assert_eq!(detail["job"]["command"], json!(original.command));
+        }
+        let interpreter = store
+            .search_tasks(query("searchable-interpreter"), None, 20)
+            .await
+            .unwrap();
+        assert_eq!(interpreter["jobs"].as_array().unwrap().len(), 1);
+        let by_target = store.search_tasks(query(&target), None, 20).await.unwrap();
+        assert_eq!(by_target["jobs"].as_array().unwrap().len(), 3);
+        let unavailable = store
+            .search_tasks(query("command unavailable"), None, 20)
+            .await
+            .unwrap();
+        assert_eq!(unavailable["jobs"][0]["job_id"], attach.job_id);
+        for hidden in ["not-searchable-env", "not-searchable-transport"] {
+            assert_eq!(
+                store.search_tasks(query(hidden), None, 20).await.unwrap()["jobs"],
+                json!([])
+            );
+        }
+        assert_eq!(
+            store.data_status().await.unwrap()["archived_jobs"],
+            if archived { 3 } else { 0 }
+        );
+    }
+    assert!(ipc::call(&store.config, Request::Doctor).await.is_err());
 }
 
 #[tokio::test]

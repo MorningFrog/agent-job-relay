@@ -116,6 +116,8 @@ ajr inspect <job-id>
 
 任务详情默认显示终端输出，可选择跟随新内容。进度、反馈／通知、规则和事件放在独立标签中；展开执行信息可查看完整命令及原始 ID。
 
+后续尚未发布的源码会在列表、详情和全文搜索中展示提交的远程 launch 命令，区分本地观察目录与远端执行目录，并明确提示 attach 缺少命令元数据。此改动需要比已封存 0.1.20 更新的构建，见[远程命令查看](docs/remote-execution.md#inspect-submitted-commands-unreleased)。
+
 最后一条命令使用提交后返回的任务 ID；首次提交会自动启动 daemon。OpenCode 使用 `ajr opencode`，原生离线安装使用其记录的启动器及数据目录，具体见[命令参考](docs/commands.md)。
 
 命令以当前用户的系统权限执行。任务完成、宿主接收（`accepted_by_host`）和实际观察到 Agent 继续执行是三项独立结果。卸载默认保留任务历史和日志，具体见[卸载指南](docs/uninstalling.md)及[故障排查](docs/troubleshooting.md)。

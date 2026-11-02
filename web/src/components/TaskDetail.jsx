@@ -31,6 +31,9 @@ export function TaskDetail({ selected, token, detail, busy, tab, streamName, for
   const rules = (detail?.rules || []).filter(rule => !rule.deleted);
   const alerts = (detail?.events || []).filter(event => event.kind === "monitor_alert");
   const external = detail?.observation?.external;
+  const remote = job?.command?.kind === "remote" ? job.command.remote : null;
+  const remoteSpec = remote?.intent?.kind === "launch" ? remote.intent.spec : null;
+  const remoteRun = external?.run || (remote?.intent?.kind === "attach" ? remote.intent.run : null);
   const hint = detail ? feedbackHint(detail) : null;
   const stopObservation = job?.command?.kind === "github_actions" ||
     (job?.command?.kind === "remote" && job.command.remote?.intent?.kind === "attach" && !job.command.remote.intent.allow_stop);
@@ -251,10 +254,18 @@ export function TaskDetail({ selected, token, detail, busy, tab, streamName, for
         <summary><Icon name="terminal" size={13} />命令与执行信息</summary>
         <dl><dt>任务 ID</dt><dd className="mono">{job.job_id}</dd>
           <dt>运行 ID</dt><dd className="mono">{job.run_id || job.run?.run_id || "—"}</dd>
-          <dt>工作目录</dt><dd className="mono">{job.cwd}</dd>
+          <dt>{remote ? "本地观察目录" : "工作目录"}</dt><dd className="mono">{job.cwd}</dd>
+          {remote && <><dt>远端目标 ID</dt><dd className="mono">{remote.target_id}</dd>
+            <dt>远端工作目录</dt><dd className="mono">{remoteSpec?.cwd || "未提供（附加观察）"}</dd>
+            <dt>远端任务 ID</dt><dd className="mono">{remoteRun?.job_id || "尚未确认"}</dd>
+            <dt>远端运行 ID</dt><dd className="mono">{remoteRun?.run_id || "尚未确认"}</dd>
+            <dt>远端 attempt</dt><dd>{remoteRun?.attempt ?? "尚未确认"}</dd>
+            {remoteSpec?.command?.kind === "shell" && <><dt>远端解释器</dt><dd className="mono">{remoteSpec.command.interpreter}</dd></>}
+          </>}
           <dt>启动时间</dt><dd>{date(job.run?.started_at)}</dd>
           {job.run?.ended_at && <><dt>结束时间</dt><dd>{date(job.run.ended_at)}</dd></>}
         </dl>
+        {remoteSpec && <p className="small">提交的远端命令</p>}
         <pre className="execution-command">{command(job)}</pre>
         {job.detail && <p className="execution-detail">{job.detail}</p>}
       </details>

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Show submitted remote launch commands in task details and bounded list summaries, distinguish local observer/remote execution directories and identities, and search full retained launch commands across hot/archived history. Label attached runs without command metadata explicitly; keep environment/transport details out of the command view and retain existing execution/protocol semantics.
+
 ## [0.1.20] - 2026-11-02
 
 ### Added

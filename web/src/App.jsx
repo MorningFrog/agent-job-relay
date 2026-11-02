@@ -506,6 +506,7 @@ export default function App() {
                           </span>
                           <span>
                             <strong title={taskTitle(j)}>{taskTitle(j)}</strong>
+                            {j.command_kind === "remote" && <small title={command(j)}>{command(j)}</small>}
                             <small title={j.cwd}>{j.cwd}</small>
                             <code>{j.job_id.slice(0, 8)}</code>
                           </span>

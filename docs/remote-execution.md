@@ -71,6 +71,14 @@ Remote cwd/env/timeout and autonomous remote rules belong in `intent.spec`. Omit
 
 For same-chat notification, use `start-spec --wake` from the actual Desktop terminal or pass the current host's `binding` to MCP `job_start` with this spec. Shared MCP never infers identity from its own environment. Notifications describe the local observation result; inspect its external evidence before interpreting an unknown outcome. Agent callers should end the turn after a long submission. No new external-task same-chat live acceptance is claimed.
 
+## Inspect submitted commands (Unreleased)
+
+Later Unreleased source shows the submitted remote launch command under “命令与执行信息”, with the remote shell interpreter when applicable, the remote working directory, the local observer directory and separate local/remote Job/Run identities. A remote launch without acknowledgement shows its remote run as unconfirmed. The command is the saved submission, not a live process-tree inventory; environment values and transport arguments are not expanded in this view.
+
+Overview/search results retain a 256-character `command_preview` and expose `command_kind`; remote task rows show this bounded summary. Text search matches the full submitted launch command, including remote shell interpreters and arguments beyond the preview, plus the pinned target ID, across hot and archived history. The `cwd` filter continues to select the local observer directory. Attach has no saved command or remote directory in protocol v1: the panel explicitly says “未提供远端命令（附加观察）” and retains the pinned run identity even before sampling.
+
+For complete launch submission data, use `ajr inspect <local-job-id> --json` or MCP `job_inspect` with `full=true` and read `job.command.remote.intent.spec.command` and `.cwd`. Compact single-task inspection remains unchanged. These display/search changes require a source build newer than sealed 0.1.20 and do not change the remote protocol, stored specifications, execution or reconnection behavior.
+
 ## Send intermediate feedback to the origin (Unreleased 0.1.20)
 
 Use an origin build advertising Doctor `remote_alert_feedback=true`. Configure meaningful alert rules on the remote runner with `notify_agent=false`; for structured stages, put this rule in `remote.intent.spec.monitor_rules` and have the workload emit flushed [progress frames](progress.md#emit-structured-progress):

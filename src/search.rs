@@ -45,14 +45,23 @@ impl TaskQuery {
         );
         Ok(())
     }
-    fn matches(&self, job: &Job, summary: &Value) -> bool {
+    fn matches(&self, job: &Job) -> bool {
         let command = match &job.command {
-            CommandSpec::Exec { program, args } => format!("{program} {}", args.join(" ")),
             CommandSpec::Shell {
                 interpreter,
                 script,
             } => format!("{interpreter} {script}"),
-            _ => summary["command_preview"].as_str().unwrap_or("").to_owned(),
+            CommandSpec::Remote { remote } => match &remote.intent {
+                crate::remote::Intent::Launch { spec } => {
+                    let interpreter = match &spec.command {
+                        CommandSpec::Shell { interpreter, .. } => interpreter.as_str(),
+                        _ => "",
+                    };
+                    format!("{} {interpreter}", job.command.display_text())
+                }
+                _ => job.command.display_text(),
+            },
+            _ => job.command.display_text(),
         };
         self.status.as_ref().is_none_or(|s| {
             if s == "active" {
@@ -104,7 +113,7 @@ impl Store {
                 let job = crate::storage::read_job(&tx, id)?;
                 let summary = crate::monitor::summary(job.clone());
                 scanned += 1; cursor = Some(*sequence);
-                if query.matches(&job, &summary) { jobs.push(summary); }
+                if query.matches(&job) { jobs.push(summary); }
                 if jobs.len() >= limit as usize || std::time::Instant::now() >= deadline { break; }
             }
             let more = scanned < rows.len();
