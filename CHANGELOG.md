@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.21] - 2026-11-02
+
 ### Added
 
 - Prepare a new release with `finalize_release.py --version x.y.z`: synchronize Cargo/lockfile, both public npm packages, plugin versions and runtime pins before delivery gates, then finalize the dated CHANGELOG heading only on success. Validate availability before edits, preserve pending notes on failure and support explicit-version retry after interrupted metadata replacement. Add a script responsibility index without changing CI entry points.
