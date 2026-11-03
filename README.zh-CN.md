@@ -17,9 +17,9 @@ Tasks run in the background. Agents pick up when needed.
 |---|---|
 | 持久后台任务 | 运行构建、测试、训练和数据处理，关闭聊天或查看器后仍可继续 |
 | Goal 等待（实验性） | 一次限定范围的暂停批准，保留原 goal 恢复和删除保护。源码 0.1.17 新增按需临时恢复、汇报并原生再次暂停的中间反馈；见[用法及宿主限制](docs/goal-waiting.md) |
-| 有界排队（尚未发布） | 满额后默认 FIFO 排队，保留八个执行槽和逐任务排队期限，可显式禁用排队；见[使用指南](docs/usage.md#wait-for-an-execution-slot-unreleased-0120) |
+| 有界排队 | 满额后默认 FIFO 排队，保留八个执行槽和逐任务排队期限，可显式禁用排队；见[使用指南](docs/usage.md#wait-for-an-execution-slot-unreleased-0120) |
 | 批量提交 | 通过 CLI/MCP 一次提交 1–16 个独立命令，逐项返回结果并支持安全重试，见[使用指南](docs/usage.md#submit-independent-commands-together-0112) |
-| 远程任务 | 在固定身份的远端运行时启动或附加命令，或观察固定的 GitHub Actions attempt，包含作业／步骤状态和 attempt 直达链接；尚未发布的源码新增远端规则直接反馈到原聊天，见[配置与边界](docs/remote-execution.md) |
+| 远程任务 | 在固定身份的远端运行时启动或附加命令，或观察固定的 GitHub Actions attempt，包含作业／步骤状态和 attempt 直达链接；运行时 0.1.20+ 新增远端规则直接反馈到原聊天，见[配置与边界](docs/remote-execution.md) |
 | 中间反馈 | 结构化阶段、步数和指标，重复里程碑或阈值告警，以及有界 checker 示例；见[用法与边界](docs/progress.md) |
 | 结果与历史 | 保存有界的 stdout/stderr、退出结果、事件和任务历史 |
 | 绑定会话的通知 | 将结果投递到发起会话，在宿主支持时续接聊天 |
@@ -112,11 +112,11 @@ ajr inspect <job-id>
 
 已发布的 0.1.18 运行时新增任务级通知诊断与恢复指引、Agent 精简检查结果（`job_inspect`，或 `ajr inspect <job-id> --json --compact`）及有界近期日志轮转。使用 `ajr logs <job-id> --export <new-file>` 或任务面板可导出保留文本，缺失区间会明确标记；见[检查与日志](docs/runtime-monitoring.md)。
 
-0.1.20 源码（尚未发布）新增实际反馈状态卡片与可编辑的阶段／时长入口、具体的通知／Goal 恢复计划、全历史搜索（`ajr search --text "tests" --status failed`）及日志定位（`ajr search-logs <job-id> --stream stderr --text "error"`）。面板检索包含归档历史，日志保留原始字节上下文与缺口。磁盘策略默认低于 512 MiB 提醒、低于 64 MiB 拒绝新任务，保留活动任务及原键重试；使用 `ajr data policy --disk-warn-mib 1024 --disk-stop-new-jobs-mib 128` 预览调整。这些新增能力需要开发构建；见[检查功能](docs/runtime-monitoring.md)和[容量策略](docs/data-maintenance.md#disk-pressure-and-backup-health-current-source)。
+运行时 0.1.20+ 新增实际反馈状态卡片与可编辑的阶段／时长入口、具体的通知／Goal 恢复计划、全历史搜索（`ajr search --text "tests" --status failed`）及日志定位（`ajr search-logs <job-id> --stream stderr --text "error"`）。面板检索包含归档历史，日志保留原始字节上下文与缺口。磁盘策略默认低于 512 MiB 提醒、低于 64 MiB 拒绝新任务，保留活动任务及原键重试；使用 `ajr data policy --disk-warn-mib 1024 --disk-stop-new-jobs-mib 128` 预览调整。这些新增能力需要运行时 0.1.20 或更新版本；见[检查功能](docs/runtime-monitoring.md)和[容量策略](docs/data-maintenance.md#disk-pressure-and-backup-health-current-source)。
 
 当前尚未发布的任务／告警页头在标题旁显示当前运行数和排队数，不再累计历史提醒。任务详情默认显示终端输出，可选择跟随新内容。进度、反馈／通知、规则和事件放在独立标签中；展开执行信息可查看完整命令及原始 ID。
 
-后续尚未发布的源码会在列表、详情和全文搜索中展示提交的远程 launch 命令，区分本地观察目录与远端执行目录，并明确提示 attach 缺少命令元数据。此改动需要比已封存 0.1.20 更新的构建，见[远程命令查看](docs/remote-execution.md#inspect-submitted-commands-unreleased)。
+运行时 0.1.21+ 会在列表、详情和全文搜索中展示提交的远程 launch 命令，区分本地观察目录与远端执行目录，并明确提示 attach 缺少命令元数据。此改动需要运行时 0.1.21 或更新版本，见[远程命令查看](docs/remote-execution.md#inspect-submitted-commands-unreleased)。
 
 最后一条命令使用提交后返回的任务 ID；首次提交会自动启动 daemon。OpenCode 使用 `ajr opencode`，原生离线安装使用其记录的启动器及数据目录，具体见[命令参考](docs/commands.md)。
 
