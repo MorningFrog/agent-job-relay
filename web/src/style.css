@@ -24,7 +24,9 @@ nav button .nav-label{background:none;margin:0;min-width:0;font:inherit;text-ali
  .sidebar.expanded footer{margin-top:0;padding:22px 4px 0}
  .nav-backdrop{display:block;position:fixed;inset:0;border:0;background:#24283720;z-index:19}
  .workspace.with-detail{grid-template-columns:minmax(0,1fr)}
- .task-table>.detail{border:0;border-bottom:1px solid #e3ddf5;border-radius:0;background:#fdfcff;box-shadow:inset 3px 0 #8072d9}
+ .task-table>.detail{border:0;border-bottom:1px solid #e3ddf5;border-radius:0;background:#fdfcff}
+ .task-table>.task-row.chosen,.task-table>.detail{position:relative;box-shadow:none}
+ .task-table>.task-row.chosen::before,.task-table>.detail::before{content:"";position:absolute;inset:0 auto -1px 0;width:3px;background:#8072d9;z-index:1;pointer-events:none}
  .task-chevron{transform:rotate(90deg)}
  .task-row.chosen .task-chevron{transform:rotate(-90deg);color:#7967c7}
  .section-heading .small{display:none}

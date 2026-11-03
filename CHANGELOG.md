@@ -6,6 +6,7 @@
 
 - Replace the Web overview's four statistic cards with running and queued counts beside the page title. Derive counts only from the latest active-task snapshot, retain explicit connection-loss status and remove cumulative historical failure/completion/notification reminders; task filters and detailed diagnostics remain available.
 - Align the history filter disclosure, expanded fields and search progress with the task panel's search box, including narrow layouts.
+- Keep the narrow-layout selection rail continuous across the task row and expanded detail, including tab backgrounds and execution information.
 
 ## [0.1.21] - 2026-11-02
 
