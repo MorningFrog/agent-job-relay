@@ -114,7 +114,7 @@ Published runtime 0.1.18 adds task-level notification diagnostics/recovery guida
 
 Source 0.1.20 (not yet published) adds an effective-feedback card and editable stage/time shortcuts, specific notification/goal recovery plans, full-history search (`ajr search --text "tests" --status failed`) and log locations (`ajr search-logs <job-id> --stream stderr --text "error"`). The panel includes archived history and original byte context/gaps. Disk policy warns below 512 MiB and refuses new jobs below 64 MiB while preserving active work and original-key retries; preview changes with `ajr data policy --disk-warn-mib 1024 --disk-stop-new-jobs-mib 128`. These additions require a development build; see [inspection](docs/runtime-monitoring.md) and [capacity policy](docs/data-maintenance.md#disk-pressure-and-backup-health-current-source).
 
-Task details open on terminal output, with optional following of new text. Separate tabs hold progress, feedback/notifications, rules and events; expand execution information for the full command and original IDs.
+Current Unreleased task/alert page headers show current running and queued counts beside the title, without cumulative historical reminders. Task details open on terminal output, with optional following of new text. Separate tabs hold progress, feedback/notifications, rules and events; expand execution information for the full command and original IDs.
 
 Later Unreleased source shows submitted remote launch commands in the list/details and full-command search, distinguishes local observer and remote execution directories, and labels missing attach command metadata. This requires a build newer than sealed 0.1.20; see [remote command inspection](docs/remote-execution.md#inspect-submitted-commands-unreleased).
 

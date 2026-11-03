@@ -23,6 +23,49 @@ const { FeedbackStatus } = await server.ssrLoadModule("/src/components/FeedbackS
 const { recoveryCommand } = await server.ssrLoadModule("/src/components/NotificationStatus.jsx");
 const { RuleForm } = await server.ssrLoadModule("/src/components/RuleForm.jsx");
 const { TaskProgress } = await server.ssrLoadModule("/src/components/TaskProgress.jsx");
+const { PageHeader } = await server.ssrLoadModule("/src/components/PageHeader.jsx");
+
+const header = (props = {}) => renderToStaticMarkup(React.createElement(PageHeader, {
+  page: "tasks", connection: "connected", ...props,
+}));
+
+test("overview counts current execution and queued work independently of historical records", () => {
+  const overview = { active_jobs: [
+    { job_id: "starting", status: "launching" },
+    { job_id: "executing", status: "running" },
+    { job_id: "waiting", status: "queued" },
+  ], jobs: [{ job_id: "old", status: "failed" }] };
+  const html = header({ overview });
+  assert.match(html, /<dt>运行中<\/dt><dd>2<\/dd>/);
+  assert.match(html, /<dt>等待启动<\/dt><dd>1<\/dd>/);
+  const history = ["failed", "timeout", "orphaned", "completed"].map((status) => ({ status }));
+  assert.equal(header({ overview: { ...overview, jobs: [...overview.jobs, ...history] } }), html);
+  assert.doesNotMatch(html, /需要检查|最近已完成|通知待处理/);
+  const alerts = header({ page: "alerts", overview });
+  assert.match(alerts, /<h1>告警与事件<\/h1>/);
+  assert.match(alerts, /<dt>运行中<\/dt><dd>2<\/dd>/);
+});
+
+test("overview distinguishes unsampled counts from an empty active snapshot", () => {
+  assert.match(header({ overview: null, connection: "connecting" }), /<dt>运行中<\/dt><dd>—<\/dd>/);
+  assert.match(header({ overview: null }), /<dt>等待启动<\/dt><dd>—<\/dd>/);
+  const empty = header({ overview: { active_jobs: [] } });
+  assert.match(empty, /<dt>运行中<\/dt><dd>0<\/dd>/);
+  assert.match(empty, /<dt>等待启动<\/dt><dd>0<\/dd>/);
+});
+
+test("overview retains last-sampled counts while displaying connection loss or reconnection", () => {
+  const overview = { active_jobs: [{ status: "running" }] };
+  for (const [connection, label] of [["disconnected", "连接已中断"], ["connecting", "正在连接…"], ["connected", "实时更新"]]) {
+    const html = header({ overview, connection });
+    assert.match(html, /<dt>运行中<\/dt><dd>1<\/dd>/);
+    assert.ok(html.includes(label));
+  }
+  const runtime = header({ page: "runtime", overview });
+  assert.match(runtime, /<h1>运行时状态<\/h1>/);
+  assert.doesNotMatch(runtime, /当前任务状态/);
+});
+
 test("remote feedback subscriptions expose alert-only controls and escape original remote evidence", () => {
   const form = renderToStaticMarkup(React.createElement(RuleForm, { externalKind: "remote", preset: "remote" }));
   assert.ok(form.includes('value="remote_alert"'));

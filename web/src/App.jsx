@@ -21,6 +21,7 @@ import {
 } from "./view.js";
 import { Icon, Badge } from "./components/Icons.jsx";
 import { TaskDetail } from "./components/TaskDetail.jsx";
+import { PageHeader } from "./components/PageHeader.jsx";
 import { RuntimeStatus, StorageNotice } from "./components/RuntimeStatus.jsx";
 const initialNavigation = consumePanelNavigation();
 const compactLayout = matchMedia("(max-width: 1250px)");
@@ -317,30 +318,7 @@ export default function App() {
       )}
 
       <main>
-        <header>
-          <div>
-            <div className="eyebrow">
-              工作空间 /{" "}
-              {page === "runtime"
-                ? "运行时"
-                : page === "alerts"
-                  ? "事件记录"
-                  : "任务"}
-            </div>
-            <h1>
-              {page === "runtime"
-                ? "运行时状态"
-                : page === "alerts"
-                  ? "告警与事件"
-                  : "任务概览"}
-            </h1>
-            <p>查看执行进度，设置规则，在需要时停止任务。</p>
-          </div>
-          <div className="live-label">
-            <span className={`connection-dot ${connection}`} />
-            {connection === "connected" ? "实时更新" : "等待连接"}
-          </div>
-        </header>
+        <PageHeader page={page} overview={overview} connection={connection} />
         <StorageNotice capacity={overview?.health?.capacity} />
         {(error || connectionError) && (
           <div className="error" role="alert">
@@ -366,48 +344,6 @@ export default function App() {
           <RuntimeStatus connection={connection} overview={overview} />
         ) : (
           <>
-            <div className="stats">
-              <div>
-                <span>
-                  正在运行
-                  <Icon name="pulse" />
-                </span>
-                <strong>{overview?.active_jobs?.length ?? "—"}</strong>
-                <small>独立于聊天和浏览器</small>
-              </div>
-              <div>
-                <span>
-                  最近已完成
-                  <Icon name="check" />
-                </span>
-                <strong>
-                  {jobs.filter((j) => j.status === "completed").length}
-                </strong>
-                <small>当前加载的任务</small>
-              </div>
-              <div>
-                <span>
-                  需要检查
-                  <Icon name="bell" />
-                </span>
-                <strong>
-                  {
-                    jobs.filter((j) =>
-                      ["failed", "timeout", "orphaned"].includes(j.status),
-                    ).length
-                  }
-                </strong>
-                <small>失败、超时或结果未知</small>
-              </div>
-              <div>
-                <span>
-                  通知待处理
-                  <Icon name="clock" />
-                </span>
-                <strong>{overview?.health ? (overview.health.retrying_deliveries || 0) + (overview.health.dead_letters || 0) : "—"}</strong>
-                <small>持久化投递队列</small>
-              </div>
-            </div>
             <div className={`workspace ${selected ? "with-detail" : ""}`}>
               <section className="panel task-panel">
                 <div className="section-heading">

@@ -114,7 +114,7 @@ ajr inspect <job-id>
 
 0.1.20 源码（尚未发布）新增实际反馈状态卡片与可编辑的阶段／时长入口、具体的通知／Goal 恢复计划、全历史搜索（`ajr search --text "tests" --status failed`）及日志定位（`ajr search-logs <job-id> --stream stderr --text "error"`）。面板检索包含归档历史，日志保留原始字节上下文与缺口。磁盘策略默认低于 512 MiB 提醒、低于 64 MiB 拒绝新任务，保留活动任务及原键重试；使用 `ajr data policy --disk-warn-mib 1024 --disk-stop-new-jobs-mib 128` 预览调整。这些新增能力需要开发构建；见[检查功能](docs/runtime-monitoring.md)和[容量策略](docs/data-maintenance.md#disk-pressure-and-backup-health-current-source)。
 
-任务详情默认显示终端输出，可选择跟随新内容。进度、反馈／通知、规则和事件放在独立标签中；展开执行信息可查看完整命令及原始 ID。
+当前尚未发布的任务／告警页头在标题旁显示当前运行数和排队数，不再累计历史提醒。任务详情默认显示终端输出，可选择跟随新内容。进度、反馈／通知、规则和事件放在独立标签中；展开执行信息可查看完整命令及原始 ID。
 
 后续尚未发布的源码会在列表、详情和全文搜索中展示提交的远程 launch 命令，区分本地观察目录与远端执行目录，并明确提示 attach 缺少命令元数据。此改动需要比已封存 0.1.20 更新的构建，见[远程命令查看](docs/remote-execution.md#inspect-submitted-commands-unreleased)。
 
