@@ -86,7 +86,7 @@ Runtime 0.1.12+ implements the [remote contract and reference path](remote-execu
 
 ## Runtime inspection and monitoring
 
-- [x] Compact task/alert page headers around current running and queued counts, remove cumulative historical reminders and preserve counts across history loading, filtering, selection and connection loss without new persisted state or API changes.
+- [x] Compact task/alert page headers around current running and queued counts, remove cumulative historical reminders, align the history filter/search progress with panel content and preserve counts across history loading, filtering, selection and connection loss without new persisted state or API changes.
 - [x] Prioritize terminal output in compact task details, separate progress/feedback/rules/events into accessible tabs, retain attention/stop controls near the title and collapse command/identity metadata. Add pausable output following and verify narrow/wide source-browser interaction without changing runtime control semantics.
 
 - [x] Surface effective feedback/application/source/target limits in the panel, provide explicitly saved stage/time presets and derive actionable read-only notification/goal recovery plans with original identities, revisions and exact-profile commands. Native fixtures/rendering are covered; new installed-host/Windows browser acceptance remains separate.

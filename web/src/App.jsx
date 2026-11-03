@@ -361,7 +361,7 @@ export default function App() {
                     <label>创建时间止<input aria-label="创建时间止" type="datetime-local" value={createdBefore} onChange={e => setCreatedBefore(e.target.value)} /></label>
                   </div>
                 </details>
-                {searching && <p className="muted small" role="status">{searchBusy ? "正在检索完整历史（含归档）…" : "完整历史检索（含归档）"} · 已检查 {searchScanned} 条记录</p>}
+                {searching && <p className="muted small history-search-status" role="status">{searchBusy ? "正在检索完整历史（含归档）…" : "完整历史检索（含归档）"} · 已检查 {searchScanned} 条记录</p>}
                 {searchError && <p className="notice" role="alert">{searchError}</p>}
                 <div className="toolbar">
                   <div className="search">
