@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.22] - 2026-11-03
+
 ### Changed
 
 - Simplify task and alert page headers with running and queued counts beside the title, replacing statistic cards and cumulative historical reminders. Keep counts independent of loaded history and filters, with explicit connection-loss status.
