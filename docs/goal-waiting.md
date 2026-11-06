@@ -82,6 +82,8 @@ Complete this handshake even if members finish during the report; Relay then res
 
 `feedback_policy` exposes at most 32 attempted temporary restorations per wait, a minimum 60-second interval and a five-minute native re-pause deadline. Older unsent alerts are coalesced with their evidence/IDs/history retained; producer/rule cooldowns remain independent. Clock rollback delays subsequent cycles. Exhausting the feedback budget leaves local evidence and final completion available. Missing/uncertain re-pause, uncertain restoration and cancellation close automatic control while jobs remain retained; no background controller silently pauses the host. The isolated actual-Codex test uses a simulated Agent/model/endpoint; real Desktop UI/model and Windows acceptance remain separate.
 
+Unreleased `feedback.context` adds the coalesced count and up to four original Job/Run/event/delivery references with 512-character evidence excerpts, prioritizing explicit stop-rule evidence before recent ordinary alerts. It is a bounded history summary, not an exhaustive exception classifier or control instruction. The selected notification retains its original identity; full retained evidence remains in events/delivery history. Context survives runtime reopening and does not consume the final notification flag.
+
 ## Completion and recovery
 
 | Situation | Relay behavior |
@@ -98,6 +100,8 @@ Complete this handshake even if members finish during the report; Relay then res
 | Backup restored | Invalidate consent and fence all restored controls/grouped notifications |
 
 Wait cancellation and manual member stops close future continuation, without stopping other members. Batches freeze accepted membership; rejected/uncommitted items cannot join on retry. Local monitoring/stopping remains available; existing notifying rules can be disabled or removed after closure, while new/re-enabled notifications remain refused. Running groups have no separate deadline beyond member timeouts, except each temporary feedback restoration's native re-pause deadline; completion must resolve within 24 hours of the last member outcome. Consent and wait history each have a 10,000-record quota. Delivery expiry/attempts and membership/audits survive retries and archival. Host acceptance is not proof of Agent execution.
+
+Unreleased inspection adds read-only `diagnostics`: current feedback/completion phase, latest control audit, exact current-phase retained delivery and its latest attempt, remaining feedback cycles and next scheduled check. Compact CLI/MCP results and the panel retain this correlation. Restore failures preserve their bounded original error in the existing wait/audit instead of replacing it with a generic uncertainty message; uncertain host mutations still close automatic control without replay. A final notification that stops retrying selects explicit host handling in the recovery plan. Historical archived deliveries remain available through their ordinary history interfaces. These diagnostics help capture a recurrence of the reported occasional goal resume failure; they do not establish its cause or a fix.
 
 ## Runtime updates and host limits
 
