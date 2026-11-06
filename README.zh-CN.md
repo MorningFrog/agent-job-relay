@@ -89,7 +89,7 @@ ajr ui
 
 已发布的 0.1.19 运行时指引会为长任务规划有用的日志输出和少量中途汇报；明确要求“仅结束时通知”则保留完成时反馈。Goal 中间反馈仍须有实际用户授权。见[反馈规划与限制](docs/progress.md#choose-and-verify-feedback-before-yielding)；已安装宿主中的自主采用仍待验证。
 
-Unreleased 源码会在冷却期间保留有界阶段／远端反馈，并显示待报阶段及 Goal 控制／投递诊断。Goal 汇报包含被合并的较早告警的有界上下文；结果不确定的宿主控制绝不重放。见[反馈限制](docs/progress.md#configure-repeated-feedback)和 [Goal 恢复](docs/goal-waiting.md#completion-and-recovery)；新增行为在 Windows 和已安装宿主中仍待验证。
+0.1.23 源码会在冷却期间保留有界阶段／远端反馈，并显示待报阶段及 Goal 控制／投递诊断。Goal 汇报包含被合并的较早告警的有界上下文；结果不确定的宿主控制绝不重放。见[反馈限制](docs/progress.md#configure-repeated-feedback)和 [Goal 恢复](docs/goal-waiting.md#completion-and-recovery)；新增行为在 Windows 和已安装宿主中仍待验证。
 
 已发布的 0.1.19 Goal 恢复会在重连时返回原交接及下一步操作，不重新询问暂停许可或重复执行任务。多轮保留同一请求，并区分原生暂停回执与尚未确认的最终通知。用户长期实际工作实测确认 goal 唤起正常，绝大多数情况下暂停／resume 正常，偶发无法 resume 仍待排查；见[实测记录](docs/live-e2e.md#user-reported-sustained-real-work-use)。恢复功能需要 Doctor `goal_wait_recovery=true`；见[恢复方式及宿主限制](docs/goal-waiting.md#recover-an-existing-handoff)。
 

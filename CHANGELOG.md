@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.23] - 2026-11-06
+
 ### Added
 
 - Correlate Goal feedback/final delivery, latest attempt, control audit and remaining feedback cycles in shared inspection and the panel. Preserve bounded original restore errors, include bounded earlier-alert context in combined Goal feedback and direct stopped final-notification retries to explicit host handling without replaying control.

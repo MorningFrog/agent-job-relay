@@ -49,7 +49,7 @@ On 2026-10-30, the user confirmed completion of the staged real-Agent feedback a
 
 The 2026-11-02 sustained-use report above additionally confirms normal mid-run feedback for ordinary-mode and remote tasks. Neither report specifies OS, host/runtime versions, model or MCP/CLI route, so neither is attributed to a release or platform-specific matrix. Additional host/version combinations, OpenCode real-provider behavior and Windows installed checker workflows still need their own qualification. These reports do not establish temporary goal restoration/native re-pause for intermediate feedback, periodic summaries or instrumented restart/lease recovery. Autonomous adoption of the published 0.1.19 long-task planning guidance remains unqualified; passive visibility diagnostics have isolated native regression coverage.
 
-The Unreleased cooldown-retention, combined-alert context and Goal diagnostic changes have separate source regression coverage in [implementation status](IMPLEMENTATION_STATUS.md). They have no new real-model/Desktop or native Windows acceptance and do not resolve the reported occasional Goal resume failure.
+The source 0.1.23 cooldown-retention, combined-alert context and Goal diagnostic changes have separate source regression coverage in [implementation status](IMPLEMENTATION_STATUS.md). They have no new real-model/Desktop or native Windows acceptance and do not resolve the reported occasional Goal resume failure.
 
 ## Goal waiting protocol proof
 
