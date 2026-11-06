@@ -48,6 +48,7 @@ pub(crate) fn goal_summary(value: &Value) -> Value {
             "next_step",
             "notification_accepted",
             "feedback_policy",
+            "diagnostics",
         ],
     )
 }
@@ -64,7 +65,7 @@ fn inspection(value: Value) -> Value {
     }
     let mut result = json!({"job":job(&value["job"]), "sampled_at":value["sampled_at"],
         "notifications":value["notifications"], "goal_wait":goal_summary(&value["goal_wait"]),
-        "feedback":fields(&value["feedback"], &["status","reason","configured_rules","notifying_rules","visibility"]),
+        "feedback":fields(&value["feedback"], &["status","reason","configured_rules","notifying_rules","visibility","activity"]),
         "stop":value["stop"], "untrusted_output":true});
     result["job"]["run"] = fields(&value["job"]["run"], &["started_at", "ended_at", "attempt"]);
     result["elapsed_seconds"] = value["observation"]["elapsed_seconds"].clone();
@@ -100,7 +101,15 @@ fn inspection(value: Value) -> Value {
     if let Some(progress) = progress {
         let mut brief = fields(
             progress,
-            &["accepted", "alerts", "suppressed", "dropped", "rejected"],
+            &[
+                "accepted",
+                "alerts",
+                "suppressed",
+                "dropped",
+                "rejected",
+                "deferred",
+                "coalesced",
+            ],
         );
         if let Some(sources) = progress["sources"].as_object() {
             for (name, sample) in sources.iter().take(8) {

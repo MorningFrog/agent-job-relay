@@ -122,6 +122,30 @@ pub(crate) fn summarize(db: &Connection, detail: &Value) -> Result<Value> {
         if let crate::monitor::Condition::Progress { source, .. } = &rule.spec.condition {
             summary["sample_observed"] =
                 json!(detail["observation"]["progress"]["sources"][source].is_object());
+            let pending = &detail["observation"]["progress"]["pending_stages"][&rule.id];
+            if can_trigger && pending["revision"] == rule.revision {
+                summary["pending_stage"] = pending["sample"]["stage"].clone();
+                summary["pending_since"] = pending["observed_at"].clone();
+                if let crate::monitor::Condition::Progress {
+                    cooldown_seconds, ..
+                } = rule.spec.condition
+                {
+                    let counter = &detail["observation"]["progress"]["rules"][&rule.id];
+                    summary["next_eligible_at"] = json!(
+                        counter["last_at"]
+                            .as_i64()
+                            .unwrap_or(0)
+                            .saturating_add(cooldown_seconds as i64 * 1000)
+                            .max(
+                                detail["observation"]["progress"]["last_notification_at"]
+                                    .as_i64()
+                                    .unwrap_or(0)
+                                    .saturating_add(1000)
+                                    .max(pending["observed_at"].as_i64().unwrap_or(0))
+                            )
+                    );
+                }
+            }
         }
         summaries.push(summary);
     }
@@ -230,6 +254,9 @@ pub(crate) fn summarize(db: &Connection, detail: &Value) -> Result<Value> {
         json!({"status":status,"reason":reason,"configured_rules":configured,
         "notifying_rules":notifying,"rules":summaries,"targets":targets,
         "visibility":visibility(&job,&detail["observation"],notifying),
+        "activity":{"alerts":detail["observation"]["progress"]["alerts"],"suppressed":detail["observation"]["progress"]["suppressed"],
+            "deferred":detail["observation"]["progress"]["deferred"],"coalesced":detail["observation"]["progress"]["coalesced"],
+            "pending_stages":summaries.iter().filter(|s| s["pending_stage"].is_string()).count()},
         "can_confirm_resume":false}),
     )
 }

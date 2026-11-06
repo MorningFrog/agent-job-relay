@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- Correlate Goal feedback/final delivery, latest attempt, control audit and remaining feedback cycles in shared inspection and the panel. Preserve bounded original restore errors, include bounded earlier-alert context in combined Goal feedback and direct stopped final-notification retries to explicit host handling without replaying control.
+
+### Fixed
+
+- Retain the latest notifying stage alert and remote subscription candidate during cooldown/rate limiting, then release on later runner ticks or empty remote samples without requiring new output. Preserve revisions, original identities/cursors, transaction rollback, terminal/cancellation and feedback budgets; do not defer stop actions.
+
 ## [0.1.22] - 2026-11-03
 
 ### Changed

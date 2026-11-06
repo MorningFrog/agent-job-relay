@@ -19,12 +19,14 @@ export function FeedbackStatus({ feedback, active, external, configure }) {
   return <section className="job-summary" aria-label="中途反馈状态">
     <strong>中途反馈 · {statuses[feedback.status] || "状态待核实"}</strong>
     <p className="small">启用规则 {feedback.configured_rules ?? 0} 条 · 通知规则 {feedback.notifying_rules ?? 0} 条</p>
+    {feedback.activity?.pending_stages > 0 && <p className="notice small">有 {feedback.activity.pending_stages} 条阶段反馈等待冷却结束后合并发送；无需重新提交任务。</p>}
     <p className="small">输出证据：{visibility[feedback.visibility?.status] || "等待采样"}
       {feedback.visibility?.output_idle_seconds != null && ` · 距最近输出 ${feedback.visibility.output_idle_seconds} 秒`}</p>
     {(feedback.rules || []).map(rule => <p className="small" key={rule.rule_id}>
       {ruleSummary({ condition: rule.condition })} · {!rule.enabled ? "已禁用" : rule.application === "applied" ? "运行器已应用" : rule.application === "terminal" ? "任务已结束" : "等待运行器应用"}
       {rule.sample_observed != null && ` · ${rule.sample_observed ? "已观察到进度来源" : "尚无该来源数据"}`}
       {rule.enabled && !rule.can_trigger_again && " · 此规则不能继续触发"}
+      {rule.pending_stage != null && ` · 待报阶段：${rule.pending_stage}`}
     </p>)}
     {(feedback.targets || []).map(target => <p className="small" key={target.target_id}>
       通知目标：{target.status === "configured" ? target.can_resume ? "已登记同聊天续接能力" : "仅收件箱" : target.status === "lease_expired" ? "租期已到，投递时需验证续租" : "绑定已失效"}

@@ -239,6 +239,15 @@ pub(crate) struct State {
     last_notification_at: i64,
     milestones: Vec<Value>,
     rules: BTreeMap<String, Counter>,
+    pending_stages: BTreeMap<String, PendingStage>,
+    deferred: u64,
+    coalesced: u64,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct PendingStage {
+    revision: i64,
+    observed_at: i64,
+    sample: Sample,
 }
 #[derive(Clone, Default, Debug, Serialize, Deserialize)]
 struct Counter {
@@ -315,10 +324,15 @@ impl Store {
         batch: Batch,
         can_stop: bool,
     ) -> Result<()> {
-        if batch.frames.is_empty() && batch.rejected == 0 && batch.dropped == 0 {
-            return Ok(());
-        }
         self.call(move |db| {
+            // Empty runner ticks drain durable stages even without another frame.
+            // Ordinary quiet jobs avoid acquiring a write transaction.
+            if batch.frames.is_empty() && batch.rejected == 0 && batch.dropped == 0 {
+                let observation = read_observation(db, &job)?;
+                if observation["progress"]["pending_stages"].as_object().is_none_or(|m| m.is_empty()) { return Ok(()); }
+                let state: State = serde_json::from_value(observation["progress"].clone())?;
+                if can_stop && !stages_due(&state, &crate::monitor::rules(db, &job)?, now()) { return Ok(()); }
+            }
             let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
             let j = read_job(&tx, &job)?;
             if j.status.is_terminal() { return Ok(()) }
@@ -327,6 +341,8 @@ impl Store {
             state.rejected = state.rejected.saturating_add(batch.rejected);
             state.dropped = state.dropped.saturating_add(batch.dropped);
             let rules = crate::monitor::rules(&tx, &job)?;
+            state.pending_stages.retain(|id, pending| rules.iter().any(|rule|
+                rule.id == *id && rule.revision == pending.revision && deferred_stage(rule)));
             let at = now();
             for frame in batch.frames {
                 let sample = frame.sample;
@@ -343,6 +359,17 @@ impl Store {
                     if source != &sample.source || !rule.enabled || rule.deleted || !frame.applied.contains(&(rule.id.clone(),rule.revision)) || !trigger.matches(&sample, previous.as_ref()) { continue; }
                     let counter = state.rules.entry(rule.id.clone()).or_default();
                     if counter.revision != rule.revision { *counter = Counter { revision: rule.revision, ..Default::default() }; }
+                    if can_stop && deferred_stage(rule) && state.alerts < MAX_ALERTS && counter.count < MAX_ALERTS
+                        && (state.pending_stages.contains_key(&rule.id)
+                            || (counter.count > 0 && at.saturating_sub(counter.last_at) < (*cooldown_seconds as i64)*1000)
+                            || at.saturating_sub(state.last_notification_at) < 1000) {
+                        if state.pending_stages.insert(rule.id.clone(), PendingStage { revision:rule.revision, observed_at:at, sample:sample.clone() }).is_some() {
+                            state.coalesced = state.coalesced.saturating_add(1);
+                        }
+                        state.deferred = state.deferred.saturating_add(1);
+                        state.suppressed = state.suppressed.saturating_add(1);
+                        continue;
+                    }
                     if state.alerts >= MAX_ALERTS || counter.count >= MAX_ALERTS || (counter.count > 0 && at.saturating_sub(counter.last_at) < (*cooldown_seconds as i64)*1000) {
                         state.suppressed = state.suppressed.saturating_add(1); continue;
                     }
@@ -357,12 +384,104 @@ impl Store {
                 }
                 state.sources.insert(sample.source.clone(), sample);
             }
+            flush_stages(&tx, &j, &rules, &mut state, at, can_stop)?;
             observation["progress"] = serde_json::to_value(state)?;
             tx.execute("INSERT INTO runtime_observations(job_id,data) VALUES(?,?) ON CONFLICT(job_id) DO UPDATE SET data=excluded.data",params![job,observation.to_string()])?;
             tx.commit()?;
             Ok(())
         }).await
     }
+}
+fn deferred_stage(rule: &Rule) -> bool {
+    rule.enabled
+        && !rule.deleted
+        && rule.spec.notify_agent
+        && rule.spec.action == Action::Alert
+        && matches!(
+            rule.spec.condition,
+            Condition::Progress {
+                trigger: Trigger::Stage { .. },
+                ..
+            }
+        )
+}
+
+fn stages_due(state: &State, rules: &[Rule], at: i64) -> bool {
+    state.pending_stages.iter().any(|(id, pending)| {
+        let Some(rule) = rules
+            .iter()
+            .find(|r| r.id == *id && r.revision == pending.revision && deferred_stage(r))
+        else {
+            return true;
+        };
+        let Condition::Progress {
+            cooldown_seconds, ..
+        } = rule.spec.condition
+        else {
+            unreachable!()
+        };
+        let counter = state.rules.get(id).cloned().unwrap_or_default();
+        state.alerts >= MAX_ALERTS
+            || counter.count >= MAX_ALERTS
+            || (at >= pending.observed_at
+                && at.saturating_sub(counter.last_at) >= cooldown_seconds as i64 * 1000
+                && at.saturating_sub(state.last_notification_at) >= 1000)
+    })
+}
+
+fn flush_stages(
+    db: &Connection,
+    job: &Job,
+    rules: &[Rule],
+    state: &mut State,
+    at: i64,
+    running: bool,
+) -> Result<()> {
+    for (id, pending) in std::mem::take(&mut state.pending_stages) {
+        let Some(rule) = rules
+            .iter()
+            .find(|r| r.id == id && r.revision == pending.revision && deferred_stage(r))
+        else {
+            continue;
+        };
+        let Condition::Progress {
+            cooldown_seconds, ..
+        } = rule.spec.condition
+        else {
+            unreachable!()
+        };
+        let counter = state.rules.entry(id.clone()).or_default();
+        if !running || job.cancel_requested {
+            state.milestones.push(json!({"rule_id":id,"revision":rule.revision,"at":at,
+                "observed_at":pending.observed_at,"deferred":true,"notification_superseded":true,"sample":pending.sample}));
+            if state.milestones.len() > 8 {
+                state.milestones.remove(0);
+            }
+            continue;
+        }
+        if state.alerts >= MAX_ALERTS || counter.count >= MAX_ALERTS {
+            continue;
+        }
+        if at < pending.observed_at
+            || at.saturating_sub(counter.last_at) < cooldown_seconds as i64 * 1000
+            || at.saturating_sub(state.last_notification_at) < 1000
+        {
+            state.pending_stages.insert(id, pending);
+            continue;
+        }
+        counter.count += 1;
+        counter.last_at = at;
+        state.alerts += 1;
+        state.last_notification_at = at;
+        let evidence = json!({"rule_id":id,"revision":rule.revision,"at":at,
+            "observed_at":pending.observed_at,"deferred":true,"sample":pending.sample});
+        state.milestones.push(evidence.clone());
+        if state.milestones.len() > 8 {
+            state.milestones.remove(0);
+        }
+        emit(db, job, rule, evidence, running, true)?;
+    }
+    Ok(())
 }
 fn emit(
     db: &Connection,
@@ -498,6 +617,231 @@ mod tests {
             .await
             .unwrap();
         (dir, store, job, rules)
+    }
+
+    async fn allow_stage_delivery(store: &Store, job: &str) {
+        let job = job.to_string();
+        store
+            .call(move |db| {
+                let mut data = read_observation(db, &job)?;
+                for counter in data["progress"]["rules"]
+                    .as_object_mut()
+                    .unwrap()
+                    .values_mut()
+                {
+                    counter["last_at"] = json!(now() - 2000);
+                }
+                data["progress"]["last_notification_at"] = json!(now() - 2000);
+                db.execute(
+                    "UPDATE runtime_observations SET data=? WHERE job_id=?",
+                    params![data.to_string(), job],
+                )?;
+                Ok(())
+            })
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn deferred_stages_coalesce_survive_reopen_and_drain_without_new_output_atomically() {
+        let (_dir, store, job, rules) = fixture().await;
+        store
+            .record_progress(
+                job.job_id.clone(),
+                batch(
+                    vec![
+                        frame(1, "start"),
+                        frame(2, "checkpoint"),
+                        frame(3, "validation"),
+                    ],
+                    &rules,
+                ),
+                true,
+            )
+            .await
+            .unwrap();
+        let detail = store
+            .inspect(Some(job.job_id.clone()), None, 20)
+            .await
+            .unwrap();
+        assert_eq!(detail["feedback"]["activity"]["pending_stages"], 1);
+        assert_eq!(
+            detail["feedback"]["rules"][0]["pending_stage"],
+            "validation"
+        );
+        assert_eq!(detail["observation"]["progress"]["coalesced"], 1);
+        assert_eq!(detail["observation"]["progress"]["alerts"], 1);
+        let store = Store::new(store.config.clone());
+        store
+            .record_progress(job.job_id.clone(), Batch::default(), true)
+            .await
+            .unwrap();
+        assert_eq!(
+            store
+                .events(job.job_id.clone(), 0, 100)
+                .await
+                .unwrap()
+                .iter()
+                .filter(|e| e.kind == "monitor_alert")
+                .count(),
+            1
+        );
+        allow_stage_delivery(&store, &job.job_id).await;
+        store.call(|db| { db.execute_batch("CREATE TRIGGER fail_deferred BEFORE INSERT ON deliveries BEGIN SELECT RAISE(ABORT,'injected deferred outbox failure'); END;")?; Ok(()) }).await.unwrap();
+        assert!(
+            store
+                .record_progress(job.job_id.clone(), Batch::default(), true)
+                .await
+                .is_err()
+        );
+        assert_eq!(
+            store
+                .inspect(Some(job.job_id.clone()), None, 20)
+                .await
+                .unwrap()["feedback"]["activity"]["pending_stages"],
+            1
+        );
+        store
+            .call(|db| {
+                db.execute_batch("DROP TRIGGER fail_deferred")?;
+                Ok(())
+            })
+            .await
+            .unwrap();
+        store
+            .record_progress(job.job_id.clone(), Batch::default(), true)
+            .await
+            .unwrap();
+        store
+            .record_progress(job.job_id.clone(), Batch::default(), true)
+            .await
+            .unwrap();
+        let events = store.events(job.job_id.clone(), 0, 100).await.unwrap();
+        let alerts: Vec<_> = events
+            .iter()
+            .filter(|e| e.kind == "monitor_alert")
+            .collect();
+        assert_eq!(alerts.len(), 2);
+        assert_eq!(
+            alerts[1].payload["evidence"]["sample"]["stage"],
+            "validation"
+        );
+        assert_eq!(alerts[1].payload["evidence"]["deferred"], true);
+        assert_eq!(alerts[1].payload["terminal_exit_observed"], false);
+        assert_eq!(alerts[1].job_id, job.job_id);
+        assert_eq!(alerts[1].run_id, job.run_id);
+        assert_eq!(
+            store.inspect(Some(job.job_id), None, 20).await.unwrap()["feedback"]["activity"]["pending_stages"],
+            0
+        );
+    }
+
+    #[tokio::test]
+    async fn deferred_stages_respect_revision_budget_exit_and_clock_fences() {
+        for scenario in ["disable", "update", "budget", "exit", "terminal", "clock"] {
+            let (_dir, store, job, rules) = fixture().await;
+            store
+                .record_progress(
+                    job.job_id.clone(),
+                    batch(vec![frame(1, "start"), frame(2, "checkpoint")], &rules),
+                    true,
+                )
+                .await
+                .unwrap();
+            allow_stage_delivery(&store, &job.job_id).await;
+            match scenario {
+                "disable" => {
+                    store
+                        .monitor(
+                            job.job_id.clone(),
+                            Some(Mutation::Enable {
+                                rule_id: rules[0].id.clone(),
+                                enabled: false,
+                                expected_revision: 1,
+                            }),
+                        )
+                        .await
+                        .unwrap();
+                }
+                "update" => {
+                    store
+                        .monitor(
+                            job.job_id.clone(),
+                            Some(Mutation::Update {
+                                rule_id: rules[0].id.clone(),
+                                rule: rules[0].spec.clone(),
+                                expected_revision: 1,
+                            }),
+                        )
+                        .await
+                        .unwrap();
+                }
+                "terminal" => {
+                    store
+                        .finish(
+                            job.job_id.clone(),
+                            "completed",
+                            Some(0),
+                            None,
+                            "done".into(),
+                        )
+                        .await
+                        .unwrap();
+                }
+                "budget" | "clock" => {
+                    let key = job.job_id.clone();
+                    store
+                        .call(move |db| {
+                            let mut data = read_observation(db, &key)?;
+                            if scenario == "budget" {
+                                data["progress"]["alerts"] = json!(MAX_ALERTS);
+                            } else {
+                                for pending in data["progress"]["pending_stages"]
+                                    .as_object_mut()
+                                    .unwrap()
+                                    .values_mut()
+                                {
+                                    pending["observed_at"] = json!(now() + 60_000);
+                                }
+                            }
+                            db.execute(
+                                "UPDATE runtime_observations SET data=? WHERE job_id=?",
+                                params![data.to_string(), key],
+                            )?;
+                            Ok(())
+                        })
+                        .await
+                        .unwrap();
+                }
+                _ => {}
+            }
+            store
+                .record_progress(job.job_id.clone(), Batch::default(), scenario != "exit")
+                .await
+                .unwrap();
+            let events = store.events(job.job_id.clone(), 0, 100).await.unwrap();
+            assert_eq!(
+                events.iter().filter(|e| e.kind == "monitor_alert").count(),
+                1,
+                "{scenario}"
+            );
+            let detail = store.inspect(Some(job.job_id), None, 20).await.unwrap();
+            assert_eq!(
+                detail["feedback"]["activity"]["pending_stages"],
+                usize::from(scenario == "clock"),
+                "{scenario}"
+            );
+            if scenario == "exit" {
+                assert_eq!(
+                    detail["observation"]["progress"]["milestones"][1]["notification_superseded"],
+                    true
+                );
+                assert_eq!(
+                    detail["observation"]["progress"]["milestones"][1]["sample"]["stage"],
+                    "checkpoint"
+                );
+            }
+        }
     }
     #[test]
     fn framing_is_bounded_validated_and_independent_between_streams() {

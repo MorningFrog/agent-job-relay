@@ -311,19 +311,17 @@ impl Fixture {
         result
     }
     async fn alert(&self, result: &Value) -> String {
+        self.alert_payload(result, json!({"fixture":"bounded stage"}))
+            .await
+    }
+    async fn alert_payload(&self, result: &Value, payload: Value) -> String {
         let job = result["job"]["job_id"].as_str().unwrap().to_string();
         let run = result["job"]["run_id"].as_str().unwrap().to_string();
         let session = self.session.clone();
         self.store
             .call(move |db| {
                 let tx = db.transaction()?;
-                agent_job_relay::storage::insert_event(
-                    &tx,
-                    &job,
-                    &run,
-                    "monitor_alert",
-                    json!({"fixture":"bounded stage"}),
-                )?;
+                agent_job_relay::storage::insert_event(&tx, &job, &run, "monitor_alert", payload)?;
                 let event: String = tx.query_row(
                     "SELECT id FROM events WHERE seq=last_insert_rowid()",
                     [],
@@ -365,6 +363,116 @@ impl Fixture {
 }
 
 #[tokio::test]
+async fn feedback_context_retains_bounded_original_evidence_and_final_failure_diagnostics() {
+    let f = Fixture::new().await;
+    let wait = f.prepare().await;
+    let result = f.feedback_job(&wait, "context").await;
+    let critical = f
+        .alert_payload(
+            &result,
+            json!({"rule":{"action":"stop"},"evidence":{"message":"explicit exception evidence"}}),
+        )
+        .await;
+    for _ in 0..6 {
+        f.alert_payload(
+            &result,
+            json!({"rule":{"action":"alert"},"evidence":{"stage":"进".repeat(1000)}}),
+        )
+        .await;
+    }
+    let selected = f.alert(&result).await;
+    goal_wait::progress(&f.store, &wait).await.unwrap();
+    let state = f.state(&wait).await;
+    assert_eq!(state["feedback"]["context"]["coalesced_count"], 7);
+    assert_eq!(
+        state["feedback"]["context"]["items"]
+            .as_array()
+            .unwrap()
+            .len(),
+        4
+    );
+    assert_eq!(
+        state["feedback"]["context"]["items"][0]["delivery_id"],
+        critical
+    );
+    assert_eq!(state["feedback"]["context"]["truncated"], true);
+    assert!(
+        serde_json::to_vec(&state["feedback"]["context"])
+            .unwrap()
+            .len()
+            < 12000
+    );
+    let reopened = Store::new(f.store.config.clone());
+    assert_eq!(
+        reopened.goal_wait(wait.clone(), false, None).await.unwrap()["feedback"],
+        state["feedback"]
+    );
+    let claim = f.store.claim().await.unwrap().unwrap();
+    assert_eq!(claim.delivery.id, selected);
+    assert_eq!(
+        claim.event["goal_wait_feedback"]["context"],
+        state["feedback"]["context"]
+    );
+    f.deliver(claim).await;
+    let prompt = f.messages.lock().unwrap()[0]["params"]["arguments"]["prompt"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(prompt.contains("combines 7 earlier alerts") && prompt.contains("feedback.context"));
+    assert!(
+        !prompt.contains("explicit exception evidence"),
+        "workload evidence stays in bounded inspection, not the host prompt"
+    );
+    f.native_pause();
+    f.store
+        .confirm_goal_pause(wait.clone(), state["revision"].as_i64())
+        .await
+        .unwrap();
+    f.finish(&result).await;
+    goal_wait::progress(&f.store, &wait).await.unwrap();
+    let claim = f.store.claim().await.unwrap().unwrap();
+    let delivery = claim.delivery.id.clone();
+    f.store
+        .complete_claim(
+            claim,
+            Err(agent_job_relay::delivery::DeliveryError(
+                agent_job_relay::delivery::FailureKind::Permanent,
+                "injected final host rejection",
+            )
+            .into()),
+        )
+        .await
+        .unwrap();
+    let state = f.state(&wait).await;
+    assert_eq!(state["diagnostics"]["phase"], "completion");
+    assert_eq!(state["diagnostics"]["delivery"]["delivery_id"], delivery);
+    assert_eq!(state["diagnostics"]["delivery"]["status"], "dead_letter");
+    assert!(
+        state["diagnostics"]["last_attempt"]["error"]
+            .as_str()
+            .unwrap()
+            .contains("injected final host rejection")
+    );
+    assert_eq!(state["diagnostics"]["final_notification_accepted"], false);
+    let detail = f
+        .store
+        .inspect(
+            Some(result["job"]["job_id"].as_str().unwrap().into()),
+            None,
+            20,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        detail["notifications"]["recovery"]["plan"]["action"],
+        "host_control"
+    );
+    let mutations = f.mutations().len();
+    goal_wait::progress(&f.store, &wait).await.unwrap();
+    assert_eq!(f.mutations().len(), mutations);
+}
+
+#[tokio::test]
 async fn feedback_cycles_restore_then_ack_native_repause_without_finishing_or_readmitting_jobs() {
     let f = Fixture::new().await;
     let wait = f.prepare().await;
@@ -376,12 +484,26 @@ async fn feedback_cycles_restore_then_ack_native_repause_without_finishing_or_re
     assert_eq!(reporting["status"], "resumed");
     assert_eq!(reporting["feedback"]["delivery_id"], selected);
     assert_eq!(reporting["host_pause_required"], true);
+    assert_eq!(reporting["diagnostics"]["phase"], "feedback");
+    assert_eq!(
+        reporting["diagnostics"]["delivery"]["delivery_id"],
+        selected
+    );
     assert_eq!(f.controller.read().await.unwrap().unwrap().status, "active");
     assert_eq!(f.mutations().len(), 1);
     let claim = f.store.claim().await.unwrap().unwrap();
     assert_eq!(claim.event["goal_wait_phase"], "feedback");
     f.deliver(claim).await;
-    assert_eq!(f.state(&wait).await["notification_accepted"], false);
+    let acknowledged = f.state(&wait).await;
+    assert_eq!(acknowledged["notification_accepted"], false);
+    assert_eq!(
+        acknowledged["diagnostics"]["last_attempt"]["outcome"],
+        "accepted_by_host"
+    );
+    assert_eq!(
+        acknowledged["diagnostics"]["agent_execution"],
+        "unconfirmed"
+    );
     let deliveries = f
         .store
         .deliveries(
@@ -854,7 +976,24 @@ async fn missing_pause_confirmation_expires_and_legacy_waits_cannot_restore_goal
             .await
             .unwrap();
         goal_wait::tick(&f.store).await.unwrap();
-        assert_eq!(f.state(&wait).await["status"], "attention");
+        let state = f.state(&wait).await;
+        assert_eq!(state["status"], "attention");
+        assert_eq!(
+            state["diagnostics"]["last_control"]["detail"],
+            state["detail"]
+        );
+        assert_eq!(state["diagnostics"]["next_action"], "host_control");
+        let detail = f
+            .store
+            .inspect(
+                Some(result["job"]["job_id"].as_str().unwrap().into()),
+                None,
+                20,
+            )
+            .await
+            .unwrap();
+        let compact = agent_job_relay::output::compact("inspect", detail);
+        assert_eq!(compact["goal_wait"]["diagnostics"], state["diagnostics"]);
         assert!(
             f.store
                 .confirm_goal_pause(wait.clone(), f.state(&wait).await["revision"].as_i64())
@@ -1009,6 +1148,12 @@ async fn batch_freezes_partial_admission_waits_for_every_run_and_merges_notifica
     .unwrap();
     worker.abort();
     let _ = worker.await;
+    let state = f.state(&wait).await;
+    assert_eq!(state["diagnostics"]["delivery"]["delivery_id"], same);
+    assert_eq!(
+        state["diagnostics"]["delivery"]["status"],
+        "accepted_by_host"
+    );
     assert_eq!(f.messages.lock().unwrap().len(), 1);
     let prompt = f.messages.lock().unwrap()[0]["params"]["arguments"]["prompt"]
         .as_str()
@@ -1086,7 +1231,13 @@ async fn lost_mutation_acknowledgements_are_durable_and_not_replayed() {
         std::fs::write(f.controller.home.join("mode"), "drop_resume").unwrap();
         f.finish(&result).await;
         goal_wait::progress(&f.store, &wait).await.unwrap();
-        assert_eq!(f.state(&wait).await["status"], "attention");
+        let state = f.state(&wait).await;
+        assert_eq!(state["status"], "attention");
+        assert!(state["detail"].as_str().unwrap().contains("Codex"));
+        assert_eq!(
+            state["diagnostics"]["last_control"]["detail"],
+            state["detail"]
+        );
         let before = f.mutations().len();
         let reopened = Store::new(f.store.config.clone());
         reopened.init().await.unwrap();

@@ -5,6 +5,23 @@ use super::*;
 pub(super) const COOLDOWN: i64 = 60_000;
 pub(super) const LIMIT: u32 = 32;
 
+pub(super) fn context(db: &Connection, delivery: &str) -> Result<Value> {
+    let marker = format!("coalesced into goal feedback {delivery}");
+    let count: u32 = db.query_row("SELECT count(*) FROM deliveries WHERE status='cancelled' AND failure_kind='goal_feedback' AND last_error=?", [&marker], |r| r.get(0))?;
+    // Explicit stop-rule evidence sorts first. It remains data, never origin
+    // control authority; arbitrary output is not assigned semantic severity.
+    let mut q = db.prepare("SELECT e.id,e.job_id,e.run_id,e.seq,e.at,e.payload,d.id FROM deliveries d JOIN events e ON e.id=d.event_id WHERE d.status='cancelled' AND d.failure_kind='goal_feedback' AND d.last_error=? ORDER BY (json_extract(e.payload,'$.rule.action')='stop' OR json_extract(e.payload,'$.evidence.source_rule.action')='stop') DESC,e.seq DESC LIMIT 4")?;
+    let items = q.query_map([marker], |r| {
+        let payload: String = r.get(5)?;
+        // Excerpts are explicitly incomplete JSON text, not executable fields.
+        let excerpt: String = payload.chars().take(512).collect();
+        Ok(json!({"event_id":r.get::<_,String>(0)?,"job_id":r.get::<_,String>(1)?,"run_id":r.get::<_,String>(2)?,"sequence":r.get::<_,i64>(3)?,"at":r.get::<_,i64>(4)?,"delivery_id":r.get::<_,String>(6)?,"evidence_excerpt":excerpt,"truncated":payload.chars().count()>512}))
+    })?.collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok(
+        json!({"coalesced_count":count,"items":items,"truncated":count as usize>items.len(),"untrusted_output":true}),
+    )
+}
+
 #[derive(Clone)]
 pub(super) struct Selection {
     pub event: String,
@@ -41,7 +58,7 @@ pub(super) async fn begin(
         tx.execute("UPDATE goal_waits SET status='resuming',revision=revision+1,updated=?,expires=?,next_at=?,feedback_event=?,feedback_delivery=?,feedback_count=feedback_count+1,feedback_last_at=? WHERE id=? AND revision=?",params![now(),deadline,now(),selection.event,selection.delivery,now(),record.id,record.revision])?;
         audit(&tx,&record.id,record.revision+1,"resuming",&format!("temporary feedback cycle {}; event {}; delivery {}",record.feedback_count+1,selection.event,selection.delivery))?;
         // Coalesce older unsent alerts, preserving all IDs/events/attempt history.
-        tx.execute("UPDATE deliveries SET status='cancelled',last_error='coalesced into goal feedback',failure_kind='goal_feedback' WHERE status IN ('pending','retry_wait','dead_letter') AND id<>?1 AND event_id IN (SELECT e.id FROM events e JOIN goal_wait_jobs m ON m.job_id=e.job_id WHERE m.wait_id=?2 AND e.kind='monitor_alert' AND e.seq<=?3)",params![selection.delivery,record.id,selection.sequence])?;
+        tx.execute("UPDATE deliveries SET status='cancelled',last_error=?4,failure_kind='goal_feedback' WHERE status IN ('pending','retry_wait','dead_letter') AND id<>?1 AND event_id IN (SELECT e.id FROM events e JOIN goal_wait_jobs m ON m.job_id=e.job_id AND m.run_id=e.run_id WHERE m.wait_id=?2 AND e.kind='monitor_alert' AND e.seq<=?3)",params![selection.delivery,record.id,selection.sequence,format!("coalesced into goal feedback {}",selection.delivery)])?;
         let result=read(&tx,&record.id)?;
         tx.commit()?;
         Ok(Some(result))

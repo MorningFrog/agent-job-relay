@@ -85,6 +85,7 @@ impl Store {
                 // The host can start handling a final message before its ACK
                 // reaches our transaction. Settle only this local live claim;
                 // do not probe/poll the host or mark it accepted ourselves.
+                value["diagnostics"]["next_action"] = value["continuation"]["action"].clone();
                 let in_flight = value["continuation"]["action"] == "await_notification"
                     && tx.query_row("SELECT EXISTS(SELECT 1 FROM deliveries d JOIN targets t ON t.id=d.target_id JOIN goal_wait_jobs m ON m.job_id=t.job_id WHERE m.wait_id=? AND d.status='leased' AND d.lease_until>? AND d.expires>?)", params![id,now(),now()], |r| r.get::<_,bool>(0))?;
                 Ok(Some((value,in_flight)))

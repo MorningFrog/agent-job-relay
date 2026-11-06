@@ -80,6 +80,19 @@ export function NotificationStatus({ detail, token }) {
       {goal.continuation?.action && <p>{continuationLabels[goal.continuation.action] || "请在原聊天查看交接详情"}</p>}
       {goal.host_pause_required && <p>等待原聊天原生暂停及版本确认。</p>}
       {goal.detail && <p>{goal.detail}</p>}
+      {goal.diagnostics && <div className="small">
+        <p>{goal.diagnostics.phase === "feedback" ? "本次中途反馈" : "最终结果通知"} · 剩余反馈次数 {goal.diagnostics.feedback_cycles_remaining ?? "—"}</p>
+        {goal.feedback?.context?.coalesced_count > 0 && <p>本次合并了 {goal.feedback.context.coalesced_count} 条较早反馈，原事件与证据仍保留。</p>}
+        {goal.diagnostics.delivery?.delivery_id && <p>对应通知：{labels[goal.diagnostics.delivery.status] || goal.diagnostics.delivery.status} · {goal.diagnostics.delivery.attempts} 次尝试</p>}
+        {goal.diagnostics.delivery?.error && <p>{goal.diagnostics.delivery.error}</p>}
+        {goal.diagnostics.last_attempt?.error && goal.diagnostics.last_attempt.error !== goal.diagnostics.delivery?.error && <p>最近尝试：{goal.diagnostics.last_attempt.error}</p>}
+        <details><summary>查看 Goal 控制与通知关联</summary>
+          <p>原生控制结果不确定时不会自动重试；宿主接收仍不能证明 Agent 已继续。</p>
+          <p className="mono">等待组 {goal.goal_wait_id} · 请求 {goal.request_id || "—"}</p>
+          {goal.diagnostics.delivery?.delivery_id && <p className="mono">通知 {goal.diagnostics.delivery.delivery_id} · 任务 {goal.diagnostics.delivery.job_id} · 运行 {goal.diagnostics.delivery.run_id}</p>}
+          {goal.diagnostics.last_control && <p>最近控制记录：{date(goal.diagnostics.last_control.at)} · {goal.diagnostics.last_control.detail}</p>}
+        </details>
+      </div>}
     </div>}
     {plan && <div className="notice">
       <strong>下一步：{recoveryLabels[plan.action] || "在原聊天检查恢复计划"}</strong>

@@ -72,7 +72,15 @@ fn plan(detail: &Value) -> Value {
     let goal = &n["goal"];
     let problem = &n["latest_problem"];
     let action = goal["continuation"]["action"].as_str();
-    let (action, reason) = if let Some(action) = action {
+    let (action, reason) = if action == Some("await_notification")
+        && (goal["diagnostics"]["delivery"]["status"] == "dead_letter"
+            || goal["diagnostics"]["delivery"]["failure_kind"] == "expired")
+    {
+        (
+            "host_control",
+            "The original goal was restored, but its final notification stopped retrying or expired. Inspect the correlated delivery and attempt, then use original host controls explicitly; do not restore again or rebind this goal wait.",
+        )
+    } else if let Some(action) = action {
         (
             action,
             match action {
@@ -211,5 +219,9 @@ mod tests {
         assert_eq!(plan(&detail)["action"], "inspect_failure");
         detail["notifications"] = json!({"status":"inbox_only"});
         assert_eq!(plan(&detail)["action"], "inspect_inbox");
+        detail["notifications"] = json!({"goal":{"continuation":{"action":"await_notification"},"diagnostics":{"delivery":{"status":"dead_letter"}}}});
+        assert_eq!(plan(&detail)["action"], "host_control");
+        detail["notifications"]["goal"]["continuation"]["action"] = json!("report_then_pause");
+        assert_eq!(plan(&detail)["action"], "report_then_pause");
     }
 }

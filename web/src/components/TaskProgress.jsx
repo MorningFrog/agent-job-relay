@@ -35,6 +35,7 @@ export function TaskProgress({ detail }) {
       {progress.milestones?.map((milestone, i) => <p className="execution-detail" key={i}>
         {date(milestone.at)} · {milestone.sample.source} · {milestone.sample.stage || ""}
         {milestone.sample.step != null && ` · ${milestone.sample.step} 步`}
+        {milestone.notification_superseded && " · 未单独通知，已保留至最终结果"}
       </p>)}
       <details className="progress-counters"><summary>采样统计</summary><p className="muted small">
         已接收 {progress.accepted} 次 · 告警 {progress.alerts} 次 · 受限反馈 {progress.suppressed} 次 · 丢弃 {progress.dropped} 次 · 无效 {progress.rejected} 次。输出作为数据展示。

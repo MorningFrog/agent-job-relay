@@ -42,6 +42,8 @@ struct Counter {
 struct Candidate {
     revision: i64,
     evidence: Value,
+    #[serde(default)]
+    deferred: bool,
 }
 
 fn evidence(target: &str, run: &RunRef, event: &Event) -> Result<Option<Value>> {
@@ -119,22 +121,32 @@ impl Store {
                 let Condition::RemoteAlert { rule_id, .. } = &rule.spec.condition else { unreachable!() };
                 for source in &sources {
                     if rule_id.as_ref().is_some_and(|id| source["remote"]["rule_id"] != *id) { continue; }
-                    if state.pending.insert(rule.id.clone(), Candidate { revision: rule.revision, evidence: source.clone() }).is_some() { state.coalesced = state.coalesced.saturating_add(1); }
+                    if state.pending.insert(rule.id.clone(), Candidate { revision: rule.revision, evidence: source.clone(), deferred:false }).is_some() { state.coalesced = state.coalesced.saturating_add(1); }
                 }
             }
             // Drain event backlog before selecting the latest alert per local
             // subscription. Pending candidates survive observer/daemon loss.
             if page.events.len() < 20 {
                 let at = now();
-                for (id, candidate) in std::mem::take(&mut state.pending) {
+                for (id, mut candidate) in std::mem::take(&mut state.pending) {
                     let rule = rules.iter().find(|r| r.id == id && r.revision == candidate.revision && matching(r, &page.applied)).expect("pending candidates were fenced");
                     let Condition::RemoteAlert { cooldown_seconds, .. } = rule.spec.condition else { unreachable!() };
                     let duplicate: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM events WHERE job_id=? AND kind='monitor_alert' AND json_extract(payload,'$.rule_id')=? AND json_extract(payload,'$.evidence.remote.event_id')=?)",params![job,id,candidate.evidence["remote"]["event_id"].as_str()],|r|r.get(0))?;
                     if duplicate { state.suppressed = state.suppressed.saturating_add(1); continue; }
                     let counter = state.rules.entry(id.clone()).or_default();
                     if counter.revision != rule.revision { *counter = Counter { revision: rule.revision, ..Default::default() }; }
-                    if state.alerts >= LIMIT || (counter.count > 0 && at.saturating_sub(counter.last_at) < cooldown_seconds as i64 * 1000) {
+                    if state.alerts >= LIMIT {
                         state.suppressed = state.suppressed.saturating_add(1); continue;
+                    }
+                    if (!page.terminal && counter.count > 0 && at.saturating_sub(counter.last_at) < cooldown_seconds as i64 * 1000)
+                        || (rule.spec.notify_agent && !page.terminal && at.saturating_sub(state.last_notification_at) < 1000) {
+                        if !candidate.deferred { state.suppressed = state.suppressed.saturating_add(1); }
+                        candidate.deferred = true;
+                        // Keep only the latest bounded candidate for this
+                        // revision. Empty future samples can drain it without
+                        // replaying the remote event cursor or execution.
+                        if !page.terminal && !j.cancel_requested { state.pending.insert(id, candidate); }
+                        continue;
                     }
                     counter.count += 1; counter.last_at = at; state.alerts += 1;
                     let notify = rule.spec.notify_agent && !page.terminal && !j.cancel_requested && at.saturating_sub(state.last_notification_at) >= 1000;
@@ -397,6 +409,86 @@ mod tests {
         let cold = detail(&store, &job).await;
         assert_eq!(cold["observation"], hot["observation"]);
         assert_eq!(cold["notifications"], hot["notifications"]);
+    }
+
+    #[tokio::test]
+    async fn cooldown_candidate_survives_reopen_and_empty_samples_with_atomic_outbox() {
+        let (_dir, store, job, run, target) = fixture().await;
+        let source = id();
+        record(
+            &store,
+            &job,
+            &run,
+            &target,
+            0,
+            vec![alert(&run, 1, &source)],
+            false,
+        )
+        .await
+        .unwrap();
+        let event = alert(&run, 2, &source);
+        let event_id = event.event_id.clone();
+        record(&store, &job, &run, &target, 1, vec![event], false)
+            .await
+            .unwrap();
+        let store = Store::new(store.config.clone());
+        record(&store, &job, &run, &target, 2, vec![], false)
+            .await
+            .unwrap();
+        let before = detail(&store, &job).await;
+        assert_eq!(before["observation"]["remote_feedback"]["alerts"], 1);
+        assert_eq!(before["observation"]["remote_feedback"]["suppressed"], 1);
+        assert_eq!(
+            before["observation"]["remote_feedback"]["pending"]
+                .as_object()
+                .unwrap()
+                .len(),
+            1
+        );
+        let key = job.job_id.clone();
+        store.call(move |db| {
+            let mut data = crate::progress::read_observation(db, &key)?;
+            for counter in data["remote_feedback"]["rules"].as_object_mut().unwrap().values_mut() { counter["last_at"] = json!(now()-2000); }
+            data["remote_feedback"]["last_notification_at"] = json!(now()-2000);
+            db.execute("UPDATE runtime_observations SET data=? WHERE job_id=?", params![data.to_string(),key])?;
+            db.execute_batch("CREATE TRIGGER fail_remote_deferred BEFORE INSERT ON deliveries BEGIN SELECT RAISE(ABORT,'injected remote outbox failure'); END;")?;
+            Ok(())
+        }).await.unwrap();
+        assert!(
+            record(&store, &job, &run, &target, 2, vec![], false)
+                .await
+                .is_err()
+        );
+        assert_eq!(
+            detail(&store, &job).await["observation"]["remote_feedback"]["alerts"],
+            1
+        );
+        store
+            .call(|db| {
+                db.execute_batch("DROP TRIGGER fail_remote_deferred")?;
+                Ok(())
+            })
+            .await
+            .unwrap();
+        record(&store, &job, &run, &target, 2, vec![], false)
+            .await
+            .unwrap();
+        record(&store, &job, &run, &target, 2, vec![], false)
+            .await
+            .unwrap();
+        let after = detail(&store, &job).await;
+        assert_eq!(after["observation"]["remote_feedback"]["alerts"], 2);
+        assert_eq!(after["observation"]["external"]["next_event"], 2);
+        assert_eq!(
+            after["events"][0]["payload"]["evidence"]["remote"]["event_id"],
+            event_id
+        );
+        assert!(
+            after["observation"]["remote_feedback"]["pending"]
+                .as_object()
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[tokio::test]

@@ -8,6 +8,7 @@ use crate::{
 use anyhow::{Context, Result, ensure};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde_json::{Value, json};
+mod diagnostics;
 mod feedback;
 mod recovery;
 pub(crate) use recovery::for_request;
@@ -99,7 +100,8 @@ fn brief(db: &Connection, id: &str) -> Result<Value> {
     value["feedback_policy"] = json!({"max_cycles":feedback::LIMIT,"min_interval_seconds":feedback::COOLDOWN/1000,"repause_deadline_seconds":PAUSE_ACK_TIMEOUT/1000});
     value["feedback"] = match (&record.feedback_event, &record.feedback_delivery) {
         (Some(event), Some(delivery)) => {
-            json!({"cycle":record.feedback_count,"event_id":event,"delivery_id":delivery})
+            json!({"cycle":record.feedback_count,"event_id":event,"delivery_id":delivery,
+                "context":feedback::context(db, delivery)?})
         }
         _ => Value::Null,
     };
@@ -115,6 +117,7 @@ fn brief(db: &Connection, id: &str) -> Result<Value> {
         |r| r.get::<_, Option<String>>(0),
     )?);
     recovery::describe(&mut value);
+    value["diagnostics"] = diagnostics::summarize(db, &record, &value)?;
     Ok(value)
 }
 fn view(db: &Connection, id: &str) -> Result<Value> {
@@ -737,12 +740,25 @@ pub async fn progress(store: &Store, id: &str) -> Result<()> {
                         tx.commit()?;Ok(())
                     }).await?;
                 }
-                _ => {
+                outcome => {
+                    let detail = match outcome {
+                        Err(error) => {
+                            format!("restore outcome uncertain; no automatic replay: {error:#}")
+                        }
+                        Ok(Some(goal)) => format!(
+                            "restore acknowledgement did not match the original active goal (status {}); no automatic replay",
+                            goal.status
+                        ),
+                        Ok(None) => {
+                            "restore was not acknowledged or the goal changed; no automatic replay"
+                                .into()
+                        }
+                    };
                     close(
                         store,
                         &record,
                         "attention",
-                        "restore outcome uncertain or goal changed; no automatic replay",
+                        &detail.chars().take(1024).collect::<String>(),
                     )
                     .await?
                 }

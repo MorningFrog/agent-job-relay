@@ -275,6 +275,73 @@ mod native {
         }
     }
     #[tokio::test]
+    async fn runner_drains_deferred_stage_without_new_output_or_daemon() {
+        use agent_job_relay::session::{Adapter, Registration};
+        let mut r = Runtime::new().await;
+        let store = Store::new(r.config.clone());
+        let session = store
+            .register(Registration {
+                agent_kind: "codex_cli".into(),
+                session_id: "deferred-origin".into(),
+                instance_id: "instance".into(),
+                host_id: "test".into(),
+                adapter: Adapter::Inbox,
+                endpoint: None,
+                caller_thread_id: None,
+                lease_seconds: 3600,
+                experimental: false,
+                renew_on_delivery: false,
+            })
+            .await
+            .unwrap();
+        let spec = StartSpec {
+            title:None,command:CommandSpec::Shell {interpreter:"/bin/sh".into(),script:r#"
+printf 'launch\n' >> launches
+printf '%s\n' 'AJR_PROGRESS {"v":1,"source":"quiet","seq":1,"stage":"start"}' 'AJR_PROGRESS {"v":1,"source":"quiet","seq":2,"stage":"checkpoint"}'
+while [ ! -f release ]; do sleep .05; done
+"#.into()},cwd:r.dir.path().into(),env:Default::default(),timeout_seconds:Some(20),queue_timeout_seconds:None,
+            session:Some(session.key),idempotency_key:Some("one-native-launch".into()),
+            monitor_rules:vec![serde_json::from_value(json!({"condition":{"kind":"progress","source":"quiet","trigger":{"kind":"stage"},"cooldown_seconds":2},"action":"alert","notify_agent":true})).unwrap()],
+        };
+        let admitted = ipc::call(&r.config, Request::Start { spec }).await.unwrap();
+        let job = admitted["job"]["job_id"].as_str().unwrap();
+        let pending = r
+            .until(job, |v| {
+                v["feedback"]["activity"]["pending_stages"] == 1
+                    && v["observation"]["stdout"]["total_bytes"].as_u64().is_some()
+            })
+            .await;
+        let bytes = pending["observation"]["stdout"]["total_bytes"].clone();
+        r.crash();
+        let reported = r
+            .until(job, |v| v["observation"]["progress"]["alerts"] == 2)
+            .await;
+        assert_eq!(reported["job"]["status"], "running");
+        assert_eq!(reported["observation"]["stdout"]["total_bytes"], bytes);
+        assert_eq!(
+            reported["observation"]["progress"]["milestones"][1]["deferred"],
+            true
+        );
+        let events = store.events(job.into(), 0, 100).await.unwrap();
+        assert_eq!(
+            events.iter().filter(|e| e.kind == "monitor_alert").count(),
+            2
+        );
+        assert!(
+            events
+                .iter()
+                .all(|e| e.run_id == admitted["job"]["run_id"].as_str().unwrap())
+        );
+        std::fs::write(r.dir.path().join("release"), "exit").unwrap();
+        let done = r.until(job, |v| v["job"]["status"] == "completed").await;
+        assert_eq!(done["job"]["run_id"], admitted["job"]["run_id"]);
+        assert_eq!(
+            std::fs::read_to_string(r.dir.path().join("launches")).unwrap(),
+            "launch\n"
+        );
+    }
+
+    #[tokio::test]
     async fn runner_monitors_cross_chunk_output_and_stops_tree_without_daemon() {
         let mut r = Runtime::new().await;
         let id=r.start("while [ ! -f release ]; do sleep .02; done; sleep 20 & echo $! > descendant; printf 'FAT'; sleep .2; printf 'AL'; wait",vec![rule(Condition::Contains{text:"FATAL".into(),stream:Stream::Stdout},Action::Stop)]).await;

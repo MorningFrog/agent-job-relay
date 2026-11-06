@@ -90,13 +90,16 @@ test("feedback card distinguishes configuration, applied revisions, sources and 
   const html = renderToStaticMarkup(React.createElement(FeedbackStatus, { active: true, feedback: {
     status: "inbox_only", configured_rules: 1, notifying_rules: 1,
     rules: [{ rule_id: "rule", enabled: true, application: "pending", sample_observed: false, can_trigger_again: true,
+      pending_stage: "<script>checkpoint</script>",
       condition: { kind: "progress", source: "<script>source</script>", trigger: { kind: "stage" }, cooldown_seconds: 60 } }],
     targets: [{ target_id: "target", status: "configured", can_resume: false }],
     visibility: { status: "quiet", advisories: [{ code: "quiet_output" }] },
+    activity: { pending_stages: 1 },
   } }));
   for (const text of ["等待运行器应用", "尚无该来源数据", "仅收件箱", "静默不能证明任务卡住", "配置阶段反馈", "配置时长检查点"]) assert.ok(html.includes(text));
   assert.ok(!html.includes("<script>"));
   assert.ok(html.includes("&lt;script&gt;source"));
+  assert.ok(html.includes("1 条阶段反馈等待冷却结束") && html.includes("待报阶段：&lt;script&gt;checkpoint"));
 });
 
 test("recovery command preserves argv quoting for the original profile", () => {
@@ -295,6 +298,21 @@ test("goal continuation diagnostics distinguish re-pause, notification and host 
     assert.ok(html.includes(expected));
     assert.ok(html.includes("Agent 是否继续仍待核实"));
   }
+});
+
+test("goal diagnostics correlate the feedback delivery and escape recorded failures", () => {
+  const html = renderToStaticMarkup(React.createElement(TaskDetail, { selected: "job", tab: "feedback", detail: {
+    job: { job_id: "job", status: "running" }, notifications: { status: "retry_wait", goal: {
+      goal_wait_id: "original-wait", request_id: "original-request", status: "resumed", revision: 7,
+      diagnostics: { phase: "feedback", feedback_cycles_remaining: 31,
+        delivery: { delivery_id: "original-delivery", job_id: "original-job", run_id: "original-run", status: "retry_wait", attempts: 2, error: "<script>delivery failed</script>" },
+        last_attempt: { error: "<script>attempt failed</script>" },
+        last_control: { at: 1000, detail: "<script>control failed</script>" },
+      },
+    } },
+  } }));
+  for (const text of ["本次中途反馈", "剩余反馈次数 31", "original-wait", "original-request", "original-delivery", "original-job", "original-run", "&lt;script&gt;control failed", "&lt;script&gt;delivery failed", "&lt;script&gt;attempt failed"]) assert.ok(html.includes(text), text);
+  assert.ok(!html.includes("<script>"));
 });
 
 test("task detail opens on output with concise attention and deferred execution metadata", () => {
