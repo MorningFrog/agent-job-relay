@@ -8,6 +8,15 @@ Distribute one Rust/MCP runtime through ChatGPT Desktop/Codex, Claude Code and O
 
 This is the sole project backlog. Current functionality, completed acceptance and version-specific evidence are maintained in [implementation status](IMPLEMENTATION_STATUS.md) and [live verification](live-e2e.md); changes by version are in [CHANGELOG](../CHANGELOG.md). Keep future work and explicit deferrals here.
 
+## CI/CD migration
+
+- [x] Implement and validate all five Woodpecker Linux steps locally with the pinned Docker image, MSRV/native gates, development package checks and Tag exclusion. See [CI setup](ci.md).
+- [ ] Push the reviewed Linux CI commit with maintainer authorization, then confirm its exact-commit server execution and GitHub status reporting.
+- [ ] Connect a Windows Worker and migrate native tests, exact-commit cross-worker artifact transfer and installed Windows package/loader checks.
+- [ ] Provide a macOS Worker for compilation/portable tests, or explicitly accept the coverage gap; Linux/Windows results do not replace it.
+- [ ] Migrate manual candidate preparation, source/run identity, immutable artifact storage, publisher preview and independent public-byte verification from Actions. Recheck npm authentication support before configuring the publisher; never spoof the Actions identity or promote CI development packages.
+- [ ] After replacement server checks succeed, update required checks and remove superseded Actions configuration/instructions. Preserve published versions, original candidates and receipts.
+
 ## Host integration and distribution
 
 - [x] Implement source 0.1.14 `ajr update` for global CLI and matching online ChatGPT Desktop/Codex plugin installation/update, mandatory CLI prerequisite, exact-version/preview/CLI-only options, profile/schema fencing, original-peer daemon restart and recorded forward retry through public host commands. Add coordinated `ajr uninstall`, default idle daemon shutdown, forced shared task stops, retained data and recorded removal recovery; preserve compatible active Linux runners during updates and replace older daemons even when package files are current. Keep offline/OpenCode routes separate.
@@ -25,7 +34,7 @@ This is the sole project backlog. Current functionality, completed acceptance an
 - [x] Publish original 0.1.20 candidate 41330755088 and 0.1.21 candidate 41466809929; both npm latest tags selected 0.1.21 at that inspection. Public Release, original candidate inventory and matching publication receipts were rechecked on 2026-11-03; preserve published notes/source/bytes.
 - [x] Recheck published 0.1.22 npm latest tags, GitHub Release, original candidate 41575201488 and matching publication receipts on 2026-11-06; retain successful independent Check Release 41594216844 without rebuilding or replacing published bytes.
 - [x] Finalize local 0.1.23 versions/pins and dated notes through the complete frontend/native/release/maintenance gates.
-- [ ] Qualify 0.1.23 exact-revision CI and Release All dry-run for feedback retention/Goal diagnostics. Review the original sealed candidate and publisher preview before any separately authorized publication.
+- [ ] Re-prepare the next unused release after the CI/CD migration changes under Unreleased, then qualify its exact-revision Linux/Windows CI, manually sealed candidate and publisher preview before any separately authorized publication. The earlier 0.1.23 local finalization does not cover these later edits; preserve its notes and all published artifacts.
 - [ ] Diagnose the failed independent 0.1.21 [Check Release](https://github.com/MorningFrog/agent-job-relay/actions/runs/41470697500), then rerun read-only verification against original candidate 41466809929 without rebuilding or republishing. Metadata/receipt checks do not replace public-byte/channel/installation verification.
 - [ ] Resolve the failed independent Check Release for published 0.1.18 against its original candidate, without republishing or replacing released bytes. Later publication and verification do not recheck that older candidate.
 - [ ] **P1:** natively qualify Windows self-update/self-removal with loaded global CLI/daemon/MCP images, qualify active-run package replacement separately, and verify actual Desktop refresh/reconnection. Public-host fixtures and Linux package replacement do not establish these outcomes.

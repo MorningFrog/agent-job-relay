@@ -1,0 +1,33 @@
+labels:
+  platform: linux/amd64
+  backend: docker
+
+when:
+  - event: [push, pull_request, manual]
+
+# Verification only: no publishing secrets, host mounts or privileged steps.
+steps:
+  - name: toolchain
+    image: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
+    commands:
+      - sh scripts/ci_linux.sh toolchain
+
+  - name: frontend
+    image: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
+    commands:
+      - sh scripts/ci_linux.sh frontend
+
+  - name: msrv
+    image: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
+    commands:
+      - sh scripts/ci_linux.sh msrv
+
+  - name: native
+    image: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
+    commands:
+      - sh scripts/ci_linux.sh native
+
+  - name: packages
+    image: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
+    commands:
+      - sh scripts/ci_linux.sh packages

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Add Woodpecker Linux verification for frontend, Rust 1.89 minimum-version checks, pinned stable native gates and account-free development package/host checks. Keep Windows, macOS and manual publication migration separate.
+
 ## [0.1.23] - 2026-11-06
 
 ### Added

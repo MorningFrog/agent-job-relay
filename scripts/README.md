@@ -4,6 +4,10 @@
 
 Run scripts from the repository root. Generated state and reports belong in ignored `.tmp/` or `target/`; host checks use isolated profiles and do not establish real-account/model acceptance unless explicitly documented.
 
+## Linux CI
+
+`ci_linux.sh` implements the `toolchain`, `frontend`, `msrv`, `native` and `packages` steps in `.woodpecker/linux.yaml`. Run it in the pinned workflow image with a disposable checkout, not against an installed runtime or personal profile. It checks development packages only and never publishes. See [container reproduction and migration limits](../docs/ci.md).
+
 ## Release preparation
 
 Use one local entry point for a new formal release:

@@ -29,6 +29,8 @@ cargo build --release --locked
 
 For host work, also run the applicable account-free checks in [host plugins](docs/host-plugins.md), then the actual host acceptance when you have authorized access. Add meaningful behavioral regression coverage for routing, recovery, transactions or IPC changes. README wording tests and generated run logs do not belong in the suite or repository.
 
+Linux automation uses [Woodpecker CI](docs/ci.md), including a separate Rust 1.89 minimum-version check. Windows/macOS checks and manual releases are still awaiting migration from unavailable GitHub Actions execution; the retained Actions files describe those implementations, not a working fallback. Linux CI never publishes.
+
 ## Community host acceptance
 
 Please report these separately:

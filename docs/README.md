@@ -64,6 +64,7 @@ Installation success, tool discovery, host acceptance and observed Agent continu
 |---|---|
 | Contribute a bounded change / 参与贡献 | [Contributing](../CONTRIBUTING.md) · [development contract](../AGENTS.md) |
 | Run automated checks / 自动化测试 | [Testing](testing.md) |
+| Run Linux CI and inspect migration limits / Linux CI 与迁移边界 | [Woodpecker CI](ci.md) |
 | Verify installation and real-host behavior manually / 人工验收 | [Manual acceptance](manual-testing.md) |
 | Locate code and understand runtime boundaries / 代码入口与架构 | [Architecture and source map](architecture.md) |
 | Inspect MCP, IPC, delivery and compatibility details / 协议与兼容性 | [Protocol reference](protocol.md) |
