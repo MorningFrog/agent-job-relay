@@ -4,7 +4,7 @@
 
 ### Changed
 
-- Add Woodpecker Linux verification for frontend, Rust 1.89 minimum-version checks, pinned stable native gates and account-free development package/host checks, plus a Windows Local-backend workflow for frontend and native gates with project-only compiler/download caching. Use Woodpecker for automatic main-Push/PR verification, avoid duplicate feature-Push/PR runs and rerun behavioral tests. Preserve exact native Windows bytes and their explicit source revision for subsequent package checks. Keep cross-worker Windows packages, macOS and manual publication migration separate.
+- Add Woodpecker Linux verification for frontend, Rust 1.89 minimum-version checks, pinned stable native gates and account-free development package/host checks, plus Windows native and installed-package/host-loader workflows. Transfer exact repository/run/commit-bound native bytes and development-only packages through a separately provisioned private append-only HTTPS exchange with checksum/inventory checks. Use project-only compiler/download caches while rerunning behavioral tests; avoid duplicate feature-Push/PR runs and retain Actions only as a manual reference during migration. Keep macOS and manual publication migration separate.
 
 ### Fixed
 

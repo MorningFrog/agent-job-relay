@@ -10,7 +10,7 @@ Run scripts from the repository root. Generated state and reports belong in igno
 
 ## Windows native CI
 
-`ci_windows.ps1` implements the `toolchain`, `frontend` and `native` steps in `.woodpecker/windows.yaml` using PowerShell 7, provisioned Node 24/Rust 1.99.1 and discovered Visual Studio C++ tools. A capacity-one Worker supplies project-only compiler/download caching; tests always rerun in the disposable checkout. `describe_native.ps1 -Revision <commit>` records explicit native source identity without simulating an Actions environment. Windows package/loader checks require the subsequent cross-worker artifact migration. See [Windows prerequisites and reproduction](../docs/ci.md#windows-native-verification).
+`ci_windows.ps1` implements the `toolchain`, `frontend` and `native` steps in `.woodpecker/windows.yaml` using PowerShell 7, provisioned Node 24/Rust 1.99.1 and discovered Visual Studio C++ tools. A capacity-one Worker supplies project-only compiler/download caching; tests always rerun in the disposable checkout. `describe_native.ps1 -Revision <commit>` records explicit native source identity without simulating an Actions environment. `ci_windows_packages.ps1` runs the subsequent installed-package/Codex/OpenCode checks. `ci_artifacts.mjs` transfers exact-run native/development-package bytes over the separately provisioned private HTTPS exchange; its tests cover identity, checksum, inventory and extraction fences. These workflows need administrator-provided exchange secrets before Server execution. See [Windows prerequisites and reproduction](../docs/ci.md#windows-native-verification).
 
 ## Release preparation
 
