@@ -8,6 +8,7 @@
 
 ### Fixed
 
+- Explicitly release completed maintenance locks so Unix child-process descriptor inheritance cannot transiently block the next maintenance or backup operation.
 - Ignore directories when resolving maintenance executables on PATH, so Visual Studio's directory named `git` cannot shadow the actual Git program during Windows plugin update/removal checks.
 
 ## [0.1.23] - 2026-11-06
