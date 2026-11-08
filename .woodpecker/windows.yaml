@@ -3,6 +3,14 @@ labels:
   backend: local
   worker: ajr-win
 
+clone:
+  - name: git
+    image: woodpeckerci/plugin-git:2.12.1
+    settings:
+      # MinGit has no Git LFS; this repository contains no LFS objects.
+      lfs: false
+      partial: false
+
 when:
   - event: push
     branch: main
