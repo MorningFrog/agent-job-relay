@@ -1,7 +1,6 @@
 name: CI
 on:
-  push:
-  pull_request:
+  # Legacy platform reference: automatic verification now uses Woodpecker.
   workflow_dispatch:
 permissions:
   contents: read
