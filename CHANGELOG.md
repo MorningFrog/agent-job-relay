@@ -4,7 +4,7 @@
 
 ### Changed
 
-- Add Woodpecker Linux verification for frontend, Rust 1.89 minimum-version checks, pinned stable native gates and account-free development package/host checks. Use a short workspace for Unix socket fixtures and a project-only Worker cache for toolchains, downloads and content-checked incremental compilation; rerun all behavioral tests. Use Woodpecker for automatic Push/PR verification and retain the old Actions CI only as a manual reference. Keep Windows, macOS and manual publication migration separate.
+- Add Woodpecker Linux verification for frontend, Rust 1.89 minimum-version checks, pinned stable native gates and account-free development package/host checks. Use a short workspace for Unix socket fixtures and a project-only Worker cache for toolchains, downloads and content-checked incremental compilation; rerun all behavioral tests. Use Woodpecker for automatic main-Push/PR verification, avoid duplicate feature-Push/PR runs on the single cache Worker and retain the old Actions CI only as a manual reference. Keep Windows, macOS and manual publication migration separate.
 
 ## [0.1.23] - 2026-11-06
 

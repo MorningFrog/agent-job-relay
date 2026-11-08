@@ -9,7 +9,10 @@ workspace:
   path: src
 
 when:
-  - event: [push, pull_request, manual]
+  - event: push
+    branch: main
+  - event: pull_request
+  - event: manual
 
 # Verification only: no publishing secrets, host mounts or privileged steps.
 steps:
