@@ -1,7 +1,7 @@
 // npm-specific lifecycle orchestration. Native code parses options and fences
 // profiles; host configuration is changed only through the public Codex CLI.
 import { spawn } from "node:child_process";
-import { accessSync, closeSync, constants, copyFileSync, fsyncSync, lstatSync, mkdtempSync, openSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { accessSync, closeSync, constants, copyFileSync, fsyncSync, lstatSync, mkdtempSync, openSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, delimiter, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -31,7 +31,11 @@ function executable(name) {
     if (!directory) continue;
     for (const suffix of process.platform === "win32" ? [".exe", ".cmd", ".bat", ""] : [""]) {
       const path = resolve(directory, name + suffix);
-      try { accessSync(path, process.platform === "win32" ? constants.F_OK : constants.X_OK); return path; } catch { /* Try the next PATH entry. */ }
+      try {
+        if (!statSync(path).isFile()) continue;
+        accessSync(path, process.platform === "win32" ? constants.F_OK : constants.X_OK);
+        return path;
+      } catch { /* Try the next PATH entry. */ }
     }
   }
   throw new Error(`${name} must be installed and available on PATH`);

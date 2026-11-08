@@ -14,7 +14,9 @@ This is the sole project backlog. Current functionality, completed acceptance an
 - [x] Enable the dedicated project cache Worker through the reusable deployment-side manager, retain identity across idle restart/recreation, push the authorized fix and pass all server steps and GitHub status reporting in 322 seconds.
 - [x] Create authorized draft PR #1 and verify `ci/woodpecker/pr/linux` on the exact head commit in 305 seconds. Retire unavailable automatic Actions Push/PR runs while keeping the legacy manual platform reference; run automatic Push CI only for main so PR updates do not queue duplicate full checks.
 - [x] Activate main protection requiring a PR and successful `ci/woodpecker/pr/linux` against the latest main, without administrator bypass; merge authorized PR #1 and verify the main Push pipeline in 305 seconds.
-- [ ] Connect a Windows Worker and migrate native tests, exact-commit cross-worker artifact transfer and installed Windows package/loader checks.
+- [x] Connect the dedicated low-privilege Windows Worker through the reusable manager, preserve identity across idle lifecycle operations and reserve its VM address through persistent DHCP.
+- [ ] Validate and submit the Windows native Woodpecker workflow, then verify exact-commit Server scheduling, checkout and GitHub status reporting before requiring its check on main.
+- [ ] Implement commit/run-bound cross-worker artifact transfer and installed Windows package/loader checks; mutable compiler caches cannot stand in for verified artifacts.
 - [ ] Provide a macOS Worker for compilation/portable tests, or explicitly accept the coverage gap; Linux/Windows results do not replace it.
 - [ ] Migrate manual candidate preparation, source/run identity, immutable artifact storage, publisher preview and independent public-byte verification from Actions. Recheck npm authentication support before configuring the publisher; never spoof the Actions identity or promote CI development packages.
 - [ ] After replacement server checks succeed, update required checks and remove superseded Actions configuration/instructions. Preserve published versions, original candidates and receipts.

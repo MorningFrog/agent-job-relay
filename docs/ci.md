@@ -23,6 +23,22 @@ The image/toolchain namespace persists Rust installations, Cargo/npm downloads a
 
 Generated fixture state remains in the disposable `.tmp/`, `web/node_modules/` and `web/dist/`; only compiler output under `target/` is saved. The measured cache occupies about 6.1 GiB; monitor storage and remove only this project's generated cache when invalidating it. This Bookworm build is for CI verification, not a sealed release or evidence of the release payload's glibc 2.34 compatibility.
 
+## Windows native verification
+
+`.woodpecker/windows.yaml` selects the dedicated `windows/amd64` Local-backend Worker with `worker=ajr-win`. Its events match Linux: main Push, pull request and manual, excluding Tags and duplicate feature-branch Push runs. `image: pwsh` selects PowerShell 7 on this backend. The deployed Worker runs as LocalService with capacity **1**, isolated workflow home directories and no publication credentials. Local backend code runs directly with that account's permissions; labels and directories do not isolate mutually untrusted repositories. Keep fork approval enabled.
+
+`scripts/ci_windows.ps1` validates Node 24 and Rust **1.99.1** with rustfmt/Clippy, discovers the installed Visual Studio C++ x64 tools through `vswhere`, and imports the compiler environment into the current process. It changes no machine-wide PATH or toolchain installation. The administrator must provision these tools, Git and the pinned clone plugin before running the Agent. Minimum-Rust compilation remains a separate Linux gate.
+
+| Step | Checks |
+|---|---|
+| `toolchain` | Validate tools and source revision, initialize MSVC and report compiler parallelism/cache location |
+| `frontend` | Locked frontend install, panel tests/UI build and online-update/uninstall fixtures |
+| `native` | Format, all-target Clippy/tests, release build, CLI help and native Windows version/hash/source descriptor |
+
+The administrator supplies a project-only `CARGO_HOME`. The script derives a versioned sibling directory for Cargo/npm downloads and a stable `CARGO_TARGET_DIR`; `AJR_CI_CACHE_ROOT` can explicitly select it. Without either setting it uses disposable `.tmp/ci-windows/`. Capacity one protects shared compiler output. Fixture profiles/results stay in each disposable checkout; every gate reruns, and changed source remains subject to Cargo's normal fingerprint checks. No input timestamps or test-success receipts are restored on Windows. Keep compiler output and fixture directories on the same volume when exercising hard-link fixtures. `AJR_CI_BUILD_JOBS` can override the processor-count default.
+
+After successful native gates, `target/release/agent-job-relay.exe` and `target/windows-native.json` retain that run's exact executable and Git revision within the disposable workspace. `describe_native.ps1 -Revision <commit>` supplies source identity explicitly; its default remains compatible with the legacy Actions caller. These files are not yet uploaded or bound to a cross-worker pipeline identity. Installed Windows package/loader checks remain pending until that transfer is implemented; do not substitute an older Windows executable or treat mutable compiler-cache files as a sealed artifact.
+
 ## Validate before pushing
 
 Install a matching Woodpecker CLI from the [official release instructions](https://woodpecker-ci.org/docs/cli/installation), verifying its published checksum. With Docker available, use a disposable checkout containing the proposed changes, then run from its root:
@@ -37,12 +53,21 @@ Expected: `linux` completes all six steps successfully. A second fresh checkout 
 
 After maintainer-authorized push, inspect the pipeline for that exact commit in Woodpecker and its reported GitHub checks. Keep the default repository config discovery enabled, allow the cold run sufficient time (currently 60 minutes), and leave fork approval and trust settings intact. Select required status checks from actual successful server runs rather than guessing their names.
 
+For Windows, use the verified Windows CLI of the same Woodpecker version, a disposable checkout and the same low-privilege account/tool configuration as the Worker:
+
+```powershell
+$env:CARGO_HOME = Join-Path $PWD '.tmp/ci-downloads/cargo'
+woodpecker-cli --disable-update-check exec --local --backend-engine local --backend-local-isolated-home --pipeline-event push --commit-branch main --repo MorningFrog/agent-job-relay --timeout 60m .woodpecker/windows.yaml
+```
+
+Expected: all three Windows steps succeed, with native tests and a version/hash/revision descriptor. Reuse the compiler/download cache for a second fresh checkout to measure warm behavior; keep fixture state disposable. This local execution does not establish Server scheduling, authenticated checkout or GitHub status reporting, which require an authorized exact-commit PR run.
+
 ## Main-branch protection
 
 Changes to main require a pull request and successful `ci/woodpecker/pr/linux` against the latest main. No administrator bypass is configured. Use a branch/PR for subsequent source, CI and release-preparation edits; do not push those changes directly to main. After merging, verify the main Push pipeline independently. See [current verification](IMPLEMENTATION_STATUS.md).
 
 ## Migration boundary
 
-GitHub Actions execution is unavailable in the maintainer environment. The legacy `.github/workflows/ci.yml` keeps only `workflow_dispatch` as a manual reference for checks not yet migrated; automatic main-Push/PR CI runs through Woodpecker. Other Actions release workflows remain manual references. The short-workspace and persistent-cache workflow passes the exact-commit server Push pipeline, including package installation and GitHub status reporting; current evidence is in [implementation status](IMPLEMENTATION_STATUS.md). The dedicated Worker is managed by the deployment's reusable Worker manager (create/list/show/up/status/logs/stop/restart/remove), keeping repository bindings, Agent identity and cache volumes separate. Worker removal retains identity/cache, and idle checks protect known active work; no deployment-specific paths or credentials are stored in this repository. Linux configuration alone does not restore Windows native/package tests or macOS compilation/portable tests. Windows needs its own Agent and commit-bound artifact transfer; macOS needs an appropriate worker. Track remaining work in [TODO](TODO.md).
+GitHub Actions execution is unavailable in the maintainer environment. The legacy `.github/workflows/ci.yml` keeps only `workflow_dispatch` as a manual reference for checks not yet migrated; automatic main-Push/PR CI runs through Woodpecker. Other Actions release workflows remain manual references. Linux passes exact-commit server CI, including package installation and GitHub status reporting; Windows native migration evidence is recorded separately in [implementation status](IMPLEMENTATION_STATUS.md). The deployment's reusable Worker manager keeps repository bindings, Agent identity and cache directories/volumes separate for Docker and Windows Local workers. Worker removal retains identity/cache, and idle checks protect known active work; no deployment-specific paths or credentials are stored in this repository. Windows package/loader tests still need commit/run-bound cross-worker artifact transfer. macOS compilation/portable tests need an appropriate worker. Track remaining work in [TODO](TODO.md).
 
 Release preparation, preview, publication and independent verification still depend on Actions run identities, artifact storage and the npm GitHub OIDC publisher. They are not callable through this Linux workflow. Do not spoof Actions environment variables, reuse CI packages as release candidates or publish from push/PR/tag events; migrate those manual operations and their identity checks separately before attempting another release.

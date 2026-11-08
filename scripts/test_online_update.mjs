@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { delimiter, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { inspectMarketplace, updateMarketplace } from "../packages/runtime/update.mjs";
 
@@ -111,6 +111,21 @@ test("Codex's exact untracked installation record permits a released checkout wi
   assert.equal(f.git("status", "--porcelain=v1"), "?? .codex-marketplace-install.json");
   rmSync(f.recordPath);
   assert.deepEqual(await f.inspect(), { version: "0.1.14", root: f.root });
+});
+
+test("a PATH directory named git cannot shadow the actual executable", async t => {
+  const f = marketplaceFixture(t);
+  const shadow = mkdtempSync(join(dirname(f.root), "path-shadow-"));
+  mkdirSync(join(shadow, "git"));
+  const original = process.env.PATH;
+  t.after(() => {
+    if (original === undefined) delete process.env.PATH;
+    else process.env.PATH = original;
+    rmSync(shadow, { recursive: true, force: true });
+  });
+  process.env.PATH = shadow + delimiter + original;
+  assert.deepEqual(await f.inspect(), { version: "0.1.14", root: f.root });
+  assert.deepEqual(JSON.parse(readFileSync(f.recordPath)), f.record);
 });
 
 test("host metadata never hides tracked, staged or additional untracked user changes", async t => {

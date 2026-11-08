@@ -8,6 +8,10 @@ Run scripts from the repository root. Generated state and reports belong in igno
 
 `ci_linux.sh` implements the `toolchain`, `frontend`, `msrv`, `native`, `packages` and `cache` steps in `.woodpecker/linux.yaml`. Run it in the pinned workflow image with a disposable checkout, not against an installed runtime or personal profile. `ci_cache.py` restores mtimes only for content/mode-matching compiler inputs; its regressions cover changed bytes/modes, UI inventory and symlinks. It checks development packages only and never publishes. See [container reproduction and migration limits](../docs/ci.md).
 
+## Windows native CI
+
+`ci_windows.ps1` implements the `toolchain`, `frontend` and `native` steps in `.woodpecker/windows.yaml` using PowerShell 7, provisioned Node 24/Rust 1.99.1 and discovered Visual Studio C++ tools. A capacity-one Worker supplies project-only compiler/download caching; tests always rerun in the disposable checkout. `describe_native.ps1 -Revision <commit>` records explicit native source identity without simulating an Actions environment. Windows package/loader checks require the subsequent cross-worker artifact migration. See [Windows prerequisites and reproduction](../docs/ci.md#windows-native-verification).
+
 ## Release preparation
 
 Use one local entry point for a new formal release:

@@ -1,0 +1,28 @@
+labels:
+  platform: windows/amd64
+  backend: local
+  worker: ajr-win
+
+when:
+  - event: push
+    branch: main
+  - event: pull_request
+  - event: manual
+
+# Native verification only. No publication credentials or release promotion.
+# The Local backend interprets image as a shell executable.
+steps:
+  - name: toolchain
+    image: pwsh
+    commands:
+      - ./scripts/ci_windows.ps1 toolchain
+
+  - name: frontend
+    image: pwsh
+    commands:
+      - ./scripts/ci_windows.ps1 frontend
+
+  - name: native
+    image: pwsh
+    commands:
+      - ./scripts/ci_windows.ps1 native
