@@ -10,8 +10,8 @@ This is the sole project backlog. Current functionality, completed acceptance an
 
 ## CI/CD migration
 
-- [x] Implement and validate all five Woodpecker Linux steps locally with the pinned Docker image, MSRV/native gates, development package checks and Tag exclusion. See [CI setup](ci.md).
-- [ ] Push the reviewed Linux CI commit with maintainer authorization, then confirm its exact-commit server execution and GitHub status reporting.
+- [x] Implement and validate the Woodpecker Linux workflow locally with pinned tools, MSRV/native gates, development package checks, Tag exclusion, short socket-safe workspace and content-checked persistent compiler/download caching. See [CI setup](ci.md).
+- [ ] Enable the prepared dedicated cache Worker and push the reviewed follow-up with maintainer authorization; confirm package success and cold/warm timing on the server. The first push verified checkout, scheduling, native gates and GitHub status reporting but failed package verification on the longer default workspace.
 - [ ] Connect a Windows Worker and migrate native tests, exact-commit cross-worker artifact transfer and installed Windows package/loader checks.
 - [ ] Provide a macOS Worker for compilation/portable tests, or explicitly accept the coverage gap; Linux/Windows results do not replace it.
 - [ ] Migrate manual candidate preparation, source/run identity, immutable artifact storage, publisher preview and independent public-byte verification from Actions. Recheck npm authentication support before configuring the publisher; never spoof the Actions identity or promote CI development packages.

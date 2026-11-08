@@ -6,7 +6,7 @@ Run scripts from the repository root. Generated state and reports belong in igno
 
 ## Linux CI
 
-`ci_linux.sh` implements the `toolchain`, `frontend`, `msrv`, `native` and `packages` steps in `.woodpecker/linux.yaml`. Run it in the pinned workflow image with a disposable checkout, not against an installed runtime or personal profile. It checks development packages only and never publishes. See [container reproduction and migration limits](../docs/ci.md).
+`ci_linux.sh` implements the `toolchain`, `frontend`, `msrv`, `native`, `packages` and `cache` steps in `.woodpecker/linux.yaml`. Run it in the pinned workflow image with a disposable checkout, not against an installed runtime or personal profile. `ci_cache.py` restores mtimes only for content/mode-matching compiler inputs; its regressions cover changed bytes/modes, UI inventory and symlinks. It checks development packages only and never publishes. See [container reproduction and migration limits](../docs/ci.md).
 
 ## Release preparation
 
