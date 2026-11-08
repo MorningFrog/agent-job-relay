@@ -12,7 +12,8 @@ This is the sole project backlog. Current functionality, completed acceptance an
 
 - [x] Implement and validate the Woodpecker Linux workflow locally with pinned tools, MSRV/native gates, development package checks, Tag exclusion, short socket-safe workspace and content-checked persistent compiler/download caching. See [CI setup](ci.md).
 - [x] Enable the dedicated project cache Worker through the reusable deployment-side manager, retain identity across idle restart/recreation, push the authorized fix and pass all server steps and GitHub status reporting in 322 seconds.
-- [ ] Confirm the target repository's PR-specific workflow/status and choose required checks when switching its Ruleset; the successful Push pipeline does not itself verify those settings.
+- [x] Create authorized draft PR #1 and verify `ci/woodpecker/pr/linux` on the exact head commit in 305 seconds. Retire unavailable automatic Actions Push/PR runs while keeping the legacy manual platform reference.
+- [ ] Activate reviewed main-branch protection requiring a PR and the actual Woodpecker PR check, then merge the Linux migration after explicit maintainer approval. The target repository currently has no Ruleset or branch protection.
 - [ ] Connect a Windows Worker and migrate native tests, exact-commit cross-worker artifact transfer and installed Windows package/loader checks.
 - [ ] Provide a macOS Worker for compilation/portable tests, or explicitly accept the coverage gap; Linux/Windows results do not replace it.
 - [ ] Migrate manual candidate preparation, source/run identity, immutable artifact storage, publisher preview and independent public-byte verification from Actions. Recheck npm authentication support before configuring the publisher; never spoof the Actions identity or promote CI development packages.
