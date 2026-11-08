@@ -22,6 +22,14 @@ def run(argv, cwd=REPO):
     return subprocess.run(list(map(str, argv)), cwd=cwd, capture_output=True, text=True, check=True, timeout=60).stdout
 
 
+def validate_windows_image(image, descriptor, version, revision=None):
+    offset = int.from_bytes(image[60:64], "little") if len(image) >= 64 and image[:2] == b"MZ" else 0
+    if not offset or image[offset:offset+6] != b"PE\0\0\x64\x86" or descriptor.get("format") != 1 or descriptor.get("platform") != "win32-x64" or descriptor.get("version") != version or descriptor.get("sha256") != hashlib.sha256(image).hexdigest():
+        raise ValueError("Windows PE/architecture/version/digest validation failed")
+    if revision is not None and descriptor.get("revision") != revision:
+        raise ValueError("Windows executable was not built from this workflow revision")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, default=REPO / "target/release/agent-job-relay")
@@ -29,7 +37,10 @@ def main():
     parser.add_argument("--allow-unreleased", action="store_true", help="Build development-only packages from Unreleased notes; these cannot be promoted")
     parser.add_argument("--windows-binary", type=Path, help="Windows x86_64 executable built and checked on Windows")
     parser.add_argument("--windows-metadata", type=Path, help="Matching native build descriptor from describe_native.ps1")
+    parser.add_argument("--expected-revision", default=os.environ.get("CI_COMMIT_SHA") or os.environ.get("GITHUB_SHA"), help="Exact source commit for cross-platform packaging; defaults to the actual CI provider's commit")
     args = parser.parse_args()
+    if args.expected_revision and not re.fullmatch(r"[0-9a-f]{40}", args.expected_revision):
+        parser.error("expected revision must be a full Git commit")
     output = args.output.resolve()
     temporary = REPO / ".tmp"
     temporary.mkdir(exist_ok=True)
@@ -50,11 +61,10 @@ def main():
     if args.windows_binary:
         windows_image = args.windows_binary.read_bytes()
         descriptor = json.loads(args.windows_metadata.read_text())
-        offset = int.from_bytes(windows_image[60:64], "little") if windows_image[:2] == b"MZ" else 0
-        if not offset or windows_image[offset:offset+6] != b"PE\0\0\x64\x86" or descriptor.get("format") != 1 or descriptor.get("platform") != "win32-x64" or descriptor.get("version") != version or descriptor.get("sha256") != hashlib.sha256(windows_image).hexdigest():
-            parser.error("Windows PE/architecture/version/digest validation failed")
-        if os.environ.get("GITHUB_SHA") and descriptor.get("revision") != os.environ["GITHUB_SHA"]:
-            parser.error("Windows executable was not built from this workflow revision")
+        try:
+            validate_windows_image(windows_image, descriptor, version, args.expected_revision)
+        except ValueError as error:
+            parser.error(str(error))
     packages = [("runtime", REPO / "packages/runtime"), ("opencode", REPO / "plugins/opencode-v1")]
     with tempfile.TemporaryDirectory(prefix="pack-", dir=temporary) as temp:
         stage = Path(temp)

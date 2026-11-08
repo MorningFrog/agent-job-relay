@@ -61,7 +61,7 @@ case "${1:-}" in
     npm ci --prefix web --ignore-scripts --no-audit --no-fund --prefer-offline
     npm test --prefix web
     npm run build --prefix web
-    node --test scripts/test_online_update.mjs scripts/test_online_uninstall.mjs
+    node --test scripts/test_online_update.mjs scripts/test_online_uninstall.mjs scripts/test_ci_artifacts.mjs
     ;;
   msrv)
     python3 -m unittest discover -s scripts -p test_ci_cache.py -v
