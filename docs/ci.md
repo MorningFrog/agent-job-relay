@@ -37,6 +37,10 @@ Expected: `linux` completes all six steps successfully. A second fresh checkout 
 
 After maintainer-authorized push, inspect the pipeline for that exact commit in Woodpecker and its reported GitHub checks. Keep the default repository config discovery enabled, allow the cold run sufficient time (currently 60 minutes), and leave fork approval and trust settings intact. Select required status checks from actual successful server runs rather than guessing their names.
 
+## Main-branch protection
+
+Changes to main require a pull request and successful `ci/woodpecker/pr/linux` against the latest main. No administrator bypass is configured. Use a branch/PR for subsequent source, CI and release-preparation edits; do not push those changes directly to main. After merging, verify the main Push pipeline independently. See [current verification](IMPLEMENTATION_STATUS.md).
+
 ## Migration boundary
 
 GitHub Actions execution is unavailable in the maintainer environment. The legacy `.github/workflows/ci.yml` keeps only `workflow_dispatch` as a manual reference for checks not yet migrated; automatic main-Push/PR CI runs through Woodpecker. Other Actions release workflows remain manual references. The short-workspace and persistent-cache workflow passes the exact-commit server Push pipeline, including package installation and GitHub status reporting; current evidence is in [implementation status](IMPLEMENTATION_STATUS.md). The dedicated Worker is managed by the deployment's reusable Worker manager (create/list/show/up/status/logs/stop/restart/remove), keeping repository bindings, Agent identity and cache volumes separate. Worker removal retains identity/cache, and idle checks protect known active work; no deployment-specific paths or credentials are stored in this repository. Linux configuration alone does not restore Windows native/package tests or macOS compilation/portable tests. Windows needs its own Agent and commit-bound artifact transfer; macOS needs an appropriate worker. Track remaining work in [TODO](TODO.md).
