@@ -18,4 +18,6 @@ Migration requires exclusive daemon ownership and no old launching/running jobs.
 
 ## Regression rationale
 
+The profile maintenance guard explicitly unlocks on exit, including errors, before closing its file. On Unix, closing only the parent's descriptor can retain the lock in a concurrently forked child until exec. A shared-open-description regression retains a duplicate descriptor, verifies exclusion while maintenance owns the guard and immediate reacquisition after it ends; linked-log refusal also exercises the error path before backup.
+
 Behavioral tests cover automatic daemon operation, all retention triggers, hot/cold pagination and idempotency, binary log cursors, protected claims/recovery, explicit retry rehydration, migration fencing, archive rollback/post-commit cleanup, pinned-WAL backup/restore without execution replay, sealed/unsealed backup recovery, ownership/foreign-file refusal and rolling rotation. Runtime tests verify readable diagnostics and shutdown acceptance during a real SQLite writer wait; reserved-read tests saturate all general database workers without blocking status.

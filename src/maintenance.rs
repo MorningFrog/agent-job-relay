@@ -137,11 +137,21 @@ pub(crate) fn capacity(db: &Connection) -> Result<Value> {
         "archive_retention":"indefinite; automatic archiving compresses data without deleting history"}),
     )
 }
-fn lock(config: &Config) -> Result<std::fs::File> {
+struct MaintenanceLock(std::fs::File);
+impl Drop for MaintenanceLock {
+    fn drop(&mut self) {
+        // Closing only our descriptor can leave a Unix lock held by a child
+        // between fork and exec. End ownership explicitly on every exit path.
+        if let Err(error) = self.0.unlock() {
+            tracing::error!(%error, "failed to release data maintenance lock");
+        }
+    }
+}
+fn lock(config: &Config) -> Result<MaintenanceLock> {
     let lock = crate::platform::private_file(&config.root.join("maintenance.lock"))?;
     lock.try_lock()
         .context("data maintenance is already running for this profile")?;
-    Ok(lock)
+    Ok(MaintenanceLock(lock))
 }
 #[derive(Clone)]
 struct Candidate {
@@ -825,6 +835,25 @@ pub(crate) async fn worker(store: Store, mut stopped: tokio::sync::watch::Receiv
 #[cfg(all(test, target_os = "linux"))]
 mod tests {
     use super::*;
+
+    #[test]
+    fn maintenance_lock_releases_while_an_inherited_descriptor_remains_open() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join(".tmp");
+        std::fs::create_dir_all(&root).unwrap();
+        let temp = tempfile::tempdir_in(root).unwrap();
+        let config = Config::new(Some(temp.path().join("state"))).unwrap();
+        config.prepare().unwrap();
+        let owner = lock(&config).unwrap();
+        // dup shares the same open file description as a descriptor inherited
+        // across fork, before the child's close-on-exec has taken effect.
+        let inherited = owner.0.try_clone().unwrap();
+        assert!(lock(&config).is_err());
+        drop(owner);
+        let next = lock(&config).expect("completed maintenance must release its lock");
+        assert!(lock(&config).is_err());
+        drop(next);
+        drop(inherited);
+    }
 
     #[tokio::test]
     async fn backup_does_not_lock_append_only_prefixes_but_snapshots_recent_rings() {

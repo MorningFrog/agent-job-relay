@@ -20,9 +20,25 @@ import release_metadata as metadata
 import release_pipeline as pipeline
 import check_online_update as online_fixture
 import finalize_release as finalizer
+import prepare_release as preparation
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_cross_platform_packaging_checks_pe_digest_version_and_explicit_source_identity(self):
+        import hashlib
+
+        image = bytearray(80)
+        image[:2] = b"MZ"
+        image[60:64] = (64).to_bytes(4, "little")
+        image[64:70] = b"PE\0\0\x64\x86"
+        descriptor = {"format": 1, "platform": "win32-x64", "version": "1.2.3", "sha256": hashlib.sha256(image).hexdigest(), "revision": "a" * 40}
+        preparation.validate_windows_image(image, descriptor, "1.2.3", "a" * 40)
+        for override in [{"platform": "linux-x64"}, {"version": "1.2.4"}, {"sha256": "0" * 64}, {"revision": "b" * 40}, {"format": 2}]:
+            with self.subTest(override=override), self.assertRaises(ValueError):
+                preparation.validate_windows_image(image, {**descriptor, **override}, "1.2.3", "a" * 40)
+        with self.assertRaises(ValueError):
+            preparation.validate_windows_image(b"not a PE image", descriptor, "1.2.3", "a" * 40)
+
     def setUp(self):
         (metadata.REPO / ".tmp").mkdir(exist_ok=True)
         self.temp = tempfile.TemporaryDirectory(prefix="release-test-", dir=metadata.REPO / ".tmp")

@@ -98,6 +98,7 @@ agent-job-relay/
   tests/{cli,daemon,runner,persistence,delivery,mcp}/
   docs/{architecture,protocol,security,limitations,testing,installation,release,TODO}.md
   .woodpecker/linux.yaml
+  .woodpecker/windows.yaml
 ```
 
 不存在的平台适配器不要制造全部实现已完成的错觉；可用 feature gate 或显式 Unsupported 状态。模块文件名和代码结构由实际实现决定，不要求为目录示意图创建空文件。

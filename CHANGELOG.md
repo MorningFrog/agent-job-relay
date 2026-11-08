@@ -4,7 +4,12 @@
 
 ### Changed
 
-- Add Woodpecker Linux verification for frontend, Rust 1.89 minimum-version checks, pinned stable native gates and account-free development package/host checks. Use a short workspace for Unix socket fixtures and a project-only Worker cache for toolchains, downloads and content-checked incremental compilation; rerun all behavioral tests. Use Woodpecker for automatic main-Push/PR verification, avoid duplicate feature-Push/PR runs on the single cache Worker and retain the old Actions CI only as a manual reference. Keep Windows, macOS and manual publication migration separate.
+- Add Woodpecker Linux verification for frontend, Rust 1.89 minimum-version checks, pinned stable native gates and account-free development package/host checks, plus Windows native and installed-package/host-loader workflows. Transfer exact repository/run/commit-bound native bytes and development-only packages through a separately provisioned private append-only HTTPS exchange with checksum/inventory checks. Use project-only compiler/download caches while rerunning behavioral tests; avoid duplicate feature-Push/PR runs and retain Actions only as a manual reference during migration. Keep macOS and manual publication migration separate.
+
+### Fixed
+
+- Explicitly release completed maintenance locks so Unix child-process descriptor inheritance cannot transiently block the next maintenance or backup operation.
+- Ignore directories when resolving maintenance executables on PATH, so Visual Studio's directory named `git` cannot shadow the actual Git program during Windows plugin update/removal checks.
 
 ## [0.1.23] - 2026-11-06
 
