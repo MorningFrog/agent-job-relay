@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.24] - 2026-11-09
+
 ### Changed
 
 - Add manual Woodpecker Linux/Windows preparation and separate publisher inspection, identity/preview, npm staging, GitHub finalization and public-byte checking. Bind immutable candidates to the original successful run, retain a checked glibc 2.34 boundary and development-only rehearsals, isolate preparation/publisher roles, and support shared-login local CLI staging/public checks with truthful local receipts and maintainer 2FA for npm approval. Preserve existing Actions candidates and publication history.
