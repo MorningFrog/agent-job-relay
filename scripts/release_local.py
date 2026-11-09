@@ -171,8 +171,13 @@ def download_stage(stage_id, env, work):
 
 def operate(args, work, candidate, source, context, *, client=None):
     if args.operation == 'inspect':
+        meta = read_json(work/'candidate/release.json')
         return {'operation':'inspect','candidate_pipeline':args.pipeline,'version':candidate['version'],
-                'development_only':candidate['development'],'original_bytes_verified':True,'publishing_authorized':False,'writes':False}
+                'development_only':candidate['development'],'original_bytes_verified':True,'publishing_authorized':False,'writes':False,
+                'source':candidate['execution']['run']['commit'],'channel':candidate['execution']['channel'],
+                'packages':[{'name':meta[key]['name'],'version':meta['version'],'tag':candidate['execution']['channel'],
+                    'size':(work/'candidate'/meta[key]['tarball']).stat().st_size,
+                    'sha256':sha256(work/'candidate'/meta[key]['tarball'])} for key in PACKAGES]}
     publisher.eligible(candidate,context)
     github = client or GitHubCLI(); context['github_user'] = github.identity(args.expected_github_user)
     require(github.request('commits/main')['sha'] == context['workflow_commit'], 'Local publication tool must match the reviewed current main revision')
@@ -196,6 +201,11 @@ def operate(args, work, candidate, source, context, *, client=None):
     for k in PACKAGES:
         shared.check_channel(publication.meta[k]['name'],publication.channel,publication.meta['version'])
     publication.find_release()
+    if args.operation == 'preview' and all(existing.values()):
+        publisher.public_bytes(work/'candidate',publication.meta,publication.channel)
+        return {'operation':'preview','version':publication.meta['version'],'channel':publication.channel,
+                'writes':False,'github_writes':False,'already_public':True,'status':'read_only_preview'}
+    stage_records = []
     with npm_environment(args.npm_userconfig,work) as env:
         user = npm_identity(args.expected_npm_user,env,work)
         verified = True
@@ -213,10 +223,12 @@ def operate(args, work, candidate, source, context, *, client=None):
             else:
                 verified = shared.stage_package(entry,tarball,publication.channel,env,
                     download=lambda stage_id,scope:download_stage(stage_id,scope,work),report=lambda message:None,
-                    run=stage_cli) and verified
+                    run=stage_cli,stage_records=stage_records) and verified
     return {'operation':args.operation,'npm_user':user,'version':publication.meta['version'],
             'channel':publication.channel,'writes':args.operation == 'stage','github_writes':False,
             'status':'read_only_preview' if args.operation == 'preview' else 'awaiting_maintainer_2fa' if verified else 'awaiting_npm_validation',
+            'candidate_pipeline':int(args.pipeline),'source':candidate['execution']['run']['commit'],
+            'stages':stage_records,
             'instruction':'For staging, inspect exact stages and approve runtime then OpenCode with human 2FA; never approve automatically. Retry only the same original candidate.'}
 
 

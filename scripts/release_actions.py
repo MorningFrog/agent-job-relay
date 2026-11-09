@@ -397,7 +397,7 @@ def record_publish_acceptance(candidate, release, key):
         upload_release_asset(release["id"], path)
 
 
-def stage_package(entry, tarball, channel, env, *, download=None, report=None, run=None):
+def stage_package(entry, tarball, channel, env, *, download=None, report=None, run=None, stage_records=None):
     run = run or command
     report = report or summary
     stages = json.loads(run(["npm", "stage", "list", entry["name"], "--json", f"--registry={REGISTRY}"], env=env))
@@ -420,10 +420,18 @@ def stage_package(entry, tarball, channel, env, *, download=None, report=None, r
     status = stage.get("status")
     require(status in ("validating", "staged"), "Unknown npm stage status; inspect on npm before retrying")
     if status == "validating":
+        if stage_records is not None:
+            stage_records.append({'id':stage_id,'packageName':entry['name'],'version':entry['version'],
+                'tag':channel,'status':status,'downloaded_bytes_verified':False,
+                'size':tarball.stat().st_size,'sha256':sha256(tarball)})
         report(f"`{entry['name']}@{entry['version']}` uploaded; npm automated validation is pending. Stage ID: `{stage_id}`. Do not approve yet. Re-run this candidate after validation so staged bytes can be verified.")
         return False
     data = download(stage_id, env) if download else request(f"{REGISTRY}/-/stage/{stage_id}/tarball", token=env["NODE_AUTH_TOKEN"], binary=True, context="npm staged tarball download")
     require(hashlib.sha256(data).hexdigest() == sha256(tarball), "Staged tarball differs from reviewed candidate; do not approve it")
+    if stage_records is not None:
+        stage_records.append({'id':stage_id,'packageName':entry['name'],'version':entry['version'],
+            'tag':channel,'status':status,'downloaded_bytes_verified':True,
+            'size':len(data),'sha256':hashlib.sha256(data).hexdigest()})
     report(f"`{entry['name']}@{entry['version']}` staged and bytes verified. Stage ID: `{stage_id}`. Approve on npm with 2FA (runtime first), then run Release again with the **same original candidate_run_id** and `npm_auth=stage`.")
     return True
 

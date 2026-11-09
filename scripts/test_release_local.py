@@ -72,6 +72,9 @@ class LocalPublicationTests(unittest.TestCase):
             self.args.operation='stage';self.ctx['task']='stage'
             result=local.operate(self.args,self.work,self.candidate,self.prep.root,self.ctx,client=self.client)
         self.assertEqual(result['status'],'awaiting_maintainer_2fa')
+        self.assertEqual([s['packageName'] for s in result['stages']],list(local.PACKAGES.values()))
+        self.assertTrue(all(s['downloaded_bytes_verified'] for s in result['stages']))
+        self.assertEqual(result['candidate_pipeline'],42)
         self.assertEqual([v[2] for v in calls],['list','view','download']*2)
         self.assertFalse(any(c.kwargs.get('method') in ('POST','PATCH') for c in self.client.request.call_args_list))
         self.client.upload.assert_not_called()
@@ -82,6 +85,17 @@ class LocalPublicationTests(unittest.TestCase):
                 if argv[2]=='list':return json.dumps([{'id':next(iter(stages)),'packageName':sample[0]['name'],'version':sample[0]['version'],'tag':'next'}])
                 return json.dumps({'id':next(iter(stages)),'packageName':sample[0]['name'],'version':sample[0]['version'],'tag':'next','shasum':hashlib.sha1(sample[1].read_bytes()).hexdigest(),'status':'staged'})
             with self.assertRaises(ValueError):shared.stage_package(sample[0],sample[1],'next',{},run=fake,download=lambda *a:b'wrong bytes',report=lambda *a:None)
+
+    def test_published_candidate_preview_needs_no_npm_session_or_write(self):
+        self.args.operation='preview';self.ctx['task']='preview'
+        with patch.object(shared,'public_package',return_value={'version':'0.1.0'}), \
+             patch.object(shared,'check_channel',return_value={}), \
+             patch.object(publisher,'public_bytes') as public_bytes, \
+             patch.object(local,'npm_identity',side_effect=AssertionError('unnecessary account login')):
+            result=local.operate(self.args,self.work,self.candidate,self.prep.root,self.ctx,client=self.client)
+        self.assertTrue(result['already_public']);self.assertFalse(result['writes'])
+        public_bytes.assert_called_once()
+        self.client.upload.assert_not_called()
 
     def test_local_finalization_requires_public_bytes_and_preserves_honest_receipts_on_retry(self):
         publication=publisher.Publication(self.work/'candidate',self.candidate,self.prep.root,self.ctx,client=self.client)
