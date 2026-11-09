@@ -24,10 +24,11 @@ RECOVERY_PATHS = shared.RECOVERY_PATHS | {
     'scripts/ci_artifacts.mjs', 'scripts/release_metadata.py', 'scripts/test_release_publish.py',
     '.woodpecker/publish-inspect.yaml', '.woodpecker/publish-identity.yaml', '.woodpecker/publish-preview.yaml',
     '.woodpecker/publish-stage.yaml', '.woodpecker/publish-finalize.yaml', '.woodpecker/publish-check.yaml',
-    'scripts/README.md', 'docs/ci.md',
+    'scripts/README.md', 'docs/ci.md', 'scripts/release_local.py', 'scripts/test_release_local.py',
 }
 SOURCE_PATHS = {'Cargo.toml', 'Cargo.lock', 'CHANGELOG.md', *metadata.PLUGIN_MANIFESTS,
                 *metadata.RUNTIME_LAUNCHERS, *[p + '/package.json' for p in metadata.PACKAGE_PATHS.values()]}
+LOCAL_RECEIPT_NAME = re.compile(r'local-publish-receipt-([0-9a-f]{32})-([1-9][0-9]*)\.json')
 RECEIPT_NAME = re.compile(r'woodpecker-publish-receipt-([1-9][0-9]*)-([1-9][0-9]*)\.json')
 
 
@@ -56,10 +57,10 @@ def context(env, root=REPO):
             'server':f'{url.scheme}://{url.netloc}'}, 'branch':branch, 'task':mode}
 
 
-def original_source(revision, root=REPO):
+def original_source(revision, root=REPO, *, destination=None):
     require(re.fullmatch(r'[0-9a-f]{40}', revision), 'Invalid candidate source')
     git(['cat-file','-e', revision + '^{commit}'], root)
-    directory = root / '.tmp' / ('publication-source-' + revision)
+    directory = Path(destination) if destination is not None else root / '.tmp' / ('publication-source-' + revision)
     require(not directory.exists(), 'Use a new publication workspace; do not overwrite candidate source')
     directory.mkdir(mode=0o700)
     # Read only the original metadata blobs. Never execute old source or unpack paths.
@@ -72,7 +73,8 @@ def original_source(revision, root=REPO):
 def eligible(candidate, ctx, root=REPO):
     require(not candidate['development'] and candidate['execution']['task'] == 'prepare' and
             candidate['execution']['branch'] == 'main', 'Development/rehearsal candidates cannot enter publication')
-    original, current = candidate['execution']['run']['commit'], ctx['run']['commit']
+    original = candidate['execution']['run']['commit']
+    current = ctx['workflow_commit'] if ctx.get('provider') == 'local' else ctx['run']['commit']
     if original != current:
         git(['merge-base','--is-ancestor', original, current], root)
         changed = set(git(['diff','--name-only','-z', original, current, '--'], root, binary=True).decode().split('\0')) - {''}
@@ -125,9 +127,29 @@ def asset_bytes(asset):
     return data
 
 
+class GitHubAPI:
+    """Server credential adapter; local publication supplies a CLI-backed adapter."""
+    def request(self, path, **kwargs):
+        return shared.github(path, **kwargs)
+
+    def listing(self, path):
+        return shared.github_list(path)
+
+    def check_tag(self, tag, revision):
+        return shared.check_tag(tag, revision)
+
+    def asset_bytes(self, asset):
+        return asset_bytes(asset)
+
+    def upload(self, release_id, path):
+        return shared.request(f"https://uploads.github.com/repos/{REPOSITORY}/releases/{release_id}/assets?name={quote(path.name, safe='')}",
+            token=os.environ.get('GH_TOKEN'), method='POST', payload=path.read_bytes(), context='GitHub release asset upload')
+
+
 class Publication:
-    def __init__(self, directory, candidate, source, ctx):
+    def __init__(self, directory, candidate, source, ctx, *, client=None):
         require(candidate.get('format') == 2 and candidate.get('provider') == 'woodpecker', 'Expected an unchanged Woodpecker candidate, never a relabeled Actions candidate')
+        self.client = client or GitHubAPI()
         self.directory, self.candidate, self.source, self.context = directory, candidate, source, ctx
         self.meta = metadata.check_candidate(directory, source)
         self.execution = candidate['execution']; self.run = self.execution['run']; self.channel = self.execution['channel']
@@ -139,23 +161,37 @@ class Publication:
         return {'format':2,'kind':'npm_public_bytes_confirmed','candidate':self.execution,'version':self.meta['version'],
                 'channel':self.channel,'packages':{entry['name']:{'integrity':entry['integrity'], 'sha256':sha256(self.directory/entry['tarball'])} for entry in [self.meta[k] for k in PACKAGES]}}
 
+    def receipt_name(self):
+        if self.context['provider'] == 'local':
+            return f"local-publish-receipt-{self.context['invocation']}-{self.context['created']}.json"
+        return f"woodpecker-publish-receipt-{self.context['run']['pipeline']}-{self.context['run']['created']}.json"
+
     def verify_receipt(self, asset):
-        match = RECEIPT_NAME.fullmatch(asset['name']); require(match, 'Foreign GitHub release asset; nothing will be overwritten')
-        receipt = json.loads(asset_bytes(asset)); publisher = receipt.pop('publisher', {})
-        require(receipt == self.receipt_base() and publisher.get('provider') == 'woodpecker' and publisher.get('branch') == 'main' and publisher.get('task') == 'finalize', 'Publication receipt does not match the original candidate')
+        match, local = RECEIPT_NAME.fullmatch(asset['name']), LOCAL_RECEIPT_NAME.fullmatch(asset['name'])
+        require(match or local, 'Foreign GitHub release asset; nothing will be overwritten')
+        receipt = json.loads(self.client.asset_bytes(asset)); publisher = receipt.pop('publisher', {})
+        require(receipt == self.receipt_base() and publisher.get('branch') == 'main' and publisher.get('task') == 'finalize', 'Publication receipt does not match the original candidate')
+        if local:
+            require(publisher.get('provider') == 'local' and publisher.get('repository') == REPOSITORY and
+                    publisher.get('invocation') == local[1] and str(publisher.get('created')) == local[2] and
+                    re.fullmatch(r'[0-9a-f]{40}', publisher.get('workflow_commit','')) and
+                    re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9-]{0,38}', publisher.get('github_user','')) and 'run' not in publisher,
+                    'Invalid local maintainer receipt; never claim a local command is a Server run')
+            return
         run = publisher.get('run',{})
-        require(run.get('repository') == REPOSITORY and run.get('server') == self.run['server'] and run.get('repo_id') == self.run['repo_id'] and
+        require(publisher.get('provider') == 'woodpecker' and run.get('repository') == REPOSITORY and
+                run.get('server') == self.run['server'] and run.get('repo_id') == self.run['repo_id'] and
                 run.get('pipeline') == match[1] and run.get('created') == match[2] and re.fullmatch(r'[0-9a-f]{40}',run.get('commit','')), 'Invalid publication run receipt')
 
     def find_release(self):
-        shared.check_tag('v' + self.meta['version'], self.run['commit'])
-        releases = [r for r in shared.github_list('releases') if r['tag_name'] == 'v' + self.meta['version']]
+        self.client.check_tag('v' + self.meta['version'], self.run['commit'])
+        releases = [r for r in self.client.listing('releases') if r['tag_name'] == 'v' + self.meta['version']]
         require(len(releases) <= 1, 'Multiple Releases/drafts claim this version; preserve them for inspection')
         if not releases: return None
         release = releases[0]
         require(release['target_commitish'] == self.run['commit'] and release['body'] == self.body and
                 release['prerelease'] == (self.channel == 'next'), 'Existing Release belongs to different/modified candidate bytes; nothing will be overwritten')
-        assets = shared.github_list(f"releases/{release['id']}/assets")
+        assets = self.client.listing(f"releases/{release['id']}/assets")
         require(len(assets) == len({a['name'] for a in assets}), 'Duplicate GitHub assets')
         for asset in assets:
             if asset['name'] not in self.assets:
@@ -164,7 +200,7 @@ class Publication:
             if asset.get('digest'):
                 require(asset['digest'] == 'sha256:' + expected, 'Existing GitHub bytes conflict with the original candidate')
             else:
-                require(hashlib.sha256(asset_bytes(asset)).hexdigest() == expected, 'Existing GitHub bytes conflict with the original candidate')
+                require(hashlib.sha256(self.client.asset_bytes(asset)).hexdigest() == expected, 'Existing GitHub bytes conflict with the original candidate')
         require(release['draft'] or set(self.assets) <= {a['name'] for a in assets}, 'Published Release lacks original assets; preserve it and inspect')
         return {**release,'_assets':assets}
 
@@ -199,11 +235,15 @@ class Publication:
     def upload_asset(self, release_id, path):
         require(isinstance(release_id, int) and release_id > 0, 'Invalid GitHub Release ID')
         data = path.read_bytes()
-        asset = shared.request(f"https://uploads.github.com/repos/{REPOSITORY}/releases/{release_id}/assets?name={quote(path.name, safe='')}",
-            token=os.environ.get('GH_TOKEN'), method='POST', payload=data, context='GitHub release asset upload')
+        if path.name in self.assets:
+            require(hashlib.sha256(data).hexdigest() == self.assets[path.name], 'Original candidate asset changed before upload; never replace or rebuild it')
+        else:
+            require(path.name == self.receipt_name() and json.loads(data) == {**self.receipt_base(),'publisher':self.context},
+                    'Unexpected local publication receipt bytes')
+        asset = self.client.upload(release_id, path)
         require(asset.get('name') == path.name and asset.get('size') == len(data), 'Unexpected asset acknowledgement; inspect before retrying')
         expected = hashlib.sha256(data).hexdigest()
-        require(asset.get('digest') == 'sha256:' + expected if asset.get('digest') else hashlib.sha256(asset_bytes(asset)).hexdigest() == expected,
+        require(asset.get('digest') == 'sha256:' + expected if asset.get('digest') else hashlib.sha256(self.client.asset_bytes(asset)).hexdigest() == expected,
                 'Uploaded GitHub asset differs from the original candidate')
 
     def finalize(self):
@@ -211,7 +251,7 @@ class Publication:
         public_bytes(self.directory,self.meta,self.channel)  # Before the first GitHub mutation.
         release = self.find_release()
         if release is None:
-            release = shared.github('releases',method='POST',payload={'tag_name':'v'+self.meta['version'],
+            release = self.client.request('releases',method='POST',payload={'tag_name':'v'+self.meta['version'],
                 'target_commitish':self.run['commit'],'name':'AgentJobRelay '+self.meta['version'],
                 'body':self.body,'draft':True,'prerelease':self.channel=='next'})
             require(release['body']==self.body and release['target_commitish']==self.run['commit'] and release['draft'], 'Unexpected draft acknowledgement; inspect before retrying')
@@ -222,21 +262,21 @@ class Publication:
             self.upload_asset(release['id'],self.directory/name)
         if release['draft']:
             receipt = {**self.receipt_base(),'publisher':self.context}
-            name = f"woodpecker-publish-receipt-{self.context['run']['pipeline']}-{self.context['run']['created']}.json"
+            name = self.receipt_name()
             with tempfile.TemporaryDirectory(prefix='publish-receipt-',dir=REPO/'.tmp') as temp:
                 path=Path(temp)/name;path.write_text(json.dumps(receipt,sort_keys=True,indent=2)+'\n')
                 self.upload_asset(release['id'],path)
-            shared.github(f"releases/{release['id']}",method='PATCH',payload={'draft':False,'make_latest':'true' if self.channel=='latest' else 'false'})
+            self.client.request(f"releases/{release['id']}",method='PATCH',payload={'draft':False,'make_latest':'true' if self.channel=='latest' else 'false'})
         return {'operation':'finalize','status':'github_release_submitted','version':self.meta['version'],
                 'registry_writes':False,'instruction':'Run the independent read-only check; never rebuild or republish to recover a failed check.'}
 
     def check(self):
         public_bytes(self.directory,self.meta,self.channel)
         release=self.find_release();require(release is not None and not release['draft'], 'GitHub Release is not public; resume finalization of the original candidate')
-        require(shared.check_tag('v'+self.meta['version'],self.run['commit']), 'Public release tag is missing')
+        require(self.client.check_tag('v'+self.meta['version'],self.run['commit']), 'Public release tag is missing')
         for asset in release['_assets']:
             if asset['name'] in self.assets:
-                require(hashlib.sha256(asset_bytes(asset)).hexdigest()==self.assets[asset['name']], 'Public GitHub bytes differ from the sealed candidate')
+                require(hashlib.sha256(self.client.asset_bytes(asset)).hexdigest()==self.assets[asset['name']], 'Public GitHub bytes differ from the sealed candidate')
         shared.verify_public(self.directory,source_root=self.source)
         return {'operation':'check','status':'public_bytes_channels_installation_and_github_verified','writes':False}
 
