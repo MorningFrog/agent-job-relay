@@ -13,7 +13,7 @@ when:
     branch: main
   - event: pull_request
   - event: manual
-    evaluate: 'AJR_RELEASE_TASK != "prepare" && AJR_RELEASE_TASK != "rehearse"'
+    evaluate: 'AJR_RELEASE_TASK != "prepare" && AJR_RELEASE_TASK != "rehearse" && AJR_RELEASE_TASK != "inspect" && AJR_RELEASE_TASK != "identity" && AJR_RELEASE_TASK != "preview" && AJR_RELEASE_TASK != "stage" && AJR_RELEASE_TASK != "finalize" && AJR_RELEASE_TASK != "check"'
 
 # Verification only: no publishing secrets, host mounts or privileged steps.
 steps:

@@ -469,8 +469,8 @@ def publish(directory, run_id, auth):
     return release
 
 
-def verify_public(directory):
-    meta = check_candidate(directory)
+def verify_public(directory, *, source_root=None):
+    meta = check_candidate(directory) if source_root is None else check_candidate(directory, source_root)
     for key in PACKAGES:
         entry = meta[key]
         published = public_package(entry)

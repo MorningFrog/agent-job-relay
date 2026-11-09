@@ -20,7 +20,7 @@ Use one local entry point for a new formal release:
 python3 scripts/finalize_release.py --version <unused-x.y.z>
 ```
 
-This synchronizes Cargo.toml/Cargo.lock, both public npm packages, OpenCode's exact runtime dependency, plugin descriptors and online MCP/terminal runtime pins. It checks unused-version evidence before writing, runs frontend/native/release gates, then archives Unreleased notes under `## [x.y.z] - YYYY-MM-DD`. The date defaults to Asia/Shanghai; `--date YYYY-MM-DD` overrides it. The private web package has its own development version. Review and commit before manual Actions; this command never pushes or publishes.
+This synchronizes Cargo.toml/Cargo.lock, both public npm packages, OpenCode's exact runtime dependency, plugin descriptors and online MCP/terminal runtime pins. It checks unused-version evidence before writing, runs frontend/native/release gates, then archives Unreleased notes under `## [x.y.z] - YYYY-MM-DD`. The date defaults to Asia/Shanghai; `--date YYYY-MM-DD` overrides it. The private web package has its own development version. Review and commit before manual preparation; this command never pushes or publishes.
 
 If a gate fails, synchronized version edits remain and notes stay pending. Fix the failure and rerun the same command. Each file replacement is atomic; an interrupted group of version edits is repaired by repeating the same explicit `--version`. Without `--version`, the command validates the current Cargo version and requires all pins already to match. Existing release sections/dates are preserved; used versions and merging pending changes into an existing section are refused. Candidate reuse/publication retries use the original sealed candidate, without finalization. See [preparation requirements](../docs/release.md#prepare-and-review).
 
@@ -32,6 +32,8 @@ If a gate fails, synchronized version edits remain and notes stay pending. Fix t
 | `release_woodpecker.py`, `release_artifacts.mjs` | Manual-only source/run fences, compatibility evidence, separate-role transfer and post-installation preparation seals; rehearsal stays development-only, no publication |
 | `release_windows.ps1`, `check_release_compatibility.sh` | Native Windows preparation wrapper and exact-byte glibc 2.34 startup/SQLite smoke check |
 | `test_release_woodpecker.py`, `test_release_artifacts.mjs` | Preparation identity, original-byte seals, development isolation and failed/incomplete-run refusal |
+| `release_publish.py`, `release_publish_artifacts.mjs` | Read original accepted candidate/status, separate identity/preview/staging/GitHub finalization and independent public-byte checking; no rebuild or automated npm approval |
+| `test_release_publish.py` | Four publication boundary/recovery regressions; no real accounts or additional native builds |
 | `release_actions.py` | Individual manual Actions operations: preflight, sealing, publisher preview, publication and independent verification |
 | `release_pipeline.py` | Coordinate Release All child workflows with pinned source/run identities |
 | `check_release.py` | Install and verify local candidate packages/loaders in isolated state |
