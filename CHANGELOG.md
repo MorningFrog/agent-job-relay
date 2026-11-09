@@ -4,6 +4,7 @@
 
 ### Changed
 
+- Prepare manual Woodpecker Linux/Windows release candidates with exact source/run identities, an independently checked glibc 2.34 boundary, separate transfer roles/storage and post-installation seals. Keep migration rehearsals development-only; publishing remains a separate manual operation.
 - Add Woodpecker Linux verification for frontend, Rust 1.89 minimum-version checks, pinned stable native gates and account-free development package/host checks, plus Windows native and installed-package/host-loader workflows. Transfer exact repository/run/commit-bound native bytes and development-only packages through a separately provisioned private append-only HTTPS exchange with checksum/inventory checks. Use project-only compiler/download caches while rerunning behavioral tests; avoid duplicate feature-Push/PR runs and retain Actions only as a manual reference during migration. Keep macOS and manual publication migration separate.
 
 ### Fixed

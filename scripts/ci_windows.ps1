@@ -58,7 +58,7 @@ switch ($Step) {
         Invoke-Checked 'npm.cmd' @('ci','--prefix','web','--ignore-scripts','--no-audit','--no-fund','--prefer-offline')
         Invoke-Checked 'npm.cmd' @('test','--prefix','web')
         Invoke-Checked 'npm.cmd' @('run','build','--prefix','web')
-        Invoke-Checked 'node' @('--test','scripts/test_online_update.mjs','scripts/test_online_uninstall.mjs','scripts/test_ci_artifacts.mjs')
+        Invoke-Checked 'node' @('--test','scripts/test_online_update.mjs','scripts/test_online_uninstall.mjs','scripts/test_ci_artifacts.mjs','scripts/test_release_artifacts.mjs')
     }
     'native' {
         Invoke-Checked 'cargo' @('fmt','--check')

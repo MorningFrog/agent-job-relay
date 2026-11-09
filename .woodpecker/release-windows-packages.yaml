@@ -1,0 +1,64 @@
+# Manual preparation only; no npm/GitHub publication credentials.
+labels:
+  platform: windows/amd64
+  backend: local
+  worker: ajr-win
+
+clone:
+  - name: git
+    image: woodpeckerci/plugin-git:2.12.1
+    settings:
+      lfs: false
+      partial: false
+
+depends_on: [release-package]
+
+when:
+  - event: manual
+    evaluate: 'AJR_RELEASE_TASK == "prepare" || AJR_RELEASE_TASK == "rehearse"'
+
+steps:
+  - name: download-exact-packages
+    image: pwsh
+    environment:
+      AJR_RELEASE_ARTIFACT_ENDPOINT:
+        from_secret: release_artifact_endpoint
+      AJR_RELEASE_ARTIFACT_CA:
+        from_secret: release_artifact_ca
+      AJR_RELEASE_ARTIFACT_TOKEN:
+        from_secret: release_artifact_windows_token
+    commands:
+      - node scripts/release_artifacts.mjs download release-preflight
+      - node scripts/release_artifacts.mjs download release-packages
+
+  - name: installed-packages-and-hosts
+    image: pwsh
+    commands:
+      - ./scripts/release_windows.ps1 packages
+
+  - name: upload-report
+    image: pwsh
+    environment:
+      AJR_RELEASE_ARTIFACT_ENDPOINT:
+        from_secret: release_artifact_endpoint
+      AJR_RELEASE_ARTIFACT_CA:
+        from_secret: release_artifact_ca
+      AJR_RELEASE_ARTIFACT_TOKEN:
+        from_secret: release_artifact_windows_token
+    commands:
+      - node scripts/release_artifacts.mjs upload release-windows-report
+
+  - name: failure-report
+    image: pwsh
+    environment:
+      AJR_RELEASE_ARTIFACT_ENDPOINT:
+        from_secret: release_artifact_endpoint
+      AJR_RELEASE_ARTIFACT_CA:
+        from_secret: release_artifact_ca
+      AJR_RELEASE_ARTIFACT_TOKEN:
+        from_secret: release_artifact_windows_token
+    commands:
+      - node scripts/release_artifacts.mjs upload release-diagnostics
+    when:
+      - status: failure
+

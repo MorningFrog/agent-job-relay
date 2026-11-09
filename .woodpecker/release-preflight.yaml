@@ -1,0 +1,35 @@
+# Manual preparation only; no npm/GitHub publication credentials.
+labels:
+  platform: linux/amd64
+  backend: docker
+  worker: ajr-release
+
+workspace:
+  base: /woodpecker
+  path: src
+
+when:
+  - event: manual
+    evaluate: 'AJR_RELEASE_TASK == "prepare" || AJR_RELEASE_TASK == "rehearse"'
+
+steps:
+  - name: source-preflight
+    image: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
+    environment:
+      GH_TOKEN:
+        from_secret: release_source_github_token
+    commands:
+      - python3 -B scripts/release_woodpecker.py preflight
+
+  - name: upload-preflight
+    image: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
+    environment:
+      AJR_RELEASE_ARTIFACT_ENDPOINT:
+        from_secret: release_artifact_endpoint
+      AJR_RELEASE_ARTIFACT_CA:
+        from_secret: release_artifact_ca
+      AJR_RELEASE_ARTIFACT_TOKEN:
+        from_secret: release_artifact_linux_token
+    commands:
+      - node scripts/release_artifacts.mjs upload release-preflight
+

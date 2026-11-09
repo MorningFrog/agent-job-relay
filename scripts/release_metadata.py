@@ -188,11 +188,11 @@ def check_checksums(directory):
     require(names and names == {p.name for p in directory.iterdir()} - {"SHA256SUMS"}, "Checksum inventory differs from candidate assets")
 
 
-def check_candidate(directory, root=REPO):
+def check_candidate(directory, root=REPO, *, allow_development=False):
     check_checksums(directory)
     meta = json.loads((directory / "release.json").read_text())
-    require(not meta.get("development", False), "Development-only packages cannot be promoted; prepare a finalized release candidate")
-    source = source_metadata(root)
+    require(allow_development or not meta.get("development", False), "Development-only packages cannot be promoted; prepare a finalized release candidate")
+    source = source_metadata(root, allow_unreleased=allow_development)
     require(meta["version"] == source["version"], "Candidate/source version mismatch")
     for key, name in PACKAGES.items():
         entry = meta[key]
@@ -207,17 +207,22 @@ def check_candidate(directory, root=REPO):
     return meta
 
 
-def seal_candidate(directory, channel, repository, revision, run_id, root=REPO):
-    meta = check_candidate(directory, root)
-    require(meta["platforms"] == ["linux-x64", "win32-x64"], "Actions releases require both tested native platforms")
-    require(channel in ("next", "latest") and re.fullmatch(r"[0-9a-f]{40}", revision) and str(run_id).isdigit(), "Invalid candidate identity")
-    require(not (directory / "candidate.json").exists(), "Candidate is already sealed")
-    notes = source_metadata(root)["notes"]
+def release_notes(meta, root=REPO, *, allow_development=False):
+    notes = source_metadata(root, allow_unreleased=allow_development)["notes"]
     notes += f"\n## Distribution\n\nLinux x86_64/glibc >= {meta['minimumGlibc']} and Windows x86_64; Node.js 20+ for npm plugins. macOS/ARM are unsupported.\n\n"
     notes += "OpenCode V1 is experimental; its actual-loader checks use a simulated model. ChatGPT Desktop uses an experimental private continuation interface. A self-hosted marketplace is not an official directory listing.\n\n"
     for name in PACKAGES.values():
         notes += f"- [{name}@{meta['version']}](https://www.npmjs.com/package/{name}/v/{meta['version']})\n"
     notes += "\nSee release.json for package identities and SHA256SUMS for asset integrity. Persistent task profiles remain outside plugin/npm caches.\n"
+    return notes
+
+
+def seal_candidate(directory, channel, repository, revision, run_id, root=REPO):
+    meta = check_candidate(directory, root)
+    require(meta["platforms"] == ["linux-x64", "win32-x64"], "Actions releases require both tested native platforms")
+    require(channel in ("next", "latest") and re.fullmatch(r"[0-9a-f]{40}", revision) and str(run_id).isdigit(), "Invalid candidate identity")
+    require(not (directory / "candidate.json").exists(), "Candidate is already sealed")
+    notes = release_notes(meta, root)
     (directory / "release-notes.md").write_text(notes)
     candidate = {"format": 1, "repository": repository, "revision": revision, "run_id": str(run_id), "workflow": ".github/workflows/release.yml", "channel": channel, "version": meta["version"], "assets": {p.name: sha256(p) for p in directory.iterdir() if p.name != "SHA256SUMS"}}
     (directory / "candidate.json").write_text(json.dumps(candidate, indent=2) + "\n")

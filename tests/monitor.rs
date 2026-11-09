@@ -277,6 +277,10 @@ mod native {
     #[tokio::test]
     async fn runner_drains_deferred_stage_without_new_output_or_daemon() {
         use agent_job_relay::session::{Adapter, Registration};
+        const OUTPUT: &str = concat!(
+            "AJR_PROGRESS {\"v\":1,\"source\":\"quiet\",\"seq\":1,\"stage\":\"start\"}\n",
+            "AJR_PROGRESS {\"v\":1,\"source\":\"quiet\",\"seq\":2,\"stage\":\"checkpoint\"}\n",
+        );
         let mut r = Runtime::new().await;
         let store = Store::new(r.config.clone());
         let session = store
@@ -295,11 +299,11 @@ mod native {
             .await
             .unwrap();
         let spec = StartSpec {
-            title:None,command:CommandSpec::Shell {interpreter:"/bin/sh".into(),script:r#"
+            title:None,command:CommandSpec::Shell {interpreter:"/bin/sh".into(),script:format!(r#"
 printf 'launch\n' >> launches
-printf '%s\n' 'AJR_PROGRESS {"v":1,"source":"quiet","seq":1,"stage":"start"}' 'AJR_PROGRESS {"v":1,"source":"quiet","seq":2,"stage":"checkpoint"}'
+printf '%s' '{OUTPUT}'
 while [ ! -f release ]; do sleep .05; done
-"#.into()},cwd:r.dir.path().into(),env:Default::default(),timeout_seconds:Some(20),queue_timeout_seconds:None,
+"#)},cwd:r.dir.path().into(),env:Default::default(),timeout_seconds:Some(20),queue_timeout_seconds:None,
             session:Some(session.key),idempotency_key:Some("one-native-launch".into()),
             monitor_rules:vec![serde_json::from_value(json!({"condition":{"kind":"progress","source":"quiet","trigger":{"kind":"stage"},"cooldown_seconds":2},"action":"alert","notify_agent":true})).unwrap()],
         };
@@ -308,7 +312,8 @@ while [ ! -f release ]; do sleep .05; done
         let pending = r
             .until(job, |v| {
                 v["feedback"]["activity"]["pending_stages"] == 1
-                    && v["observation"]["stdout"]["total_bytes"].as_u64().is_some()
+                    && v["observation"]["stdout"]["total_bytes"].as_u64()
+                        == Some(OUTPUT.len() as u64)
             })
             .await;
         let bytes = pending["observation"]["stdout"]["total_bytes"].clone();

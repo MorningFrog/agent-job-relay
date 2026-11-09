@@ -16,6 +16,7 @@ when:
     branch: main
   - event: pull_request
   - event: manual
+    evaluate: 'AJR_RELEASE_TASK != "prepare" && AJR_RELEASE_TASK != "rehearse"'
 
 # Development verification only. No publication credentials or release promotion.
 # The Local backend interprets image as a shell executable.

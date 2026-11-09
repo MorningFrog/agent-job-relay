@@ -25,8 +25,8 @@ export function identity(env = process.env) {
   return value;
 }
 
-export function packBundle(run, kind, files) {
-  requireValue(Object.hasOwn(PRODUCERS, kind), 'Unknown CI artifact kind');
+export function packBundle(run, kind, files, producers = PRODUCERS) {
+  requireValue(Object.hasOwn(producers, kind), 'Unknown CI artifact kind');
   const entries = Object.entries(files).sort(([a], [b]) => a.localeCompare(b, 'en'));
   requireValue(entries.length > 0 && entries.length <= 256, 'Invalid CI file count');
   const names = new Set();
@@ -34,7 +34,7 @@ export function packBundle(run, kind, files) {
     requireValue(safeName(name) && !names.has(name.toLowerCase()) && Buffer.isBuffer(data), 'Invalid CI filename or bytes');
     names.add(name.toLowerCase());
   }
-  const manifest = { format: 1, identity: run, kind, producer: PRODUCERS[kind], files: entries.map(([name, data]) => ({ name, size: data.length, sha256: hash(data) })) };
+  const manifest = { format: 1, identity: run, kind, producer: producers[kind], files: entries.map(([name, data]) => ({ name, size: data.length, sha256: hash(data) })) };
   const json = Buffer.from(JSON.stringify(manifest));
   requireValue(json.length <= 65536, 'CI manifest too large');
   const prefix = Buffer.alloc(12); MAGIC.copy(prefix); prefix.writeUInt32BE(json.length, 8);
@@ -43,12 +43,12 @@ export function packBundle(run, kind, files) {
   return Buffer.concat([prefix, json, ...entries.map(([, data]) => data)], total);
 }
 
-export function inspectBundle(bytes, run, kind) {
+export function inspectBundle(bytes, run, kind, producers = PRODUCERS) {
   requireValue(bytes.length >= 12 && bytes.length <= MAX_BUNDLE && bytes.subarray(0, 8).equals(MAGIC), 'Invalid CI bundle');
   const length = bytes.readUInt32BE(8);
   requireValue(length > 0 && length <= 65536 && 12 + length <= bytes.length, 'Invalid CI manifest length');
   const manifest = JSON.parse(bytes.subarray(12, 12 + length).toString('utf8'));
-  requireValue(manifest.format === 1 && isDeepStrictEqual(manifest.identity, run) && manifest.kind === kind && Object.hasOwn(PRODUCERS, kind) && manifest.producer === PRODUCERS[kind], 'CI artifact belongs to another source/run/producer');
+  requireValue(manifest.format === 1 && isDeepStrictEqual(manifest.identity, run) && manifest.kind === kind && Object.hasOwn(producers, kind) && manifest.producer === producers[kind], 'CI artifact belongs to another source/run/producer');
   requireValue(Array.isArray(manifest.files) && manifest.files.length > 0 && manifest.files.length <= 256, 'Invalid CI file inventory');
   const names = new Set(), files = {};
   let cursor = 12 + length;
@@ -83,8 +83,8 @@ export function inspectBundle(bytes, run, kind) {
   return files;
 }
 
-export function extractBundle(bytes, run, kind, destination) {
-  const files = inspectBundle(bytes, run, kind); // Validate the entire object before writing.
+export function extractBundle(bytes, run, kind, destination, producers = PRODUCERS) {
+  const files = inspectBundle(bytes, run, kind, producers); // Validate the entire object before writing.
   requireValue(!existsSync(destination), 'Choose a new CI artifact destination');
   const parent = realpathSync(dirname(destination));
   requireValue(resolve(parent, relative(dirname(destination), destination)) === resolve(destination), 'Refusing a symlinked artifact parent');
@@ -94,16 +94,16 @@ export function extractBundle(bytes, run, kind, destination) {
   } catch (error) { rmSync(destination, { recursive: true, force: true }); throw error; }
 }
 
-function config() {
-  const endpoint = new URL(process.env.AJR_CI_ARTIFACT_ENDPOINT);
+function config(prefix) {
+  const endpoint = new URL(process.env[prefix + '_ARTIFACT_ENDPOINT']);
   requireValue(endpoint.protocol === 'https:' && !endpoint.username && !endpoint.password && !endpoint.search && !endpoint.hash && endpoint.pathname === '/', 'CI exchange requires a plain HTTPS origin');
-  const token = process.env.AJR_CI_ARTIFACT_TOKEN, ca = process.env.AJR_CI_ARTIFACT_CA;
+  const token = process.env[prefix + '_ARTIFACT_TOKEN'], ca = process.env[prefix + '_ARTIFACT_CA'];
   requireValue(token && /^[a-zA-Z0-9_-]{40,128}$/.test(token) && ca?.includes('BEGIN CERTIFICATE'), 'Missing private CI exchange configuration');
   return { endpoint, token, ca };
 }
 
-function transfer(run, kind, upload) {
-  const { endpoint, token, ca } = config();
+export function transfer(run, kind, upload, prefix = 'AJR_CI') {
+  const { endpoint, token, ca } = config(prefix);
   const path = '/v1/' + [run.repo_id, run.pipeline, run.created, run.commit, kind].join('/');
   const headers = { Authorization: 'Bearer ' + token };
   if (upload) { headers['Content-Length'] = upload.length; headers['X-Content-SHA256'] = hash(upload); }
