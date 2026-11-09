@@ -4,7 +4,7 @@
 
 **Only maintainers publish, and every release starts manually.** Pushes, PRs, tags and Release events never publish. Versions come from Cargo.toml; package/plugin pins must match, and CHANGELOG supplies the reviewed notes. Publication always reuses the sealed candidate bytes. See [CONTRIBUTING.md](../CONTRIBUTING.md).
 
-**CI/CD migration:** GitHub Actions execution is unavailable in the maintainer environment. [Woodpecker CI](ci.md) runs automatic Linux/Windows checks and explicit manual candidate preparation. The default publisher uses shared official local CLI authentication, maintainer npm 2FA and separately confirmed GitHub finalization; the complete 0.1.24 route is accepted below. The optional CI publisher has no configured account publishing credentials. Existing Actions candidates/receipts retain their original format.
+**CI/CD migration:** GitHub Actions execution is unavailable in the maintainer environment. [Woodpecker CI](ci.md) runs automatic Linux/Windows checks and explicit manual candidate preparation. The default publisher uses shared official local CLI authentication, maintainer npm 2FA and separately confirmed GitHub finalization; the complete 0.1.24 route is accepted below. Publication is orchestrated by the deployment-side Run Release panel; the six obsolete individual CI publication workflows have been removed. Existing Actions candidates/receipts retain their original format.
 
 ## Current release handoff
 
@@ -16,9 +16,11 @@ Preserve every published version's notes, dates, tags, candidate bytes and recei
 
 ## Start a release
 
-Pushes and tags never publish. Explicitly ask the deployment operator/Agent to prepare this project's next unused version, with publication held for review. The existing entry points handle version finalization and the reviewed PR/main checks, one manual formal preparation, original-candidate inspection, explicitly authorized staging, maintainer npm 2FA, separately authorized GitHub finalization and one independent check. The maintainer reviews prompts and completes official authentication without copying commands or stage IDs.
+The deployment-side **Run Release** launcher provides the full manual flow. Double-click the project launcher, choose **dry-run** (default) or formal publication, select a new or successful original candidate, then click Run. New preparation runs once; candidate reuse does not rebuild. The coordinator inspects the exact successful original run/bytes, previews, stages only when publication was selected, prompts for official npm login/2FA, finalizes GitHub after both public packages match, then performs the independent public check. No commands or stage IDs need copying. Pushes and tags never publish.
 
-The deployment desktop helper currently handles npm login/approval only; it does not start the complete release graph. Without an operator/Agent, the current unified CLI still requires administrator orchestration. Administrator/Agent examples follow below; a complete standalone one-click release panel is not implemented.
+A new version must first be finalized with the project finalizer, reviewed and merged into main as described in [prepare and review](#prepare-and-review). The panel does not select versions or edit source. Dry-run with a new candidate **does run preparation CI and save private artifacts**, but never uploads npm packages or creates a Tag/Release; reuse avoids preparation. A pure local `release plan` does neither. The candidate's sealed channel cannot be changed when reusing it.
+
+The deployment administrator binds the checkout once with `platform_manager.py release prepare-panel <project> --workspace <checkout>`. Normal maintainers use the generated launcher. Select **Continue previous task** after cancellation or interruption; preserve the original task/candidate/stages rather than creating a fresh preparation. Current support is the local Linux desktop with Zenity/Ptyxis and shared official CLI sessions. The deployment guide `onboarding/RELEASE.md` documents setup, CLI equivalents, success criteria and recovery; the npm interaction component is documented in `onboarding/RELEASE_ASSISTANT.md`.
 
 ## Woodpecker preparation
 
@@ -51,7 +53,7 @@ After the reviewed implementation and administrator setup are enabled, start a r
 woodpecker-cli pipeline create --branch <reviewed-branch> --workflow release-seal --var AJR_RELEASE_TASK=rehearse --var AJR_RELEASE_CHANNEL=next --var EXPECTED_RELEASE_REVISION=<full-reviewed-commit> <repo-id>
 ```
 
-Use the reviewed branch itself; an existing PR ref is refused. `release-seal` includes all its hard dependencies. This command is a preparation request, not publication authorization. Inspect all six Server workflows and the immutable candidate. Restarting allocates a new run identity; never overwrite earlier objects. Existing preparation/inspection evidence does not need another rehearsal; actual formal candidate and account-backed publication acceptance remain pending.
+Use the reviewed branch itself; an existing PR ref is refused. `release-seal` includes all its hard dependencies. This command is a preparation request, not publication authorization. Inspect all six Server workflows and the immutable candidate. Restarting allocates a new run identity; never overwrite earlier objects. Existing preparation/inspection evidence does not need another rehearsal; formal candidate #42 and the default local account-backed publication are accepted.
 
 For focused local checks, run the preparation/protocol tests and lint once; native delivery gates are defined in AGENTS.md. Local CLI execution needs an explicit metadata file containing repository owner/name/id, plus explicit `--system-name woodpecker --system-url <fixture-origin>` when that file lacks system metadata. Do not falsify provider variables in production or treat fixture results as a successful Server run.
 
@@ -101,59 +103,21 @@ Every invocation keeps an intent/result record and the verified candidate under 
 
 ## Publication entry points
 
-This section describes the existing **optional CI backend**. The default shared-login/local adapter and deployed manual source OAuth binding are above; no GitHub App issuer is required.
+The deployment-side `platform_manager.py release` coordinator is the default entry. Its pure local `plan` is separate from `run`; run defaults to dry-run, and actual publication requires `--no-dry-run --apply`. It pins the reviewed main tools in a separate clean worktree and invokes this repository's local adapter. Shared authentication and orchestration remain outside business code. Local intent, stage and result records are private and retain original candidate identity.
 
-npm currently supports OIDC Trusted Publishing only on GitHub-hosted Actions, GitLab.com shared runners and CircleCI cloud; self-hosted Workers/Woodpecker are unsupported. The optional CI staging backend therefore requires a restricted granular **stage-only** token and maintainer 2FA approval; the default local route above requires no CI npm token. The stage-only setting prevents direct new-version publication; it still permits other npm writes, so this controller deliberately makes no dist-tag/deprecation/approval calls. See [trusted publishers](https://docs.npmjs.com/trusted-publishers/), [token capabilities](https://docs.npmjs.com/about-access-tokens/) and [staged publishing](https://docs.npmjs.com/staged-publishing/). These policies were checked on 2026-11-09; recheck them before changing authentication.
+The four automatic and six manual-preparation YAML files are the only active workflows under `.woodpecker/`; see its `_README.md`. The former six `publish-*.yaml` workflows are retired. The publication core remains because the local adapter imports it; keeping a Python helper does not create a separately executable CI workflow. Shared templates live in deployment tooling. Woodpecker filters workflow files by YAML extension, so merely naming a YAML file with `_` or `.` does not disable it; reusable non-workflow support files use another extension or stay outside that directory.
 
-| Manual task / workflow | Credentials and effects |
-|---|---|
-| `inspect` / `publish-inspect` | Read-only candidate/status role; inspect an accepted formal or development preparation without executing it. A development inspection never authorizes publication |
-| `identity` / `publish-identity` | npm account and GitHub repository read check only; useful after credential setup, without a formal candidate. It does not prove write permissions |
-| `preview` / `publish-preview` | Formal candidate only, account/source/conflict checks and `npm stage publish --dry-run`; no npm or GitHub mutation |
-| `stage` / `publish-stage` | Formal original tarballs only; reuse matching existing stages, verify staged bytes when validation is ready, then stop for maintainer 2FA. No GitHub draft or automatic npm approval |
-| `finalize` / `publish-finalize` | After both public npm tarballs and their channel match, create/resume the exact GitHub draft, upload original assets/receipt and publish it. No npm write or rebuild |
-| `check` / `publish-check` | Independent public npm/GitHub byte, channel, tag and clean-registry installation check. No staging or publication credentials reach installed code |
-
-All operations require an explicit manual event and full expected workflow revision. Only inspection permits a reviewed feature branch; identity/preview/stage/finalize/check run from main. Formal mutation requires `format=2`, `provider=woodpecker`, `development=false`, original main preparation and six successful workflows. Channel/version come from the seal and cannot be overridden. The original source metadata is read from fixed Git blobs, so inspecting/checking a prior candidate does not rebuild it or execute old source. Publication source changes are restricted to allowlisted tooling/documentation repairs; otherwise select the original reviewed workflow source.
-
-The publisher runs on a dedicated `worker=ajr-publish` Docker Worker. Its artifact role can only read a sealed candidate and that repository's bounded status snapshot. It cannot write candidates, native files or diagnostics. The private status gateway opens Woodpecker SQLite in read-only/query-only mode and returns a fixed pipeline/workflow field list; no Server management token or arbitrary SQL interface reaches the Worker. The reviewed deployment update and read-only status-directory mount are enabled, preserving existing storage and Linux/Windows role credentials. Publisher Worker #5 passes real manual inspection #33 of accepted development rehearsal #28 in 9 seconds; PR #5 is normally merged as `fe623c3`, with all four independent main Push #34 checks passing in 462 seconds. Account-backed publication remains unqualified. See [current evidence](IMPLEMENTATION_STATUS.md).
-
-### Optional CI credential bindings
-
-| Repository secret | Use |
-|---|---|
-| `release_artifact_publisher_token` | Candidate/status reads only; event manual |
-| `release_source_github_token` | Shared OAuth forwarded in the bound repository/main/manual context; used for source reads by preparation and publisher preview/stage/check. Retains the original account permissions |
-| `publish_github_token` | Fine-grained contents-write for this repository only; identity check and GitHub finalization, never builds or installed tests |
-| `publish_npm_stage_token` | Selected runtime/OpenCode packages only, read/write **stage only**, without bypass 2FA; identity/preview/stage only |
-
-Credentials must be entered through private local files/secret configuration, never chat, Git or command arguments. npm approval is performed by the maintainer in npmjs.com or their own interactive CLI; the Worker never receives an OTP/session credential or calls `npm stage approve`/`reject`. Stage-only is a registry capability configured by the maintainer: identity/dry-run cannot non-destructively prove all server-side staging/write policy. See [npm's command/2FA matrix](https://docs.npmjs.com/cli/v11/commands/npm-stage/).
-
-These bindings document the existing optional CI implementation, not a request to create three tokens for every project. Source reads already use the shared OAuth extension; do not substitute a personal local CLI session into CI. No CI account publishing credentials are configured. The source binding's stored marker remains unchanged and is rejected if the extension cannot supply the runtime value. Formal availability/draft checks passed in #42; original npm staging/download verification passes; public publication remains pending. The existing published baseline and all its notes/tags/candidates/receipts remain untouched.
+npm Trusted Publishing currently does not support self-hosted Woodpecker Workers. The default route uses the official shared local session and human staged-publishing approval, requiring no npm CI token per project. Session reuse depends on actual account/package permissions and expiry; it is not permanent validity. No account publication session is copied into CI. See [trusted publishers](https://docs.npmjs.com/trusted-publishers/) and [staged publishing](https://docs.npmjs.com/staged-publishing/); recheck platform support before changing authentication.
 
 ## Prepare and review
 
-The formal version/candidate requirements below apply to both routes. Steps selecting `identity`, `preview`, `stage`, `finalize` or `check` describe the existing optional CI backend; use the shared local authentication policy above for the default route through the separate local entry point.
+1. Check actual tags, registry versions, GitHub Releases/drafts and receipts before choosing an unused version. Run `python3 scripts/finalize_release.py --version <unused-x.y.z>` and its delivery gates, review the synchronized versions/final notes and merge through a PR. Reusing an original candidate does not repeat finalization.
+2. Open Run Release. Select a new candidate and dry-run to prepare once and review, or select formal publication to continue through the entire flow after confirmation. For an existing successful formal candidate, select it from the list; its version/channel/bytes remain immutable.
+3. The coordinator checks actual main/version availability before a new preparation and original six-workflow success/complete bytes before preview. An unpublished preview checks official expected accounts and runs `npm stage publish --dry-run`; an already-public preview verifies public bytes/channel without requiring npm login.
+4. Formal publication uploads only missing original packages or reads matching existing stages, waits for npm validation, downloads and verifies exact bytes, then prompts for human runtime/OpenCode approval in order. Cancel leaves the original stages intact. No automatic 2FA, direct publish fallback or channel mutation is used.
+5. Only after public npm bytes/channel match does GitHub finalization create/resume the matching Release and upload original assets/local receipt. Existing tags/assets/notes are never replaced. The independent credential-free public-byte/install check must pass before the full task reports completion.
 
-1. Check actual tags, registry versions, GitHub Releases/drafts and publication receipts before selecting an unused version. Run `python3 scripts/finalize_release.py --version <unused-x.y.z>`; review/commit the synchronized versions and finalized notes, then use an authorized PR. Existing dated 0.1.23 notes are not reused for later migration changes.
-2. Run the manual `release-seal` preparation graph with `AJR_RELEASE_TASK=prepare`, the full reviewed main commit and the intended channel. Keep its original pipeline number and private candidate bytes. The default migration rehearsal remains development-only and is never a publishable substitute.
-3. Review the candidate, notes and original successful six-workflow Server execution. Run publisher preview against that original pipeline. It checks account identity and conflicts but performs no upload.
-4. After explicit maintainer authorization, select `stage`. It stages exact reviewed tarballs; if npm is still validating, rerun only the same publisher step/candidate after validation. Matching existing stages are read/verified, not overwritten. Never start a fresh preparation to recover an uncertain staging response.
-5. Once staged bytes are verified, review and approve runtime first and OpenCode second using npm's 2FA UI/interactive CLI. This is the npm public-publication step and always requires human intervention. No automatic polling/approval is performed by the publisher.
-6. After public npm bytes/channel match, authorize `finalize` for that same original candidate. It only publishes GitHub state after those checks. Existing public assets/tags/notes must match and are never replaced; ambiguous/foreign Releases or receipts stop the operation for inspection.
-7. Run the independent read-only `check`. A failed check does not undo publication: retry verification or resume the same original finalization, never rebuild, relabel or republish the version.
-
-Use the known repository ID, original candidate pipeline number, full current reviewed workflow revision and expected npm username as public parameters. For example, after setting `release_repo_id`, `release_candidate_number`, `release_workflow_revision` and `release_npm_user` in your shell:
-
-```bash
-woodpecker-cli pipeline create --branch main --workflow publish-preview \
-  --var AJR_RELEASE_TASK=preview \
-  --var "EXPECTED_RELEASE_REVISION=$release_workflow_revision" \
-  --var "AJR_CANDIDATE_PIPELINE_NUMBER=$release_candidate_number" \
-  --var "NPM_EXPECTED_USER=$release_npm_user" "$release_repo_id"
-```
-
-Select the matching workflow/task pair for each subsequent operation. These are independent short operations; they do not rerun native CI or preparation. Default CI is excluded for recognized publication tasks. `identity` requires no candidate number; it is optional after setup because preview already checks identity. To validate the migration with the accepted development rehearsal, use `publish-inspect` / `inspect` on a reviewed branch: it must report development-only and publication unauthorized, with no upload.
+New preparation dispatch has a persisted unique request identity. Unknown admission is observed without a second POST; unknown stage results are reconciled read-only; unknown finalization stops automatic replay and requires original-state review. Resume uses the same local task. Actual main or binding changes stop the task rather than silently authorizing new source. The operator sequence above remains available for focused recovery, not required for normal desktop use.
 
 ## Recovery and evidence
 
@@ -163,4 +127,4 @@ Preview is read-only. Staging can reserve the npm version even before public app
 
 GitHub finalization retains the original candidate assets and adds a provider-specific receipt that public npm bytes were confirmed. It never claims that a failed final verification unpublished anything. Authenticated GitHub asset redirects drop Authorization before following signed HTTPS downloads; private response bodies and signed URLs are withheld from errors. Independent checks retrieve actual public bytes and install in isolated state without publishing credentials; they do not repeat the candidate's real host-loader/model-boundary qualification.
 
-Legacy `.github/workflows/release*.yml`, `release_actions.py` and `release_pipeline.py` remain manual references for original format-1 Actions candidates/receipts while migration acceptance is incomplete. The new controller does not spoof Actions environment variables, import old candidates as new provider runs or alter published history. Consumer CLI/plugin installation continues through [published installation](installation.md) and `ajr update`; data profiles remain outside binary/plugin caches.
+Legacy `.github/workflows/release*.yml`, `release_actions.py` and `release_pipeline.py` remain manual references for original format-1 Actions candidates/receipts for original published format-1 history. The new controller does not spoof Actions environment variables, import old candidates as new provider runs or alter published history. Consumer CLI/plugin installation continues through [published installation](installation.md) and `ajr update`; data profiles remain outside binary/plugin caches.
