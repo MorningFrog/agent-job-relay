@@ -4,7 +4,7 @@
 
 **Only maintainers publish, and every release starts manually.** Pushes, PRs, tags and Release events never publish. Versions come from Cargo.toml; package/plugin pins must match, and CHANGELOG supplies the reviewed notes. Publication always reuses the sealed candidate bytes. See [CONTRIBUTING.md](../CONTRIBUTING.md).
 
-**CI/CD migration:** GitHub Actions execution is unavailable in the maintainer environment. [Woodpecker CI](ci.md) now verifies Linux/Windows native and installed development packages on main. The manual Woodpecker preparation graph below is implemented locally and awaits deployment/Server acceptance. The existing Actions publisher/independent check and its npm identity remain unmigrated; they cannot consume the new provider-specific seal. No new release is authorized.
+**CI/CD migration:** GitHub Actions execution is unavailable in the maintainer environment. [Woodpecker CI](ci.md) now verifies Linux/Windows native and installed development packages on main. The manual Woodpecker preparation graph passes exact-source PR Server acceptance and is normally merged into main. The existing Actions publisher/independent check and its npm identity remain unmigrated; they cannot consume the new provider-specific seal. No new release is authorized.
 
 ## Current release handoff
 
@@ -14,7 +14,9 @@
 
 Preserve every published version's notes, dates, tags, candidate bytes and receipts. Earlier 0.1.21/0.1.18 independent-check failures remain separate backlog items and are not repaired by a later release. Consumer CLI/plugin installation and updates use `ajr update`; native offline and OpenCode routes remain separate. Older profiles migrate to schema v14 after older active runs finish. See [updates](updating.md) and [current support/evidence](IMPLEMENTATION_STATUS.md).
 
-## Woodpecker preparation (awaiting Server acceptance)
+## Woodpecker preparation
+
+**Current acceptance:** PR #4 source `4f55deb` passes the four PR checks (pipeline #30) and all six manual preparation workflows (pipeline #28, 661 seconds). Linux native/actual glibc 2.34, Windows native, both installed-package/loader checks and the immutable rehearsal seal were independently checked. This includes Windows Worker queue time alongside PR CI; it is not a standalone performance benchmark. The Worker, private exchange and manual-only configuration are enabled. PR #4 is normally merged as `c6d13b0`; independent main Push #31 also passes the four automatic workflows in 433 seconds. The six-workflow rehearsal was not repeated after merge. No formal version or publication was prepared.
 
 The six `release-*.yaml` workflows run only for an explicitly requested manual `prepare` or `rehearse` task. Ordinary main Push/PR CI remains the four-check verification graph; a manual preparation does not queue that graph a second time. Source preflight precedes parallel native Linux/Windows checks, followed by dual-platform packaging/Linux installed-loader checks, actual Windows installed-package/loader checks, then sealing. No step publishes packages, tags or GitHub Releases.
 
