@@ -49,7 +49,7 @@ Use the reviewed branch itself; an existing PR ref is refused. `release-seal` in
 
 For focused local checks, run the preparation/protocol tests and lint once; native delivery gates are defined in AGENTS.md. Local CLI execution needs an explicit metadata file containing repository owner/name/id, plus explicit `--system-name woodpecker --system-url <fixture-origin>` when that file lacks system metadata. Do not falsify provider variables in production or treat fixture results as a successful Server run.
 
-## Publication entry points (local implementation)
+## Publication entry points
 
 npm currently supports OIDC Trusted Publishing only on GitHub-hosted Actions, GitLab.com shared runners and CircleCI cloud; self-hosted Workers/Woodpecker are unsupported. This backend therefore uses a restricted granular **stage-only** token and maintainer 2FA approval. The stage-only setting prevents direct new-version publication; it still permits other npm writes, so this controller deliberately makes no dist-tag/deprecation/approval calls. See [trusted publishers](https://docs.npmjs.com/trusted-publishers/), [token capabilities](https://docs.npmjs.com/about-access-tokens/) and [staged publishing](https://docs.npmjs.com/staged-publishing/). These policies were checked on 2026-11-09; recheck them before changing authentication.
 
@@ -64,7 +64,7 @@ npm currently supports OIDC Trusted Publishing only on GitHub-hosted Actions, Gi
 
 All operations require an explicit manual event and full expected workflow revision. Only inspection permits a reviewed feature branch; identity/preview/stage/finalize/check run from main. Formal mutation requires `format=2`, `provider=woodpecker`, `development=false`, original main preparation and six successful workflows. Channel/version come from the seal and cannot be overridden. The original source metadata is read from fixed Git blobs, so inspecting/checking a prior candidate does not rebuild it or execute old source. Publication source changes are restricted to allowlisted tooling/documentation repairs; otherwise select the original reviewed workflow source.
 
-The publisher runs on a dedicated `worker=ajr-publish` Docker Worker. Its artifact role can only read a sealed candidate and that repository's bounded status snapshot. It cannot write candidates, native files or diagnostics. The private status gateway opens Woodpecker SQLite in read-only/query-only mode and returns a fixed pipeline/workflow field list; no Server management token or arbitrary SQL interface reaches the Worker. Activation requires a reviewed deployment update and a read-only status-directory mount, preserving existing storage and Linux/Windows role credentials.
+The publisher runs on a dedicated `worker=ajr-publish` Docker Worker. Its artifact role can only read a sealed candidate and that repository's bounded status snapshot. It cannot write candidates, native files or diagnostics. The private status gateway opens Woodpecker SQLite in read-only/query-only mode and returns a fixed pipeline/workflow field list; no Server management token or arbitrary SQL interface reaches the Worker. The reviewed deployment update and read-only status-directory mount are enabled, preserving existing storage and Linux/Windows role credentials. Publisher Worker #5 passes real manual inspection #33 of accepted development rehearsal #28 in 9 seconds; PR #5 remains unmerged and account-backed publication remains unqualified. See [current evidence](IMPLEMENTATION_STATUS.md).
 
 ### Configure credentials privately
 
