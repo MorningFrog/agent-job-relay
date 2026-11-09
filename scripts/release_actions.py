@@ -397,8 +397,10 @@ def record_publish_acceptance(candidate, release, key):
         upload_release_asset(release["id"], path)
 
 
-def stage_package(entry, tarball, channel, env):
-    stages = json.loads(command(["npm", "stage", "list", entry["name"], "--json", f"--registry={REGISTRY}"], env=env))
+def stage_package(entry, tarball, channel, env, *, download=None, report=None, run=None):
+    run = run or command
+    report = report or summary
+    stages = json.loads(run(["npm", "stage", "list", entry["name"], "--json", f"--registry={REGISTRY}"], env=env))
     require(isinstance(stages, list), "Unexpected npm stage inventory")
     matching = [s for s in stages if s.get("packageName") == entry["name"] and s.get("version") == entry["version"]]
     require(len(matching) <= 1, "Multiple stages claim this package/version")
@@ -406,23 +408,23 @@ def stage_package(entry, tarball, channel, env):
         stage = matching[0]
         require(stage.get("tag") == channel, "Existing stage uses another channel; review it on npm before continuing")
     else:
-        result = json.loads(command(["npm", "stage", "publish", tarball, "--ignore-scripts", "--access=public", f"--tag={channel}", "--json", f"--registry={REGISTRY}"], env=env))
+        result = json.loads(run(["npm", "stage", "publish", tarball, "--ignore-scripts", "--access=public", f"--tag={channel}", "--json", f"--registry={REGISTRY}"], env=env))
         require(isinstance(result, dict), "Unexpected npm stage publish response")
         staged = result.get(entry["name"], result)
         stage = {"id": staged.get("stageId")}
     stage_id = stage.get("id", "")
     require(isinstance(stage_id, str) and re.fullmatch(r"[0-9a-fA-F-]{36}", stage_id), "npm returned an invalid stage ID")
-    stage = json.loads(command(["npm", "stage", "view", stage_id, "--json", f"--registry={REGISTRY}"], env=env))
+    stage = json.loads(run(["npm", "stage", "view", stage_id, "--json", f"--registry={REGISTRY}"], env=env))
     require(stage.get("id") == stage_id and stage.get("packageName") == entry["name"] and stage.get("version") == entry["version"] and stage.get("tag") == channel, "Staged package identity/channel mismatch")
     require(stage.get("shasum") == hashlib.sha1(tarball.read_bytes()).hexdigest(), "Staged package checksum differs from candidate")
     status = stage.get("status")
     require(status in ("validating", "staged"), "Unknown npm stage status; inspect on npm before retrying")
     if status == "validating":
-        summary(f"`{entry['name']}@{entry['version']}` uploaded; npm automated validation is pending. Stage ID: `{stage_id}`. Do not approve yet. Re-run this candidate after validation so staged bytes can be verified.")
+        report(f"`{entry['name']}@{entry['version']}` uploaded; npm automated validation is pending. Stage ID: `{stage_id}`. Do not approve yet. Re-run this candidate after validation so staged bytes can be verified.")
         return False
-    data = request(f"{REGISTRY}/-/stage/{stage_id}/tarball", token=env["NODE_AUTH_TOKEN"], binary=True, context="npm staged tarball download")
+    data = download(stage_id, env) if download else request(f"{REGISTRY}/-/stage/{stage_id}/tarball", token=env["NODE_AUTH_TOKEN"], binary=True, context="npm staged tarball download")
     require(hashlib.sha256(data).hexdigest() == sha256(tarball), "Staged tarball differs from reviewed candidate; do not approve it")
-    summary(f"`{entry['name']}@{entry['version']}` staged and bytes verified. Stage ID: `{stage_id}`. Approve on npm with 2FA (runtime first), then run Release again with the **same original candidate_run_id** and `npm_auth=stage`.")
+    report(f"`{entry['name']}@{entry['version']}` staged and bytes verified. Stage ID: `{stage_id}`. Approve on npm with 2FA (runtime first), then run Release again with the **same original candidate_run_id** and `npm_auth=stage`.")
     return True
 
 
@@ -486,7 +488,7 @@ def verify_public(directory, *, source_root=None):
         with npm_environment("public") as env, tempfile.TemporaryDirectory(prefix="release-public-", dir=REPO / ".tmp") as temp:
             root = Path(temp)
             # No publishing credentials or real application state reach the install.
-            for key in ("GH_TOKEN", "GITHUB_TOKEN"):
+            for key in ("GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN", "GH_CONFIG_DIR"):
                 env.pop(key, None)
             env.update(HOME=temp, XDG_STATE_HOME=str(root / "state"), XDG_CONFIG_HOME=str(root / "config"), XDG_CACHE_HOME=str(root / "cache"), AJR_STATE_DIR=str(root / "state"), CODEX_HOME=str(root / "codex"))
             try:
