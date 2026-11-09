@@ -33,7 +33,7 @@ The administrator must provision a dedicated `worker=ajr-release` Linux Docker W
 | `release_artifact_endpoint`, `release_artifact_ca` | Separate release exchange origin and validated certificate |
 | `release_artifact_linux_token` | Preflight/native/packages/candidate writer and preparation reader |
 | `release_artifact_windows_token` | Windows native/report writer; preflight/package reader |
-| `release_source_github_token` | Read-only repository contents, including drafts; injected only into source-preflight/formal-seal steps, never builds or installed-host tests. Required for `prepare`; rehearsal does not use it |
+| `release_source_github_token` | Read-only repository contents, including drafts; injected only into source-preflight/formal-seal steps, never builds or installed-host tests. Required for `prepare`; rehearsal uses an explicit `UNCONFIGURED` marker with no account permissions. Formal preparation refuses that marker before making requests |
 
 Release objects cannot enter the ordinary CI exchange, and CI credentials cannot enter release storage. Complete flat inventories, lengths, source/run/producer identity and SHA-256 are verified before extraction. Windows success evidence binds the exact consumed package bundle. The final candidate has `format=2`, `provider=woodpecker`, server/repository/run/creation/commit/mode/channel identity, notes and an asset inventory. Existing Actions candidates remain unchanged (`format=1`); the old publisher refuses the new seal. An uploaded seal alone does not prove pipeline success: independently verify the exact manual Server run and all six workflow results before acceptance. Credentials authorize trusted repository code, not signed step provenance.
 

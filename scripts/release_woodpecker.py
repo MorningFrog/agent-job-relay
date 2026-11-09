@@ -60,7 +60,7 @@ def execution(env, root=REPO):
 
 
 def unused_version(source, context, token):
-    require(token, 'Formal source preflight requires a read-only GitHub contents token (including drafts)')
+    require(token and token != 'UNCONFIGURED', 'Formal source preflight requires a read-only GitHub contents token (including drafts)')
     api = f'https://api.github.com/repos/{REPOSITORY}'
     def get(path, **kwargs):
         return request(api + '/' + path, token=token, **kwargs)
