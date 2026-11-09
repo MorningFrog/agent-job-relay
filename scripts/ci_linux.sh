@@ -81,6 +81,7 @@ case "${1:-}" in
     python3 scripts/release_actions.py source --allow-unreleased
     python3 -m unittest discover -s scripts -p test_release.py -v
     python3 -m unittest discover -s scripts -p test_release_woodpecker.py -v
+    python3 -m unittest discover -s scripts -p test_release_publish.py -v
     npm install --prefix .tmp/opencode-toolchain --ignore-scripts --no-audit --no-fund --prefer-offline opencode-ai@1.19.4 @opencode-ai/plugin@1.19.4 @opencode-ai/sdk@1.19.4
     python3 scripts/prepare_release.py --allow-unreleased --output .tmp/release-candidate
     python3 scripts/check_release.py --release .tmp/release-candidate --opencode .tmp/opencode-toolchain/node_modules/opencode-linux-x64/bin/opencode

@@ -103,12 +103,16 @@ function config(prefix) {
 }
 
 export function transfer(run, kind, upload, prefix = 'AJR_CI') {
+  return requestExchange('/v1/' + [run.repo_id, run.pipeline, run.created, run.commit, kind].join('/'), upload, prefix);
+}
+export function requestExchange(path, upload, prefix = 'AJR_CI') {
   const { endpoint, token, ca } = config(prefix);
-  const path = '/v1/' + [run.repo_id, run.pipeline, run.created, run.commit, kind].join('/');
+  const target = new URL(path, endpoint);
+  requireValue(target.origin === endpoint.origin, 'Refusing cross-origin exchange authentication');
   const headers = { Authorization: 'Bearer ' + token };
   if (upload) { headers['Content-Length'] = upload.length; headers['X-Content-SHA256'] = hash(upload); }
   return new Promise((accept, reject) => {
-    const req = request(new URL(path, endpoint), { method: upload ? 'PUT' : 'GET', ca, headers, timeout: 60000 }, response => {
+    const req = request(target, { method: upload ? 'PUT' : 'GET', ca, headers, timeout: 60000 }, response => {
       const chunks = []; let length = 0;
       response.on('data', chunk => { length += chunk.length; if (length > (upload ? 4096 : MAX_BUNDLE)) response.destroy(new Error('CI response exceeds bound')); else chunks.push(chunk); });
       response.on('error', reject);
