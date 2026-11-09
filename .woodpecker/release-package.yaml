@@ -34,7 +34,7 @@ steps:
     commands:
       - python3 -B scripts/release_woodpecker.py package
       - npm install --prefix .tmp/host-tools --cache /ci-cache/release-host-npm --ignore-scripts --no-audit --no-fund --prefer-offline --registry=https://registry.npmjs.org opencode-ai@1.19.4 @opencode-ai/plugin@1.19.4 @opencode-ai/sdk@1.19.4 @openai/codex@0.164.0
-      - python3 -B scripts/check_release.py --release .tmp/release-packages --opencode .tmp/host-tools/node_modules/opencode-linux-x64/bin/opencode --codex "$PWD/.tmp/host-tools/node_modules/.bin/codex"
+      - python3 -B scripts/check_release.py --release .tmp/release-packages --binary .tmp/release-input/linux/agent-job-relay --opencode .tmp/host-tools/node_modules/opencode-linux-x64/bin/opencode --codex "$PWD/.tmp/host-tools/node_modules/.bin/codex"
       - python3 -B scripts/check_claude_scaffold.py --binary "$PWD/.tmp/release-input/linux/agent-job-relay"
 
   - name: upload-packages
