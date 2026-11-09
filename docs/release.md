@@ -4,7 +4,7 @@
 
 **Only maintainers publish, and every release starts manually.** Pushes, PRs, tags and Release events never publish. Versions come from Cargo.toml; package/plugin pins must match, and CHANGELOG supplies the reviewed notes. Publication always reuses the sealed candidate bytes. See [CONTRIBUTING.md](../CONTRIBUTING.md).
 
-**CI/CD migration:** GitHub Actions execution is unavailable in the maintainer environment. [Woodpecker CI](ci.md) now verifies Linux/Windows native and installed development packages on main. The manual Woodpecker preparation graph passes exact-source PR Server acceptance and is normally merged into main. The new publisher/independent-check implementation is local and awaits deployment/read-only Server inspection plus real credential setup. Existing Actions candidates/receipts retain their original format and are not relabeled. No new release is authorized.
+**CI/CD migration:** GitHub Actions execution is unavailable in the maintainer environment. [Woodpecker CI](ci.md) now verifies Linux/Windows native and installed development packages on main. The manual Woodpecker preparation graph passes exact-source PR Server acceptance and is normally merged into main. The publisher implementation is merged and its dedicated Worker/read-only Server inspection is accepted. The default publication policy now prefers shared local CLI authentication and maintainer-operated npm staging/2FA; the complete local candidate/finalization adapter still needs implementation before a release. The existing CI publisher remains an optional backend, without account publishing credentials. Existing Actions candidates/receipts retain their original format and are not relabeled. No new release is authorized.
 
 ## Current release handoff
 
@@ -49,9 +49,47 @@ Use the reviewed branch itself; an existing PR ref is refused. `release-seal` in
 
 For focused local checks, run the preparation/protocol tests and lint once; native delivery gates are defined in AGENTS.md. Local CLI execution needs an explicit metadata file containing repository owner/name/id, plus explicit `--system-name woodpecker --system-url <fixture-origin>` when that file lacks system metadata. Do not falsify provider variables in production or treat fixture results as a successful Server run.
 
+## Authentication policy and local manual publication
+
+Reuse platform authentication across projects; do not treat reuse as a promise that credentials never expire. Human local operations use the host/account login managed by `gh auth login --web` and `npm login --auth-type=web`, without copying either session into Woodpecker. A login can serve multiple repositories/packages only where that account already has access. Organization SSO, package permissions and repository authorization still apply.
+
+For unattended GitHub access, prefer one centrally managed GitHub App installation with automatically minted, repository/operation-scoped installation tokens. Tokens expire after one hour; the operator maintains the App installation/private-key lifecycle, rather than manually replacing each project's PAT. An App may cover multiple authorized repositories; a new repository can still require an installation authorization. This integration is planned, not deployed. Do not give its shared signing key to project build steps. See [GitHub App tokens](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app).
+
+For npm, self-hosted Woodpecker is outside current OIDC Trusted Publishing support. Prefer local interactive staging and maintainer approval, with no npm publishing secret in CI. `npm login` supplies a two-hour session usable across the account's permitted packages; reauthentication after expiry is a platform requirement, not per-project token setup. Classic npm tokens were revoked in December 2025. Granular write tokens have a maximum 90-day lifetime, and direct granular-token publication is scheduled for removal in January 2027. Stage-only tokens remain a supported optional automation route, but are not the default credential request for this deployment. See [npm authentication changes](https://github.blog/changelog/2025-12-09-npm-classic-tokens-revoked-session-based-auth-and-cli-token-management-now-available/), [token policy](https://docs.npmjs.com/about-access-tokens/) and [Trusted Publishing support](https://docs.npmjs.com/trusted-publishers/). Checked on 2026-11-09; no future policy permanence is guaranteed.
+
+| Credential | Scope and lifecycle | Default use |
+|---|---|---|
+| GitHub CLI login | Local host/account; reusable for authorized repositories, subject to expiry/revocation/SSO | Human GitHub operations; keep in the CLI credential store, never export to CI |
+| GitHub App | Shared App/installation; one-hour tokens scoped to the requested repository and permissions | Planned unattended source/release access, centrally renewed; no per-project PAT |
+| npm CLI login | Local account/session; multiple permitted packages, two-hour expiry and human 2FA | Manual npm staging/approval; never import session into CI |
+| Woodpecker CLI login | User on one Server; reusable for authorized projects, revocable | Local pipeline control/inspection, separate from Worker credentials |
+| Worker registration credential | Deployment/Server scope; locally managed rotation | Reusable Worker manager; never expose to workflow commands |
+| Artifact exchange roles | Project/service/role-specific; locally generated and managed | Keep CI, preparation and publisher roles separate; no manual third-party token creation per project |
+| CI GitHub/npm publisher bindings | Existing optional workflow interface; currently unconfigured | Do not fill the earlier three-token file request as the default setup |
+
+The accepted #28 rehearsal remains development-only and must never be staged or published. The next implementation step is a local adapter that independently rechecks the successful original Server run and full candidate inventory, uses shared CLI authentication, records a local maintainer invocation honestly (never as a fictitious Server run), preserves original receipts and gates GitHub finalization on both public npm byte/channel matches. No local publication acceptance is claimed yet. Do not start an actual release until that adapter and a new formal candidate are ready.
+
+After the adapter's formal-candidate checks and explicit publication authorization, the platform-native npm commands are:
+
+```bash
+# Run interactively on the maintainer host; never put credentials in arguments.
+gh auth status --hostname github.com
+npm login --auth-type=web --registry=https://registry.npmjs.org
+npm whoami --registry=https://registry.npmjs.org
+# Set release_candidate, release_version and release_channel from the verified seal.
+npm stage publish "$release_candidate/agent-job-relay-runtime-$release_version.tgz" --ignore-scripts --access=public --tag="$release_channel" --registry=https://registry.npmjs.org
+npm stage publish "$release_candidate/agent-job-relay-opencode-v1-$release_version.tgz" --ignore-scripts --access=public --tag="$release_channel" --registry=https://registry.npmjs.org
+# Inspect/download the exact stages; approve runtime first, then OpenCode.
+# Approval is a separate human action in npmjs.com or npm stage approve <stage-id>.
+```
+
+No generic `npm publish` fallback, bypass-2FA automation, automatic approval or new build is part of this default flow. Local manual publication does not inherit a supported hosted CI provider's OIDC provenance; do not relabel existing provenance or claim that candidate hashes provide the same attestation.
+
 ## Publication entry points
 
-npm currently supports OIDC Trusted Publishing only on GitHub-hosted Actions, GitLab.com shared runners and CircleCI cloud; self-hosted Workers/Woodpecker are unsupported. This backend therefore uses a restricted granular **stage-only** token and maintainer 2FA approval. The stage-only setting prevents direct new-version publication; it still permits other npm writes, so this controller deliberately makes no dist-tag/deprecation/approval calls. See [trusted publishers](https://docs.npmjs.com/trusted-publishers/), [token capabilities](https://docs.npmjs.com/about-access-tokens/) and [staged publishing](https://docs.npmjs.com/staged-publishing/). These policies were checked on 2026-11-09; recheck them before changing authentication.
+This section describes the existing **optional CI backend**. The default shared-login/local publication policy is above; its local adapter is still pending implementation.
+
+npm currently supports OIDC Trusted Publishing only on GitHub-hosted Actions, GitLab.com shared runners and CircleCI cloud; self-hosted Workers/Woodpecker are unsupported. The optional CI staging backend therefore requires a restricted granular **stage-only** token and maintainer 2FA approval; the default local route above requires no CI npm token. The stage-only setting prevents direct new-version publication; it still permits other npm writes, so this controller deliberately makes no dist-tag/deprecation/approval calls. See [trusted publishers](https://docs.npmjs.com/trusted-publishers/), [token capabilities](https://docs.npmjs.com/about-access-tokens/) and [staged publishing](https://docs.npmjs.com/staged-publishing/). These policies were checked on 2026-11-09; recheck them before changing authentication.
 
 | Manual task / workflow | Credentials and effects |
 |---|---|
@@ -66,7 +104,7 @@ All operations require an explicit manual event and full expected workflow revis
 
 The publisher runs on a dedicated `worker=ajr-publish` Docker Worker. Its artifact role can only read a sealed candidate and that repository's bounded status snapshot. It cannot write candidates, native files or diagnostics. The private status gateway opens Woodpecker SQLite in read-only/query-only mode and returns a fixed pipeline/workflow field list; no Server management token or arbitrary SQL interface reaches the Worker. The reviewed deployment update and read-only status-directory mount are enabled, preserving existing storage and Linux/Windows role credentials. Publisher Worker #5 passes real manual inspection #33 of accepted development rehearsal #28 in 9 seconds; PR #5 is normally merged as `fe623c3`, with all four independent main Push #34 checks passing in 462 seconds. Account-backed publication remains unqualified. See [current evidence](IMPLEMENTATION_STATUS.md).
 
-### Configure credentials privately
+### Optional CI credential bindings
 
 | Repository secret | Use |
 |---|---|
@@ -77,9 +115,11 @@ The publisher runs on a dedicated `worker=ajr-publish` Docker Worker. Its artifa
 
 Credentials must be entered through private local files/secret configuration, never chat, Git or command arguments. npm approval is performed by the maintainer in npmjs.com or their own interactive CLI; the Worker never receives an OTP/session credential or calls `npm stage approve`/`reject`. Stage-only is a registry capability configured by the maintainer: identity/dry-run cannot non-destructively prove all server-side staging/write policy. See [npm's command/2FA matrix](https://docs.npmjs.com/cli/v11/commands/npm-stage/).
 
-No publisher credentials are currently configured by this migration step. Preparation's source credential still has an explicit unconfigured marker; formal preparation will refuse it. The existing published 0.1.22 baseline and all its notes/tags/candidates/receipts remain untouched.
+These bindings document the existing optional CI implementation, not a request to create three tokens for every project. Shared GitHub App issuance must be integrated before replacing the source binding; do not substitute a personal local CLI session into CI. No publisher credentials are currently configured by this migration step. Preparation's source credential still has an explicit unconfigured marker; formal preparation will refuse it. The existing published 0.1.22 baseline and all its notes/tags/candidates/receipts remain untouched.
 
 ## Prepare and review
+
+The formal version/candidate requirements below apply to both routes. Steps selecting `identity`, `preview`, `stage`, `finalize` or `check` describe the existing optional CI backend; use the shared local authentication policy above for the default route once its adapter is implemented.
 
 1. Check actual tags, registry versions, GitHub Releases/drafts and publication receipts before selecting an unused version. Run `python3 scripts/finalize_release.py --version <unused-x.y.z>`; review/commit the synchronized versions and finalized notes, then use an authorized PR. Existing dated 0.1.23 notes are not reused for later migration changes.
 2. Run the manual `release-seal` preparation graph with `AJR_RELEASE_TASK=prepare`, the full reviewed main commit and the intended channel. Keep its original pipeline number and private candidate bytes. The default migration rehearsal remains development-only and is never a publishable substitute.
