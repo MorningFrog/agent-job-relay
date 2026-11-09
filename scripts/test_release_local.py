@@ -87,6 +87,9 @@ class LocalPublicationTests(unittest.TestCase):
         publication=publisher.Publication(self.work/'candidate',self.candidate,self.prep.root,self.ctx,client=self.client)
         with patch.object(publisher,'public_bytes',side_effect=ValueError('approval pending')),self.assertRaises(ValueError):publication.finalize()
         self.client.request.assert_not_called()
+        asset_path=self.work/'candidate'/next(iter(publication.assets));original=asset_path.read_bytes();asset_path.write_bytes(b'changed')
+        with self.assertRaises(ValueError):publication.upload_asset(77,asset_path)
+        self.client.upload.assert_not_called();asset_path.write_bytes(original)
         stored={};body=publication.body
         release={'id':77,'draft':True,'target_commitish':'a'*40,'tag_name':'v'+publication.meta['version'],'body':body,'prerelease':True}
         self.client.request.return_value=release

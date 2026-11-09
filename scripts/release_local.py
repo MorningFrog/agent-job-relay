@@ -178,6 +178,8 @@ def operate(args, work, candidate, source, context, *, client=None):
     require(github.request('commits/main')['sha'] == context['workflow_commit'], 'Local publication tool must match the reviewed current main revision')
     context['branch'] = 'main'
     def guard_write():
+        require({p.name:sha256(p) for p in (work/'candidate').iterdir()} == publication.assets,
+                'Original candidate bytes changed before a write; preserve them for inspection')
         require(publisher.git(['rev-parse','HEAD']).strip() == context['workflow_commit'] and
                 not publisher.git(['status','--porcelain','--untracked-files=no']).strip() and
                 github.request('commits/main')['sha'] == context['workflow_commit'],

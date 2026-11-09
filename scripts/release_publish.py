@@ -235,6 +235,11 @@ class Publication:
     def upload_asset(self, release_id, path):
         require(isinstance(release_id, int) and release_id > 0, 'Invalid GitHub Release ID')
         data = path.read_bytes()
+        if path.name in self.assets:
+            require(hashlib.sha256(data).hexdigest() == self.assets[path.name], 'Original candidate asset changed before upload; never replace or rebuild it')
+        else:
+            require(path.name == self.receipt_name() and json.loads(data) == {**self.receipt_base(),'publisher':self.context},
+                    'Unexpected local publication receipt bytes')
         asset = self.client.upload(release_id, path)
         require(asset.get('name') == path.name and asset.get('size') == len(data), 'Unexpected asset acknowledgement; inspect before retrying')
         expected = hashlib.sha256(data).hexdigest()
