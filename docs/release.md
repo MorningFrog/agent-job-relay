@@ -4,7 +4,7 @@
 
 **Only maintainers publish, and every release starts manually.** Pushes, PRs, tags and Release events never publish. Versions come from Cargo.toml; package/plugin pins must match, and CHANGELOG supplies the reviewed notes. Publication always reuses the sealed candidate bytes. See [CONTRIBUTING.md](../CONTRIBUTING.md).
 
-**CI/CD migration:** GitHub Actions execution is unavailable in the maintainer environment. [Woodpecker Linux CI](ci.md) provides verification only; the manual release implementation documented below still depends on Actions and its npm OIDC identity. It must be migrated before another release can run in this environment. No Woodpecker publisher or sealed-candidate backend is configured yet.
+**CI/CD migration:** GitHub Actions execution is unavailable in the maintainer environment. [Woodpecker CI](ci.md) now verifies Linux/Windows native and installed development packages on main. The manual Woodpecker preparation graph below is implemented locally and awaits deployment/Server acceptance. The existing Actions publisher/independent check and its npm identity remain unmigrated; they cannot consume the new provider-specific seal. No new release is authorized.
 
 ## Current release handoff
 
@@ -13,6 +13,39 @@
 **0.1.23 local preparation passed on 2026-11-06** for deferred stage/remote feedback, bounded coalesced Goal context and read-only recovery diagnostics. Later CI/CD migration changes remain under Unreleased and are outside that finalization; prepare a new unused version after the migration rather than rewriting the existing 0.1.23 notes. Require exact-revision Linux/Windows CI, a manually sealed candidate and publisher preview before publication review. Source remains schema v14, IPC v1 and 27 MCP tools; Linux release payloads require glibc 2.34 or newer. Goal resume-failure attribution and new actual-host acceptance remain open.
 
 Preserve every published version's notes, dates, tags, candidate bytes and receipts. Earlier 0.1.21/0.1.18 independent-check failures remain separate backlog items and are not repaired by a later release. Consumer CLI/plugin installation and updates use `ajr update`; native offline and OpenCode routes remain separate. Older profiles migrate to schema v14 after older active runs finish. See [updates](updating.md) and [current support/evidence](IMPLEMENTATION_STATUS.md).
+
+## Woodpecker preparation (awaiting Server acceptance)
+
+The six `release-*.yaml` workflows run only for an explicitly requested manual `prepare` or `rehearse` task. Ordinary main Push/PR CI remains the four-check verification graph; a manual preparation does not queue that graph a second time. Source preflight precedes parallel native Linux/Windows checks, followed by dual-platform packaging/Linux installed-loader checks, actual Windows installed-package/loader checks, then sealing. No step publishes packages, tags or GitHub Releases.
+
+| Manual parameter | Required value |
+|---|---|
+| `AJR_RELEASE_TASK` | `rehearse` for migration acceptance; `prepare` only after formal unused-version finalization |
+| `EXPECTED_RELEASE_REVISION` | Full reviewed commit; must equal the actual pipeline checkout |
+| `AJR_RELEASE_CHANNEL` | Explicit `latest` or `next`; stored in the seal |
+
+`rehearse` permits a reviewed feature branch and Unreleased notes, and retains `development=true` in both packages and the resulting seal. `prepare` requires main, finalized notes and a version absent from tags, all Releases/drafts and both npm packages. Source/main/version availability is checked before native builds and again before formal sealing. Preparation never finalizes versions or edits source; use the existing local finalizer and a reviewed PR first. Do not reuse 0.1.23 for migration changes.
+
+The administrator must provision a dedicated `worker=ajr-release` Linux Docker Worker with its own project cache volume and a separate private HTTPS release exchange. Windows retains the trusted LocalService Worker at capacity one, with a separate release compiler-cache namespace. The pinned Bookworm builder reruns native gates; its exact executable must require at most glibc 2.34 and pass version/help/SQLite initialization in the pinned AlmaLinux 9/glibc 2.34 image before upload. This is a compatibility smoke check, not full old-distribution runtime qualification.
+
+| Manual-only secret | Scope |
+|---|---|
+| `release_artifact_endpoint`, `release_artifact_ca` | Separate release exchange origin and validated certificate |
+| `release_artifact_linux_token` | Preflight/native/packages/candidate writer and preparation reader |
+| `release_artifact_windows_token` | Windows native/report writer; preflight/package reader |
+| `release_source_github_token` | Read-only repository contents, including drafts; injected only into source-preflight/formal-seal steps, never builds or installed-host tests. Required for `prepare`; rehearsal does not use it |
+
+Release objects cannot enter the ordinary CI exchange, and CI credentials cannot enter release storage. Complete flat inventories, lengths, source/run/producer identity and SHA-256 are verified before extraction. Windows success evidence binds the exact consumed package bundle. The final candidate has `format=2`, `provider=woodpecker`, server/repository/run/creation/commit/mode/channel identity, notes and an asset inventory. Existing Actions candidates remain unchanged (`format=1`); the old publisher refuses the new seal. An uploaded seal alone does not prove pipeline success: independently verify the exact manual Server run and all six workflow results before acceptance. Credentials authorize trusted repository code, not signed step provenance.
+
+After the reviewed implementation and administrator setup are enabled, start a rehearsal against the exact reviewed main/feature pipeline:
+
+```bash
+woodpecker-cli pipeline create --branch <reviewed-branch> --workflow release-seal --var AJR_RELEASE_TASK=rehearse --var AJR_RELEASE_CHANNEL=next --var EXPECTED_RELEASE_REVISION=<full-reviewed-commit> <repo-id>
+```
+
+Use the reviewed branch itself; an existing PR ref is refused. `release-seal` includes all its hard dependencies. This command is a preparation request, not publication authorization. Inspect all six Server workflows and the immutable candidate. Restarting allocates a new run identity; never overwrite earlier objects. Publisher preview, publication identity and independent public-byte verification still need migration before formal publication.
+
+For focused local checks, run the preparation/protocol tests and lint once; native delivery gates are defined in AGENTS.md. Local CLI execution needs an explicit metadata file containing repository owner/name/id, plus explicit `--system-name woodpecker --system-url <fixture-origin>` when that file lacks system metadata. Do not falsify provider variables in production or treat fixture results as a successful Server run.
 
 ## Choose an entry point
 

@@ -13,6 +13,7 @@ when:
     branch: main
   - event: pull_request
   - event: manual
+    evaluate: 'AJR_RELEASE_TASK != "prepare" && AJR_RELEASE_TASK != "rehearse"'
 
 # Verification only: no publishing secrets, host mounts or privileged steps.
 steps:

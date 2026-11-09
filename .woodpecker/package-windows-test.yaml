@@ -14,6 +14,7 @@ when:
     branch: main
   - event: pull_request
   - event: manual
+    evaluate: 'AJR_RELEASE_TASK != "prepare" && AJR_RELEASE_TASK != "rehearse"'
 
 steps:
   - name: package-exact-native-images

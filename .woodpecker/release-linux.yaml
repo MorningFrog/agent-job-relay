@@ -1,0 +1,75 @@
+# Manual preparation only; no npm/GitHub publication credentials.
+labels:
+  platform: linux/amd64
+  backend: docker
+  worker: ajr-release
+
+workspace:
+  base: /woodpecker
+  path: src
+
+depends_on: [release-preflight]
+
+when:
+  - event: manual
+    evaluate: 'AJR_RELEASE_TASK == "prepare" || AJR_RELEASE_TASK == "rehearse"'
+
+steps:
+  - name: download-preflight
+    image: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
+    environment:
+      AJR_RELEASE_ARTIFACT_ENDPOINT:
+        from_secret: release_artifact_endpoint
+      AJR_RELEASE_ARTIFACT_CA:
+        from_secret: release_artifact_ca
+      AJR_RELEASE_ARTIFACT_TOKEN:
+        from_secret: release_artifact_linux_token
+    commands:
+      - node scripts/release_artifacts.mjs download release-preflight
+
+  - name: toolchain
+    image: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
+    commands:
+      - python3 -B scripts/release_woodpecker.py guard
+      - sh scripts/ci_linux.sh toolchain
+
+  - name: frontend
+    image: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
+    commands:
+      - sh scripts/ci_linux.sh frontend
+
+  - name: msrv
+    image: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
+    commands:
+      - sh scripts/ci_linux.sh msrv
+
+  - name: native
+    image: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
+    commands:
+      - sh scripts/ci_linux.sh native
+
+  - name: glibc-2-34
+    image: almalinux:9-minimal@sha256:7dc48de6be22bf7271c217984310e413901c570c4e4cb58e9b6928565c2e4eb0
+    commands:
+      - sh scripts/check_release_compatibility.sh
+
+  - name: describe-and-upload
+    image: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
+    environment:
+      AJR_RELEASE_ARTIFACT_ENDPOINT:
+        from_secret: release_artifact_endpoint
+      AJR_RELEASE_ARTIFACT_CA:
+        from_secret: release_artifact_ca
+      AJR_RELEASE_ARTIFACT_TOKEN:
+        from_secret: release_artifact_linux_token
+    commands:
+      - python3 -B scripts/release_woodpecker.py describe-linux
+      - node scripts/release_artifacts.mjs upload release-linux-native
+
+  - name: cache
+    image: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
+    commands:
+      - sh scripts/ci_linux.sh cache
+    when:
+      - status: [success, failure]
+

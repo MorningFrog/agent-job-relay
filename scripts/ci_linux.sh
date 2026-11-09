@@ -61,7 +61,7 @@ case "${1:-}" in
     npm ci --prefix web --ignore-scripts --no-audit --no-fund --prefer-offline
     npm test --prefix web
     npm run build --prefix web
-    node --test scripts/test_online_update.mjs scripts/test_online_uninstall.mjs scripts/test_ci_artifacts.mjs
+    node --test scripts/test_online_update.mjs scripts/test_online_uninstall.mjs scripts/test_ci_artifacts.mjs scripts/test_release_artifacts.mjs
     ;;
   msrv)
     python3 -m unittest discover -s scripts -p test_ci_cache.py -v
@@ -80,6 +80,7 @@ case "${1:-}" in
   packages)
     python3 scripts/release_actions.py source --allow-unreleased
     python3 -m unittest discover -s scripts -p test_release.py -v
+    python3 -m unittest discover -s scripts -p test_release_woodpecker.py -v
     npm install --prefix .tmp/opencode-toolchain --ignore-scripts --no-audit --no-fund --prefer-offline opencode-ai@1.19.4 @opencode-ai/plugin@1.19.4 @opencode-ai/sdk@1.19.4
     python3 scripts/prepare_release.py --allow-unreleased --output .tmp/release-candidate
     python3 scripts/check_release.py --release .tmp/release-candidate --opencode .tmp/opencode-toolchain/node_modules/opencode-linux-x64/bin/opencode
