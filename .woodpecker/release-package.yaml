@@ -33,8 +33,8 @@ steps:
     image: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
     commands:
       - python3 -B scripts/release_woodpecker.py package
-      - npm install --prefix .tmp/host-tools --cache /ci-cache/release-host-npm --ignore-scripts --no-audit --no-fund --prefer-offline --registry=https://registry.npmjs.org opencode-ai@1.19.4 @opencode-ai/plugin@1.19.4 @opencode-ai/sdk@1.19.4 @openai/codex@0.164.0
-      - python3 -B scripts/check_release.py --release .tmp/release-packages --binary .tmp/release-input/linux/agent-job-relay --opencode .tmp/host-tools/node_modules/opencode-linux-x64/bin/opencode --codex "$PWD/.tmp/host-tools/node_modules/.bin/codex"
+      - npm install --prefix .tmp/opencode-toolchain --cache /ci-cache/release-host-npm --ignore-scripts --no-audit --no-fund --prefer-offline --registry=https://registry.npmjs.org opencode-ai@1.19.4 @opencode-ai/plugin@1.19.4 @opencode-ai/sdk@1.19.4 @openai/codex@0.164.0
+      - python3 -B scripts/check_release.py --release .tmp/release-packages --binary .tmp/release-input/linux/agent-job-relay --opencode .tmp/opencode-toolchain/node_modules/opencode-linux-x64/bin/opencode --codex "$PWD/.tmp/opencode-toolchain/node_modules/.bin/codex"
       - python3 -B scripts/check_claude_scaffold.py --binary "$PWD/.tmp/release-input/linux/agent-job-relay"
 
   - name: upload-packages
