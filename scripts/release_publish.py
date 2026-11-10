@@ -25,7 +25,9 @@ RECOVERY_PATHS = shared.RECOVERY_PATHS | {
     '.woodpecker/publish-inspect.yaml', '.woodpecker/publish-identity.yaml', '.woodpecker/publish-preview.yaml',
     '.woodpecker/publish-stage.yaml', '.woodpecker/publish-finalize.yaml', '.woodpecker/publish-check.yaml',
     'scripts/README.md', 'docs/ci.md', 'scripts/release_local.py', 'scripts/test_release_local.py',
-    '.woodpecker/_README.md',
+    '.woodpecker/_README.md', '.woodpecker/release.yaml',
+    'scripts/release_web.py', 'scripts/test_release_web.py',
+    'scripts/ci_linux.sh',  # CI-only test selection, never executed to promote old bytes.
 }
 SOURCE_PATHS = {'Cargo.toml', 'Cargo.lock', 'CHANGELOG.md', *metadata.PLUGIN_MANIFESTS,
                 *metadata.RUNTIME_LAUNCHERS, *[p + '/package.json' for p in metadata.PACKAGE_PATHS.values()]}
