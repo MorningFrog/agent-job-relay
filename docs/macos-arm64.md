@@ -8,6 +8,18 @@ The source includes an experimental Apple Silicon adapter and a Linux-to-macOS c
 
 Provide Rust/Cargo with the `aarch64-apple-darwin` standard-library target, Node.js 24/npm, Python 3.11+, Git, and a user-provided osxcross toolchain with an appropriately obtained macOS SDK. The osxcross target directory must contain `bin/` with `oa64-clang` or one `aarch64-apple-darwin*-clang`, plus a matching `ar` or `llvm-ar`. SDK acquisition and toolchain installation are not automatic. See [osxcross](https://github.com/tpoechtrager/osxcross) and its SDK instructions; the SDK is not committed or redistributed here.
 
+Match the SDK to the linker. SDK 27.x contains `arm64e.x1` TAPI targets and requires `ld64.lld` 23.1.3 or newer for the LLVM flavor; Ubuntu's LLVM/LLD 21 cannot parse them. `ENABLE_ARCHS=arm64` selects generated executables, not the architectures parsed inside SDK libraries, and changing the deployment minimum does not fix that parser error. An ensuing undefined `printf` is a consequence of failing to load `libSystem.tbd`.
+
+For an existing SDK 26.5 archive and LLVM/LLD 21, put that archive in osxcross's `tarballs/`, then build a separate installation from the osxcross source directory:
+
+```bash
+UNATTENDED=1 BUILD_FLAVOR=llvm ENABLE_ARCHS=arm64 \
+  SDK_VERSION=26.5 OSX_VERSION_MIN=11.0 ENABLE_REPLACEMENT_LIPO=0 \
+  TARGET_DIR="$PWD/target-sdk26.5" ./build.sh
+```
+
+`SDK_VERSION` selects the archive even when other SDKs are present. The separate target preserves an existing installation. `ENABLE_REPLACEMENT_LIPO=0` uses LLVM's lipo instead of building the optional cctools replacement. osxcross's compiler probes compile/link small programs without executing Mac binaries; they are separate from project tests.
+
 Set `OSXCROSS_ROOT` to that toolchain's target directory and `MACOS_SDK` to the SDK directory, then run from the repository root:
 
 ```bash
@@ -16,7 +28,7 @@ python3 -B scripts/build_macos_arm64.py --osxcross "$OSXCROSS_ROOT" --sdk "$MACO
 
 The command builds embedded frontend assets and the release executable for `aarch64-apple-darwin`, including bundled SQLite. It sets a macOS 11.0 minimum and requests an ad-hoc code signature from the linker. It never runs tests or executes the cross-built binary. A successful build produces `.tmp/macos-arm64/agent-job-relay` and `native.json`; the descriptor records the source revision, dirty-source flag, exact SHA-256 and `validation=untested` / `tests=not-run`. It checks the ARM64 Mach-O header, UUID, minimum OS and presence of a signature blob without claiming signature validity or Apple notarization. `--check` performs Cargo type-checking instead of linking and does not produce a new executable or descriptor; it still requires the target C toolchain and SDK. Missing prerequisites stop before frontend/build commands.
 
-The implementation host currently has no macOS SDK/osxcross or installed Darwin Rust target. Actual Darwin compilation/linking is therefore pending, independently of native testing. No compiler, SDK, VM or global configuration was installed for this change.
+The selected SDK/linker versions and actual target-build result are recorded in [implementation status](IMPLEMENTATION_STATUS.md). A cross-build does not establish native behavior; no Mac VM or runtime test is part of this workflow.
 
 ## Local installation and optional npm packaging
 

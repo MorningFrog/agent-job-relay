@@ -8,6 +8,13 @@ use std::{
     path::{Path, PathBuf},
 };
 
+// Apple's public dyld ABI returns an image header. Keep the pointer opaque:
+// libc's Mach header bindings are deprecated, and only its bytes are needed.
+unsafe extern "C" {
+    #[link_name = "_dyld_get_image_header"]
+    fn dyld_image_header(image_index: u32) -> *const u8;
+}
+
 fn process_info(pid: u32) -> Option<libc::proc_bsdinfo> {
     let pid = i32::try_from(pid).ok().filter(|pid| *pid > 0)?;
     let mut info = std::mem::MaybeUninit::<libc::proc_bsdinfo>::uninit();
@@ -101,7 +108,7 @@ fn image_uuid(commands: &[u8], count: u32) -> Result<[u8; 16]> {
 /// Darwin cannot execute an unlinked image through /proc/self/exe. Refuse a
 /// replaced pathname instead of launching a runner from a different build.
 pub(super) fn self_image() -> Result<PathBuf> {
-    let loaded = unsafe { libc::_dyld_get_image_header(0) };
+    let loaded = unsafe { dyld_image_header(0) };
     ensure!(!loaded.is_null(), "loaded Mach-O header is unavailable");
     let header = unsafe { std::ptr::read_unaligned(loaded.cast::<[u32; 8]>()) };
     let (magic, count, size) = (header[0], header[4], header[5]);

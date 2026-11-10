@@ -34,7 +34,7 @@ Manual publisher operations are separate from preparation and automatic CI. Shar
 
 Icon artwork lives in `assets/icons/agent-job-relay.vectorcraft`; the README/offline SVG, PNG and marketplace SVG are exported from that saved source using VectorCraft. The offline SVG is embedded by `src/deployment.rs`; see [artwork maintenance](../assets/icons/README.md).
 
-Experimental macOS ARM64 development uses the Unix transport plus `src/platform/macos.rs`: kernel boot-session/start-time identity, exclusive rename, directory synchronization and loaded Mach-O UUID checks. Its Linux/osxcross build entry and development npm payloads remain untested; the implementation host lacks the SDK/toolchain for an actual target build. Darwin process-group cleanup does not provide Linux adopted-descendant or runner-loss containment, active package replacement remains refused, and Doctor exposes the limits. Published candidates stay Linux/Windows. See [ADR 0024](adr/0024-experimental-macos-arm64.md).
+Experimental macOS ARM64 development uses the Unix transport plus `src/platform/macos.rs`: kernel boot-session/start-time identity, exclusive rename, directory synchronization and loaded Mach-O UUID checks. Its Linux/osxcross ARM64 release build now compiles/links with SDK 26.5 and LLD 21.1.8; development npm installation and runtime behavior remain untested. Darwin process-group cleanup does not provide Linux adopted-descendant or runner-loss containment, active package replacement remains refused, and Doctor exposes the limits. Published candidates stay Linux/Windows. See [ADR 0024](adr/0024-experimental-macos-arm64.md).
 
 ## Runtime and storage
 
