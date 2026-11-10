@@ -139,6 +139,22 @@ fn inspection(value: Value) -> Value {
             "can_stop",
         ],
     );
+    if let Some(pipeline) = value["observation"]["external"].get("pipeline") {
+        result["external"]["pipeline"] = fields(
+            pipeline,
+            &[
+                "server_url",
+                "repository",
+                "repo_id",
+                "pipeline_id",
+                "pipeline_number",
+                "commit",
+                "status",
+                "url",
+                "sampled_at",
+            ],
+        );
+    }
     let events = value["events"].as_array();
     result["events_after"] = json!(
         events
@@ -280,6 +296,7 @@ pub fn compact(op: &str, value: Value) -> Value {
                     "remote_execution",
                     "remote_alert_feedback",
                     "github_actions_observation",
+                    "woodpecker_observation",
                     "goal_waiting",
                     "goal_wait_host_pause",
                     "goal_wait_feedback",

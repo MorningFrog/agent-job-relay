@@ -33,6 +33,10 @@ Installed v0.1.8 with actual Codex 0.164.0 and `gpt-6.1-sol`/`low` passes cold-p
 
 The user verified v0.1.8 with official Desktop 26.1021.3705.0, bundled Codex 0.164.0-alpha.11.1, GPT-6 Luna / Low and Full access. The actual chat binds, submits through MCP, ends its turn and automatically continues to inspect the matching result without another user message. A correctly reported failed workload still establishes result continuation, not workload success. Restricted-access single-command binding, current goal waiting and native confirmation UI remain unqualified.
 
+## Woodpecker observation (Unreleased source)
+
+On 2026-11-10, an isolated Linux source release build observes this project's existing public Woodpecker pipeline **#42**, global ID **69**, source `baf9a7b18a219e298354f52330c2aebbc354538d`. The observer reports completed with verified Server `success`, all six workflow states and exact step counts matching a separate read-only API query. CLI, shared stdio MCP and authenticated local HTTP return the same snapshot; unchanged-key CLI/MCP submission retains the original Job/Run, and compact MCP inspection includes identity/status/link. The check uses native HTTPS without account credentials and starts no CI work. This establishes public read/inspection behavior, not private-account authentication, native Windows/macOS or real-Agent completion continuation. Browser automation was unavailable in this session; frontend rendering is covered separately by automated tests.
+
 ## Distribution
 
 Publication, candidate receipts and independent verification status are maintained in [release handoff](release.md#current-release-handoff) and [implementation status](IMPLEMENTATION_STATUS.md). They do not extend version-specific Desktop/Windows goal qualification or establish official-directory approval. Preserve published notes, dates and candidate bytes.

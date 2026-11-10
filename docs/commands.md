@@ -36,7 +36,7 @@ Unreleased 0.1.20: new jobs default to bounded FIFO waiting for up to 24 hours. 
 | `start -- <program> <args...>` | Submit explicit argv; `--title <purpose>` (0.1.17+); `--cwd`, `--timeout <seconds>`, Unreleased `--queue-timeout <duration>` / `--no-queue`, `--idempotency-key`, `--session` or current-terminal `--wake` |
 | `start --shell '<script>'` | Explicit shell execution; `--interpreter` selects the shell |
 | `start-batch --file <json-file>` (0.1.12+) | Submit a JSON array of 1–16 specs with distinct stable keys; `--file -` reads stdin, `--wake` binds every item to the actual caller; [partial-admission/retry semantics](usage.md#submit-independent-commands-together-0112) |
-| `start-spec --file <json-file>` (0.1.12+) | Submit one bounded JSON StartSpec, including remote launch/attach or GitHub Actions observation; `--file -` for stdin and `--wake` for the current caller |
+| `start-spec --file <json-file>` (0.1.12+) | Submit one bounded JSON StartSpec, including remote launch/attach or GitHub Actions/Woodpecker observation; `--file -` for stdin and `--wake` for the current caller |
 | `remote init` / `remote serve` (0.1.12+) | Explicit remote-profile provisioning / one authenticated stdio request; [setup and protocol](remote-execution.md) |
 | `list` | Bounded history; `--after`, `--limit` |
 | `status <job-id>` | Durable job/run state and exit outcome |

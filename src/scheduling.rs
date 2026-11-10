@@ -358,7 +358,7 @@ mod tests {
             .await
         }
         .await;
-        #[cfg(any(target_os = "linux", windows))]
+        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
         {
             restore.unwrap();
             let restored = Store::new(Config::new(Some(destination)).unwrap());
@@ -374,10 +374,10 @@ mod tests {
                     .is_none()
             );
         }
-        #[cfg(not(any(target_os = "linux", windows)))]
+        #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
         {
             assert!(restore.unwrap_err().to_string().contains(
-                "atomic new data-directory publication is supported only on Linux and Windows"
+                "atomic new data-directory publication is supported only on Linux, Windows and macOS"
             ));
             assert!(!destination.exists());
             assert_eq!(

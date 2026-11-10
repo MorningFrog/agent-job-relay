@@ -19,14 +19,14 @@ Run long commands independently of the Agent connection, keep their results, and
 | Goal waiting (experimental) | One scoped pause approval, original-goal restoration and deletion safeguards. Source 0.1.17 adds requested intermediate restoration/report/native re-pause cycles; [usage and host limits](docs/goal-waiting.md) |
 | Bounded queue | Default FIFO waiting beyond eight execution slots, with a per-job deadline and explicit opt-out; [usage](docs/usage.md#wait-for-an-execution-slot-unreleased-0120) |
 | Batch submission | Submit 1–16 independent commands through CLI/MCP, with per-item results and safe retries; [usage](docs/usage.md#submit-independent-commands-together-0112) |
-| Remote tasks | Launch/attach on a pinned remote runtime or observe a fixed GitHub Actions attempt, including job/step status and an attempt link; runtime 0.1.20+ adds direct remote-rule feedback to the originating chat; [setup and boundaries](docs/remote-execution.md) |
+| Remote tasks | Launch/attach on a pinned remote runtime or observe a fixed GitHub Actions attempt; Unreleased source also observes a pinned Woodpecker pipeline, with workflow/step status and run links; runtime 0.1.20+ adds direct remote-rule feedback to the originating chat; [setup and boundaries](docs/remote-execution.md) |
 | Mid-run feedback | Structured stages/steps/metrics, repeated milestone or threshold alerts and a bounded checker recipe; [usage and limits](docs/progress.md) |
 | Results and history | Bounded stdout/stderr, exit outcomes, events and retained task history |
 | Session-bound notifications | Deliver results to the initiating session; resume the chat when supported by its host |
 | Local task manager | Inspect tasks, configure persistent output/silence/elapsed rules and stop work through CLI or the bundled Web UI |
 | Data maintenance | Automatic archival, rolling backups and explicit restore into a new profile |
 
-**Runtime: Linux x86_64/glibc and Windows x86_64.** ChatGPT Desktop same-chat continuation is verified on both through an experimental private interface; Windows verification uses Full access. Codex CLI and the Claude Code scaffold provide an inbox without automatic continuation. OpenCode V1 is experimental and has actual-loader checks with a simulated model. macOS/ARM runtime is unsupported. See [features and support](docs/features.md) for capabilities and [live evidence](docs/live-e2e.md) for verified versions.
+**Published runtime: Linux x86_64/glibc and Windows x86_64.** ChatGPT Desktop same-chat continuation is verified on both through an experimental private interface; Windows verification uses Full access. Codex CLI and the Claude Code scaffold provide an inbox without automatic continuation. OpenCode V1 is experimental and has actual-loader checks with a simulated model. Development source adds an [experimental macOS ARM64 adapter and cross-build entry](docs/macos-arm64.md), with a successful cross-build but no Mac tests, native acceptance or published Mac package. Other ARM platforms remain unsupported. See [features and support](docs/features.md) for capabilities and [live evidence](docs/live-e2e.md) for verified versions.
 
 ## Install
 

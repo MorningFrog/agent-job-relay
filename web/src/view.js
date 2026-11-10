@@ -41,6 +41,7 @@ export const elapsed = (job) => {
 };
 const commandText = (spec) => spec?.kind === "shell" ? spec.script :
   [spec?.program, ...(spec?.args || [])].filter(Boolean).join(" ");
+export const isWorkflow = (kind) => kind === "github_actions" || kind === "woodpecker";
 export const command = (job) => {
   const spec = job?.command;
   if (spec?.kind === "remote") {
@@ -50,6 +51,9 @@ export const command = (job) => {
   }
   if (spec?.kind === "github_actions") {
     return `GitHub Actions ${spec.workflow.repository} · ${spec.workflow.run_id} / ${spec.workflow.attempt}`;
+  }
+  if (spec?.kind === "woodpecker") {
+    return `Woodpecker ${spec.pipeline.repository} · pipeline #${spec.pipeline.pipeline_number} · ${spec.pipeline.server_url}`;
   }
   return spec ? commandText(spec) : job?.command_preview || "";
 };

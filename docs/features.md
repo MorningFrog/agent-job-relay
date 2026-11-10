@@ -11,7 +11,7 @@ AgentJobRelay is a single-user local runtime for long commands initiated by an A
 | Explicit commands | Execute argv or an explicitly selected shell with a working directory, timeout and idempotency key |
 | Goal waiting (experimental) | One native or Agent question when pause permission is absent; durable approval covers the original request’s bounded rounds. Native handoff/restoration and one merged completion avoid Agent polling; [scope, interruption and host limits](goal-waiting.md) |
 | Batch submission (0.1.12+) | CLI/MCP accepts 1–16 independent specs with per-item results, stable-key retries and per-item admission limits; see [batch usage](usage.md#submit-independent-commands-together-0112) |
-| Remote execution/observation (0.1.12+) | Pinned native remote launch/attach, reconnect and exact-run stop; existing GitHub Actions attempt observation through `gh`; Unreleased origin-owned remote-alert subscriptions deliver intermediate feedback without a checker; [requirements and limits](remote-execution.md) |
+| Remote execution/observation (0.1.12+) | Pinned native remote launch/attach, reconnect and exact-run stop; existing GitHub Actions attempt observation through `gh`; Unreleased source adds native read-only Woodpecker 3.x pipeline/workflow/step observation; Unreleased origin-owned remote-alert subscriptions deliver intermediate feedback without a checker; [requirements and limits](remote-execution.md) |
 | Independent lifetime | A detached runner owns the workload; closing the submitting chat, MCP client, terminal viewer or browser does not stop it |
 | Durable results | Separate job/run IDs, exit outcomes, events, stdout/stderr and byte cursors remain available after completion |
 | Controlled stopping | Request graceful then forced process-tree stopping with bounded observation; terminal outcomes are preserved |
@@ -51,6 +51,7 @@ See [data maintenance](data-maintenance.md), [updating](updating.md) and [uninst
 | Codex CLI | Tools and notification inbox | No automatic model continuation |
 | OpenCode V1 | Experimental npm plugin using actual caller context and the public session API | Actual loader/MCP/agent loop with a simulated model; real-provider and restart-recovery qualification remain open |
 | Claude Code | Inbox-only source scaffold | Synthetic caller/MCP checks; actual loader/account/model verification needs community help |
-| macOS / ARM | No native runtime support | Portable compilation does not establish execution support |
+| macOS ARM64 development source | Experimental native adapter and Linux/osxcross development-package entry | Cross-build compiles/links; runtime untested, no native/host acceptance or published package; [limits](macos-arm64.md) |
+| Intel macOS / other ARM platforms | No native runtime support | Portable compilation does not establish execution support |
 
 Online distribution uses npm and a self-hosted marketplace. Official-directory approval is separate; independent OS installers/package repositories are cancelled. Published and source versions may differ: [implementation status](IMPLEMENTATION_STATUS.md) records the current baseline, [live evidence](live-e2e.md) records real-host acceptance, and [TODO](TODO.md) tracks remaining work. Detailed operational limits are in [limitations](limitations.md) and [security](security.md).

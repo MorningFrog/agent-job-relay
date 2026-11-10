@@ -6,7 +6,7 @@ import { RuleForm } from "./RuleForm.jsx";
 import { TaskProgress } from "./TaskProgress.jsx";
 import { TerminalOutput } from "./TerminalOutput.jsx";
 import "./TaskDetail.css";
-import { terminal, names, phaseNames, date, elapsed, command, taskTitle, ruleSummary } from "../view.js";
+import { terminal, names, phaseNames, date, elapsed, command, taskTitle, ruleSummary, isWorkflow } from "../view.js";
 
 function feedbackHint(detail) {
   const notification = detail.notifications, feedback = detail.feedback;
@@ -35,7 +35,7 @@ export function TaskDetail({ selected, token, detail, busy, tab, streamName, for
   const remoteSpec = remote?.intent?.kind === "launch" ? remote.intent.spec : null;
   const remoteRun = external?.run || (remote?.intent?.kind === "attach" ? remote.intent.run : null);
   const hint = detail ? feedbackHint(detail) : null;
-  const stopObservation = job?.command?.kind === "github_actions" ||
+  const stopObservation = isWorkflow(job?.command?.kind) ||
     (job?.command?.kind === "remote" && job.command.remote?.intent?.kind === "attach" && !job.command.remote.intent.allow_stop);
   const stale = active && detail.observation?.sampled_at && Date.now() - detail.observation.sampled_at > 5000;
   return selected && <section className="panel detail" id="task-detail" aria-label="任务详情">
@@ -86,7 +86,7 @@ export function TaskDetail({ selected, token, detail, busy, tab, streamName, for
         {tab === "progress" && <TaskProgress detail={detail} />}
         {tab === "feedback" && <div className="feedback-view">
           <FeedbackStatus feedback={detail.feedback} active={active}
-            external={job.command?.kind === "remote" || job.command?.kind === "github_actions" ? job.command.kind : null}
+            external={job.command?.kind === "remote" || isWorkflow(job.command?.kind) ? job.command.kind : null}
             configure={preset => { setTab("rules"); setForm(preset === "manage" ? null : { preset }); }} />
           <NotificationStatus detail={detail} token={token} />
         </div>}
@@ -105,7 +105,7 @@ export function TaskDetail({ selected, token, detail, busy, tab, streamName, for
               <RuleForm
                 externalKind={
                   job.command?.kind === "remote" ||
-                  job.command?.kind === "github_actions"
+                  isWorkflow(job.command?.kind)
                     ? job.command.kind
                     : null
                 }

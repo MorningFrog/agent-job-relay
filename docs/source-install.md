@@ -6,7 +6,7 @@ English | [简体中文](source-install.zh-CN.md)
 
 This walkthrough installs the native Linux x86_64/glibc build into a stable user directory and registers the personal **AgentJobRelay Local** marketplace. With a newly created marketplace, select **`agent-job-relay@agent-job-relay-local`** in ChatGPT Desktop. Building alone does not install or enable the plugin.
 
-Source builds require Node.js 24/npm for React + Vite assets; recipients of a built native bundle need neither. For online installation, use the [published release](installation.md) rather than adding the source checkout as the local marketplace. For Windows, use the [Windows guide](windows.md); macOS and ARM runtime execution are unsupported.
+Source builds require Node.js 24/npm for React + Vite assets; recipients of a built native bundle need neither. For online installation, use the [published release](installation.md) rather than adding the source checkout as the local marketplace. For Windows, use the [Windows guide](windows.md). The separate [macOS ARM64 cross-build/native installation path](macos-arm64.md) is experimental and untested; Intel macOS and other ARM runtime targets remain unsupported.
 
 ## 1. Check prerequisites
 

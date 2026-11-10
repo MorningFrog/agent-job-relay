@@ -4,11 +4,11 @@
 
 ## 0. 身份、总体任务与交付方式
 
-当前范围为一个 Rust/MCP 核心，通过 ChatGPT Desktop/Codex、OpenCode 和 Claude Code 插件交付，包含 Linux/Windows 原生后台运行、会话通知、CLI 与内置 React/Vite 本地任务管理器。Web 默认仅回环、带凭据并校验 Host/Origin；构建资源先于原生检查。独立系统安装包和软件仓库不在范围内。源码公开，npm 与自建插件市场采用手动 Release 准备／发布流程；版本来自 Cargo.toml，验证候选产物后按原字节晋级。推送、发布和投稿需最终确认，Claude 自动续接须先获得真实宿主证据。
+当前范围为一个 Rust/MCP 核心，通过 ChatGPT Desktop/Codex、OpenCode 和 Claude Code 插件交付，包含 Linux/Windows 原生后台运行、会话通知、CLI 与内置 React/Vite 本地任务管理器；另有未测试的实验性 macOS ARM64 适配和交叉构建入口，边界见 [macOS 开发说明](docs/macos-arm64.md)。Web 默认仅回环、带凭据并校验 Host/Origin；构建资源先于原生检查。独立系统安装包和软件仓库不在范围内。源码公开，npm 与自建插件市场采用手动 Release 准备／发布流程；版本来自 Cargo.toml，验证候选产物后按原字节晋级。推送、发布和投稿需最终确认，Claude 自动续接须先获得真实宿主证据。
 
 Windows 支持私有 IPC、独立进程监管、恢复和插件/npm 交付。宿主限制原生脱离时，daemon 可通过公开本地 CIM 启动同一程序的有界助手，验证进程实例、路径、SID、完整性和权限清单，经私有有界 IPC 传递环境；不提权、不安装服务／计划任务、不代为执行任意作业。Runner 仍须原生脱离。真实 Desktop 续接和新增能力分别验收，模拟测试不能代替宿主证据。
 
-远程功能采用固定 target/run/attempt 的有界 stdio 执行／观察协议，可选远端原生程序或明确适配器；GitHub Actions 只读观察固定 attempt。沿用既有认证，保留原始 Job/Run/session、持久启动键和字节游标，不把传输退出视为远端结束，不重放原生执行；只读停止不取消目标。远端规则可通过发起端显式 `remote_alert` 订阅直接通知原聊天，游标、证据与投递同事务保存，受本地授权、修订、合并和配额约束；远端输出不能选择会话或授予控制权限。公网服务、分布式队列和自动训练重启不在范围内。
+远程功能采用固定 target/run/attempt 的有界 stdio 执行／观察协议，可选远端原生程序或明确适配器；GitHub Actions 只读观察固定 attempt；Woodpecker 只读观察固定服务器／仓库／pipeline ID、编号和 commit。沿用既有认证，保留原始 Job/Run/session、持久启动键和字节游标，不把传输退出视为远端结束，不重放原生执行；只读停止不取消目标。远端规则可通过发起端显式 `remote_alert` 订阅直接通知原聊天，游标、证据与投递同事务保存，受本地授权、修订、合并和配额约束；远端输出不能选择会话或授予控制权限。公网服务、分布式队列和自动训练重启不在范围内。
 
 活动 Desktop goal 的后台委托必须走等待流程。缺少暂停许可时返回结构化待确认状态，简短询问一次，自然肯定答复覆盖同一请求／goal 的剩余有界任务；不要求固定措辞、不逐轮重问。支持协商的 MCP 原生确认和宿主 Agent 提问回退。插件文字、默认选项、无回复均不授权。确认前不创建等待组／作业、不标记 blocked、不轮询。授权固定实际聊天／goal／控制器／目录与任务额度，跨轮次按 request ID 沿用；撤销、过期、删除／替换及备份恢复须隔离后续控制。实际发起聊天的原生暂停成功后，以 revision 确认才能进入 waiting；独立控制进程写存储不能替代 Desktop 缓存通知。保留计量，绝不重建删除的 goal 或重放不确定宿主变更。用户已确认本地批准后自动暂停有效；新的确认 UI、多轮完整恢复及 Windows goal 分别验收。宿主缺少 generation/CAS 的竞态限制必须保留。
 
@@ -245,7 +245,7 @@ ChatGPT Desktop 的实验性桌面桥接依赖未经公开稳定承诺的 Host p
 首选 Ubuntu 26.04/Linux 做真实 E2E 开发；整体架构从开始就隔离 Windows/macOS 差异。
 
 - Linux 必须可编译并通过真实进程生命周期测试。
-- Windows/macOS 应至少在 GitHub Actions 上编译与运行可行测试；无法在当前主机验证的 OS 特有功能必须明确说明、以 platform adapter test 标注待测。
+- Windows 使用现有 Woodpecker 原生检查；macOS ARM64 提供未测试的交叉构建／原生开发入口，目标编译依赖 SDK／工具链。macOS 原生与 portable 测试留待单独任务，当前不执行；无法验证的 OS 特有行为必须明确标记未测试，不推断为已支持。
 - 使用 `Cargo.lock` 固定可执行程序依赖，避免动态 API 漂移；CI 包含 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --all-targets` 和 release build（根据实际命令与 features 调整）。
 - 安装应优先原生单可执行文件；无需要求 Python、Go、Node、Docker 运行环境。
 - 不直接发布仓库或插件。本轮进行构建/测试及本地插件验证，官方插件平台提交留待后续开发稳定及用户明确授权。

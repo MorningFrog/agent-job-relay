@@ -6,7 +6,7 @@
 
 本教程将 Linux x86_64/glibc 原生程序安装到稳定的用户目录，并登记个人 **AgentJobRelay Local** 市场。新建市场时，在 ChatGPT Desktop 中应选择 **`agent-job-relay@agent-job-relay-local`**。仅完成编译不会安装或启用插件。
 
-源码构建需要 Node.js 24/npm 生成 React + Vite 资源；已构建原生包的接收者不需要这些工具。在线安装请使用[已发布版本](installation.md)，不要将源码仓库添加为本地安装的市场。Windows 使用 [Windows 指南](windows.md)；macOS 和 ARM 尚不支持原生运行。
+源码构建需要 Node.js 24/npm 生成 React + Vite 资源；已构建原生包的接收者不需要这些工具。在线安装请使用[已发布版本](installation.md)，不要将源码仓库添加为本地安装的市场。Windows 使用 [Windows 指南](windows.md)；另有[实验性 macOS ARM64 交叉构建／原生安装入口](macos-arm64.md)，未做测试或 Mac 验收，Intel macOS 和其他 ARM 运行目标仍不支持。
 
 ## 1. 检查准备条件
 

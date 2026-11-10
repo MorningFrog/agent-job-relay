@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
@@ -30,6 +31,49 @@ def validate_windows_image(image, descriptor, version, revision=None):
         raise ValueError("Windows executable was not built from this workflow revision")
 
 
+def validate_macos_image(image, descriptor, version, revision=None):
+    if not isinstance(descriptor, dict) or type(descriptor.get("format")) is not int or type(descriptor.get("source_dirty")) is not bool or type(descriptor.get("cross_compiled")) is not bool or not isinstance(descriptor.get("revision"), str) or not re.fullmatch(r"[0-9a-f]{40}", descriptor["revision"]):
+        raise ValueError("Expected a macOS cross-build descriptor with explicit source revision and dirty-state flag")
+    if len(image) < 32 or len(image) > 128 * 1024 * 1024:
+        raise ValueError("Invalid macOS executable size")
+    magic, cpu, subtype, kind, count, size, _, _ = struct.unpack_from("<8I", image)
+    if (magic, cpu, subtype & 0xffffff, kind) != (0xfeedfacf, 0x0100000c, 0, 2) or count > 4096 or size > 1048576 or 32 + size > len(image):
+        raise ValueError("Expected a thin ARM64 Mach-O executable")
+    offset, minimum, signed, uuid = 32, None, False, False
+    for _ in range(count):
+        if offset + 8 > 32 + size:
+            raise ValueError("Truncated Mach-O load command")
+        command, length = struct.unpack_from("<2I", image, offset)
+        if length < 8 or length % 8 or offset + length > 32 + size:
+            raise ValueError("Invalid Mach-O load command")
+        if command == 0x32:  # LC_BUILD_VERSION
+            if length < 24 or struct.unpack_from("<I", image, offset + 8)[0] != 1 or minimum is not None:
+                raise ValueError("Expected one macOS build-version command")
+            minimum = struct.unpack_from("<I", image, offset + 12)[0]
+        elif command == 0x24:  # LC_VERSION_MIN_MACOSX
+            if length != 16 or minimum is not None:
+                raise ValueError("Invalid macOS minimum-version command")
+            minimum = struct.unpack_from("<I", image, offset + 8)[0]
+        elif command == 0x1b:  # LC_UUID; also used for loaded-image replacement refusal
+            if length != 24 or uuid:
+                raise ValueError("Invalid Mach-O UUID command")
+            uuid = True
+        elif command == 0x1d:  # LC_CODE_SIGNATURE: presence is not signature validation
+            if length != 16 or signed:
+                raise ValueError("Invalid Mach-O code signature command")
+            start, length_bytes = struct.unpack_from("<2I", image, offset + 8)
+            if start < 32 + size or length_bytes == 0 or start + length_bytes > len(image):
+                raise ValueError("Truncated Mach-O code signature")
+            signed = True
+        offset += length
+    if offset != 32 + size or minimum != 0x000b0000 or not signed or not uuid:
+        raise ValueError("macOS ARM64 executable requires macOS 11.0, UUID and an ad-hoc code-signature blob; runtime/signature acceptance remains untested")
+    if (descriptor.get("format"), descriptor.get("platform"), descriptor.get("version"), descriptor.get("minimumMacOS"), descriptor.get("validation"), descriptor.get("tests"), descriptor.get("cross_compiled")) != (1, "darwin-arm64", version, "11.0", "untested", "not-run", True) or descriptor.get("sha256") != hashlib.sha256(image).hexdigest():
+        raise ValueError("macOS ARM64 build descriptor/version/digest mismatch")
+    if revision is not None and descriptor.get("revision") != revision:
+        raise ValueError("macOS executable was not cross-built from this source revision")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, default=REPO / "target/release/agent-job-relay")
@@ -37,10 +81,16 @@ def main():
     parser.add_argument("--allow-unreleased", action="store_true", help="Build development-only packages from Unreleased notes; these cannot be promoted")
     parser.add_argument("--windows-binary", type=Path, help="Windows x86_64 executable built and checked on Windows")
     parser.add_argument("--windows-metadata", type=Path, help="Matching native build descriptor from describe_native.ps1")
+    parser.add_argument("--macos-binary", type=Path, help="Experimental macOS ARM64 cross-build; development packages only")
+    parser.add_argument("--macos-metadata", type=Path, help="Matching untested native.json from build_macos_arm64.py")
     parser.add_argument("--expected-revision", default=os.environ.get("CI_COMMIT_SHA") or os.environ.get("GITHUB_SHA"), help="Exact source commit for cross-platform packaging; defaults to the actual CI provider's commit")
     args = parser.parse_args()
     if args.expected_revision and not re.fullmatch(r"[0-9a-f]{40}", args.expected_revision):
         parser.error("expected revision must be a full Git commit")
+    if bool(args.macos_binary) != bool(args.macos_metadata):
+        parser.error("macOS bytes and their build descriptor must be supplied together")
+    if args.macos_binary and not args.allow_unreleased:
+        parser.error("Untested macOS ARM64 bytes are development-only; --allow-unreleased is required and formal publication remains refused")
     output = args.output.resolve()
     temporary = REPO / ".tmp"
     temporary.mkdir(exist_ok=True)
@@ -56,6 +106,7 @@ def main():
     symbols = run(["readelf", "--version-info", binary])
     glibc = max(tuple(map(int, value.split("."))) for value in re.findall(r"\bGLIBC_(\d+\.\d+)\b", symbols))
     windows_image = None
+    macos_image = None
     if bool(args.windows_binary) != bool(args.windows_metadata):
         parser.error("Windows bytes and their native build descriptor must be supplied together")
     if args.windows_binary:
@@ -63,6 +114,13 @@ def main():
         descriptor = json.loads(args.windows_metadata.read_text())
         try:
             validate_windows_image(windows_image, descriptor, version, args.expected_revision)
+        except ValueError as error:
+            parser.error(str(error))
+    if args.macos_binary:
+        macos_image = args.macos_binary.read_bytes()
+        descriptor = json.loads(args.macos_metadata.read_text())
+        try:
+            validate_macos_image(macos_image, descriptor, version, args.expected_revision)
         except ValueError as error:
             parser.error(str(error))
     packages = [("runtime", REPO / "packages/runtime"), ("opencode", REPO / "plugins/opencode-v1")]
@@ -78,6 +136,9 @@ def main():
             destination = stage / key
             destination.mkdir()
             package["os"] = ["linux", "win32"] if windows_image else ["linux"]
+            if macos_image:
+                package["os"].append("darwin")
+                package["cpu"] = ["x64", "arm64"]
             (destination / "package.json").write_text(json.dumps(package, indent=2) + "\n")
             for name in package["files"]:
                 if name in ("native", "LICENSE"):
@@ -102,6 +163,12 @@ def main():
                     windows_native.parent.mkdir(parents=True)
                     windows_native.write_bytes(windows_image)
                     targets["win32-x64"] = {"sha256": hashlib.sha256(windows_image).hexdigest()}
+                if macos_image:
+                    macos_native = destination / "native/darwin-arm64/agent-job-relay"
+                    macos_native.parent.mkdir(parents=True)
+                    macos_native.write_bytes(macos_image)
+                    macos_native.chmod(0o755)
+                    targets["darwin-arm64"] = {"sha256": hashlib.sha256(macos_image).hexdigest(), "minimumMacOS": "11.0", "validation": "untested"}
                 (destination / "native/manifest.json").write_text(json.dumps({"format": 2, "version": version, "targets": targets}, indent=2) + "\n")
             else:
                 runtime_name = metadata["runtime"]["name"]
@@ -128,6 +195,9 @@ def main():
                     parser.error("marketplace files must be regular, unsymlinked allowlisted paths")
                 bundle.write(path, path.relative_to(REPO))
         metadata.update(version=version, platforms=["linux-x64", "win32-x64"] if windows_image else ["linux-x64"], platform="linux-x64", minimumGlibc=".".join(map(str, glibc)), marketplace=archive, publication="not performed")
+        if macos_image:
+            metadata["platforms"].append("darwin-arm64")
+            metadata["experimentalPlatforms"] = {"darwin-arm64": {"minimumMacOS": "11.0", "validation": "untested", "tests": "not-run"}}
         if args.allow_unreleased:
             metadata["development"] = True
         (artifacts / "release.json").write_text(json.dumps(metadata, indent=2) + "\n")
