@@ -1,6 +1,6 @@
 # AgentJobRelay runtime
 
-Shared native Rust/MCP executable for AgentJobRelay's ChatGPT Desktop/Codex and OpenCode V1 plugins. Supports Linux x86_64/glibc and Windows x86_64 with Node.js 20+/npm. The package includes its native executable, bundled React/Vite task manager and a platform/SHA-256/minimum-glibc manifest. No Rust compiler, install script, secondary binary download or system service is required. Windows uses a static MSVC runtime; incompatible platforms fail explicitly. Hashes check integrity, not publisher authenticity; use the official registry and reviewed publisher/provenance.
+Shared native Rust/MCP executable for AgentJobRelay's ChatGPT Desktop/Codex and OpenCode V1 plugins. Supports Linux x86_64/glibc and Windows x86_64 with Node.js 20+/npm. The package includes its native executable, bundled React/Vite task manager and a platform/SHA-256/minimum-glibc manifest. No Rust compiler, install script, secondary binary download or system service is required. Windows uses a static MSVC runtime; incompatible platforms fail explicitly. Development source can optionally package an experimental, untested macOS ARM64 payload; published 0.1.24 does not contain it. See [Mac development](https://github.com/MorningFrog/agent-job-relay/blob/main/docs/macos-arm64.md) for the SDK requirement, local installation and process-group limits. Hashes check integrity, not publisher authenticity; use the official registry and reviewed publisher/provenance.
 
 ## Install
 

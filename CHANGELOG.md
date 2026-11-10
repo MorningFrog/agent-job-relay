@@ -6,6 +6,8 @@
 
 - Observe existing Woodpecker 3.x pipelines through read-only native HTTPS, pinning server/repository/pipeline IDs, number and full commit. Share bounded workflow/step progress, reconnect/recovery, original-session completion notifications and stop-without-cancel semantics across CLI/MCP/Web; keep tokens outside task data and fence older daemons.
 
+- Add an experimental macOS ARM64 native adapter, Linux/osxcross build entry and development-only npm payload selection. Process identity, private Unix IPC, detached startup, process-group cleanup and exclusive backup publication are implemented without Mac tests or native acceptance; escaped descendants and abrupt runner loss retain explicit cleanup limits. Actual cross-compilation requires a user-provided SDK/toolchain, and formal Linux/Windows publication remains unchanged.
+
 ## [0.1.24] - 2026-11-09
 
 ### Changed

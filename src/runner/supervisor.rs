@@ -217,7 +217,12 @@ async fn cleanup(
     // SIGKILL adoption can occur after the first scan. Repeat only inside the
     // runner's own child inventory, pinning each process instance before signal.
     for _ in 0..50 {
-        if crate::platform::reap_descendants()? {
+        let reaped = crate::platform::reap_descendants()?;
+        // macOS has no Linux subreaper: ECHILD does not prove the workload's
+        // process group has exited. Escaped groups remain an explicit limit.
+        #[cfg(target_os = "macos")]
+        let reaped = reaped && group.is_empty()?;
+        if reaped {
             gentle?;
             forced?;
             group.disarm();

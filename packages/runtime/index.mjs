@@ -2,13 +2,14 @@ import { readFileSync, lstatSync, accessSync, constants } from "node:fs";
 import { createHash } from "node:crypto";
 import { dirname, join, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
+import { release } from "node:os";
 
 const root = dirname(fileURLToPath(import.meta.url));
 
 export function resolveExecutable(packageRoot = root) {
   const platform = `${process.platform}-${process.arch}`;
-  if (!["linux-x64", "win32-x64"].includes(platform)) {
-    throw new Error("AgentJobRelay supports Linux x86_64/glibc and Windows x86_64; macOS/ARM are not implemented");
+  if (!["linux-x64", "win32-x64", "darwin-arm64"].includes(platform)) {
+    throw new Error("AgentJobRelay requires Linux x64/glibc, Windows x64 or an experimental macOS ARM64 development package");
   }
   const manifest = JSON.parse(readFileSync(join(packageRoot, "native/manifest.json"), "utf8"));
   const metadata = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8"));
@@ -23,6 +24,16 @@ export function resolveExecutable(packageRoot = root) {
     const [requiredMajor, requiredMinor] = target.minimumGlibc.split(".").map(Number);
     if (!libc || major < requiredMajor || major === requiredMajor && minor < requiredMinor) {
       throw new Error(`AgentJobRelay requires glibc >=${target.minimumGlibc}; musl/unknown libc is unsupported`);
+    }
+  }
+  if (platform === "darwin-arm64") {
+    if (target.validation !== "untested" || target.minimumMacOS !== "11.0") {
+      throw new Error("Expected an explicitly untested macOS ARM64 development payload");
+    }
+    // Darwin 20 is macOS 11, the minimum supported Apple Silicon OS.
+    const major = Number.parseInt(release(), 10);
+    if (!Number.isInteger(major) || major < 20) {
+      throw new Error("Experimental macOS ARM64 payload requires macOS 11 or newer");
     }
   }
   const executable = join(packageRoot, "native", platform, process.platform === "win32" ? "agent-job-relay.exe" : "agent-job-relay");

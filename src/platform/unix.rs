@@ -42,6 +42,10 @@ pub fn initialize() {
     unsafe {
         libc::umask(0o077);
     }
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    eprintln!(
+        "AgentJobRelay macOS ARM64 is experimental and untested; supervision covers the workload process group, not descendants that leave it"
+    );
 }
 pub fn secure_options(o: &mut OpenOptions) {
     o.mode(0o600)
@@ -109,7 +113,11 @@ pub fn identity(pid: u32) -> Option<String> {
         let boot = std::fs::read_to_string("/proc/sys/kernel/random/boot_id").ok()?;
         Some(format!("{}:{}:{}", boot.trim(), pid, fields.get(19)?))
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(target_os = "macos")]
+    {
+        super::macos::identity(pid)
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     {
         let _ = pid;
         None
@@ -133,7 +141,11 @@ pub fn process_image_path_available(pid: u32) -> Option<bool> {
             .ok()
             .map(|p| p.is_file())
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(target_os = "macos")]
+    {
+        super::macos::process_image_path_available(pid)
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     {
         let _ = pid;
         None

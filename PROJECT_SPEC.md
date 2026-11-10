@@ -4,7 +4,7 @@
 
 ## 0. 身份、总体任务与交付方式
 
-当前范围为一个 Rust/MCP 核心，通过 ChatGPT Desktop/Codex、OpenCode 和 Claude Code 插件交付，包含 Linux/Windows 原生后台运行、会话通知、CLI 与内置 React/Vite 本地任务管理器。Web 默认仅回环、带凭据并校验 Host/Origin；构建资源先于原生检查。独立系统安装包和软件仓库不在范围内。源码公开，npm 与自建插件市场采用手动 Release 准备／发布流程；版本来自 Cargo.toml，验证候选产物后按原字节晋级。推送、发布和投稿需最终确认，Claude 自动续接须先获得真实宿主证据。
+当前范围为一个 Rust/MCP 核心，通过 ChatGPT Desktop/Codex、OpenCode 和 Claude Code 插件交付，包含 Linux/Windows 原生后台运行、会话通知、CLI 与内置 React/Vite 本地任务管理器；另有未测试的实验性 macOS ARM64 适配和交叉构建入口，边界见 [macOS 开发说明](docs/macos-arm64.md)。Web 默认仅回环、带凭据并校验 Host/Origin；构建资源先于原生检查。独立系统安装包和软件仓库不在范围内。源码公开，npm 与自建插件市场采用手动 Release 准备／发布流程；版本来自 Cargo.toml，验证候选产物后按原字节晋级。推送、发布和投稿需最终确认，Claude 自动续接须先获得真实宿主证据。
 
 Windows 支持私有 IPC、独立进程监管、恢复和插件/npm 交付。宿主限制原生脱离时，daemon 可通过公开本地 CIM 启动同一程序的有界助手，验证进程实例、路径、SID、完整性和权限清单，经私有有界 IPC 传递环境；不提权、不安装服务／计划任务、不代为执行任意作业。Runner 仍须原生脱离。真实 Desktop 续接和新增能力分别验收，模拟测试不能代替宿主证据。
 
@@ -245,7 +245,7 @@ ChatGPT Desktop 的实验性桌面桥接依赖未经公开稳定承诺的 Host p
 首选 Ubuntu 26.04/Linux 做真实 E2E 开发；整体架构从开始就隔离 Windows/macOS 差异。
 
 - Linux 必须可编译并通过真实进程生命周期测试。
-- Windows/macOS 应至少在 GitHub Actions 上编译与运行可行测试；无法在当前主机验证的 OS 特有功能必须明确说明、以 platform adapter test 标注待测。
+- Windows 使用现有 Woodpecker 原生检查；macOS ARM64 提供未测试的交叉构建／原生开发入口，目标编译依赖 SDK／工具链。macOS 原生与 portable 测试留待单独任务，当前不执行；无法验证的 OS 特有行为必须明确标记未测试，不推断为已支持。
 - 使用 `Cargo.lock` 固定可执行程序依赖，避免动态 API 漂移；CI 包含 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --all-targets` 和 release build（根据实际命令与 features 调整）。
 - 安装应优先原生单可执行文件；无需要求 Python、Go、Node、Docker 运行环境。
 - 不直接发布仓库或插件。本轮进行构建/测试及本地插件验证，官方插件平台提交留待后续开发稳定及用户明确授权。

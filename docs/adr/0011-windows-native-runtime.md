@@ -2,7 +2,7 @@
 
 ## Decision
 
-Keep one executable and the existing SQLite v6/IPC v1 state machines. Windows-specific ownership, pipes, process identity and Job Objects live in `src/platform/windows.rs`; macOS remains unsupported for background execution.
+Keep one executable and the existing SQLite v6/IPC v1 state machines. Windows-specific ownership, pipes, process identity and Job Objects live in `src/platform/windows.rs`; experimental macOS ARM64 development is separately defined in [ADR 0024](0024-experimental-macos-arm64.md) and does not inherit Windows acceptance.
 
 Use private state directories/files with the current token's owner SID and a protected DACL granting access only to that SID and LocalSystem. Refuse foreign owners, broader access and reparse points, including junction ancestors. The per-profile local named pipe derives from the state path and SID. Its first instance is exclusive, remote clients are rejected, and both ends verify the peer process token's SID. Process creation time distinguishes reused PIDs. Host fingerprints include the server process instance and pipe name; same-process pipe recreation is not an independently observed host-generation change.
 

@@ -2,7 +2,7 @@
 
 [Documentation index](README.md) · [Features](features.md) · [Updates](updating.md) · [Troubleshooting](troubleshooting.md)
 
-Install the latest published npm packages and matching [GitHub Release](https://github.com/MorningFrog/agent-job-relay/releases/latest). Supported runtime platforms are Linux x86_64/glibc and Windows x86_64. Online installation requires Node.js 20+/npm and network access, without Rust, Python or a source build. macOS/ARM and official plugin-directory listing remain unsupported.
+Install the latest published npm packages and matching [GitHub Release](https://github.com/MorningFrog/agent-job-relay/releases/latest). Supported published runtime platforms are Linux x86_64/glibc and Windows x86_64. Online installation requires Node.js 20+/npm and network access, without Rust, Python or a source build. macOS/ARM published packages and official plugin-directory listing remain unsupported; the separate [macOS ARM64 development source](macos-arm64.md) is experimental and untested.
 
 | Installation route | Start here |
 |---|---|

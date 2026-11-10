@@ -240,6 +240,10 @@ fn upgrade_preflight(config: &Config) -> Result<()> {
 }
 pub(crate) fn verify_runner_launch(info: &Value) -> Result<()> {
     ensure!(
+        info["runner_launch_path_matches_loaded_image"] != false,
+        "daemon executable was replaced; no job was submitted. Finish active tasks, stop the same profile and restart with the selected executable"
+    );
+    ensure!(
         info["daemon_executable_path_available"] != false
             || info["runner_launch_from_loaded_image"] == true,
         "existing legacy daemon runs from a removed executable and cannot launch runners. No job was submitted. Let its active jobs finish, then run daemon stop for the same state and submit again; no daemon was restarted automatically"
