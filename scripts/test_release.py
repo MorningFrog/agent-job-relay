@@ -21,6 +21,132 @@ import release_pipeline as pipeline
 import check_online_update as online_fixture
 import finalize_release as finalizer
 import prepare_release as preparation
+import build_macos_arm64 as macos_build
+
+
+class MacOSDevelopmentTests(unittest.TestCase):
+    """Static Mac artifact/source checks on the build host; no Mac execution."""
+
+    @staticmethod
+    def image(extra=(), *, minimum=0x000b0000, loader="/usr/lib/dyld"):
+        import struct
+
+        def command(kind, data):
+            return struct.pack("<2I", kind, 8 + len(data)) + data
+
+        def dependency(kind, name):
+            raw = name.encode() + b"\0"
+            header = 12 if kind == 0xe else 24
+            data = struct.pack("<I", header) + bytes(header - 12) + raw
+            data += bytes(-(8 + len(data)) % 8)
+            return command(kind, data)
+
+        commands = [command(0x32, struct.pack("<4I", 1, minimum, 0x001a0500, 0)),
+                    command(0x1b, bytes(range(16)))]
+        if loader is not None:
+            commands.append(dependency(0xe, loader))
+        for kind, name in [(0xc, "/usr/lib/libSystem.B.dylib"), *extra]:
+            commands.append(dependency(kind, name))
+        size = sum(map(len, commands)) + 16
+        # This fixture checks signature-blob presence, not signature validity.
+        commands.append(command(0x1d, struct.pack("<2I", 32 + size, 16)))
+        return struct.pack("<8I", 0xfeedfacf, 0x0100000c, 0, 2, len(commands), size, 0, 0) + b"".join(commands) + bytes(16)
+
+    @staticmethod
+    def validate(image, **changes):
+        import hashlib
+
+        descriptor = {"format": 1, "platform": "darwin-arm64", "version": "1.2.3", "revision": "a" * 40,
+                      "source_dirty": False, "sha256": hashlib.sha256(image).hexdigest(), "minimumMacOS": "11.0",
+                      "validation": "untested", "tests": "not-run", "cross_compiled": True, **changes}
+        preparation.validate_macos_image(image, descriptor, "1.2.3", "a" * 40)
+
+    def test_macos_artifacts_require_system_loader_and_portable_dependencies(self):
+        self.validate(self.image([(0x80000018, "/System/Library/Frameworks/Security.framework/Security")]))
+        for name in ["@rpath/libsqlite3.dylib", "@executable_path/libfoo.dylib", "/opt/homebrew/lib/libfoo.dylib",
+                     "/tmp/SDK/usr/lib/libSystem.B.dylib", "/usr/lib/../../tmp/libfoo.dylib", "/usr/lib//libfoo.dylib"]:
+            for kind in (0xc, 0x80000018, 0x8000001f, 0x20, 0x80000023):
+                with self.subTest(name=name, kind=kind), self.assertRaises(ValueError):
+                    self.validate(self.image([(kind, name)]))
+        for loader in (None, "/tmp/dyld", "@executable_path/dyld"):
+            with self.subTest(loader=loader), self.assertRaises(ValueError):
+                self.validate(self.image(loader=loader))
+        for kind in (0x8000001c, 0x27):
+            with self.subTest(kind=kind), self.assertRaises(ValueError):
+                self.validate(self.image([(kind, "/tmp/build-machine")]))
+
+    def test_macos_artifacts_keep_explicit_untested_architecture_version_and_source_fences(self):
+        import struct
+
+        image = self.image()
+        for change in [{"validation": "passed"}, {"tests": "passed"}, {"cross_compiled": False}, {"source_dirty": None},
+                       {"revision": "b" * 40}, {"sha256": "0" * 64}, {"minimumMacOS": "12.0"}]:
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                self.validate(image, **change)
+        for data in [b"", image[:-1], self.image(minimum=0x000c0000), image[:4] + struct.pack("<I", 0x01000007) + image[8:]]:
+            with self.subTest(size=len(data)), self.assertRaises(ValueError):
+                self.validate(data)
+
+    def test_cross_build_snapshot_detects_dirty_untracked_mode_and_revision_changes(self):
+        (metadata.REPO / ".tmp").mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="mac-source-", dir=metadata.REPO / ".tmp") as temp:
+            root = Path(temp)
+            def git(*args):
+                subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)
+            git("init", "--quiet")
+            source = root / "source.rs"
+            source.write_text("original")
+            (root / ".gitignore").write_text("ignored/\n")
+            git("add", ".")
+            git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "test: source fixture")
+            with patch.object(macos_build, "ROOT", root):
+                original = macos_build.source_snapshot()
+                source.write_text("changed")
+                self.assertNotEqual(macos_build.source_snapshot(), original)
+                source.write_text("original")
+                self.assertEqual(macos_build.source_snapshot(), original)
+                other = root / "new.rs"
+                other.write_text("untracked")
+                self.assertNotEqual(macos_build.source_snapshot(), original)
+                other.unlink()
+                (root / "ignored").mkdir()
+                (root / "ignored" / "generated").write_text("not an input")
+                self.assertEqual(macos_build.source_snapshot(), original)
+                if os.name != "nt":
+                    source.chmod(0o755)
+                    self.assertNotEqual(macos_build.source_snapshot(), original)
+                    source.chmod(0o644)
+                git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false", "commit", "--quiet", "--allow-empty", "-m", "test: next revision")
+                self.assertNotEqual(macos_build.source_snapshot(), original)
+
+    def test_cross_build_refuses_source_changes_before_emitting_a_descriptor(self):
+        (metadata.REPO / ".tmp").mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="mac-build-", dir=metadata.REPO / ".tmp") as temp:
+            root = Path(temp)
+            for name in ("usr/include/stdlib.h", "usr/lib/libSystem.tbd", "libstd-fixture.rlib"):
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.touch()
+            def capture(argv):
+                if argv[0] == "rustc":
+                    return str(root)
+                return "a" * 40 if argv[1] == "rev-parse" else ""
+            for check in (False, True):
+                argv = ["build_macos_arm64.py", "--osxcross", str(root), "--sdk", str(root), "--output", str(root / ".tmp/output")]
+                if check:
+                    argv.append("--check")
+                with self.subTest(check=check), patch.object(macos_build, "ROOT", root), \
+                     patch.object(sys, "argv", argv), patch.object(macos_build, "capture", side_effect=capture), \
+                     patch.object(macos_build, "compiler", return_value=root / "compiler"), \
+                     patch.object(macos_build.shutil, "which", return_value="fixture-tool"), \
+                     patch.object(macos_build, "source_snapshot", side_effect=[b"before", b"after"]), \
+                     patch.object(macos_build.subprocess, "run") as run, patch("sys.stderr", new_callable=io.StringIO) as stderr:
+                    with self.assertRaises(SystemExit) as error:
+                        macos_build.main()
+                    self.assertEqual(error.exception.code, 1)
+                    self.assertIn("Source changed", stderr.getvalue())
+                    self.assertEqual([call.args[0][:2] for call in run.call_args_list], [["npm", "ci"], ["npm", "run"], ["cargo", "check" if check else "build"]])
+                    self.assertFalse((root / ".tmp/output/native.json").exists())
 
 
 class ReleaseTests(unittest.TestCase):

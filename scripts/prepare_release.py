@@ -39,7 +39,7 @@ def validate_macos_image(image, descriptor, version, revision=None):
     magic, cpu, subtype, kind, count, size, _, _ = struct.unpack_from("<8I", image)
     if (magic, cpu, subtype & 0xffffff, kind) != (0xfeedfacf, 0x0100000c, 0, 2) or count > 4096 or size > 1048576 or 32 + size > len(image):
         raise ValueError("Expected a thin ARM64 Mach-O executable")
-    offset, minimum, signed, uuid = 32, None, False, False
+    offset, minimum, signed, uuid, loader = 32, None, False, False, False
     for _ in range(count):
         if offset + 8 > 32 + size:
             raise ValueError("Truncated Mach-O load command")
@@ -65,9 +65,33 @@ def validate_macos_image(image, descriptor, version, revision=None):
             if start < 32 + size or length_bytes == 0 or start + length_bytes > len(image):
                 raise ValueError("Truncated Mach-O code signature")
             signed = True
+        elif command in (0xc, 0x18 | 0x80000000, 0x1f | 0x80000000, 0x20, 0x23 | 0x80000000, 0xe):
+            # Dylib dependencies must come from macOS, not Homebrew, an SDK,
+            # @rpath or the build machine. No third-party libraries are bundled.
+            header_size = 12 if command == 0xe else 24
+            if length < header_size:
+                raise ValueError("Truncated Mach-O loader dependency")
+            name_offset = struct.unpack_from("<I", image, offset + 8)[0]
+            if not header_size <= name_offset < length:
+                raise ValueError("Invalid Mach-O loader dependency name")
+            raw = image[offset + name_offset:offset + length]
+            if b"\0" not in raw:
+                raise ValueError("Unterminated Mach-O loader dependency name")
+            try:
+                name = raw.split(b"\0", 1)[0].decode("utf-8")
+            except UnicodeDecodeError as error:
+                raise ValueError("Invalid Mach-O loader dependency encoding") from error
+            if command == 0xe:  # LC_LOAD_DYLINKER
+                if loader or name != "/usr/lib/dyld":
+                    raise ValueError("Expected the macOS system dynamic loader")
+                loader = True
+            elif not name.startswith(("/usr/lib/", "/System/Library/Frameworks/")) or any(part in ("", ".", "..") for part in name.split("/")[1:]):
+                raise ValueError("macOS executable has a non-system dynamic-library dependency")
+        elif command in (0x1c | 0x80000000, 0x27):  # LC_RPATH / LC_DYLD_ENVIRONMENT
+            raise ValueError("macOS executable must not embed dynamic-loader search paths or environment overrides")
         offset += length
-    if offset != 32 + size or minimum != 0x000b0000 or not signed or not uuid:
-        raise ValueError("macOS ARM64 executable requires macOS 11.0, UUID and an ad-hoc code-signature blob; runtime/signature acceptance remains untested")
+    if offset != 32 + size or minimum != 0x000b0000 or not signed or not uuid or not loader:
+        raise ValueError("macOS ARM64 executable requires macOS 11.0, UUID, system loader and an ad-hoc code-signature blob; runtime/signature acceptance remains untested")
     if (descriptor.get("format"), descriptor.get("platform"), descriptor.get("version"), descriptor.get("minimumMacOS"), descriptor.get("validation"), descriptor.get("tests"), descriptor.get("cross_compiled")) != (1, "darwin-arm64", version, "11.0", "untested", "not-run", True) or descriptor.get("sha256") != hashlib.sha256(image).hexdigest():
         raise ValueError("macOS ARM64 build descriptor/version/digest mismatch")
     if revision is not None and descriptor.get("revision") != revision:

@@ -497,6 +497,14 @@ async fn cancellation_and_timeout_kill_descendants_only() {
     r.state(j, &["timeout"]).await;
     assert!(agent_job_relay::platform::identity(std::process::id()).is_some());
 }
+#[test]
+fn process_group_signals_reject_ids_that_could_address_other_processes() {
+    // Signal zero only probes existence. Narrowing an out-of-range group ID
+    // could overflow or turn a group signal into a positive process ID.
+    for pid in [0, 1, i32::MAX as u32 + 1, i32::MAX as u32 + 2, u32::MAX] {
+        assert!(agent_job_relay::platform::signal_group(pid, 0).is_err());
+    }
+}
 #[tokio::test]
 async fn uncertain_launch_never_replays_and_delayed_runner_is_fenced() {
     let mut r = Rig::new().await;

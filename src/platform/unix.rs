@@ -124,8 +124,9 @@ pub fn identity(pid: u32) -> Option<String> {
     }
 }
 pub fn signal_group(pid: u32, signal: i32) -> Result<()> {
+    let pid = i32::try_from(pid)?;
     ensure!(pid > 1, "refusing invalid process group");
-    let r = unsafe { libc::kill(-(pid as i32), signal) };
+    let r = unsafe { libc::kill(-pid, signal) };
     if r < 0 {
         let e = std::io::Error::last_os_error();
         if e.raw_os_error() != Some(libc::ESRCH) {

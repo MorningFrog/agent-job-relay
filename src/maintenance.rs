@@ -573,8 +573,7 @@ fn create_backup(
     // Record the exact snapshot's paths before creating any of them. A second
     // WAL connection can write this journal while the source read stays pinned.
     let mut journal = Connection::open(config.root.join("relay.sqlite3"))?;
-    journal.busy_timeout(Duration::from_secs(5))?;
-    journal.execute_batch("PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;")?;
+    crate::storage::configure_connection(&journal)?;
     let journal_tx = journal.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
     let saved: String = journal_tx.query_row(
         "SELECT value FROM maintenance_state WHERE key='pending_backup'",
@@ -598,6 +597,7 @@ fn create_backup(
     let database = stage.join("relay.sqlite3");
     drop(crate::platform::create_new_file(&database)?);
     let mut output = Connection::open(&database)?;
+    crate::storage::configure_connection(&output)?;
     {
         let backup = rusqlite::backup::Backup::new(&tx, &mut output)?;
         let deadline = std::time::Instant::now() + Duration::from_secs(30);
@@ -782,6 +782,7 @@ pub async fn restore(from: PathBuf, to: PathBuf) -> Result<Value> {
             ensure!(actual.sha256==record.sha256&&actual.bytes==record.bytes,"backup changed while restoring");
         }
         let mut db=Connection::open(stage.join("relay.sqlite3"))?;
+        crate::storage::configure_connection(&db)?;
         let schema:i64=db.pragma_query_value(None,"user_version",|r|r.get(0))?;ensure!(matches!(schema,8..=14),"backup schema is not supported by this executable");
         let integrity:String=db.query_row("PRAGMA quick_check",[],|r|r.get(0))?;ensure!(integrity=="ok","backup database integrity failed");
         if schema==8 {db.pragma_update(None,"foreign_keys",false)?;db.execute_batch(include_str!("monitor.sql"))?;}
