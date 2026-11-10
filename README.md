@@ -19,7 +19,7 @@ Run long commands independently of the Agent connection, keep their results, and
 | Goal waiting (experimental) | One scoped pause approval, original-goal restoration and deletion safeguards. Source 0.1.17 adds requested intermediate restoration/report/native re-pause cycles; [usage and host limits](docs/goal-waiting.md) |
 | Bounded queue | Default FIFO waiting beyond eight execution slots, with a per-job deadline and explicit opt-out; [usage](docs/usage.md#wait-for-an-execution-slot-unreleased-0120) |
 | Batch submission | Submit 1–16 independent commands through CLI/MCP, with per-item results and safe retries; [usage](docs/usage.md#submit-independent-commands-together-0112) |
-| Remote tasks | Launch/attach on a pinned remote runtime or observe a fixed GitHub Actions attempt, including job/step status and an attempt link; runtime 0.1.20+ adds direct remote-rule feedback to the originating chat; [setup and boundaries](docs/remote-execution.md) |
+| Remote tasks | Launch/attach on a pinned remote runtime or observe a fixed GitHub Actions attempt; Unreleased source also observes a pinned Woodpecker pipeline, with workflow/step status and run links; runtime 0.1.20+ adds direct remote-rule feedback to the originating chat; [setup and boundaries](docs/remote-execution.md) |
 | Mid-run feedback | Structured stages/steps/metrics, repeated milestone or threshold alerts and a bounded checker recipe; [usage and limits](docs/progress.md) |
 | Results and history | Bounded stdout/stderr, exit outcomes, events and retained task history |
 | Session-bound notifications | Deliver results to the initiating session; resume the chat when supported by its host |

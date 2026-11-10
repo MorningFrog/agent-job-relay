@@ -19,7 +19,7 @@ Tasks run in the background. Agents pick up when needed.
 | Goal 等待（实验性） | 一次限定范围的暂停批准，保留原 goal 恢复和删除保护。源码 0.1.17 新增按需临时恢复、汇报并原生再次暂停的中间反馈；见[用法及宿主限制](docs/goal-waiting.md) |
 | 有界排队 | 满额后默认 FIFO 排队，保留八个执行槽和逐任务排队期限，可显式禁用排队；见[使用指南](docs/usage.md#wait-for-an-execution-slot-unreleased-0120) |
 | 批量提交 | 通过 CLI/MCP 一次提交 1–16 个独立命令，逐项返回结果并支持安全重试，见[使用指南](docs/usage.md#submit-independent-commands-together-0112) |
-| 远程任务 | 在固定身份的远端运行时启动或附加命令，或观察固定的 GitHub Actions attempt，包含作业／步骤状态和 attempt 直达链接；运行时 0.1.20+ 新增远端规则直接反馈到原聊天，见[配置与边界](docs/remote-execution.md) |
+| 远程任务 | 在固定身份的远端运行时启动或附加命令，或观察固定的 GitHub Actions attempt；Unreleased 源码还可观察固定的 Woodpecker pipeline，包含工作流／步骤状态和运行直达链接；运行时 0.1.20+ 新增远端规则直接反馈到原聊天，见[配置与边界](docs/remote-execution.md) |
 | 中间反馈 | 结构化阶段、步数和指标，重复里程碑或阈值告警，以及有界 checker 示例；见[用法与边界](docs/progress.md) |
 | 结果与历史 | 保存有界的 stdout/stderr、退出结果、事件和任务历史 |
 | 绑定会话的通知 | 将结果投递到发起会话，在宿主支持时续接聊天 |

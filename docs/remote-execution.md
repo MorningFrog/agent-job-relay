@@ -2,7 +2,7 @@
 
 [Documentation index](README.md) · [Commands](commands.md) · [Protocol](protocol.md)
 
-Use runtime 0.1.12 or newer on the observing machine. Source 0.1.13 adds optional Actions job/step summaries and attempt links. Remote tasks share local execution slots, CLI/MCP, loopback Web UI, history and initiating-session notifications. Unreleased 0.1.20 supports [default bounded waiting](usage.md#wait-for-an-execution-slot-unreleased-0120) for the local observer or a matching remote execution owner; queue expiry before first launch does not contact the remote target.
+Remote execution and Actions observation require runtime 0.1.12+; Actions job/step summaries require 0.1.13+, and direct remote alerts and bounded queuing require 0.1.20+. Woodpecker observation requires the Unreleased source described below. External tasks share local execution slots, CLI/MCP, loopback Web UI, history and initiating-session notifications. [Default bounded waiting](usage.md#wait-for-an-execution-slot-unreleased-0120) applies to the local observer or matching remote execution owner; expiry before first launch does not contact the target.
 
 ## Choose an execution owner
 
@@ -12,6 +12,7 @@ Use runtime 0.1.12 or newer on the observing machine. Source 0.1.13 adds optiona
 | Remote attach, default | The existing remote runner | Stops local observation; leaves the command running |
 | Remote attach with `allow_stop=true` | The existing remote runner, with explicitly granted control | Requests exact-run cancellation |
 | Existing GitHub Actions attempt | GitHub Actions | Stops observation; never dispatches, reruns or cancels the workflow |
+| Existing Woodpecker pipeline (Unreleased) | The selected Woodpecker server/workers | Stops observation; never creates, restarts, approves or cancels CI |
 
 The reference remote-command path requires the native executable on the remote host, not an Agent plugin, system service, global installation or training framework. A user-managed copy is sufficient. It currently supports Linux and Windows runtimes. An existing scheduler can instead supply a custom adapter implementing the contract below; no scheduler adapter is shipped. Bare SSH process supervision does not establish durable remote execution.
 
@@ -147,6 +148,48 @@ gh run view <run-id> --repo owner/repository --attempt <attempt> --verbose
 Expected: run/job/step states, without an overall completion percentage. `gh run watch <run-id> --repo owner/repository` refreshes terminal output until completion, but has no attempt selector; the adapter keeps using fixed-attempt API reads. See the [CLI manual](https://cli.github.com/manual/gh_run_view) and [attempt-jobs API](https://docs.github.com/en/rest/actions/workflow-jobs#list-jobs-for-a-workflow-run-attempt).
 
 A successful, neutral or skipped final conclusion maps to local completed; failure/action-required/stale/startup-failure to failed; cancelled and timed-out conclusions retain their corresponding states. The exact conclusion remains evidence. Stopping or timing out the local observer leaves GitHub unchanged. Workflow log download, dispatch and cancellation are unsupported. Only local elapsed rules are available because this adapter has no workload output stream.
+
+## Observe an existing Woodpecker pipeline (Unreleased)
+
+Use a source build advertising Doctor `woodpecker_observation=true`. This is not included in published 0.1.24. The adapter reads the official Woodpecker 3.x API directly; neither `gh` nor `woodpecker-cli` is required. Select a root server origin (HTTPS, or loopback HTTP for a local deployment), repository ID/full name and an existing pipeline. Server URLs with credentials, paths, queries or fragments are rejected. Custom certificate configuration and subpath deployments are unsupported.
+
+Read `GET /api/repos/<repo-id>` and `GET /api/repos/<repo-id>/pipelines/<number>` using your existing authorized API client. Public repositories can be queried anonymously. The repository response supplies `id` and `full_name`; the pipeline response supplies `id`, `number` and the full `commit`. The pipeline's global `id` is different from the repository-local `number` in the Web URL. A Woodpecker restart creates another pipeline with a new identity; never use `latest`, a branch name or a guessed attempt number.
+
+Create `woodpecker-job.json`, replacing the example identities with those exact response values and the workspace placeholder with an absolute local directory:
+
+```json
+{
+  "title": "Watch repository CI",
+  "command": {
+    "kind": "woodpecker",
+    "pipeline": {
+      "server_url": "https://ci.example.test",
+      "repository": "owner/repository",
+      "repo_id": 1,
+      "pipeline_number": 42,
+      "pipeline_id": 69,
+      "commit": "0123456789abcdef0123456789abcdef01234567"
+    }
+  },
+  "cwd": "<absolute-local-workspace>",
+  "timeout_seconds": 3600,
+  "idempotency_key": "woodpecker-observation-001"
+}
+```
+
+```bash
+ajr start-spec --file woodpecker-job.json
+ajr inspect <local-job-id> --json
+ajr stop <local-job-id> --wait 5s
+```
+
+For private repositories, add `pipeline.token_file` pointing to an existing private file containing only the bearer token; the path must be absolute. The file takes precedence over `WOODPECKER_TOKEN`, which is otherwise read from the observer's inherited daemon environment. Without either, reads are anonymous. Keep token values out of task specs, `spec.env`, command arguments and URLs. File credentials are reread on subsequent samples; changing an inherited environment requires an explicit idle-daemon restart. Tokens retain their actual Woodpecker account permissions; this adapter only issues GETs. Manage file access, expiry, revocation and rotation through your existing credential facilities. No login, token creation or server configuration is performed automatically.
+
+Expected: `observation.external.pipeline` retains the pinned identity, pipeline status and a server-derived `/repos/<repo-id>/pipeline/<number>` link. CLI/MCP full inspection and the Web progress tab share at most 20 workflow summaries, 160-character names, current step and ended/known step counts, with an explicit partial-list indicator. Compact inspection retains pipeline identity/status/link. Steps can run concurrently and counts are not a time percentage. Missing/malformed optional details produce `workflows_error` while preserving authoritative pipeline status; workflow environments and raw API diagnostics are not retained.
+
+Every sample verifies repository identity and the pipeline ID/number/commit. Each GET has a 15-second deadline and a 768-KiB response cap; redirects are refused. Healthy reads occur every five seconds and failed reads back off to 60 seconds. Identity mismatch, unavailable credentials, 401/403/404/429, transport loss or invalid/oversized responses retain the last verified snapshot as stale, without claiming a CI result. Recovery reclaims only the local observer under its original Job/Run IDs. `success`/`skipped` map to completed, `failure`/`error`/`declined` to failed, and `killed` to cancelled; `pending`/`waiting`/`running`/`blocked` remain active. Only the whole pinned pipeline status establishes its outcome, never an individual workflow or an uploaded release seal.
+
+Submit the same spec through MCP `job_start` with the actual caller binding, or add CLI `--wake` from the originating Desktop terminal, to use existing completion notifications and scoped Goal waiting. After admission, yield without Agent polling. Only local elapsed rules are available; CI logs, workflow-change alerts, dispatch, approval, restart and remote cancellation are unsupported. Stopping ends observation; an observation deadline ends as orphaned with the external outcome unknown, without changing CI. Public Linux reads and simulated/inbox regressions do not establish native Windows/macOS, private-account authentication or actual installed-Agent continuation. See the [official API](https://woodpecker-ci.org/api) and [current verification](IMPLEMENTATION_STATUS.md).
 
 ## Adapter contract v1
 
