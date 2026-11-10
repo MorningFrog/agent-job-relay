@@ -47,7 +47,7 @@ Lists/events/deliveries return `next_cursor`; use `--after` for the next page. L
 
 Runtime 0.1.17+ supports `ajr start --title "Run project tests" -- cargo test`, or set `spec.title` in MCP / JSON single or batch submissions. Give each task a short purpose in the user’s language. Titles accept 1–80 Unicode characters without surrounding whitespace or control characters; omit the field for unnamed work. The Web list/detail heading and compact MCP results retain the title, while details keep the original command and IDs. Titles are part of the immutable submission: retries must preserve the original title and specification. There is no rename operation. Existing unnamed history remains readable and its unchanged-key retries retain their original IDs, including after archival.
 
-## Wait for an execution slot (Unreleased 0.1.20)
+## Wait for an execution slot (0.1.20)
 
 ```bash
 ajr start --timeout 600 --title "Run project tests" -- cargo test
@@ -169,7 +169,7 @@ For OpenCode V1, use the plugin's actual tool-context binding and MCP tools; Cha
 
 ## Automatic data maintenance
 
-The daemon automatically archives eligible terminal history and creates rolling local backups; no recurring manual command is required. Use `data status` through the selected command prefix for budgets/backup IDs/errors, `data policy` for configuration previews, `data backup` for an additional snapshot and `data check` for explicit integrity validation. Existing history/log queries include cold records. Upgrade/restore instructions and the default policy are in [data maintenance](data-maintenance.md); Unreleased 0.1.20 uses schema v14, published 0.1.17–0.1.19 use v12, earlier 0.1.12–0.1.16 use v11 and 0.1.11 uses v9; finish older runs before migration.
+The daemon automatically archives eligible terminal history and creates rolling local backups; no recurring manual command is required. Use `data status` through the selected command prefix for budgets/backup IDs/errors, `data policy` for configuration previews, `data backup` for an additional snapshot and `data check` for explicit integrity validation. Existing history/log queries include cold records. Upgrade/restore instructions and the default policy are in [data maintenance](data-maintenance.md); runtime 0.1.20+ uses schema v14, published 0.1.17–0.1.19 use v12, earlier 0.1.12–0.1.16 use v11 and 0.1.11 uses v9; finish older runs before migration.
 
 ## Remote commands and workflow attempts (0.1.12+)
 
