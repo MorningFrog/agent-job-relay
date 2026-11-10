@@ -1,0 +1,26 @@
+# Select this workflow explicitly in Woodpecker Web UI: New pipeline > main > release.
+# RELEASE_DRY_RUN=true (default), RELEASE_CANDIDATE=<original number> or empty for new,
+# RELEASE_CHANNEL=latest|next, RELEASE_RESUME=<original release parent> for recovery.
+labels:
+  platform: linux/amd64
+  backend: docker
+  worker: ajr-publish
+
+workspace:
+  base: /woodpecker
+  path: src
+
+when:
+  - event: manual
+    branch: main
+
+steps:
+  - name: release-all
+    image: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
+    environment:
+      RELEASE_CONTROL_ENDPOINT:
+        from_secret: release_control_endpoint
+      RELEASE_CONTROL_CA:
+        from_secret: release_artifact_ca
+    commands:
+      - python3 -B scripts/release_web.py
