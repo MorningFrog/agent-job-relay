@@ -2,7 +2,7 @@
 
 [Documentation index](README.md) · [Commands](commands.md) · [Protocol](protocol.md)
 
-Remote execution and Actions observation require runtime 0.1.12+; Actions job/step summaries require 0.1.13+, and direct remote alerts and bounded queuing require 0.1.20+. Woodpecker observation requires the Unreleased source described below. External tasks share local execution slots, CLI/MCP, loopback Web UI, history and initiating-session notifications. [Default bounded waiting](usage.md#wait-for-an-execution-slot-unreleased-0120) applies to the local observer or matching remote execution owner; expiry before first launch does not contact the target.
+Remote execution and Actions observation require runtime 0.1.12+; Actions job/step summaries require 0.1.13+, and direct remote alerts and bounded queuing require 0.1.20+. Woodpecker observation requires the 0.1.25 source described below. External tasks share local execution slots, CLI/MCP, loopback Web UI, history and initiating-session notifications. [Default bounded waiting](usage.md#wait-for-an-execution-slot-0120) applies to the local observer or matching remote execution owner; expiry before first launch does not contact the target.
 
 ## Choose an execution owner
 
@@ -12,7 +12,7 @@ Remote execution and Actions observation require runtime 0.1.12+; Actions job/st
 | Remote attach, default | The existing remote runner | Stops local observation; leaves the command running |
 | Remote attach with `allow_stop=true` | The existing remote runner, with explicitly granted control | Requests exact-run cancellation |
 | Existing GitHub Actions attempt | GitHub Actions | Stops observation; never dispatches, reruns or cancels the workflow |
-| Existing Woodpecker pipeline (Unreleased) | The selected Woodpecker server/workers | Stops observation; never creates, restarts, approves or cancels CI |
+| Existing Woodpecker pipeline (0.1.25) | The selected Woodpecker server/workers | Stops observation; never creates, restarts, approves or cancels CI |
 
 The reference remote-command path requires the native executable on the remote host, not an Agent plugin, system service, global installation or training framework. A user-managed copy is sufficient. It currently supports Linux and Windows runtimes. An existing scheduler can instead supply a custom adapter implementing the contract below; no scheduler adapter is shipped. Bare SSH process supervision does not establish durable remote execution.
 
@@ -72,15 +72,15 @@ Remote cwd/env/timeout and autonomous remote rules belong in `intent.spec`. Omit
 
 For same-chat notification, use `start-spec --wake` from the actual Desktop terminal or pass the current host's `binding` to MCP `job_start` with this spec. Shared MCP never infers identity from its own environment. Notifications describe the local observation result; inspect its external evidence before interpreting an unknown outcome. Agent callers should end the turn after a long submission. No new external-task same-chat live acceptance is claimed.
 
-## Inspect submitted commands (Unreleased)
+## Inspect submitted commands (0.1.21+)
 
-Later Unreleased source shows the submitted remote launch command under “命令与执行信息”, with the remote shell interpreter when applicable, the remote working directory, the local observer directory and separate local/remote Job/Run identities. A remote launch without acknowledgement shows its remote run as unconfirmed. The command is the saved submission, not a live process-tree inventory; environment values and transport arguments are not expanded in this view.
+Runtime 0.1.21+ shows the submitted remote launch command under “命令与执行信息”, with the remote shell interpreter when applicable, the remote working directory, the local observer directory and separate local/remote Job/Run identities. A remote launch without acknowledgement shows its remote run as unconfirmed. The command is the saved submission, not a live process-tree inventory; environment values and transport arguments are not expanded in this view.
 
 Overview/search results retain a 256-character `command_preview` and expose `command_kind`; remote task rows show this bounded summary. Text search matches the full submitted launch command, including remote shell interpreters and arguments beyond the preview, plus the pinned target ID, across hot and archived history. The `cwd` filter continues to select the local observer directory. Attach has no saved command or remote directory in protocol v1: the panel explicitly says “未提供远端命令（附加观察）” and retains the pinned run identity even before sampling.
 
-For complete launch submission data, use `ajr inspect <local-job-id> --json` or MCP `job_inspect` with `full=true` and read `job.command.remote.intent.spec.command` and `.cwd`. Compact single-task inspection remains unchanged. These display/search changes require a source build newer than sealed 0.1.20 and do not change the remote protocol, stored specifications, execution or reconnection behavior.
+For complete launch submission data, use `ajr inspect <local-job-id> --json` or MCP `job_inspect` with `full=true` and read `job.command.remote.intent.spec.command` and `.cwd`. Compact single-task inspection remains unchanged. These display/search changes require runtime 0.1.21 or newer and do not change the remote protocol, stored specifications, execution or reconnection behavior.
 
-## Send intermediate feedback to the origin (Unreleased 0.1.20)
+## Send intermediate feedback to the origin (0.1.20)
 
 Use an origin build advertising Doctor `remote_alert_feedback=true`. Configure meaningful alert rules on the remote runner with `notify_agent=false`; for structured stages, put this rule in `remote.intent.spec.monitor_rules` and have the workload emit flushed [progress frames](progress.md#emit-structured-progress):
 
@@ -104,7 +104,7 @@ ajr monitor add <local-job-id> --remote-alert '{"rule_id":null,"cooldown_seconds
 
 Expected: the applied revision advances and future sampled remote alerts can notify the existing bound chat. A launching/running observer must itself advertise `observation.external.remote_alert_feedback=true`; a newer daemon alone cannot retrofit an older observer. Missing capability fails before changing its rules. Native launch specs still omit remote sessions/idempotency and reject remote `notify_agent=true`.
 
-The event cursor, pending latest-per-subscription backlog candidates, local events, counters and Outbox commit together. Observer restart retains them without rerunning execution or duplicating committed alerts. Retained backlog, including on first attachment, is coalesced before delivery; old unsent notifications for the same subscription are superseded while attempts, accepted deliveries and live/Goal-selected claims remain. Cooldown is 1–604800 seconds; at most 128 local remote-alert records and one new remote-alert notification per second per job are admitted. Unreleased source also retains the latest candidate during cooldown/rate limiting; later empty samples can release it under the same revision and original remote event/run IDs, without moving the event cursor again. Repeated checks of that same deferred candidate do not inflate suppression counts. Revision changes, cancellation and budget exhaustion fence pending feedback. Observed remote terminal state suppresses intermediate enqueue while preserving bounded local evidence; the normal completion and Goal final-delivery fences remain independent.
+The event cursor, pending latest-per-subscription backlog candidates, local events, counters and Outbox commit together. Observer restart retains them without rerunning execution or duplicating committed alerts. Retained backlog, including on first attachment, is coalesced before delivery; old unsent notifications for the same subscription are superseded while attempts, accepted deliveries and live/Goal-selected claims remain. Cooldown is 1–604800 seconds; at most 128 local remote-alert records and one new remote-alert notification per second per job are admitted. Runtime 0.1.23+ also retains the latest candidate during cooldown/rate limiting; later empty samples can release it under the same revision and original remote event/run IDs, without moving the event cursor again. Repeated checks of that same deferred candidate do not inflate suppression counts. Revision changes, cancellation and budget exhaustion fence pending feedback. Observed remote terminal state suppresses intermediate enqueue while preserving bounded local evidence; the normal completion and Goal final-delivery fences remain independent.
 
 Full inspection exposes `observation.remote_feedback` with counts and the latest eight milestones; compact results retain original remote identities and two short evidence excerpts. Final events keep a bounded `progress.remote_feedback` summary, explicitly truncated when needed. Source evidence is untrusted data; oversized evidence is replaced by an explicit pointer to the original remote event. This is not a complete remote telemetry history. Current native Linux/source-MCP and simulated-host tests do not establish native Windows, arbitrary adapters, SSH deployments or actual Desktop/OpenCode Agent continuation for this new path.
 
@@ -149,9 +149,9 @@ Expected: run/job/step states, without an overall completion percentage. `gh run
 
 A successful, neutral or skipped final conclusion maps to local completed; failure/action-required/stale/startup-failure to failed; cancelled and timed-out conclusions retain their corresponding states. The exact conclusion remains evidence. Stopping or timing out the local observer leaves GitHub unchanged. Workflow log download, dispatch and cancellation are unsupported. Only local elapsed rules are available because this adapter has no workload output stream.
 
-## Observe an existing Woodpecker pipeline (Unreleased)
+## Observe an existing Woodpecker pipeline (0.1.25)
 
-Use a source build advertising Doctor `woodpecker_observation=true`. This is not included in published 0.1.24. The adapter reads the official Woodpecker 3.x API directly; neither `gh` nor `woodpecker-cli` is required. Select a root server origin (HTTPS, or loopback HTTP for a local deployment), repository ID/full name and an existing pipeline. Server URLs with credentials, paths, queries or fragments are rejected. Custom certificate configuration and subpath deployments are unsupported.
+Use runtime 0.1.25 source advertising Doctor `woodpecker_observation=true`; 0.1.25 is prepared locally and not yet published. Published 0.1.24 does not include this adapter. The adapter reads the official Woodpecker 3.x API directly; neither `gh` nor `woodpecker-cli` is required. Select a root server origin (HTTPS, or loopback HTTP for a local deployment), repository ID/full name and an existing pipeline. Server URLs with credentials, paths, queries or fragments are rejected. Custom certificate configuration and subpath deployments are unsupported.
 
 Read `GET /api/repos/<repo-id>` and `GET /api/repos/<repo-id>/pipelines/<number>` using your existing authorized API client. Public repositories can be queried anonymously. The repository response supplies `id` and `full_name`; the pipeline response supplies `id`, `number` and the full `commit`. The pipeline's global `id` is different from the repository-local `number` in the Web URL. A Woodpecker restart creates another pipeline with a new identity; never use `latest`, a branch name or a guessed attempt number.
 

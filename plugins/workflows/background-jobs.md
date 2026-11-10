@@ -116,7 +116,7 @@ Use spec.command.kind=github_actions for a fixed repository/run_id/attempt, or k
 
 Submit through the usual actual caller binding/Goal path, show the accepted task in the same panel, then yield. Full inspection retains observation.external.pipeline with bounded workflow/current-step progress; compact inspection retains identity/status/link. Only the whole exact pipeline's terminal status proves completion; individual workflow success or a release seal does not. API/identity/authentication failure means stale evidence, never CI failure. Local stop/timeout affects observation only, with no CI dispatch/restart/approval/cancellation. Only elapsed rules are supported; do not infer workload silence or install a checker to poll CI.
 
-### Direct native remote feedback (Unreleased 0.1.20)
+### Direct native remote feedback (0.1.20+)
 
 Require Doctor remote_alert_feedback=true on the origin. Keep milestone/progress/silence rules in remote.intent.spec.monitor_rules with notify_agent=false. Add an origin spec.monitor_rules subscription such as {"condition":{"kind":"remote_alert","rule_id":null,"cooldown_seconds":600},"action":"alert","notify_agent":true} with the actual caller binding. This directly forwards verified remote runner alerts; no separate checker job is needed. Optional rule_id selects one original remote rule UUID, otherwise all remote rules are eligible. Remote evidence cannot choose the chat or grant stop/goal authority. Honor completion-only and actual goal-feedback authorization. Existing observers must advertise observation.external.remote_alert_feedback before live subscription edits; retain original IDs when capability is unavailable.
 

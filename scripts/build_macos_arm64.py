@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -31,6 +32,27 @@ def compiler(bin_dir, names):
         if len(matches) > 1:
             raise ValueError(f"Multiple matching tools in {bin_dir}: {pattern}; use a single osxcross toolchain")
     raise ValueError(f"Missing osxcross tool in {bin_dir}: {', '.join(names)}")
+
+
+def source_snapshot():
+    """Bind the build to source bytes/modes, including dirty and untracked input.
+
+    Generated .tmp/target/frontend output is ignored by Git and excluded.
+    This is a before/after fence, not an isolated or hermetic build.
+    """
+    names = subprocess.run(["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"], cwd=ROOT, check=True, capture_output=True).stdout
+    digest = hashlib.sha256(capture(["git", "rev-parse", "HEAD"]).encode())
+    for name in sorted(set(names.split(b"\0")) - {b""}):
+        path = ROOT / os.fsdecode(name)
+        digest.update(name + b"\0")
+        if not path.exists() and not path.is_symlink():
+            digest.update(b"deleted\0")
+            continue
+        mode = path.lstat().st_mode
+        if not stat.S_ISREG(mode):
+            raise ValueError("Cross-build sources must be regular files; symlinks and nested repositories are unsupported")
+        digest.update(str(mode).encode() + b"\0" + hashlib.sha256(path.read_bytes()).digest())
+    return digest.digest()
 
 
 def main():
@@ -66,6 +88,7 @@ def main():
         output = args.output.resolve()
         if not output.is_relative_to(ROOT / ".tmp") or output == ROOT / ".tmp":
             raise ValueError("Choose a dedicated output directory under this repository's .tmp/")
+        snapshot = source_snapshot()
         revision = capture(["git", "rev-parse", "HEAD"])
         if not re.fullmatch(r"[0-9a-f]{40}", revision):
             raise ValueError("Expected a full source Git revision")
@@ -90,6 +113,8 @@ def main():
             ["cargo", "check" if args.check else "build", "--release", "--locked", "--target", TARGET, "--bin", "agent-job-relay"],
         ]:
             subprocess.run(argv, cwd=ROOT, env=env, check=True)
+        if source_snapshot() != snapshot:
+            raise ValueError("Source changed during the cross-build; rerun before using the executable or descriptor")
         if args.check:
             print(json.dumps({"target": TARGET, "compilation": "checked", "linked": False, "tests": "not-run", "runtime_validation": "untested"}))
             return

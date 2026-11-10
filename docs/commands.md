@@ -27,13 +27,13 @@ agent-job-relay codex start --help
 agent-job-relay codex monitor add --help
 ```
 
-Unreleased 0.1.20: new jobs default to bounded FIFO waiting for up to 24 hours. `start --queue-timeout 30m` overrides the limit; `start --no-queue` rejects when full. MCP/JSON omits `queue_timeout_seconds` for the default, sets 1–604800 for a custom limit, or sets 0 to disable waiting. Waiting and execution timeouts are independent; unchanged-key retries retain the original deadline. See [queue behavior](usage.md#wait-for-an-execution-slot-unreleased-0120).
+Runtime 0.1.20+: new jobs default to bounded FIFO waiting for up to 24 hours. `start --queue-timeout 30m` overrides the limit; `start --no-queue` rejects when full. MCP/JSON omits `queue_timeout_seconds` for the default, sets 1–604800 for a custom limit, or sets 0 to disable waiting. Waiting and execution timeouts are independent; unchanged-key retries retain the original deadline. See [queue behavior](usage.md#wait-for-an-execution-slot-0120).
 
 ## Start and read tasks
 
 | Command after the prefix | Purpose and useful options |
 |---|---|
-| `start -- <program> <args...>` | Submit explicit argv; `--title <purpose>` (0.1.17+); `--cwd`, `--timeout <seconds>`, Unreleased `--queue-timeout <duration>` / `--no-queue`, `--idempotency-key`, `--session` or current-terminal `--wake` |
+| `start -- <program> <args...>` | Submit explicit argv; `--title <purpose>` (0.1.17+); `--cwd`, `--timeout <seconds>`, `--queue-timeout <duration>` / `--no-queue`, `--idempotency-key`, `--session` or current-terminal `--wake` |
 | `start --shell '<script>'` | Explicit shell execution; `--interpreter` selects the shell |
 | `start-batch --file <json-file>` (0.1.12+) | Submit a JSON array of 1–16 specs with distinct stable keys; `--file -` reads stdin, `--wake` binds every item to the actual caller; [partial-admission/retry semantics](usage.md#submit-independent-commands-together-0112) |
 | `start-spec --file <json-file>` (0.1.12+) | Submit one bounded JSON StartSpec, including remote launch/attach or GitHub Actions/Woodpecker observation; `--file -` for stdin and `--wake` for the current caller |
@@ -53,7 +53,7 @@ agent-job-relay codex stop <job-id> --grace 30s --wait 10s
 
 Use returned IDs and `next_cursor`; do not use PIDs as job IDs. Reusing a key with an identical specification returns the original job; a deliberate rerun needs a new key. Long Agent jobs should end the turn after a capable-host submission rather than poll. See [execution and result workflow](usage.md#run-and-inspect-commands-through-cli).
 
-## Search history and retained logs (Unreleased)
+## Search history and retained logs (0.1.20+)
 
 Current source adds `ajr search [--text <text>] [--status <state|active>] [--cwd <substring>] [--created-after <unix-ms>] [--created-before <unix-ms>] [--before <cursor>] [--limit <1..100>]` across hot/archived history, and `ajr search-logs <job-id> --text <literal> [--stream stdout|stderr] [--cursor <byte>] [--end <fixed-end>] [--limit <1..100>]` for retained-log locations/context. Both are read-only, support stopped existing profiles and return JSON continuation evidence; see [search semantics](runtime-monitoring.md#read-and-export-retained-logs).
 
@@ -68,7 +68,7 @@ Current source adds `ajr search [--text <text>] [--status <state|active>] [--cwd
 | `monitor update <job-id> <rule-id> --revision <n>` | Replace the observed rule revision |
 | `monitor enable/disable/remove <job-id> <rule-id> --revision <n>` | Rearm, disable or remove a rule while retaining its audit |
 
-`--progress '{"source":"training","trigger":{"kind":"stage"},"cooldown_seconds":30}'` adds repeated structured feedback; see [progress/checker usage and limits](progress.md). The same option is accepted by start and monitor add/update, and the Web editor supports stage/step/metric rules. Unreleased native remote observers also accept `monitor add <job-id> --remote-alert '{"rule_id":null,"cooldown_seconds":600}' --notify-agent`; this alert-only subscription forwards remote runner rules to the already bound origin. [Remote setup and limits](remote-execution.md#send-intermediate-feedback-to-the-origin-unreleased-0120).
+`--progress '{"source":"training","trigger":{"kind":"stage"},"cooldown_seconds":30}'` adds repeated structured feedback; see [progress/checker usage and limits](progress.md). The same option is accepted by start and monitor add/update, and the Web editor supports stage/step/metric rules. Runtime 0.1.20+ native remote observers also accept `monitor add <job-id> --remote-alert '{"rule_id":null,"cooldown_seconds":600}' --notify-agent`; this alert-only subscription forwards remote runner rules to the already bound origin. [Remote setup and limits](remote-execution.md#send-intermediate-feedback-to-the-origin-0120).
 
 Rules use one condition: `--no-output <duration>`, `--elapsed <duration>`, `--contains <literal>`, `--progress <json>` or native-remote-only `--remote-alert <json>`. Options include `--stream stdout/stderr/both`, `--action alert/stop`, `--grace <duration>` and `--notify-agent` for an already bound job. Start accepts one initial rule with the same flags. Durations accept seconds or `s`, `m`, `h`, `d`; stop grace is bounded to 0–300 seconds and wait to 0–30. See [monitoring procedures and expected results](runtime-monitoring.md).
 
@@ -154,7 +154,7 @@ Policy flags are `--hot-jobs`, `--archive-after-days`, `--hot-log-mib`, `--backu
 | Execution and results | `job_start`, `job_status`, `job_list`, `job_logs`, `job_events`, `job_wait`, `job_stop` |
 | Batch and experimental goal control | `job_start_batch`, `job_goal_consent`, `job_goal_wait`; scoped consent and native handoff use the actual terminal binding |
 | Inspection and rules | `job_inspect`, `job_monitor` |
-| Unreleased history and log search | `job_search`, `job_search_logs`; bounded read-only cursors cover hot/archived records and retained byte ranges |
+| History and log search (0.1.20+) | `job_search`, `job_search_logs`; bounded read-only cursors cover hot/archived records and retained byte ranges |
 | Health | `job_doctor` |
 | Session binding and inbox | `job_connect_session`, `job_register_session`, `job_sessions`, `job_probe_session`, `job_recover_session`, `job_invalidate_session`, `job_inbox` |
 | Targets and delivery | `job_add_wake_target`, `job_rebind_target`, `job_deliveries`, `job_retry_delivery`, `job_delivery_attempts` |

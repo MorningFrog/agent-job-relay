@@ -5,6 +5,13 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
 use tokio::sync::{Notify, Semaphore};
 const DB_WORKERS: usize = 4;
+pub(crate) fn configure_connection(db: &Connection) -> Result<()> {
+    db.busy_timeout(std::time::Duration::from_secs(5))?;
+    // FULL alone uses fsync on Darwin. SQLite's fullfsync requests F_FULLFSYNC
+    // there (including WAL checkpoints); other OSes ignore the stronger flag.
+    db.execute_batch("PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL; PRAGMA fullfsync=ON;")?;
+    Ok(())
+}
 struct CachedConnection {
     path: PathBuf,
     db: Connection,
@@ -104,8 +111,7 @@ impl Store {
                             env!("CARGO_PKG_VERSION")
                         );
                     }
-                    db.busy_timeout(std::time::Duration::from_secs(5))?;
-                    db.execute_batch("PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL;")?;
+                    configure_connection(&db)?;
                     db
                 }
             };

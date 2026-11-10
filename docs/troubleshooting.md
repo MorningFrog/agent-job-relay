@@ -30,7 +30,7 @@ Use the same launcher and state profile as the affected plugin or task. Keep the
 
 ## Understand the checks
 
-For Unreleased source, `disk pressure` admission errors identify the sampled free bytes and configured threshold. Run `ajr data status`, inspect backup/maintenance errors and free the intended profile volume explicitly; preview any threshold change with `ajr data policy` before applying it. Existing work, original-key retries and stopping remain available. A capacity sample is not a disk reservation, and the workload may write to another volume.
+For runtime 0.1.20+, `disk pressure` admission errors identify the sampled free bytes and configured threshold. Run `ajr data status`, inspect backup/maintenance errors and free the intended profile volume explicitly; preview any threshold change with `ajr data policy` before applying it. Existing work, original-key retries and stopping remain available. A capacity sample is not a disk reservation, and the workload may write to another volume.
 
 History search pages can contain no matches while `has_more=true`; continue their decreasing `next_cursor`. The panel does this until 50 matches or the real end, showing scanned counts. Log search uses its returned fixed `end` with `next_cursor`, and only retained ranges are searchable. A gap or rotated segment cannot be recovered by resubmitting the workload. For notification/goal issues, inspect `notifications.recovery.plan` and retain its original IDs/revision; exact-profile commands remain usable only from the original caller and a still-available trusted entry point.
 

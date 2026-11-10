@@ -11,6 +11,55 @@ use agent_job_relay::{
 use serde_json::{Value, json};
 use std::{io::Write, path::PathBuf};
 
+#[tokio::test]
+async fn sqlite_durability_policy_survives_reopen_and_readonly_inspection() {
+    let f = Fixture::new().await;
+    let job = f.job("durability", None, true).await;
+    for store in [
+        f.store.clone(),
+        Store::new(f.store.config.clone()),
+        Store::readonly(f.store.config.clone()),
+    ] {
+        let id = job.job_id.clone();
+        store
+            .read(move |db| {
+                assert_eq!(
+                    db.pragma_query_value::<i64, _>(None, "synchronous", |r| r.get(0))?,
+                    2
+                );
+                assert_eq!(
+                    db.pragma_query_value::<i64, _>(None, "fullfsync", |r| r.get(0))?,
+                    1
+                );
+                assert_eq!(
+                    db.pragma_query_value::<i64, _>(None, "foreign_keys", |r| r.get(0))?,
+                    1
+                );
+                assert_eq!(
+                    db.query_row("SELECT status FROM jobs WHERE id=?", [&id], |r| r
+                        .get::<_, String>(0))?,
+                    "completed"
+                );
+                Ok(())
+            })
+            .await
+            .unwrap();
+    }
+    // The read-only connection still refuses writes; configuring durability
+    // must not open an offline viewer with write authority.
+    let readonly = Store::readonly(f.store.config.clone());
+    assert!(
+        readonly
+            .read(|db| Ok(db.execute("DELETE FROM jobs", [])?))
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        f.store.status(job.job_id).await.unwrap().status,
+        JobState::Completed
+    );
+}
+
 struct Fixture {
     dir: tempfile::TempDir,
     store: Store,

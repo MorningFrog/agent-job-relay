@@ -16,10 +16,10 @@ Run long commands independently of the Agent connection, keep their results, and
 | Capability | Use it for |
 |---|---|
 | Durable background jobs | Builds, tests, training and data processing that continue after a chat or viewer closes |
-| Goal waiting (experimental) | One scoped pause approval, original-goal restoration and deletion safeguards. Source 0.1.17 adds requested intermediate restoration/report/native re-pause cycles; [usage and host limits](docs/goal-waiting.md) |
-| Bounded queue | Default FIFO waiting beyond eight execution slots, with a per-job deadline and explicit opt-out; [usage](docs/usage.md#wait-for-an-execution-slot-unreleased-0120) |
+| Goal waiting (experimental) | One scoped pause approval, original-goal restoration and deletion safeguards. Runtime 0.1.17+ provides requested intermediate restoration/report/native re-pause cycles; [usage and host limits](docs/goal-waiting.md) |
+| Bounded queue | Default FIFO waiting beyond eight execution slots, with a per-job deadline and explicit opt-out; [usage](docs/usage.md#wait-for-an-execution-slot-0120) |
 | Batch submission | Submit 1–16 independent commands through CLI/MCP, with per-item results and safe retries; [usage](docs/usage.md#submit-independent-commands-together-0112) |
-| Remote tasks | Launch/attach on a pinned remote runtime or observe a fixed GitHub Actions attempt; Unreleased source also observes a pinned Woodpecker pipeline, with workflow/step status and run links; runtime 0.1.20+ adds direct remote-rule feedback to the originating chat; [setup and boundaries](docs/remote-execution.md) |
+| Remote tasks | Launch/attach on a pinned remote runtime or observe a fixed GitHub Actions attempt; prepared, unpublished source 0.1.25 also observes a pinned Woodpecker pipeline, with workflow/step status and run links; runtime 0.1.20+ adds direct remote-rule feedback to the originating chat; [setup and boundaries](docs/remote-execution.md) |
 | Mid-run feedback | Structured stages/steps/metrics, repeated milestone or threshold alerts and a bounded checker recipe; [usage and limits](docs/progress.md) |
 | Results and history | Bounded stdout/stderr, exit outcomes, events and retained task history |
 | Session-bound notifications | Deliver results to the initiating session; resume the chat when supported by its host |
@@ -89,7 +89,7 @@ Everyday prompts need no executable path or session ID. The plugin binds the act
 
 Runtime 0.1.19 guidance plans useful captured output and a few mid-run reports for long work; explicit “only notify at the end” keeps completion-only behavior. Goal feedback still requires actual user authorization. See [feedback planning and limits](docs/progress.md#choose-and-verify-feedback-before-yielding); adoption in installed hosts remains to be verified.
 
-The source retains bounded stage/remote feedback during cooldown and exposes pending-stage and Goal control/delivery diagnostics. Goal reports include bounded context from combined earlier alerts; uncertain host controls are never replayed. See [feedback limits](docs/progress.md#configure-repeated-feedback) and [Goal recovery](docs/goal-waiting.md#completion-and-recovery); new Windows and installed-host behavior remain unverified.
+Runtime 0.1.23+ retains bounded stage/remote feedback during cooldown and exposes pending-stage and Goal control/delivery diagnostics. Goal reports include bounded context from combined earlier alerts; uncertain host controls are never replayed. See [feedback limits](docs/progress.md#configure-repeated-feedback) and [Goal recovery](docs/goal-waiting.md#completion-and-recovery); new Windows and installed-host behavior remain unverified.
 
 Runtime 0.1.19 goal recovery returns the original handoff and next action after interrupted reconnection, without another pause question or duplicate work. It retains the same request across rounds and keeps native pause acknowledgements separate from pending final notifications. Sustained real-work use confirms goal wake-up and usually successful pause/resume, with occasional inability to resume still unresolved; see [live evidence](docs/live-e2e.md#user-reported-sustained-real-work-use). Recovery requires Doctor `goal_wait_recovery=true`; see [recovery and host limits](docs/goal-waiting.md#recover-an-existing-handoff).
 
@@ -118,7 +118,7 @@ Runtime 0.1.20+ adds an effective-feedback card and editable stage/time shortcut
 
 Task/alert page headers show current running and queued counts beside the title, without cumulative historical reminders. Task details open on terminal output, with optional following of new text. Separate tabs hold progress, feedback/notifications, rules and events; expand execution information for the full command and original IDs.
 
-Runtime 0.1.21+ shows submitted remote launch commands in the list/details and full-command search, distinguishes local observer and remote execution directories, and labels missing attach command metadata. This requires runtime 0.1.21 or newer; see [remote command inspection](docs/remote-execution.md#inspect-submitted-commands-unreleased).
+Runtime 0.1.21+ shows submitted remote launch commands in the list/details and full-command search, distinguishes local observer and remote execution directories, and labels missing attach command metadata. This requires runtime 0.1.21 or newer; see [remote command inspection](docs/remote-execution.md#inspect-submitted-commands-0121).
 
 Use the returned job ID in the last command; the first submission starts the daemon automatically. OpenCode uses `ajr opencode`; native offline installations use their recorded launcher/profile. See the [command reference](docs/commands.md).
 
