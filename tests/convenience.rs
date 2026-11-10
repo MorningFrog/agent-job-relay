@@ -11,6 +11,54 @@ use std::{path::PathBuf, process::Stdio, time::Duration};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 #[tokio::test]
+async fn woodpecker_requires_its_own_daemon_capability_before_admission() {
+    let r = Rig::new();
+    r.config.prepare().unwrap();
+    let listener = tokio::net::UnixListener::bind(r.config.socket()).unwrap();
+    let old = tokio::spawn(async move {
+        for _ in 0..2 {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let request = ipc::read_frame(&mut stream, 65536).await.unwrap();
+            assert_eq!(request["request"]["op"], "doctor");
+            ipc::write_frame(
+                &mut stream,
+                &json!({"protocol_version":1,"ok":true,"result":{
+                    "runner_launch_from_loaded_image":true,"version":env!("CARGO_PKG_VERSION"),
+                    "remote_execution":true,"github_actions_observation":true,
+                    "bounded_queue":{"default_timeout_seconds":86400}
+                }}),
+            )
+            .await
+            .unwrap();
+        }
+        assert!(
+            tokio::time::timeout(Duration::from_millis(100), listener.accept())
+                .await
+                .is_err()
+        );
+    });
+    let file = r.dir.path().join("woodpecker.json");
+    std::fs::write(
+        &file,
+        json!({"command":{"kind":"woodpecker","pipeline":{
+        "server_url":"https://ci.example.test","repository":"owner/repo","repo_id":1,
+        "pipeline_number":42,"pipeline_id":69,"commit":"a".repeat(40)
+    }},"cwd":r.dir.path()})
+        .to_string(),
+    )
+    .unwrap();
+    let out = r
+        .cli(&["start-spec", "--file", file.to_str().unwrap()], None)
+        .await;
+    assert!(!out.status.success());
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("does not support Woodpecker observation")
+    );
+    assert!(!r.config.root.join("relay.sqlite3").exists());
+    old.await.unwrap();
+}
+
+#[tokio::test]
 async fn remote_feedback_requires_daemon_capability_before_admission() {
     let r = Rig::new();
     r.config.prepare().unwrap();

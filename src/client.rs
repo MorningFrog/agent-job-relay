@@ -624,7 +624,13 @@ pub async fn start_waiting(
     if binding["status"] == "goal_wait_pending" {
         return Ok(brief_binding(binding));
     }
-    verify_queue_runtime(&ipc::call(config, Request::Doctor).await?)?;
+    let health = ipc::call(config, Request::Doctor).await?;
+    verify_queue_runtime(&health)?;
+    for spec in &specs {
+        if spec.command.is_external() {
+            verify_external_runtime(&health, &spec.command)?;
+        }
+    }
     let key = binding["session"]["key"]
         .as_str()
         .context("missing session")?;
@@ -651,10 +657,15 @@ pub async fn start_waiting(
     )
     .await
 }
-fn verify_external_runtime(info: &Value) -> Result<()> {
+fn verify_external_runtime(info: &Value, command: &crate::core::CommandSpec) -> Result<()> {
     ensure!(
         info["remote_execution"] == true && info["github_actions_observation"] == true,
         "selected daemon does not support external execution. No job was submitted. Finish active jobs, then explicitly stop/update this same profile and retry"
+    );
+    ensure!(
+        !matches!(command, crate::core::CommandSpec::Woodpecker { .. })
+            || info["woodpecker_observation"] == true,
+        "selected daemon does not support Woodpecker observation. No job was submitted. Finish active jobs, then explicitly stop/update this same profile and retry"
     );
     Ok(())
 }
@@ -693,7 +704,7 @@ pub async fn start(config: &Config, mut spec: StartSpec, wake_me: bool) -> Resul
     verify_queue_runtime(&health)?;
     verify_remote_feedback(&health, &spec.monitor_rules)?;
     if spec.command.is_external() {
-        verify_external_runtime(&ipc::call(config, Request::Doctor).await?)?;
+        verify_external_runtime(&health, &spec.command)?;
     }
     if let Some((registration, fingerprint)) = context {
         // The actual terminal selects the goal controller; the daemon/shared
@@ -756,8 +767,8 @@ pub async fn start_batch(
     for spec in &specs {
         verify_remote_feedback(&health, &spec.monitor_rules)?;
     }
-    if specs.iter().any(|s| s.command.is_external()) {
-        verify_external_runtime(&health)?;
+    for spec in specs.iter().filter(|s| s.command.is_external()) {
+        verify_external_runtime(&health, &spec.command)?;
     }
     ensure!(
         health["batch_submission"] == true,
@@ -886,11 +897,17 @@ pub async fn call(config: &Config, request: Request) -> Result<Value> {
             let health = ipc::call(config, Request::Doctor).await?;
             match &request {
                 Request::StartGoal { spec, .. } => {
-                    verify_remote_feedback(&health, &spec.monitor_rules)?
+                    verify_remote_feedback(&health, &spec.monitor_rules)?;
+                    if spec.command.is_external() {
+                        verify_external_runtime(&health, &spec.command)?;
+                    }
                 }
                 Request::StartGoalBatch { specs, .. } => {
                     for spec in specs {
                         verify_remote_feedback(&health, &spec.monitor_rules)?;
+                        if spec.command.is_external() {
+                            verify_external_runtime(&health, &spec.command)?;
+                        }
                     }
                 }
                 _ => {}

@@ -1,5 +1,7 @@
 #![cfg(any(target_os = "linux", windows))]
 mod common;
+#[path = "remote/woodpecker.rs"]
+mod woodpecker;
 use agent_job_relay::{
     config::Config,
     core::*,

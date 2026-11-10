@@ -42,6 +42,10 @@ pub enum CommandSpec {
     GithubActions {
         workflow: crate::remote::ActionsSpec,
     },
+    /// Observe one existing Woodpecker pipeline; never start or cancel CI.
+    Woodpecker {
+        pipeline: crate::remote::WoodpeckerSpec,
+    },
 }
 impl CommandSpec {
     /// Submitted workload text for display/search, never a command to execute.
@@ -66,6 +70,14 @@ impl CommandSpec {
                 "GitHub Actions {} run {} attempt {}",
                 workflow.repository, workflow.run_id, workflow.attempt
             ),
+            Self::Woodpecker { pipeline } => format!(
+                "Woodpecker {} {} pipeline {} (id {}) commit {}",
+                pipeline.server_url,
+                pipeline.repository,
+                pipeline.pipeline_number,
+                pipeline.pipeline_id,
+                pipeline.commit
+            ),
         }
     }
 
@@ -79,7 +91,7 @@ impl CommandSpec {
                 ),
                 "remote silence/progress rules must run on the remote runner; put them in remote.intent.spec.monitor_rules and use an origin remote_alert rule for notifications"
             ),
-            Self::GithubActions { .. } => ensure!(
+            Self::GithubActions { .. } | Self::Woodpecker { .. } => ensure!(
                 matches!(rule.condition, Condition::Elapsed { .. }),
                 "workflow observation supports only elapsed rules; it has no workload output stream"
             ),
@@ -91,7 +103,10 @@ impl CommandSpec {
         Ok(())
     }
     pub fn is_external(&self) -> bool {
-        matches!(self, Self::Remote { .. } | Self::GithubActions { .. })
+        matches!(
+            self,
+            Self::Remote { .. } | Self::GithubActions { .. } | Self::Woodpecker { .. }
+        )
     }
 }
 #[derive(Clone, Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema, PartialEq)]
@@ -182,6 +197,14 @@ impl StartSpec {
             }
             CommandSpec::GithubActions { workflow } => {
                 workflow.validate()?;
+                ensure!(
+                    self.env.is_empty(),
+                    "workflow observation does not accept environment overrides"
+                );
+                vec![]
+            }
+            CommandSpec::Woodpecker { pipeline } => {
+                pipeline.validate()?;
                 ensure!(
                     self.env.is_empty(),
                     "workflow observation does not accept environment overrides"

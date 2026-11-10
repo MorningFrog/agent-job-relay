@@ -25,6 +25,28 @@ const { RuleForm } = await server.ssrLoadModule("/src/components/RuleForm.jsx");
 const { TaskProgress } = await server.ssrLoadModule("/src/components/TaskProgress.jsx");
 const { PageHeader } = await server.ssrLoadModule("/src/components/PageHeader.jsx");
 
+test("Woodpecker shows pinned workflow progress and read-only controls with escaped evidence", () => {
+  const spec = { server_url: "https://ci.example.test", repository: "owner/repo", repo_id: 1,
+    pipeline_number: 42, pipeline_id: 69, commit: "a".repeat(40), token_file: "hidden-credential-path" };
+  const job = { job_id: "observer", status: "running", command: { kind: "woodpecker", pipeline: spec } };
+  const detail = { job, observation: { external: { mode: "woodpecker", evidence_stale: true, pipeline: {
+    status: "running", url: "https://untrusted.example/ignore", workflows: { total_count: 21, truncated: true,
+      items: [{ id: 7, name: "<script>workflow</script>", status: "running", completed_steps: 1, total_steps: 3, current_step: "<unsafe>" }] },
+  } } } };
+  const html = renderToStaticMarkup(React.createElement(TaskDetail, { selected: job.job_id, detail, tab: "progress" }));
+  for (const expected of ["Woodpecker CI 进度", "pipeline #42", "停止观察", "工作流观察", "已结束 1 / 3 个步骤",
+    "&lt;script&gt;workflow&lt;/script&gt;", "&lt;unsafe&gt;", 'href="https://ci.example.test/repos/1/pipeline/42"', "连接中断", "共 21 个"]) {
+    assert.ok(html.includes(expected), expected);
+  }
+  for (const absent of ["<script>", "untrusted.example", "hidden-credential-path", "停止任务</button>"]) assert.ok(!html.includes(absent));
+  const output = renderToStaticMarkup(React.createElement(TaskDetail, { selected: job.job_id, detail, tab: "output", streamName: "stdout" }));
+  assert.ok(output.includes("此观察任务不提供终端日志"));
+  const form = renderToStaticMarkup(React.createElement(RuleForm, { externalKind: "woodpecker" }));
+  assert.ok(form.includes('value="elapsed"'));
+  for (const kind of ["contains", "no_output", "progress", "remote_alert"]) assert.ok(!form.includes(`value="${kind}"`));
+  assert.ok(command(job).includes("Woodpecker owner/repo"));
+});
+
 const header = (props = {}) => renderToStaticMarkup(React.createElement(PageHeader, {
   page: "tasks", connection: "connected", ...props,
 }));

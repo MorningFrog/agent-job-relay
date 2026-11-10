@@ -542,6 +542,7 @@ pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
             value["goal_waits"] = store.read(|db|Ok(json!({"pending":db.query_row("SELECT count(*) FROM goal_waits WHERE status IN ('prepared','sealed','pausing','waiting','resuming')",[],|r|r.get::<_,i64>(0))?,"attention":db.query_row("SELECT count(*) FROM goal_waits WHERE status='attention'",[],|r|r.get::<_,i64>(0))?}))).await?;
             value["remote_execution"] = json!(true);
             value["github_actions_observation"] = json!(true);
+            value["woodpecker_observation"] = json!(true);
             let mut ui = store
                 .web_info
                 .lock()

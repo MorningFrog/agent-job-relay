@@ -1,6 +1,7 @@
 import React from "react";
 import { ActionsProgress } from "./ActionsProgress.jsx";
-import { date } from "../view.js";
+import { WoodpeckerProgress } from "./WoodpeckerProgress.jsx";
+import { date, isWorkflow } from "../view.js";
 
 export function TaskProgress({ detail }) {
   const job = detail.job, external = detail.observation?.external;
@@ -8,8 +9,10 @@ export function TaskProgress({ detail }) {
   return <div className="progress-view">
     {job.command?.kind === "github_actions" && <ActionsProgress
       spec={job.command.workflow} workflow={external?.workflow} stale={external?.evidence_stale} />}
+    {job.command?.kind === "woodpecker" && <WoodpeckerProgress
+      spec={job.command.pipeline} pipeline={external?.pipeline} stale={external?.evidence_stale} />}
     {external && <section className="job-summary">
-      <strong>{external.mode === "github_actions" ? "工作流观察" : "远程任务"}</strong>
+      <strong>{isWorkflow(external.mode) ? "工作流观察" : "远程任务"}</strong>
       <p className="execution-detail">连接：{external.connection} · 最近成功 {date(external.last_success_at)}</p>
       {external.run && <p className="execution-detail mono">远端运行 {external.run.run_id} · attempt {external.run.attempt} · {external.status || "待核实"}</p>}
       {!external.can_stop && <p className="execution-detail">仅观察：停止观察不会取消远端运行。</p>}

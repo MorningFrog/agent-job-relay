@@ -70,7 +70,7 @@ export function RuleForm({ existing, preset, close, save, busy, externalKind }) 
           <select value={kind} onChange={(e) => { setKind(e.target.value); if (e.target.value === "remote_alert") setAction("alert"); }}>
             {externalKind === "remote" && <option value="remote_alert">远端运行器告警</option>}
             {!externalKind && <option value="no_output">连续无输出</option>}
-            {externalKind !== "github_actions" && (
+            {(!externalKind || externalKind === "remote") && (
               <option value="contains">输出包含文本</option>
             )}
             <option value="elapsed">总运行时间超过</option>
