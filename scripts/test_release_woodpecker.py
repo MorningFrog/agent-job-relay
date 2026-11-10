@@ -97,7 +97,10 @@ class PreparationTests(unittest.TestCase):
                        {'repo_id': 2}, {'created': 1700000001}, {'commit': 'b' * 40}, {'branch': 'feature'}]:
             with self.subTest(change=change), self.assertRaises((ValueError, RuntimeError)):
                 release.verify_prepared(self.destination, {**self.pipeline, **change}, self.workflows, self.root, server='https://ci.example.test')
-        for workflows in [self.workflows[:-1], [{**w, 'state': 'pending'} for w in self.workflows]]:
+        internal = [{**w, 'name': '_' + w['name']} for w in self.workflows]
+        self.assertEqual(release.verify_prepared(self.destination,self.pipeline,internal,self.root,server='https://ci.example.test'),candidate)
+        for workflows in [self.workflows[:-1], [{**w, 'state': 'pending'} for w in self.workflows],
+                          [self.workflows[0], *internal[1:]], [*internal,internal[0]]]:
             with self.assertRaises((ValueError, RuntimeError)): release.verify_prepared(self.destination, self.pipeline, workflows, self.root, server='https://ci.example.test')
         with self.assertRaises((ValueError, RuntimeError)):
             metadata.validate_promotion(self.destination, self.fixture.run, release.REPOSITORY, 'a' * 40, '123', self.root)

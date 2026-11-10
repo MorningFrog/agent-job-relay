@@ -1,5 +1,5 @@
 #!/bin/sh
-# Account-free Linux CI. Run inside the image in .woodpecker/linux.yaml.
+# Account-free Linux CI. Run inside the image in .woodpecker/_ci-linux.yaml.
 set -eu
 cd "$(dirname "$0")/.."
 

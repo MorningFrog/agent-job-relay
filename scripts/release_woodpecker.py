@@ -203,7 +203,10 @@ def verify_prepared(directory, pipeline, workflows, root=REPO, *, server):
             str(pipeline['number']) == run['pipeline'] and str(pipeline['created']) == run['created'] and
             str(pipeline['repo_id']) == run['repo_id'] and pipeline['commit'] == run['commit'] and
             pipeline['branch'] == context['branch'], 'Candidate lacks exact successful manual Server execution')
-    require({w['name'] for w in workflows} == WORKFLOWS and all(w['state'] == 'success' for w in workflows),
+    # Existing seals retain their original producer roles and exact run names.
+    # New filenames distinguish internal steps; a mixed or incomplete graph is refused.
+    require({w['name'] for w in workflows} in (WORKFLOWS, {'_' + name for name in WORKFLOWS}) and
+            len(workflows) == len(WORKFLOWS) and all(w['state'] == 'success' for w in workflows),
             'All six preparation workflows must succeed; a seal alone is not acceptance')
     return candidate
 
