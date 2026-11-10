@@ -1019,14 +1019,18 @@ mod tests {
                 .await
                 .unwrap();
         }
-        let native_maintenance = cfg!(any(target_os = "linux", target_os = "windows"));
+        let native_maintenance = cfg!(any(
+            target_os = "linux",
+            target_os = "macos",
+            target_os = "windows"
+        ));
         let result = store.maintain(true).await;
         if native_maintenance {
             assert_eq!(result.unwrap()["archive"]["archived"], 1);
         } else {
             // Archival is portable, but publishing the automatic backup is not.
             assert!(result.unwrap_err().to_string().contains(
-                "atomic new data-directory publication is supported only on Linux and Windows"
+                "atomic new data-directory publication is supported only on Linux, Windows and macOS"
             ));
             assert_eq!(store.data_status().await.unwrap()["archived_jobs"], 1);
         }
@@ -1045,7 +1049,7 @@ mod tests {
         let backup = store.backup().await;
         if !native_maintenance {
             assert!(backup.unwrap_err().to_string().contains(
-                "atomic new data-directory publication is supported only on Linux and Windows"
+                "atomic new data-directory publication is supported only on Linux, Windows and macOS"
             ));
             assert!(
                 store.data_status().await.unwrap()["backups"]

@@ -15,6 +15,7 @@ Choose the task you need below. Installation, everyday operation, maintenance an
 | Install published CLI or ChatGPT Desktop/Codex/OpenCode plugin / 安装已发布版本 | [Installation](installation.md) |
 | Build and install a native local plugin / 从源码安装本地插件 | [Source walkthrough](source-install.md) · [中文教程](source-install.zh-CN.md) |
 | Use Windows, check startup or binding permissions / Windows 安装、启动和权限 | [Windows guide](windows.md) |
+| Cross-build experimental macOS ARM64 source without tests / 交叉构建未测试的 macOS ARM64 开发版 | [macOS ARM64 development](macos-arm64.md) |
 | Develop or qualify OpenCode/Claude adapters / 接入和验证其他宿主 | [Host plugins](host-plugins.md) |
 
 ## Capabilities and support / 功能与支持

@@ -29,6 +29,7 @@ If a gate fails, synchronized version edits remain and notes stay pending. Fix t
 | `finalize_release.py` | Local version synchronization, delivery gates and CHANGELOG finalization |
 | `release_metadata.py` | Shared version/pin planning and validation, notes, checksums and immutable candidate identity; imported module |
 | `prepare_release.py` | Package already-built native bytes into npm/marketplace candidates; `--allow-unreleased` produces development-only artifacts |
+| `build_macos_arm64.py` | Linux/osxcross ARM Mac build or type-check, with no tests/target execution; requires a user-supplied SDK/toolchain and emits an explicitly untested development descriptor; [guide](../docs/macos-arm64.md) |
 | `release_woodpecker.py`, `release_artifacts.mjs` | Manual-only source/run fences, compatibility evidence, separate-role transfer and post-installation preparation seals; rehearsal stays development-only, no publication |
 | `release_windows.ps1`, `check_release_compatibility.sh` | Native Windows preparation wrapper and exact-byte glibc 2.34 startup/SQLite smoke check |
 | `test_release_woodpecker.py`, `test_release_artifacts.mjs` | Preparation identity, original-byte seals, development isolation and failed/incomplete-run refusal |

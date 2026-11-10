@@ -23,6 +23,8 @@ fn file_timestamp_cacheable(seconds: i64, nanos: i64) -> bool {
 mod unix;
 #[cfg(unix)]
 pub use unix::*;
+#[cfg(target_os = "macos")]
+mod macos;
 #[cfg(windows)]
 mod windows;
 #[cfg(windows)]
@@ -128,9 +130,13 @@ pub fn normalized_path(path: std::path::PathBuf) -> std::path::PathBuf {
     path
 }
 pub fn require_runtime() -> Result<()> {
-    if !cfg!(any(target_os = "linux", windows)) {
+    if !cfg!(any(
+        target_os = "linux",
+        windows,
+        all(target_os = "macos", target_arch = "aarch64")
+    )) {
         bail!(
-            "background runtime requires Linux or Windows; native IPC/identity/security adapters are not verified on this OS"
+            "background runtime requires Linux, Windows or experimental macOS ARM64; this OS/architecture has no native runtime adapter"
         );
     }
     Ok(())
@@ -151,7 +157,9 @@ pub fn self_image() -> Result<std::path::PathBuf> {
     require_runtime()?;
     #[cfg(windows)]
     return Ok(std::env::current_exe()?);
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    return macos::self_image();
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         let path = std::path::PathBuf::from("/proc/self/exe");
         anyhow::ensure!(
@@ -186,6 +194,10 @@ impl GroupGuard {
     }
     pub fn signal(&self, signal: i32) -> Result<()> {
         signal_group(self.pid, signal)
+    }
+    #[cfg(target_os = "macos")]
+    pub fn is_empty(&self) -> Result<bool> {
+        macos::group_is_empty(self.pid)
     }
 }
 #[cfg(not(windows))]
@@ -234,8 +246,18 @@ pub fn validate_local_endpoint(path: &Path) -> Result<()> {
     validate_endpoint(path)
 }
 pub fn sync_directory(path: &Path) -> Result<()> {
-    #[cfg(not(windows))]
+    #[cfg(not(any(windows, target_os = "macos")))]
     std::fs::File::open(path)?.sync_all()?;
+    #[cfg(target_os = "macos")]
+    {
+        use std::os::fd::AsRawFd;
+        let file = std::fs::File::open(path)?;
+        // Darwin File::sync_all uses F_FULLFSYNC, which is for regular files.
+        // Directory entries use fsync; do not silently ignore an error.
+        if unsafe { libc::fsync(file.as_raw_fd()) } != 0 {
+            return Err(std::io::Error::last_os_error().into());
+        }
+    }
     // Windows has no directory fsync. File publication uses write-through rename.
     #[cfg(windows)]
     let _ = path;
@@ -285,10 +307,14 @@ pub fn publish_new_directory(source: &Path, destination: &Path) -> Result<()> {
     {
         rename_directory(source, destination)
     }
-    #[cfg(not(any(target_os = "linux", windows)))]
+    #[cfg(target_os = "macos")]
+    {
+        macos::publish_new_directory(source, destination)
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
     {
         let _ = (source, destination);
-        bail!("atomic new data-directory publication is supported only on Linux and Windows")
+        bail!("atomic new data-directory publication is supported only on Linux, Windows and macOS")
     }
 }
 pub const NATIVE_FILE: &str = if cfg!(windows) {
@@ -326,12 +352,14 @@ pub fn open_browser(url: &str) -> Result<()> {
     let mut command = std::process::Command::new("xdg-open");
     #[cfg(windows)]
     let mut command = std::process::Command::new("explorer.exe");
-    #[cfg(not(any(target_os = "linux", windows)))]
+    #[cfg(target_os = "macos")]
+    let mut command = std::process::Command::new("/usr/bin/open");
+    #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
     {
         let _ = url;
         anyhow::bail!("browser opening is unsupported on this platform");
     }
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     {
         command
             .arg(url)

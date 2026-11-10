@@ -6,6 +6,8 @@
 
 **CI/CD migration:** GitHub Actions execution is unavailable in the maintainer environment. [Woodpecker CI](ci.md) runs automatic Linux/Windows checks and explicit manual candidate preparation. The default publisher uses shared official local CLI authentication, maintainer npm 2FA and separately confirmed GitHub finalization; the complete 0.1.24 route is accepted below. Publication is orchestrated by the Web UI release workflow and deployment-side coordinator; the six obsolete individual CI publication workflows have been removed. Existing Actions candidates/receipts retain their original format.
 
+Experimental macOS ARM64 cross-build inputs are accepted only by the [development packaging path](macos-arm64.md), with `--allow-unreleased` and an explicit untested descriptor. They are not added to the formal preparation graph or published support matrix.
+
 ## Current release handoff
 
 **0.1.24 is public on npm and [GitHub](https://github.com/MorningFrog/agent-job-relay/releases/tag/v0.1.24).** Both npm latest tags select 0.1.24; complete public tarballs match original formal Woodpecker candidate #42. GitHub v0.1.24 is public/latest and its Tag targets source `baf9a7b18a219e298354f52330c2aebbc354538d`; all eight original assets and one truthful local maintainer receipt match. One independent read-only check passed public versions/channels/bytes, Tag/Release/assets/receipt and isolated credential-free npm installation, native version and OpenCode module import on Linux. Preserve this version's original notes/source/bytes and receipts, regardless of later verification outcomes.

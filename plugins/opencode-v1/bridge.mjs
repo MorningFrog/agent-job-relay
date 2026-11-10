@@ -7,7 +7,9 @@ import { randomUUID, createHash } from "node:crypto";
 const exec = promisify(execFile);
 
 export async function createBridge({ client, executable, stateDir, directory }) {
-  if (!["linux", "win32"].includes(process.platform)) throw new Error("AgentJobRelay requires a verified Linux or Windows runtime");
+  if (!["linux", "win32"].includes(process.platform) && !(process.platform === "darwin" && process.arch === "arm64")) {
+    throw new Error("AgentJobRelay requires Linux, Windows or an experimental macOS ARM64 development runtime");
+  }
   if (![executable, stateDir, directory].every((p) => typeof p === "string" && isAbsolute(p))) {
     throw new Error("Configure absolute executable and stateDir options once; OpenCode must provide an absolute directory");
   }

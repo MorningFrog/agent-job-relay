@@ -51,6 +51,7 @@ See [data maintenance](data-maintenance.md), [updating](updating.md) and [uninst
 | Codex CLI | Tools and notification inbox | No automatic model continuation |
 | OpenCode V1 | Experimental npm plugin using actual caller context and the public session API | Actual loader/MCP/agent loop with a simulated model; real-provider and restart-recovery qualification remain open |
 | Claude Code | Inbox-only source scaffold | Synthetic caller/MCP checks; actual loader/account/model verification needs community help |
-| macOS / ARM | No native runtime support | Portable compilation does not establish execution support |
+| macOS ARM64 development source | Experimental native adapter and Linux/osxcross development-package entry | Untested; target compilation awaits SDK/toolchain, no native/host acceptance or published package; [limits](macos-arm64.md) |
+| Intel macOS / other ARM platforms | No native runtime support | Portable compilation does not establish execution support |
 
 Online distribution uses npm and a self-hosted marketplace. Official-directory approval is separate; independent OS installers/package repositories are cancelled. Published and source versions may differ: [implementation status](IMPLEMENTATION_STATUS.md) records the current baseline, [live evidence](live-e2e.md) records real-host acceptance, and [TODO](TODO.md) tracks remaining work. Detailed operational limits are in [limitations](limitations.md) and [security](security.md).
