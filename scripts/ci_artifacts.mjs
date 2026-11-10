@@ -10,6 +10,20 @@ import { isDeepStrictEqual } from 'node:util';
 const MAGIC = Buffer.from('AJRCI001');
 export const MAX_BUNDLE = 256 * 1024 * 1024;
 const PRODUCERS = { 'linux-native': 'linux', 'windows-native': 'windows', 'windows-packages': 'package-windows-test', 'windows-diagnostics': 'windows-packages' };
+// Physical workflow names are separate from stable artifact producer roles.
+const WORKFLOW_ROLES = {
+  '_ci-linux': 'linux',
+  '_ci-windows': 'windows',
+  '_ci-package-windows-test': 'package-windows-test',
+  '_ci-windows-packages': 'windows-packages',
+  '_release-preflight': 'release-preflight',
+  '_release-linux': 'release-linux',
+  '_release-windows': 'release-windows',
+  '_release-package': 'release-package',
+  '_release-windows-packages': 'release-windows-packages',
+  '_release-seal': 'release-seal',
+};
+export function workflowRole(name) { return Object.hasOwn(WORKFLOW_ROLES,name) ? WORKFLOW_ROLES[name] : name; }
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 function requireValue(value, message) { if (!value) throw new Error(message); }
@@ -160,7 +174,7 @@ async function main() {
   requireValue(!git(['status', '--porcelain', '--untracked-files=no']), 'CI artifacts require unchanged tracked source');
   requireValue(Object.hasOwn(PRODUCERS, kind), 'Unknown CI artifact kind');
   if (operation === 'upload') {
-    requireValue(process.env.CI_WORKFLOW_NAME === PRODUCERS[kind], 'Unexpected artifact producer workflow');
+    requireValue(workflowRole(process.env.CI_WORKFLOW_NAME) === PRODUCERS[kind], 'Unexpected artifact producer workflow');
     let files;
     if (kind === 'linux-native') files = readFiles(join(root, 'target/release'), ['agent-job-relay']);
     else if (kind === 'windows-native') files = { ...readFiles(join(root, 'target/release'), ['agent-job-relay.exe']), ...readFiles(join(root, 'target'), ['windows-native.json']) };
@@ -180,7 +194,7 @@ async function main() {
     await uploadBundle(run, kind, files);
     console.log('Stored immutable CI ' + kind + ' for pipeline ' + run.pipeline);
   } else if (operation === 'download') {
-    requireValue(['package-windows-test', 'windows-packages'].includes(process.env.CI_WORKFLOW_NAME), 'Unexpected artifact consumer workflow');
+    requireValue(['package-windows-test', 'windows-packages'].includes(workflowRole(process.env.CI_WORKFLOW_NAME)), 'Unexpected artifact consumer workflow');
     const destinations = { 'linux-native': '.tmp/ci-linux-native', 'windows-native': '.tmp/ci-windows-native', 'windows-packages': '.tmp/release-candidate' };
     requireValue(Object.hasOwn(destinations, kind), 'Unsupported CI download');
     mkdirSync(join(root, '.tmp'), { recursive: true });

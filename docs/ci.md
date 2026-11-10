@@ -4,7 +4,7 @@
 
 ## Linux verification
 
-`.woodpecker/linux.yaml` selects a dedicated `linux/amd64` Docker Agent with `cache=ajr-linux-v1` for pushes to `main`, pull requests and manual pipelines. Feature-branch pushes are verified through their PR or a manual run, avoiding duplicate Push/PR jobs on the single-worker cache. It fixes the workspace at `/woodpecker/src`, matching local reproduction and keeping fixture Unix sockets within the OS path limit. `scripts/ci_linux.sh` supplies the same commands for local reproduction. The workflow requests no publication credentials, host mounts, Docker socket or privileged steps. The administrator supplies one project-only cache volume through the dedicated Agent. Fork PRs should retain the server's approval requirement.
+`.woodpecker/_ci-linux.yaml` selects a dedicated `linux/amd64` Docker Agent with `cache=ajr-linux-v1` for pushes to `main`, pull requests and manual pipelines. Feature-branch pushes are verified through their PR or a manual run, avoiding duplicate Push/PR jobs on the single-worker cache. It fixes the workspace at `/woodpecker/src`, matching local reproduction and keeping fixture Unix sockets within the OS path limit. `scripts/ci_linux.sh` supplies the same commands for local reproduction. The workflow requests no publication credentials, host mounts, Docker socket or privileged steps. The administrator supplies one project-only cache volume through the dedicated Agent. Fork PRs should retain the server's approval requirement.
 
 The Node 24.21.0 Debian Bookworm image is pinned by digest. Its Python 3.11, Git, C compiler and binutils support the existing release/package fixtures. Rust 1.99.1 is the pinned stable verification toolchain; Rust 1.89.0 independently checks the declared minimum. Update pins deliberately and revalidate the workflow when upgrading.
 
@@ -26,7 +26,7 @@ Generated fixture state remains in the disposable `.tmp/`, `web/node_modules/` a
 
 ## Windows native verification
 
-`.woodpecker/windows.yaml` selects the dedicated `windows/amd64` Local-backend Worker with `worker=ajr-win`. Its events match Linux: main Push, pull request and manual, excluding Tags and duplicate feature-branch Push runs. `image: pwsh` selects PowerShell 7 on this backend. The deployed Worker runs as LocalService with capacity **1**, isolated workflow home directories and no publication credentials. Local backend code runs directly with that account's permissions; labels and directories do not isolate mutually untrusted repositories. Keep fork approval enabled.
+`.woodpecker/_ci-windows.yaml` selects the dedicated `windows/amd64` Local-backend Worker with `worker=ajr-win`. Its events match Linux: main Push, pull request and manual, excluding Tags and duplicate feature-branch Push runs. `image: pwsh` selects PowerShell 7 on this backend. The deployed Worker runs as LocalService with capacity **1**, isolated workflow home directories and no publication credentials. Local backend code runs directly with that account's permissions; labels and directories do not isolate mutually untrusted repositories. Keep fork approval enabled.
 
 `scripts/ci_windows.ps1` validates Node 24 and Rust **1.99.1** with rustfmt/Clippy, discovers the installed Visual Studio C++ x64 tools through `vswhere`, and imports the compiler environment into the current process. It changes no machine-wide PATH or toolchain installation. The administrator must provision these tools, Git and clone plugin **2.12.1** before running the Agent; the Local backend uses that installed plugin executable. Clone disables partial fetching and unused Git LFS because the private MinGit distribution has no LFS executable and this repository has no LFS objects. If LFS is introduced, provision Git LFS and reenable its checkout deliberately. Minimum-Rust compilation remains a separate Linux gate.
 
@@ -81,7 +81,7 @@ After separately authorized service activation and push, inspect the Server pipe
 
 ## Main-branch protection
 
-Changes to main require a pull request against the latest main and all four successful checks: `ci/woodpecker/pr/linux`, `ci/woodpecker/pr/windows`, `ci/woodpecker/pr/package-windows-test` and `ci/woodpecker/pr/windows-packages`. No administrator bypass is configured. Use a branch/PR for subsequent source, CI and release-preparation edits; do not push those changes directly to main. After merging, verify the main Push pipeline independently. See [current verification](IMPLEMENTATION_STATUS.md).
+Changes to main require a pull request against the latest main and all four successful checks: `ci/woodpecker/pr/_ci-linux`, `ci/woodpecker/pr/_ci-windows`, `ci/woodpecker/pr/_ci-package-windows-test` and `ci/woodpecker/pr/_ci-windows-packages`. No administrator bypass is configured. Use a branch/PR for subsequent source, CI and release-preparation edits; do not push those changes directly to main. After merging, verify the main Push pipeline independently. See [current verification](IMPLEMENTATION_STATUS.md).
 
 ## Migration boundary
 

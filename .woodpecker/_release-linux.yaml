@@ -8,7 +8,7 @@ workspace:
   base: /woodpecker
   path: src
 
-depends_on: [release-preflight]
+depends_on: [_release-preflight]
 
 when:
   - event: manual

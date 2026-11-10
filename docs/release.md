@@ -4,7 +4,7 @@
 
 **Only maintainers publish, and every release starts manually.** Pushes, PRs, tags and Release events never publish. Versions come from Cargo.toml; package/plugin pins must match, and CHANGELOG supplies the reviewed notes. Publication always reuses the sealed candidate bytes. See [CONTRIBUTING.md](../CONTRIBUTING.md).
 
-**CI/CD migration:** GitHub Actions execution is unavailable in the maintainer environment. [Woodpecker CI](ci.md) runs automatic Linux/Windows checks and explicit manual candidate preparation. The default publisher uses shared official local CLI authentication, maintainer npm 2FA and separately confirmed GitHub finalization; the complete 0.1.24 route is accepted below. Publication is orchestrated by the deployment-side Run Release panel; the six obsolete individual CI publication workflows have been removed. Existing Actions candidates/receipts retain their original format.
+**CI/CD migration:** GitHub Actions execution is unavailable in the maintainer environment. [Woodpecker CI](ci.md) runs automatic Linux/Windows checks and explicit manual candidate preparation. The default publisher uses shared official local CLI authentication, maintainer npm 2FA and separately confirmed GitHub finalization; the complete 0.1.24 route is accepted below. Publication is orchestrated by the Web UI release workflow and deployment-side coordinator; the six obsolete individual CI publication workflows have been removed. Existing Actions candidates/receipts retain their original format.
 
 ## Current release handoff
 
@@ -16,7 +16,7 @@ Preserve every published version's notes, dates, tags, candidate bytes and recei
 
 ## Start a release
 
-Open the repository in **Woodpecker Web UI → New pipeline**, choose branch **main** and workflow **release**, add optional Variables below, then click Run. Select `release` explicitly, not All workflows. No desktop launcher, command or account token is required to start it.
+Open the repository in **Woodpecker Web UI → New pipeline**, choose branch **main** and workflow **release**, fill the automatically displayed Release parameters, then click Run. Select `release` explicitly; internal `_ci-*` / `_release-*` workflows are available through Show internal workflows. The form provides safe mode/channel defaults and labeled candidate/recovery inputs; no variable names, desktop launcher, command or account token need entering. Advanced native variables remain available.
 
 | Variable | Default / meaning |
 |---|---|
@@ -24,6 +24,8 @@ Open the repository in **Woodpecker Web UI → New pipeline**, choose branch **m
 | `RELEASE_CANDIDATE` | Empty prepares the finalized unused version; an original successful preparation number reuses its exact bytes |
 | `RELEASE_CHANNEL` | `latest` or `next`, only for a new candidate; an existing seal determines its own channel |
 | `RELEASE_RESUME` | Optional original **release parent pipeline** number to resume the same local task/candidate/channel; retain its original dry-run choice |
+
+The physical helper names are distinct from the immutable artifact producer/seal roles. Original candidates keep their old exact graph; new preparations use the exact `_release-*` graph.
 
 The single `release-all` step shows phase, original candidate and final success/failure. It prepares or reuses, inspects original Server success/bytes, previews, then (only for non-dry-run) stages, waits for maintainer npm approval, finalizes GitHub and independently verifies public bytes/installation. Login/2FA opens explicit official prompts on the deployment host's active desktop; no commands or stage IDs need copying. Account sessions stay on that host and are not exported into CI. A missing desktop/login or a failed stage reports failure instead of pretending publication succeeded.
 
@@ -35,7 +37,7 @@ After interruption, start the same workflow with `RELEASE_RESUME=<original paren
 
 **Current acceptance:** Formal candidate #42 for source `baf9a7b` passes all six workflows, source availability, glibc 2.34, Linux/Windows native and installed-package checks, immutable sealing and independent original-run/byte inspection. Its exact bytes were published through the default local route and pass independent public checking. Old #28 remains development-only and is not promoted; no old rehearsal is rerun merely for merge, documentation or verification.
 
-The six `release-*.yaml` workflows run only for an explicitly requested manual `prepare` or `rehearse` task. Ordinary main Push/PR CI remains the four-check verification graph; a manual preparation does not queue that graph a second time. Source preflight precedes parallel native Linux/Windows checks, followed by dual-platform packaging/Linux installed-loader checks, actual Windows installed-package/loader checks, then sealing. No step publishes packages, tags or GitHub Releases.
+The six `_release-*.yaml` workflows run only for an explicitly requested manual `prepare` or `rehearse` task. Ordinary main Push/PR CI remains the four-check verification graph; a manual preparation does not queue that graph a second time. Source preflight precedes parallel native Linux/Windows checks, followed by dual-platform packaging/Linux installed-loader checks, actual Windows installed-package/loader checks, then sealing. No step publishes packages, tags or GitHub Releases.
 
 | Manual parameter | Required value |
 |---|---|
@@ -59,10 +61,10 @@ Release objects cannot enter the ordinary CI exchange, and CI credentials cannot
 After the reviewed implementation and administrator setup are enabled, start a rehearsal against the exact reviewed main/feature pipeline:
 
 ```bash
-woodpecker-cli pipeline create --branch <reviewed-branch> --workflow release-seal --var AJR_RELEASE_TASK=rehearse --var AJR_RELEASE_CHANNEL=next --var EXPECTED_RELEASE_REVISION=<full-reviewed-commit> <repo-id>
+woodpecker-cli pipeline create --branch <reviewed-branch> --workflow _release-seal --var AJR_RELEASE_TASK=rehearse --var AJR_RELEASE_CHANNEL=next --var EXPECTED_RELEASE_REVISION=<full-reviewed-commit> <repo-id>
 ```
 
-Use the reviewed branch itself; an existing PR ref is refused. `release-seal` includes all its hard dependencies. This command is a preparation request, not publication authorization. Inspect all six Server workflows and the immutable candidate. Restarting allocates a new run identity; never overwrite earlier objects. Existing preparation/inspection evidence does not need another rehearsal; formal candidate #42 and the default local account-backed publication are accepted.
+Use the reviewed branch itself; an existing PR ref is refused. `_release-seal` includes all its hard dependencies. This command is a preparation request, not publication authorization. Inspect all six Server workflows and the immutable candidate. Restarting allocates a new run identity; never overwrite earlier objects. Existing preparation/inspection evidence does not need another rehearsal; formal candidate #42 and the default local account-backed publication are accepted.
 
 For focused local checks, run the preparation/protocol tests and lint once; native delivery gates are defined in AGENTS.md. Local CLI execution needs an explicit metadata file containing repository owner/name/id, plus explicit `--system-name woodpecker --system-url <fixture-origin>` when that file lacks system metadata. Do not falsify provider variables in production or treat fixture results as a successful Server run.
 

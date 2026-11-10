@@ -7,7 +7,7 @@ workspace:
   base: /woodpecker
   path: src
 
-depends_on: [linux, windows]
+depends_on: [_ci-linux, _ci-windows]
 
 when:
   - event: push

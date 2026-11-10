@@ -10,7 +10,7 @@ clone:
       lfs: false
       partial: false
 
-depends_on: [package-windows-test]
+depends_on: [_ci-package-windows-test]
 
 when:
   - event: push

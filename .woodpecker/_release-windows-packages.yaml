@@ -11,14 +11,14 @@ clone:
       lfs: false
       partial: false
 
-depends_on: [release-preflight]
+depends_on: [_release-package]
 
 when:
   - event: manual
     evaluate: 'AJR_RELEASE_TASK == "prepare" || AJR_RELEASE_TASK == "rehearse"'
 
 steps:
-  - name: download-preflight
+  - name: download-exact-packages
     image: pwsh
     environment:
       AJR_RELEASE_ARTIFACT_ENDPOINT:
@@ -29,23 +29,14 @@ steps:
         from_secret: release_artifact_windows_token
     commands:
       - node scripts/release_artifacts.mjs download release-preflight
+      - node scripts/release_artifacts.mjs download release-packages
 
-  - name: toolchain
+  - name: installed-packages-and-hosts
     image: pwsh
     commands:
-      - ./scripts/release_windows.ps1 toolchain
+      - ./scripts/release_windows.ps1 packages
 
-  - name: frontend
-    image: pwsh
-    commands:
-      - ./scripts/release_windows.ps1 frontend
-
-  - name: native
-    image: pwsh
-    commands:
-      - ./scripts/release_windows.ps1 native
-
-  - name: upload-native
+  - name: upload-report
     image: pwsh
     environment:
       AJR_RELEASE_ARTIFACT_ENDPOINT:
@@ -55,5 +46,19 @@ steps:
       AJR_RELEASE_ARTIFACT_TOKEN:
         from_secret: release_artifact_windows_token
     commands:
-      - node scripts/release_artifacts.mjs upload release-windows-native
+      - node scripts/release_artifacts.mjs upload release-windows-report
+
+  - name: failure-report
+    image: pwsh
+    environment:
+      AJR_RELEASE_ARTIFACT_ENDPOINT:
+        from_secret: release_artifact_endpoint
+      AJR_RELEASE_ARTIFACT_CA:
+        from_secret: release_artifact_ca
+      AJR_RELEASE_ARTIFACT_TOKEN:
+        from_secret: release_artifact_windows_token
+    commands:
+      - node scripts/release_artifacts.mjs upload release-diagnostics
+    when:
+      - status: failure
 

@@ -5,7 +5,7 @@ import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync,
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
-import { identity, packBundle, inspectBundle, extractBundle, transfer, MAX_BUNDLE } from './ci_artifacts.mjs';
+import { identity, workflowRole, packBundle, inspectBundle, extractBundle, transfer, MAX_BUNDLE } from './ci_artifacts.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const PRODUCERS = {
@@ -103,7 +103,7 @@ async function main() {
   const git = args => execFileSync('git', ['-c', 'safe.directory=' + root, ...args], { cwd: root, encoding: 'utf8' }).trim();
   check(git(['rev-parse', 'HEAD']) === context.run.commit && !git(['status', '--porcelain', '--untracked-files=no']), 'Unchanged exact checkout required');
   if (operation === 'guard') return;
-  const workflow = process.env.CI_WORKFLOW_NAME;
+  const workflow = workflowRole(process.env.CI_WORKFLOW_NAME);
   if (operation === 'download') {
     check(consumers[kind]?.includes(workflow), 'Unexpected release consumer');
     const bytes = await transfer(context.run, kind, undefined, 'AJR_RELEASE');

@@ -8,7 +8,7 @@ workspace:
   base: /woodpecker
   path: src
 
-depends_on: [release-windows-packages]
+depends_on: [_release-windows-packages]
 
 when:
   - event: manual
