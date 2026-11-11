@@ -839,7 +839,9 @@ mod tests {
 
     #[test]
     fn maintenance_lock_releases_while_an_inherited_descriptor_remains_open() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join(".tmp");
+        let root =
+            Path::new(&std::env::var_os("CARGO_MANIFEST_DIR").expect("Cargo test workspace"))
+                .join(".tmp");
         std::fs::create_dir_all(&root).unwrap();
         let temp = tempfile::tempdir_in(root).unwrap();
         let config = Config::new(Some(temp.path().join("state"))).unwrap();
@@ -858,7 +860,9 @@ mod tests {
 
     #[tokio::test]
     async fn backup_does_not_lock_append_only_prefixes_but_snapshots_recent_rings() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join(".tmp");
+        let root =
+            Path::new(&std::env::var_os("CARGO_MANIFEST_DIR").expect("Cargo test workspace"))
+                .join(".tmp");
         std::fs::create_dir_all(&root).unwrap();
         let temp = tempfile::tempdir_in(root).unwrap();
         let prefix = temp.path().join("stdout.log");

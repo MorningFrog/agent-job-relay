@@ -25,7 +25,10 @@ fn fixture() -> &'static Path {
         let result = Command::new("rustc")
             .arg("--edition=2024")
             .arg("--crate-name=windows_workload")
-            .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/windows-workload.rs"))
+            .arg(
+                Path::new(&std::env::var_os("CARGO_MANIFEST_DIR").expect("Cargo test workspace"))
+                    .join("tests/fixtures/windows-workload.rs"),
+            )
             .arg("-o")
             .arg(&path)
             .output()

@@ -680,8 +680,10 @@ while [ ! -f release ]; do sleep .05; done
             .register(registration("unrelated-chat"))
             .await
             .unwrap();
-        let checker =
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/progress_checker.py");
+        let checker = std::path::Path::new(
+            &std::env::var_os("CARGO_MANIFEST_DIR").expect("Cargo test workspace"),
+        )
+        .join("examples/progress_checker.py");
         let job = store
             .start(StartSpec {
                 title: None,

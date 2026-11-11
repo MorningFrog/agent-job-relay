@@ -409,7 +409,9 @@ mod tests {
     #[tokio::test]
     async fn search_spans_contiguous_segments_but_not_evicted_gaps_or_duplicate_pages() {
         crate::platform::initialize();
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join(".tmp");
+        let root =
+            Path::new(&std::env::var_os("CARGO_MANIFEST_DIR").expect("Cargo test workspace"))
+                .join(".tmp");
         std::fs::create_dir_all(&root).unwrap();
         let temp = tempfile::tempdir_in(root).unwrap();
         let config = crate::config::Config::new(Some(temp.path().join("state"))).unwrap();
@@ -492,7 +494,9 @@ mod tests {
     }
     #[tokio::test]
     async fn interrupted_slot_replacement_is_a_gap_and_corruption_is_never_returned() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join(".tmp");
+        let root =
+            Path::new(&std::env::var_os("CARGO_MANIFEST_DIR").expect("Cargo test workspace"))
+                .join(".tmp");
         std::fs::create_dir_all(&root).unwrap();
         let temp = tempfile::tempdir_in(root).unwrap();
         let path = temp.path().join("stdout.recent");

@@ -24,7 +24,12 @@ fn fixture() -> &'static Path {
                 .unwrap();
             let result = Command::new("rustc")
                 .args(["--edition=2024", "--crate-name", "legacy_fixture"])
-                .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/legacy-daemon.rs"))
+                .arg(
+                    Path::new(
+                        &std::env::var_os("CARGO_MANIFEST_DIR").expect("Cargo test workspace"),
+                    )
+                    .join("tests/fixtures/legacy-daemon.rs"),
+                )
                 .arg("-o")
                 .arg(dir.path().join("agent-job-relay"))
                 .output()

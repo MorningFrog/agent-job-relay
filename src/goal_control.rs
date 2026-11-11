@@ -401,7 +401,10 @@ fn parse_goal(value: Value, thread: &str) -> Result<Option<Goal>> {
 mod tests {
     #[test]
     fn cached_executable_digest_rejects_a_same_length_replacement() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(".tmp");
+        let root = std::path::Path::new(
+            &std::env::var_os("CARGO_MANIFEST_DIR").expect("Cargo test workspace"),
+        )
+        .join(".tmp");
         std::fs::create_dir_all(&root).unwrap();
         let temp = tempfile::Builder::new()
             .prefix("goal-image-")

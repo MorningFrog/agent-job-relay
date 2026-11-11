@@ -104,7 +104,10 @@ mod tests {
 
     async fn fixture() -> (tempfile::TempDir, Store, StartSpec) {
         crate::platform::initialize();
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(".tmp");
+        let root = std::path::Path::new(
+            &std::env::var_os("CARGO_MANIFEST_DIR").expect("Cargo test workspace"),
+        )
+        .join(".tmp");
         std::fs::create_dir_all(&root).unwrap();
         let dir = tempfile::tempdir_in(root).unwrap();
         let config = Config::new(Some(dir.path().join("state"))).unwrap();

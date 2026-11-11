@@ -19,8 +19,10 @@ fn fault_library() -> &'static std::path::Path {
         let result = Command::new("cc")
             .args(["-shared", "-fPIC", "-O2", "-Wall", "-Wextra", "-Werror"])
             .arg(
-                std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                    .join("tests/fixtures/storage-fault.c"),
+                std::path::Path::new(
+                    &std::env::var_os("CARGO_MANIFEST_DIR").expect("Cargo test workspace"),
+                )
+                .join("tests/fixtures/storage-fault.c"),
             )
             .args(["-ldl", "-o"])
             .arg(&library)
@@ -305,10 +307,12 @@ async fn native_soak_bounds_resources_and_survives_restarts_backup_and_restore()
         spec.command = CommandSpec::Exec {
             program: "python3".into(),
             args: vec![
-                std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                    .join("tests/fixtures/reliability-workload.py")
-                    .to_string_lossy()
-                    .into(),
+                std::path::Path::new(
+                    &std::env::var_os("CARGO_MANIFEST_DIR").expect("Cargo test workspace"),
+                )
+                .join("tests/fixtures/reliability-workload.py")
+                .to_string_lossy()
+                .into(),
                 burst.to_string(),
             ],
         };

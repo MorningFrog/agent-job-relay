@@ -5,7 +5,7 @@
 ### Changed
 
 - Reuse explicitly declared output-free frontend/native CI checks across trusted main CI and release preparation when the shared service verifies matching committed inputs, environment policy and successful original Server evidence; retain fresh builds, exact-byte validation, PR tests and execute-on-miss behavior.
-- Preserve content/mode-checked Windows compiler-input timestamps and stable embedded UI inputs across temporary checkouts, check help using the release binary, and run Linux/Windows package validation concurrently after an exact-run package producer while retaining all four required checks.
+- Preserve content/mode-checked Windows compiler-input timestamps, stable embedded UI inputs and runtime test-fixture paths across temporary checkouts, check help using the release binary, and run Linux/Windows package validation concurrently after an exact-run package producer while retaining all four required checks.
 - Replace the retained-MCP test's real 91-second human wait with a paused-clock active-timeout boundary check plus real short protocol round trips.
 
 ## [0.1.25] - 2026-11-11

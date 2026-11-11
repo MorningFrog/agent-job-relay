@@ -1129,7 +1129,9 @@ mod startup_tests {
     async fn interrupted_doctor_probe_waits_for_startup_lock_and_rechecks_the_peer() {
         use super::*;
 
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join(".tmp");
+        let root =
+            Path::new(&std::env::var_os("CARGO_MANIFEST_DIR").expect("Cargo test workspace"))
+                .join(".tmp");
         std::fs::create_dir_all(&root).unwrap();
         let dir = tempfile::Builder::new()
             .prefix("startup-probe-")

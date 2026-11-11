@@ -33,6 +33,7 @@ Read `PROJECT_SPEC.md`, `docs/architecture.md` and `docs/IMPLEMENTATION_STATUS.m
 
 - Add targeted tests only for meaningful behavior, correctness or regression risk. State-machine, recovery/delivery, process-tree, SQLite transaction and IPC-permission changes require behavioral coverage; reuse the existing Rust/fake-host infrastructure.
 - Avoid redundant, trivial or implementation-coupled tests. Do not test README wording, section order or specific text unless documentation itself is a product/interface under test. Keep tests of actual CLI/MCP/configuration behavior and preserve required cases, fixtures and reference data.
+- Resolve temporary test-workspace paths from Cargo's runtime environment rather than compiling checkout paths into cached test executables; include moved-checkout execution coverage when changing compiler-input restoration.
 - Keep generated test state, endpoints, outputs, reports and logs in ignored repository-local `.tmp/` or `target/`. Do not commit temporary or historical test artifacts; never clean real user or unrelated application state as test cleanup.
 - Document only concise results for the latest applicable version and material verification limits. Do not accumulate execution logs or historical test reports in documentation; past results remain in Git history.
 
