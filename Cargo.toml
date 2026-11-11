@@ -33,6 +33,7 @@ windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Globali
 
 [dev-dependencies]
 tempfile = "3"
+tokio = { version = "1.54", features = ["test-util"] }
 
 # Keep installed-debug fixtures below the same native payload budget as releases.
 [profile.dev]

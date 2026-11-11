@@ -381,7 +381,8 @@ async fn retained_mcp_and_cached_launcher_follow_verified_same_version_runtime_u
         notices, 2,
         "one catalog notification per runtime revision avoids reload loops"
     );
-    // Human input may take longer than the active 90-second RPC budget.
+    // Exercise the real question/answer transport. The paused-clock regression
+    // in mcp_runtime covers a 91-second wait across the 90-second active budget.
     input.write_all(format!("{}\n",json!({"jsonrpc":"2.0","id":40,"method":"tools/call","params":{"name":"job_goal_consent","arguments":{"question":true}}})).as_bytes()).await.unwrap();
     input.flush().await.unwrap();
     let question: Value = serde_json::from_str(
@@ -393,7 +394,7 @@ async fn retained_mcp_and_cached_launcher_follow_verified_same_version_runtime_u
     )
     .unwrap();
     assert_eq!(question["method"], "elicitation/create", "{question}");
-    tokio::time::sleep(Duration::from_secs(91)).await;
+    tokio::time::sleep(Duration::from_millis(50)).await;
     input.write_all(format!("{}\n",json!({"jsonrpc":"2.0","id":question["id"],"result":{"action":"accept","content":{"allow":true}}})).as_bytes()).await.unwrap();
     input.flush().await.unwrap();
     let answered: Value = serde_json::from_str(

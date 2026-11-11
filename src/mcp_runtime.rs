@@ -7,6 +7,19 @@ use serde_json::{Value, json};
 use std::{path::PathBuf, process::Stdio, time::Duration};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 
+/// Only active RPC time consumes this budget; native human input pauses it.
+struct ActiveDeadline(tokio::time::Instant);
+
+impl ActiveDeadline {
+    fn new(budget: Duration) -> Self {
+        Self(tokio::time::Instant::now() + budget)
+    }
+
+    fn exclude_since(&mut self, started: tokio::time::Instant) {
+        self.0 += started.elapsed();
+    }
+}
+
 pub(crate) struct Managed {
     root: PathBuf,
     state: PathBuf,
@@ -171,12 +184,12 @@ pub(crate) async fn exchange(
         let mut request=serde_json::to_vec(&json!({"jsonrpc":"2.0","id":2,"method":method,"params":params}))?;
         ensure!(request.len()<=131072,"managed MCP request exceeds 128 KiB");
         request.push(b'\n');input.write_all(&request).await?;input.flush().await?;
-        let mut deadline=tokio::time::Instant::now()+Duration::from_secs(90);
+        let mut deadline=ActiveDeadline::new(Duration::from_secs(90));
         let mut asked=false;
         let result=loop {
             let raw=tokio::select! {
                 _=context.ct.cancelled()=>anyhow::bail!("host cancelled current-runtime request; no replay was attempted"),
-                raw=tokio::time::timeout_at(deadline,frame(&mut output))=>raw??,
+                raw=tokio::time::timeout_at(deadline.0,frame(&mut output))=>raw??,
             };
             if raw.get("method").is_some() {
                 ensure!(!asked && method=="tools/call" && params["name"]=="job_goal_consent" && raw["method"]=="elicitation/create","unexpected worker request; no automatic replay");
@@ -187,7 +200,7 @@ pub(crate) async fn exchange(
                     _=context.ct.cancelled()=>anyhow::bail!("host cancelled native confirmation; no replay was attempted"),
                     answer=context.peer.create_elicitation_with_timeout(question,Some(Duration::from_secs(crate::goal_consent::QUESTION_SECONDS)))=>answer,
                 };
-                deadline+=started.elapsed();
+                deadline.exclude_since(started);
                 let answer=match answer {Ok(value)=>json!({"jsonrpc":"2.0","id":raw["id"],"result":value}),Err(_)=>json!({"jsonrpc":"2.0","id":raw["id"],"error":{"code":-32603,"message":"native question unavailable, cancelled or timed out"}})};
                 input.write_all(format!("{answer}\n").as_bytes()).await?;input.flush().await?;
                 continue;
@@ -200,6 +213,7 @@ pub(crate) async fn exchange(
         Ok(result)
     }).await.context("current MCP deadline exceeded; inspect original Job/Run IDs before retrying an uncertain submission")?
 }
+
 async fn frame<R: tokio::io::AsyncBufRead + Unpin>(reader: &mut R) -> Result<Value> {
     let mut raw = Vec::new();
     let n = reader.take(1048577).read_until(b'\n', &mut raw).await?;
@@ -239,4 +253,27 @@ async fn response<R: tokio::io::AsyncBufRead + Unpin>(reader: &mut R, id: u32) -
         }
     }
     anyhow::bail!("current MCP response correlation limit exceeded")
+}
+
+#[cfg(test)]
+mod deadline_tests {
+    use super::*;
+
+    #[tokio::test(start_paused = true)]
+    async fn human_wait_beyond_active_budget_preserves_only_remaining_rpc_time() {
+        let mut budget = ActiveDeadline::new(Duration::from_secs(90));
+        tokio::time::advance(Duration::from_secs(89)).await;
+        let question_started = tokio::time::Instant::now();
+        tokio::time::advance(Duration::from_secs(91)).await;
+        assert!(tokio::time::Instant::now() > budget.0);
+        budget.exclude_since(question_started);
+        assert_eq!(
+            budget.0 - tokio::time::Instant::now(),
+            Duration::from_secs(1)
+        );
+        tokio::time::advance(Duration::from_millis(999)).await;
+        assert!(tokio::time::Instant::now() < budget.0);
+        tokio::time::advance(Duration::from_millis(2)).await;
+        assert!(tokio::time::Instant::now() > budget.0);
+    }
 }
