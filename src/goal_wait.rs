@@ -714,6 +714,23 @@ pub async fn progress(store: &Store, id: &str) -> Result<()> {
                 }
                 Err(e) => return retry_read(store, &record, e).await,
             };
+            // The paused submitting/reporting turn can still persist its cached
+            // paused goal while settling usage. Restoring before that turn ends
+            // lets its final write overwrite our acknowledged restoration.
+            // Only the pinned owning host can establish runtime idleness; a
+            // separate controller's thread/read would report its own notLoaded.
+            match crate::adapters::desktop_idle(&session).await {
+                Ok(true) => {}
+                Ok(false) => {
+                    let id = record.id.clone();
+                    let revision = record.revision;
+                    return store.call(move |db| {
+                        db.execute("UPDATE goal_waits SET next_at=?,detail=? WHERE id=? AND revision=?", params![now()+1000,"waiting for the originating host turn to finish before goal restoration",id,revision])?;
+                        Ok(())
+                    }).await;
+                }
+                Err(error) => return retry_read(store, &record, error).await,
+            }
             let resumed = if let Some(selection) = &selection {
                 feedback::begin(store, &record, selection).await?
             } else {

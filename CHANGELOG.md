@@ -10,6 +10,7 @@
 
 ### Fixed
 
+- Defer Goal restoration and feedback/final notification until the original Desktop host reports that the paused submitting/reporting turn has ended. Preserve original results, delivery IDs, budgets and revision fences while busy or activity reads are unavailable; never infer idleness from a separate controller or replay uncertain restoration.
 - Wait for isolated OpenCode project bootstrap before package checks create sessions, separating global health from project readiness and preserving single-attempt session writes.
 
 ## [0.1.25] - 2026-11-11

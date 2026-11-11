@@ -26,6 +26,7 @@ struct Fixture {
     host: tokio::task::JoinHandle<()>,
     messages: std::sync::Arc<std::sync::Mutex<Vec<Value>>>,
     acknowledgements: std::sync::Arc<tokio::sync::Semaphore>,
+    activity: std::sync::Arc<std::sync::Mutex<Value>>,
 }
 struct OwnedDaemon(std::process::Child);
 impl std::ops::Deref for OwnedDaemon {
@@ -132,6 +133,12 @@ impl Fixture {
         let output = messages.clone();
         let acknowledgements = std::sync::Arc::new(tokio::sync::Semaphore::new(1));
         let host_acknowledgements = acknowledgements.clone();
+        let activity = std::sync::Arc::new(std::sync::Mutex::new(json!({
+            "schemaVersion":1,"thread":{"id":thread,"status":{"type":"idle"}},
+            "turns":[{"id":"original-turn","status":"completed"}]
+        })));
+        let host_activity = activity.clone();
+        let host_thread = thread.clone();
         let host = tokio::spawn(async move {
             loop {
                 let Ok((mut socket, _)) = listener.accept().await else {
@@ -139,15 +146,35 @@ impl Fixture {
                 };
                 let output = output.clone();
                 let acknowledgements = host_acknowledgements.clone();
+                let activity = host_activity.clone();
+                let thread = host_thread.clone();
                 tokio::spawn(async move {
                     let Ok(request) = ipc::read_frame(&mut socket, 65536).await else {
                         return;
                     };
-                    let response = json!({"jsonrpc":"2.0","id":request["id"],"result":{"tools":[{"namespace":"codex_app","name":"send_message_to_thread"}]}});
+                    let mut tools =
+                        vec![json!({"namespace":"codex_app","name":"send_message_to_thread"})];
+                    if activity.lock().unwrap()["omit_read_tool"] != true {
+                        tools.push(json!({"namespace":"codex_app","name":"read_thread"}));
+                    }
+                    let response =
+                        json!({"jsonrpc":"2.0","id":request["id"],"result":{"tools":tools}});
                     if ipc::write_frame(&mut socket, &response).await.is_err() {
                         return;
                     }
                     if let Ok(request) = ipc::read_frame(&mut socket, 65536).await {
+                        if request["params"]["tool"] == "read_thread" {
+                            let snapshot = activity.lock().unwrap().clone();
+                            assert_eq!(request["params"]["arguments"]["threadId"], thread);
+                            assert_eq!(request["params"]["arguments"]["turnLimit"], 1);
+                            assert_eq!(request["params"]["arguments"]["includeOutputs"], false);
+                            if snapshot["disconnect_read"] == true {
+                                return;
+                            }
+                            let response = json!({"jsonrpc":"2.0","id":request["id"],"result":{"success":snapshot["reject_read"] != true,"contentItems":[{"type":"text","text":snapshot.to_string()}]}});
+                            let _ = ipc::write_frame(&mut socket, &response).await;
+                            return;
+                        }
                         output.lock().unwrap().push(request.clone());
                         let _acknowledgement = acknowledgements.acquire().await.unwrap();
                         let _ = ipc::write_frame(
@@ -187,6 +214,7 @@ impl Fixture {
             host,
             messages,
             acknowledgements,
+            activity,
         }
     }
     async fn prepare(&self) -> String {
@@ -479,6 +507,13 @@ async fn feedback_cycles_restore_then_ack_native_repause_without_finishing_or_re
     let result = f.feedback_job(&wait, "feedback").await;
     let older = f.alert(&result).await;
     let selected = f.alert(&result).await;
+    f.activity.lock().unwrap()["thread"]["status"]["type"] = json!("active");
+    goal_wait::progress(&f.store, &wait).await.unwrap();
+    assert_eq!(f.state(&wait).await["status"], "waiting");
+    assert_eq!(f.state(&wait).await["feedback_count"], 0);
+    assert!(f.mutations().is_empty());
+    assert!(f.store.claim().await.unwrap().is_none());
+    f.activity.lock().unwrap()["thread"]["status"]["type"] = json!("idle");
     goal_wait::progress(&f.store, &wait).await.unwrap();
     let reporting = f.state(&wait).await;
     assert_eq!(reporting["status"], "resumed");
@@ -612,6 +647,105 @@ async fn final_completion_supersedes_unsent_feedback_through_the_actual_dispatch
 }
 
 #[tokio::test]
+async fn fast_failure_waits_for_the_originating_turn_to_finish_before_restoration() {
+    let f = Fixture::new().await;
+    f.activity.lock().unwrap()["thread"]["status"]["type"] = json!("active");
+    f.activity.lock().unwrap()["turns"][0]["status"] = json!("inProgress");
+    let wait = f.prepare().await;
+    let result = f.admit(&wait, "fast-failure").await;
+    f.store
+        .finish(
+            result["job"]["job_id"].as_str().unwrap().into(),
+            "failed",
+            Some(1),
+            None,
+            "finished before handoff".into(),
+        )
+        .await
+        .unwrap();
+    let confirmed = f.pause_and_confirm(&wait).await;
+    let pending = f.store.deliveries(None, 0, 20).await.unwrap();
+    for _ in 0..2 {
+        goal_wait::progress(&f.store, &wait).await.unwrap();
+        assert_eq!(f.state(&wait).await["status"], "waiting");
+        assert_eq!(f.state(&wait).await["revision"], confirmed["revision"]);
+        assert!(f.mutations().is_empty());
+        assert!(f.store.claim().await.unwrap().is_none());
+    }
+    // Reopening the persisted profile must retain the gate and original IDs.
+    let reopened = Store::new(f.store.config.clone());
+    goal_wait::progress(&reopened, &wait).await.unwrap();
+    assert!(f.mutations().is_empty());
+    let mut settled = f.controller.read().await.unwrap().unwrap();
+    settled.tokens_used += 29;
+    settled.time_used_seconds += 2;
+    settled.updated_at += 1;
+    f.write_goal(&settled);
+    f.activity.lock().unwrap()["thread"]["status"]["type"] = json!("idle");
+    f.activity.lock().unwrap()["turns"][0]["status"] = json!("failed");
+    goal_wait::progress(&reopened, &wait).await.unwrap();
+    assert_eq!(f.state(&wait).await["status"], "resumed");
+    let active = f.controller.read().await.unwrap().unwrap();
+    assert_eq!(active.status, "active");
+    assert_eq!(active.tokens_used, settled.tokens_used);
+    assert_eq!(active.time_used_seconds, settled.time_used_seconds);
+    assert_eq!(active.token_budget, settled.token_budget);
+    let claim = f.store.claim().await.unwrap().unwrap();
+    assert_eq!(claim.delivery.id, pending["deliveries"][0]["id"]);
+    assert_eq!(claim.event["goal_wait_phase"], "completion");
+    f.deliver(claim).await;
+    goal_wait::progress(&reopened, &wait).await.unwrap();
+    assert_eq!(f.mutations().len(), 1);
+    assert_eq!(f.messages.lock().unwrap().len(), 1);
+    assert_eq!(f.state(&wait).await["notification_accepted"], true);
+}
+
+#[tokio::test]
+async fn unavailable_or_inconsistent_host_activity_retains_the_original_wait_and_delivery() {
+    let f = Fixture::new().await;
+    let wait = f.prepare().await;
+    let result = f.submit(&wait, "activity-unavailable").await;
+    f.finish(&result).await;
+    let valid = f.activity.lock().unwrap().clone();
+    let original = f.state(&wait).await;
+    let pending = f.store.deliveries(None, 0, 20).await.unwrap();
+    for (field, value) in [
+        ("omit_read_tool", json!(true)),
+        ("reject_read", json!(true)),
+        ("disconnect_read", json!(true)),
+        ("schemaVersion", json!(2)),
+        ("thread", json!({"id":id(),"status":{"type":"idle"}})),
+        (
+            "thread",
+            json!({"id":f.controller.thread_id,"status":{"type":"unknown"}}),
+        ),
+        ("turns", Value::Null),
+        ("turns", json!([{"status":"unknown"}])),
+        ("turns", json!([{"status":"inProgress"}])),
+    ] {
+        let mut activity = valid.clone();
+        activity[field] = value;
+        *f.activity.lock().unwrap() = activity;
+        goal_wait::progress(&f.store, &wait).await.unwrap();
+        let state = f.state(&wait).await;
+        assert_eq!(state["status"], "waiting", "{field}");
+        assert_eq!(state["revision"], original["revision"]);
+        assert_eq!(state["feedback_count"], 0);
+        assert_eq!(state["notification_accepted"], false);
+        assert!(f.mutations().is_empty());
+        assert!(f.store.claim().await.unwrap().is_none());
+        assert_eq!(f.store.deliveries(None, 0, 20).await.unwrap(), pending);
+    }
+    *f.activity.lock().unwrap() = valid;
+    goal_wait::progress(&f.store, &wait).await.unwrap();
+    assert_eq!(f.mutations().len(), 1);
+    let claim = f.store.claim().await.unwrap().unwrap();
+    assert_eq!(claim.delivery.id, pending["deliveries"][0]["id"]);
+    f.deliver(claim).await;
+    assert_eq!(f.state(&wait).await["notification_accepted"], true);
+}
+
+#[tokio::test]
 async fn completion_during_feedback_waits_for_native_repause_then_restores_once() {
     let f = Fixture::new().await;
     let wait = f.prepare().await;
@@ -625,11 +759,19 @@ async fn completion_during_feedback_waits_for_native_repause_then_restores_once(
     goal_wait::progress(&f.store, &wait).await.unwrap();
     assert!(f.store.claim().await.unwrap().is_none());
     assert_eq!(f.mutations().len(), 1);
+    f.activity.lock().unwrap()["thread"]["status"]["type"] = json!("active");
+    f.activity.lock().unwrap()["turns"][0]["status"] = json!("inProgress");
     f.native_pause();
     f.store
         .confirm_goal_pause(wait.clone(), reporting["revision"].as_i64())
         .await
         .unwrap();
+    goal_wait::progress(&f.store, &wait).await.unwrap();
+    assert_eq!(f.state(&wait).await["status"], "waiting");
+    assert_eq!(f.mutations().len(), 1);
+    assert!(f.store.claim().await.unwrap().is_none());
+    f.activity.lock().unwrap()["thread"]["status"]["type"] = json!("idle");
+    f.activity.lock().unwrap()["turns"][0]["status"] = json!("completed");
     goal_wait::progress(&f.store, &wait).await.unwrap();
     let final_claim = f.store.claim().await.unwrap().unwrap();
     assert_eq!(final_claim.event["goal_wait_phase"], "completion");

@@ -77,6 +77,7 @@ async def run(args):
     home, work, state = root / "codex", root / "work", root / "state"
     home.mkdir(); work.mkdir()
     requests, errors, messages = [], [], []
+    hold_response, response_held, release_response = (threading.Event() for _ in range(3))
     report = {"result": "incomplete", "model": "simulated", "desktop_endpoint": "simulated", "real_desktop_chat_changed": False, "cases": []}
 
     class Model(BaseHTTPRequestHandler):
@@ -88,6 +89,10 @@ async def run(args):
                 body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
                 requests.append({"at": time.monotonic(), "body": body})
                 (root / "model-requests.json").write_text(json.dumps(requests, indent=2))
+                if hold_response.is_set() and "Relay waiting qualification fast_failure" in json.dumps(body.get("input", [])):
+                    response_held.set()
+                    if not release_response.wait(60):
+                        raise RuntimeError("held originating turn was not released")
                 resumed = "AgentJobRelay goal wait (delivery " in json.dumps(body.get("input", []))
                 feedback = "AgentJobRelay goal feedback (delivery " in json.dumps(body.get("input", []))
                 text = "RELAY_GOAL_RESUMED" if resumed else "RELAY_GOAL_FEEDBACK" if feedback else "RELAY_GOAL_WAITING"
@@ -172,7 +177,15 @@ ws.addEventListener('close', () => process.exit());
                     raise RuntimeError("oversized fake-host request")
                 request = json.loads(await reader.readexactly(size))
                 if request["method"] == "tools/list":
-                    result = {"tools": [{"namespace": "codex_app", "name": "send_message_to_thread"}]}
+                    result = {"tools": [{"namespace": "codex_app", "name": name} for name in ("send_message_to_thread", "read_thread")]}
+                elif request["params"]["tool"] == "read_thread":
+                    thread = request["params"]["arguments"]["threadId"]
+                    if thread not in bindings:
+                        raise RuntimeError("activity read outside its exact owned thread")
+                    # Query the actual owning app-server, never the separate
+                    # controller whose own runtime would report notLoaded.
+                    snapshot = await rpc.call("thread/read", {"threadId": thread, "includeTurns": False})
+                    result = {"success": True, "contentItems": [{"type": "text", "text": json.dumps({"schemaVersion": 1, "thread": snapshot["thread"], "turns": []})}]}
                 else:
                     params = request["params"]
                     thread, prompt = params["arguments"]["threadId"], params["arguments"]["prompt"]
@@ -211,7 +224,7 @@ ws.addEventListener('close', () => process.exit());
         report["relay"] = (await command(args.binary, "--version")).strip()
         host = await asyncio.start_unix_server(handle, path=root / "desktop.sock")
         (root / "desktop.sock").chmod(0o600)
-        for scenario in ("resume", "feedback", "deleted", "replaced"):
+        for scenario in ("resume", "feedback", "fast_failure", "deleted", "replaced"):
             thread = (await rpc.call("thread/start", {"cwd": str(work), "model": "gpt-6.1-sol", "modelProvider": "relay_fixture", "approvalPolicy": "never", "sandbox": "read-only"}))["thread"]["id"]
             objective = "Relay waiting qualification " + scenario
             request_offset = len(requests)
@@ -219,6 +232,8 @@ ws.addEventListener('close', () => process.exit());
             async def active_checks():
                 return sum(objective in json.dumps(r["body"].get("input", [])) for r in requests[request_offset:]) >= 2
             await until(active_checks, "active goal did not produce repeated control turns before pause")
+            if scenario == "fast_failure":
+                hold_response.set()
             pending=await relay("connect", "--request-label", scenario, "--job-count", 3 if scenario == "resume" else 1, "--cwd", work, caller=thread)
             if pending["status"]!="needs_confirmation" or pending.get("binding"):
                 raise RuntimeError("active-goal preflight did not return a gated confirmation state")
@@ -230,6 +245,8 @@ ws.addEventListener('close', () => process.exit());
             script = "import pathlib,sys,time; p=pathlib.Path(sys.argv[1]); deadline=time.monotonic()+30\nwhile not p.exists():\n assert time.monotonic()<deadline\n time.sleep(.05)\nprint('RELAY_WORK_FINISHED')"
             if scenario == "feedback":
                 script = "import pathlib,sys,time; p=pathlib.Path(sys.argv[1]); stage=p.with_suffix('.stage'); deadline=time.monotonic()+60\nwhile not stage.exists():\n assert time.monotonic()<deadline\n time.sleep(.05)\nprint('AJR_TEST_CHECKPOINT',flush=True)\nwhile not p.exists():\n assert time.monotonic()<deadline\n time.sleep(.05)\nprint('RELAY_WORK_FINISHED')"
+            if scenario == "fast_failure":
+                script += "\nsys.exit(7)"
             request = {"op": "start_goal", "goal_wait_id": wait_id, "spec": {"command": {"kind": "exec", "program": shutil.which("python3"), "args": ["-c", script, str(gate)]}, "cwd": str(work), "session": binding["session_key"], "idempotency_key": scenario}}
             if scenario == "feedback":
                 request["spec"]["monitor_rules"] = [{"condition":{"kind":"contains","text":"AJR_TEST_CHECKPOINT","stream":"stdout"},"notify_agent":True}]
@@ -239,6 +256,10 @@ ws.addEventListener('close', () => process.exit());
                 raise RuntimeError("admission did not require the owning host's pause: " + json.dumps(started["goal_wait"]))
             if (await rpc.call("thread/goal/get", {"threadId": thread}))["goal"]["status"] != "active":
                 raise RuntimeError("Relay attempted a storage-only pause before the host handshake")
+            if scenario == "fast_failure":
+                async def model_held():
+                    return response_held.is_set()
+                await until(model_held, "originating model turn did not reach the fixture gate")
             # This fixture explicitly simulates an authorized pause. It cannot
             # qualify model permission or no-extra-wording delegation.
             # Simulate the submitting Agent's native goal tool on the SAME
@@ -254,13 +275,27 @@ ws.addEventListener('close', () => process.exit());
                 raise RuntimeError("source runtime did not confirm the owning-host pause")
             async def idle():
                 return (await rpc.call("thread/read", {"threadId": thread}))["thread"]["status"]["type"] == "idle"
-            await until(idle, "submitting turn failed to become idle")
+            if scenario == "fast_failure":
+                gate.touch()
+                async def failed():
+                    return (await relay("status", job))["status"] == "failed"
+                await until(failed, "fast member did not fail while the originating turn was active")
+                await asyncio.sleep(args.wait_seconds)
+                if (await relay("goal-wait", wait_id))["status"] != "waiting" or any(m["thread_id"] == thread for m in messages):
+                    raise RuntimeError("fast completion restored/notified before the originating turn ended")
+                if (await rpc.call("thread/goal/get", {"threadId": thread}))["goal"]["status"] != "paused":
+                    raise RuntimeError("fast completion overwrote the in-progress turn's paused goal")
+                hold_response.clear()
+                release_response.set()
             before = len(requests)
-            await asyncio.sleep(args.wait_seconds)
-            if len(requests) != before:
-                raise RuntimeError("model requests continued during paused waiting")
+            if scenario != "fast_failure":
+                await until(idle, "submitting turn failed to become idle")
+                before = len(requests)
+                await asyncio.sleep(args.wait_seconds)
+                if len(requests) != before:
+                    raise RuntimeError("model requests continued during paused waiting")
             status = await relay("status", job)
-            if status["status"] != "running":
+            if scenario != "fast_failure" and status["status"] != "running":
                 raise RuntimeError("waiting workload was not live")
             if scenario == "feedback":
                 # Exercise opted-in renewal under the real delivery claim,
@@ -296,9 +331,9 @@ ws.addEventListener('close', () => process.exit());
             gate.touch()
             async def resolved():
                 observed = await relay("goal-wait", wait_id)
-                return observed["notification_accepted"] if scenario in ("resume", "feedback") else observed["status"] == "suppressed"
+                return observed["notification_accepted"] if scenario in ("resume", "feedback", "fast_failure") else observed["status"] == "suppressed"
             await until(resolved, "goal wait did not resolve")
-            if scenario in ("resume", "feedback"):
+            if scenario in ("resume", "feedback", "fast_failure"):
                 async def executed():
                     return any(e.get("method") == "turn/completed" and e.get("params", {}).get("threadId") == thread and "RELAY_GOAL_RESUMED" in json.dumps(e) for e in rpc.events)
                 await until(executed, "matching result turn did not execute")
@@ -307,7 +342,7 @@ ws.addEventListener('close', () => process.exit());
                 if len(requests) != before or any(m["thread_id"] == thread for m in messages):
                     raise RuntimeError("obsolete goal completion woke an Agent")
             goal = (await rpc.call("thread/goal/get", {"threadId": thread}))["goal"]
-            if scenario == "feedback" and (goal is None or goal["status"] != "active"):
+            if scenario in ("feedback", "fast_failure") and (goal is None or goal["status"] != "active"):
                 raise RuntimeError("final completion did not restore the original feedback goal")
             rounds = [{"job_id": job, "run_id": started["job"]["run_id"], "goal_wait_id": wait_id}]
             if scenario == "resume":
@@ -374,9 +409,9 @@ ws.addEventListener('close', () => process.exit());
             if scenario == "replaced" and (goal["objective"] != "New unrelated user goal" or goal["status"] != "paused"):
                 raise RuntimeError("replacement goal was modified")
             final = await relay("status", job)
-            if final["status"] != "completed" or final["exit_code"] != 0:
-                raise RuntimeError("member did not complete successfully")
-            report["cases"].append({"scenario": scenario, "job_id": job, "run_id": final["run_id"], "thread_id": thread, "goal_wait": await relay("goal-wait", wait_id), "rounds": rounds, "daemon_restart_between_native_pause_and_confirmation": scenario == "resume", "waiting_seconds": args.wait_seconds, "active_checks_observed_before_pause": True, "owning_runtime_pause_event_observed": True, "submitting_agent": "simulated explicitly authorized native-goal action on owning connection", "automatic_goal_pause_supported": False, "ordinary_active_goal_authorization_required": True, "scoped_confirmation_recorded": True, "model_requests_during_wait": 0, "feedback_turn_and_native_repause_observed": scenario == "feedback", "result_turn_observed": scenario in ("resume", "feedback")})
+            if (final["status"], final["exit_code"]) != (("failed", 7) if scenario == "fast_failure" else ("completed", 0)):
+                raise RuntimeError("member did not retain its expected terminal outcome")
+            report["cases"].append({"scenario": scenario, "job_id": job, "run_id": final["run_id"], "thread_id": thread, "goal_wait": await relay("goal-wait", wait_id), "rounds": rounds, "daemon_restart_between_native_pause_and_confirmation": scenario == "resume", "waiting_seconds": args.wait_seconds, "active_checks_observed_before_pause": True, "owning_runtime_pause_event_observed": True, "submitting_agent": "simulated explicitly authorized native-goal action on owning connection", "automatic_goal_pause_supported": False, "ordinary_active_goal_authorization_required": True, "scoped_confirmation_recorded": True, "model_requests_during_wait": 0, "feedback_turn_and_native_repause_observed": scenario == "feedback", "result_turn_observed": scenario in ("resume", "feedback", "fast_failure"), "completion_while_originating_turn_active": scenario == "fast_failure"})
             if goal is not None:
                 await rpc.call("thread/goal/clear", {"threadId": thread, "origin": "user"})
             print(json.dumps({"scenario": scenario, "result": "passed"}), flush=True)
@@ -384,6 +419,7 @@ ws.addEventListener('close', () => process.exit());
             raise RuntimeError("fixture errors: " + repr(errors))
         report["result"] = "passed"
     finally:
+        release_response.set()
         (root / "report.json").write_text(json.dumps(report, indent=2) + "\n")
         cleanup_errors = []
         for job in owned:
