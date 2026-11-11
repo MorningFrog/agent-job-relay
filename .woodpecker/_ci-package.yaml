@@ -1,0 +1,33 @@
+labels:
+  platform: linux/amd64
+  backend: docker
+  cache: ajr-linux-v1
+
+workspace:
+  base: /woodpecker
+  path: src
+
+depends_on: [_ci-linux, _ci-windows]
+
+when:
+  - event: push
+    branch: main
+  - event: pull_request
+  - event: manual
+    evaluate: 'AJR_RELEASE_TASK != "prepare" && AJR_RELEASE_TASK != "rehearse" && AJR_RELEASE_TASK != "inspect" && AJR_RELEASE_TASK != "identity" && AJR_RELEASE_TASK != "preview" && AJR_RELEASE_TASK != "stage" && AJR_RELEASE_TASK != "finalize" && AJR_RELEASE_TASK != "check"'
+
+steps:
+  - name: package-exact-native-images
+    image: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
+    environment:
+      AJR_CI_ARTIFACT_ENDPOINT:
+        from_secret: ci_artifact_endpoint
+      AJR_CI_ARTIFACT_CA:
+        from_secret: ci_artifact_ca
+      AJR_CI_ARTIFACT_TOKEN:
+        from_secret: ci_artifact_linux_token
+    commands:
+      - node scripts/ci_artifacts.mjs download linux-native
+      - node scripts/ci_artifacts.mjs download windows-native
+      - python3 scripts/prepare_release.py --allow-unreleased --binary .tmp/ci-linux-native/agent-job-relay --windows-binary .tmp/ci-windows-native/agent-job-relay.exe --windows-metadata .tmp/ci-windows-native/windows-native.json --expected-revision "$CI_COMMIT_SHA" --output .tmp/ci-windows-packages
+      - node scripts/ci_artifacts.mjs upload windows-packages

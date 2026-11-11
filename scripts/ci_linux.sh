@@ -33,7 +33,7 @@ case "${1:-}" in
         exit 1
       fi
       mkdir target
-      cp -a "$ci_cache_root/target/." target/
+      cp -a --reflink=auto "$ci_cache_root/target/." target/
     fi
     for tool in node npm python3 git curl cc readelf; do
       command -v "$tool"
@@ -64,7 +64,7 @@ case "${1:-}" in
     ;;
   frontend-tests)
     npm test --prefix web
-    node --test scripts/test_online_update.mjs scripts/test_online_uninstall.mjs scripts/test_ci_artifacts.mjs scripts/test_release_artifacts.mjs
+    node --test scripts/test_online_update.mjs scripts/test_online_uninstall.mjs scripts/test_ci_artifacts.mjs scripts/test_release_artifacts.mjs scripts/test_ci_inputs.mjs
     ;;
   msrv)
     python3 -m unittest discover -s scripts -p test_ci_cache.py -v
@@ -78,7 +78,7 @@ case "${1:-}" in
     cargo +1.99.1 clippy --all-targets --locked -- -D warnings
     node .ci/ci_checks.mjs native-linux
     cargo +1.99.1 build --release --locked
-    cargo +1.99.1 run --locked -- --help
+    target/release/agent-job-relay --help
     ;;
   packages)
     python3 scripts/release_actions.py source --allow-unreleased
@@ -92,7 +92,7 @@ case "${1:-}" in
     if [ -d /ci-cache ] && [ -d target ]; then
       # Store compiler artifacts only, including useful work from failed gates.
       # Package/profile state is recreated; checks use committed Server evidence.
-      cp -au target/. "$ci_cache_root/target/"
+      cp -au --reflink=auto target/. "$ci_cache_root/target/"
       python3 scripts/ci_cache.py record "$ci_cache_root/inputs.json"
     fi
     ;;

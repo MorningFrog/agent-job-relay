@@ -61,14 +61,17 @@ switch ($Step) {
     }
     'frontend-tests' {
         Invoke-Checked 'npm.cmd' @('test','--prefix','web')
-        Invoke-Checked 'node' @('--test','scripts/test_online_update.mjs','scripts/test_online_uninstall.mjs','scripts/test_ci_artifacts.mjs','scripts/test_release_artifacts.mjs')
+        Invoke-Checked 'node' @('--test','scripts/test_online_update.mjs','scripts/test_online_uninstall.mjs','scripts/test_ci_artifacts.mjs','scripts/test_release_artifacts.mjs','scripts/test_ci_inputs.mjs')
     }
     'native' {
+        $env:WP_INPUT_MTIMES_FILE = Join-Path $cacheRoot 'input-mtimes.json'
+        Invoke-Checked 'node' @('.ci/ci_inputs.mjs','restore')
         Invoke-Checked 'cargo' @('fmt','--check')
         Invoke-Checked 'cargo' @('clippy','--all-targets','--locked','--','-D','warnings')
         Invoke-Checked 'node' @('.ci/ci_checks.mjs','native-windows')
         Invoke-Checked 'cargo' @('build','--release','--locked')
-        Invoke-Checked 'cargo' @('run','--locked','--','--help')
+        Invoke-Checked (Join-Path $env:CARGO_TARGET_DIR 'release/agent-job-relay.exe') @('--help')
+        Invoke-Checked 'node' @('.ci/ci_inputs.mjs','record')
         New-Item -ItemType Directory -Path target -Force | Out-Null
         $binary = Join-Path $env:CARGO_TARGET_DIR 'release/agent-job-relay.exe'
         $revision = & git rev-parse HEAD

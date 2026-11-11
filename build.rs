@@ -23,15 +23,30 @@ fn main() {
         "pub const ASSETS: &[(&str,&[u8])] = &[{}];",
         files
             .iter()
-            .map(|(name, path)| format!("({name:?},include_bytes!({path:?}))"))
+            .map(|(name, source)| {
+                // Local CI checkouts move between runs. Keep rustc's generated
+                // asset dependencies in the stable target directory, so cached
+                // code never refers to a checkout that the Worker has removed.
+                let target = PathBuf::from(env::var("OUT_DIR").unwrap())
+                    .join("web-assets")
+                    .join(name.trim_start_matches('/'));
+                fs::create_dir_all(target.parent().unwrap()).unwrap();
+                write_changed(&target, &fs::read(source).unwrap());
+                let target = target.to_string_lossy();
+                format!("({name:?},include_bytes!({target:?}))")
+            })
             .collect::<Vec<_>>()
             .join(",")
     );
-    fs::write(
-        PathBuf::from(env::var("OUT_DIR").unwrap()).join("web_assets.rs"),
-        output,
-    )
-    .unwrap();
+    write_changed(
+        &PathBuf::from(env::var("OUT_DIR").unwrap()).join("web_assets.rs"),
+        output.as_bytes(),
+    );
+}
+fn write_changed(path: &Path, bytes: &[u8]) {
+    if fs::read(path).ok().as_deref() != Some(bytes) {
+        fs::write(path, bytes).unwrap();
+    }
 }
 fn collect(root: &Path, path: &Path, files: &mut Vec<(String, String)>) {
     for entry in fs::read_dir(path).unwrap() {

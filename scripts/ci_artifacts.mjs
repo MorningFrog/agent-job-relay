@@ -9,11 +9,12 @@ import { isDeepStrictEqual } from 'node:util';
 
 const MAGIC = Buffer.from('AJRCI001');
 export const MAX_BUNDLE = 256 * 1024 * 1024;
-const PRODUCERS = { 'linux-native': 'linux', 'windows-native': 'windows', 'windows-packages': 'package-windows-test', 'windows-diagnostics': 'windows-packages' };
+const PRODUCERS = { 'linux-native': 'linux', 'windows-native': 'windows', 'windows-packages': 'package', 'windows-diagnostics': 'windows-packages' };
 // Physical workflow names are separate from stable artifact producer roles.
 const WORKFLOW_ROLES = {
   '_ci-linux': 'linux',
   '_ci-windows': 'windows',
+  '_ci-package': 'package',
   '_ci-package-windows-test': 'package-windows-test',
   '_ci-windows-packages': 'windows-packages',
   '_release-preflight': 'release-preflight',
@@ -194,7 +195,7 @@ async function main() {
     await uploadBundle(run, kind, files);
     console.log('Stored immutable CI ' + kind + ' for pipeline ' + run.pipeline);
   } else if (operation === 'download') {
-    requireValue(['package-windows-test', 'windows-packages'].includes(workflowRole(process.env.CI_WORKFLOW_NAME)), 'Unexpected artifact consumer workflow');
+    requireValue(['package', 'package-windows-test', 'windows-packages'].includes(workflowRole(process.env.CI_WORKFLOW_NAME)), 'Unexpected artifact consumer workflow');
     const destinations = { 'linux-native': '.tmp/ci-linux-native', 'windows-native': '.tmp/ci-windows-native', 'windows-packages': '.tmp/release-candidate' };
     requireValue(Object.hasOwn(destinations, kind), 'Unsupported CI download');
     mkdirSync(join(root, '.tmp'), { recursive: true });

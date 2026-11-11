@@ -1,3 +1,5 @@
+# Keep the existing required-check identity while Linux package checks run
+# alongside Windows checks after the shared package producer.
 labels:
   platform: linux/amd64
   backend: docker
@@ -7,17 +9,20 @@ workspace:
   base: /woodpecker
   path: src
 
-depends_on: [_ci-linux, _ci-windows]
+depends_on: [_ci-package]
 
 when:
   - event: push
+    status: [success, failure]
     branch: main
   - event: pull_request
+    status: [success, failure]
   - event: manual
+    status: [success, failure]
     evaluate: 'AJR_RELEASE_TASK != "prepare" && AJR_RELEASE_TASK != "rehearse" && AJR_RELEASE_TASK != "inspect" && AJR_RELEASE_TASK != "identity" && AJR_RELEASE_TASK != "preview" && AJR_RELEASE_TASK != "stage" && AJR_RELEASE_TASK != "finalize" && AJR_RELEASE_TASK != "check"'
 
 steps:
-  - name: package-exact-native-images
+  - name: download-exact-linux
     image: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
     environment:
       AJR_CI_ARTIFACT_ENDPOINT:
@@ -28,6 +33,10 @@ steps:
         from_secret: ci_artifact_linux_token
     commands:
       - node scripts/ci_artifacts.mjs download linux-native
-      - node scripts/ci_artifacts.mjs download windows-native
-      - python3 scripts/prepare_release.py --allow-unreleased --binary .tmp/ci-linux-native/agent-job-relay --windows-binary .tmp/ci-windows-native/agent-job-relay.exe --windows-metadata .tmp/ci-windows-native/windows-native.json --expected-revision "$CI_COMMIT_SHA" --output .tmp/ci-windows-packages
-      - node scripts/ci_artifacts.mjs upload windows-packages
+      - mkdir -p target/release
+      - cp .tmp/ci-linux-native/agent-job-relay target/release/agent-job-relay
+
+  - name: installed-packages-and-host-loaders
+    image: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
+    commands:
+      - sh scripts/ci_linux.sh packages

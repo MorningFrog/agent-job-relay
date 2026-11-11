@@ -2,7 +2,7 @@
 
 Only active workflow YAML belongs directly in this directory. `release` is the human-facing entry; `_ci-*` / `_release-*` are internal workflows, normally hidden by the deployment UI customization and available through “Show internal workflows”. The underscore does not disable execution:
 
-- `_ci-linux.yaml`, `_ci-windows.yaml`, `_ci-package-windows-test.yaml`, `_ci-windows-packages.yaml`: the four required automatic verification workflows.
+- `_ci-linux.yaml`, `_ci-windows.yaml`, `_ci-package-windows-test.yaml`, `_ci-windows-packages.yaml`: the four required automatic verification workflows. `_ci-package.yaml` produces same-run packages before the Linux/Windows package checks run concurrently.
 - `_release-preflight.yaml`, `_release-linux.yaml`, `_release-windows.yaml`, `_release-package.yaml`, `_release-windows-packages.yaml`, `_release-seal.yaml`: the six dependent workflows for explicit manual preparation.
 
 - `release.yaml`: the single explicit main/manual Release All entry selected from Woodpecker Web UI, with default dry-run, original-candidate reuse and recovery.

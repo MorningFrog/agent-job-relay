@@ -37,11 +37,6 @@ steps:
     commands:
       - sh scripts/ci_linux.sh native
 
-  - name: packages
-    image: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
-    commands:
-      - sh scripts/ci_linux.sh packages
-
   - name: upload-native
     image: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
     environment:

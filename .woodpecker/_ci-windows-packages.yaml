@@ -10,13 +10,16 @@ clone:
       lfs: false
       partial: false
 
-depends_on: [_ci-package-windows-test]
+depends_on: [_ci-package]
 
 when:
   - event: push
+    status: [success, failure]
     branch: main
   - event: pull_request
+    status: [success, failure]
   - event: manual
+    status: [success, failure]
     evaluate: 'AJR_RELEASE_TASK != "prepare" && AJR_RELEASE_TASK != "rehearse" && AJR_RELEASE_TASK != "inspect" && AJR_RELEASE_TASK != "identity" && AJR_RELEASE_TASK != "preview" && AJR_RELEASE_TASK != "stage" && AJR_RELEASE_TASK != "finalize" && AJR_RELEASE_TASK != "check"'
 
 steps:
