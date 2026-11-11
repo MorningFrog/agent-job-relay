@@ -4,7 +4,7 @@
 
 ## Scope and baseline
 
-Distribute one Rust/MCP runtime through ChatGPT Desktop/Codex, Claude Code and OpenCode plugins. Prepare and verify locally; pushing, publishing and official submissions require final confirmation. Release operations must be manually triggered. Public npm latest and GitHub Release are 0.1.26, checked on 2026-11-12; original 0.1.25 candidate #65 and Release All #66 remain immutable. The post-0.1.26 Goal envelope fix is being prepared as 0.1.27. See the [release handoff](release.md#current-release-handoff).
+Distribute one Rust/MCP runtime through ChatGPT Desktop/Codex, Claude Code and OpenCode plugins. Prepare and verify locally; pushing, publishing and official submissions require final confirmation. Release operations must be manually triggered. Public npm latest and GitHub Release are 0.1.26, checked on 2026-11-12; original 0.1.25 candidate #65 and Release All #66 remain immutable. Source 0.1.27 includes the Goal envelope fix and has passed local formal preparation; it remains unpublished. See the [release handoff](release.md#current-release-handoff).
 
 This is the sole project backlog. Current functionality, completed acceptance and version-specific evidence are maintained in [implementation status](IMPLEMENTATION_STATUS.md) and [live verification](live-e2e.md); changes by version are in [CHANGELOG](../CHANGELOG.md). Keep future work and explicit deferrals here.
 
@@ -19,7 +19,7 @@ This is the sole project backlog. Current functionality, completed acceptance an
 
 ## Host integration and distribution
 
-- [x] Global npm CLI/plugin update and coordinated removal, profile-preserving recovery, same-chat consent/handoff/feedback, current-runtime MCP forwarding and version/pin finalization are implemented; local 0.1.26 finalization and its delivery gates pass. Published history and original receipts remain immutable; current verification and host limits are recorded in the linked handoffs.
+- [x] Global npm CLI/plugin update and coordinated removal, profile-preserving recovery, same-chat consent/handoff/feedback, current-runtime MCP forwarding and version/pin finalization are implemented; local 0.1.27 finalization and its delivery gates pass. Published history and original receipts remain immutable; current verification and host limits are recorded in the linked handoffs.
 - [ ] Diagnose the failed independent 0.1.21 [Check Release](https://github.com/MorningFrog/agent-job-relay/actions/runs/41470697500), then rerun read-only verification against original candidate 41466809929 without rebuilding or republishing. Metadata/receipt checks do not replace public-byte/channel/installation verification.
 - [ ] Resolve the failed independent Check Release for published 0.1.18 against its original candidate, without republishing or replacing released bytes. Later publication and verification do not recheck that older candidate.
 - [ ] **P1:** natively qualify Windows self-update/self-removal with loaded global CLI/daemon/MCP images, qualify active-run package replacement separately, and verify actual Desktop refresh/reconnection. Public-host fixtures and Linux package replacement do not establish these outcomes.
