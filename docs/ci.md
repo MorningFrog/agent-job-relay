@@ -24,6 +24,8 @@ The image/toolchain namespace persists Rust installations, Cargo/npm downloads a
 
 Generated fixture state remains in the disposable `.tmp/`, `web/node_modules/` and `web/dist/`; only compiler output under `target/` is saved. The measured cache occupies about 6.1 GiB; monitor storage and remove only this project's generated cache when invalidating it. This Bookworm build is for CI verification, not a sealed release or evidence of the release payload's glibc 2.34 compatibility.
 
+Linux and Windows OpenCode loader fixtures wait for the isolated project configuration after global health becomes available. `scripts/opencode_ready.mjs` gives that read-only bootstrap request a separate bounded 90-second budget and reports its duration; session creation keeps its 40-second limit and is never retried. Every run retains fresh profiles and installs the exact development-package bytes, so unpublished same-version packages cannot be confused through a shared host-profile cache.
+
 ## Windows native verification
 
 `.woodpecker/_ci-windows.yaml` selects the dedicated `windows/amd64` Local-backend Worker with `worker=ajr-win`. Its events match Linux: main Push, pull request and manual, excluding Tags and duplicate feature-branch Push runs. `image: pwsh` selects PowerShell 7 on this backend. The deployed Worker runs as LocalService with capacity **1**, isolated workflow home directories and no publication credentials. Local backend code runs directly with that account's permissions; labels and directories do not isolate mutually untrusted repositories. Keep fork approval enabled.

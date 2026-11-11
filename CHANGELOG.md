@@ -8,6 +8,10 @@
 - Preserve content/mode-checked Windows compiler-input timestamps, stable embedded UI inputs and runtime test-fixture paths across temporary checkouts, check help using the release binary, and run Linux/Windows package validation concurrently after an exact-run package producer while retaining all four required checks.
 - Replace the retained-MCP test's real 91-second human wait with a paused-clock active-timeout boundary check plus real short protocol round trips.
 
+### Fixed
+
+- Wait for isolated OpenCode project bootstrap before package checks create sessions, separating global health from project readiness and preserving single-attempt session writes.
+
 ## [0.1.25] - 2026-11-11
 
 ### Added

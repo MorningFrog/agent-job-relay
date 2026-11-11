@@ -145,6 +145,13 @@ def main():
                     if child.poll() is not None or time.monotonic() > deadline:
                         raise RuntimeError(f"OpenCode failed to start; inspect {root / 'host.log'}")
                     time.sleep(0.1)
+            # Global health precedes project/config/plugin bootstrap. Wait through
+            # the read-only route before issuing any non-idempotent session POST.
+            ready = subprocess.run(["node", str(REPO / "scripts/opencode_ready.mjs"), url],
+                                   capture_output=True, text=True, timeout=95)
+            if ready.returncode:
+                raise RuntimeError(f"OpenCode project bootstrap failed; inspect {root / 'host.log'}: {ready.stderr}")
+            print(ready.stdout.strip(), flush=True)
             first = api("/session", {"title": "Relay owner"}, timeout=40)
             second = api("/session", {"title": "Unrelated session"})
             initial = api(f"/session/{first['id']}/message", {"parts": [{"type": "text", "text": "Use AgentJobRelay to start the explicit fixture job and end the turn."}]}, timeout=40)

@@ -59,6 +59,7 @@ Expected: synchronized current-source metadata is printed, then all release fixt
 | `check_codex_plugin.py` | Actual Codex plugin/tool discovery with isolated installation; no model continuation proof |
 | `check_codex_goal.py` | Actual goal-capable Codex plus simulated Agent/model/endpoint; no real Desktop goal mutation |
 | `check_opencode_plugin.py` | Actual OpenCode V1 loader/session workflow with a simulated model |
+| `opencode_ready.mjs`, `test_opencode_ready.mjs` | Shared bounded project-bootstrap readiness before Linux/Windows session writes; delayed/failed startup regression without real hosts |
 | `check_claude_scaffold.py` | Scaffold launcher/caller isolation; Claude remains inbox-only without account-backed loader evidence |
 | `check_desktop_restart.py` | Bounded wait/release handshake for explicitly coordinated restart acceptance |
 | `check_online_update.py` | Isolated installed-package update/removal with fixture registry/public-host commands |

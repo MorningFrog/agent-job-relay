@@ -61,7 +61,7 @@ switch ($Step) {
     }
     'frontend-tests' {
         Invoke-Checked 'npm.cmd' @('test','--prefix','web')
-        Invoke-Checked 'node' @('--test','scripts/test_online_update.mjs','scripts/test_online_uninstall.mjs','scripts/test_ci_artifacts.mjs','scripts/test_release_artifacts.mjs','scripts/test_ci_inputs.mjs')
+        Invoke-Checked 'node' @('--test','scripts/test_online_update.mjs','scripts/test_online_uninstall.mjs','scripts/test_ci_artifacts.mjs','scripts/test_release_artifacts.mjs','scripts/test_ci_inputs.mjs','scripts/test_opencode_ready.mjs')
     }
     'native' {
         $env:WP_INPUT_MTIMES_FILE = Join-Path $cacheRoot 'input-mtimes.json'

@@ -9,6 +9,7 @@ import { createHash } from "node:crypto";
 import { gunzipSync } from "node:zlib";
 import { createInterface } from "node:readline";
 import assert from "node:assert/strict";
+import { waitForOpenCodeProject } from "./opencode_ready.mjs";
 
 if (process.platform !== "win32") throw new Error("Run this check on native Windows");
 const args = new Map();
@@ -221,7 +222,7 @@ try {
     hostLog = openSync(join(root, "opencode.log"), "w");
     const ocEnv = { ...env, OPENCODE_DISABLE_MODELS_FETCH: "1", OPENCODE_DISABLE_DEFAULT_PLUGINS: "1", OPENCODE_DISABLE_SHARE: "1", npm_config_registry: registryUrl, NPM_CONFIG_REGISTRY: registryUrl };
     opencode = spawn(ocExe, ["serve", "--print-logs", "--log-level", "DEBUG", "--hostname", "127.0.0.1", "--port", String(port)], { cwd: project, env: ocEnv, stdio: ["ignore", hostLog, hostLog] });active.add(opencode);
-    const api = async (path, body) => { const res = await fetch(`http://127.0.0.1:${port}${path}`, { method: body === undefined ? "GET" : "POST", headers: { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(path === "/global/health" ? 1500 : 40000) });assert(res.ok, `${path}: HTTP ${res.status}`);const text = await res.text();return text ? JSON.parse(text) : null; };
+    const api = async (path, body) => { try { const res = await fetch(`http://127.0.0.1:${port}${path}`, { method: body === undefined ? "GET" : "POST", headers: { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(path === "/global/health" ? 1500 : 40000) });assert(res.ok, `${path}: HTTP ${res.status}`);const text = await res.text();return text ? JSON.parse(text) : null; } catch (error) { throw new Error(`OpenCode ${body === undefined ? "GET" : "POST"} ${path}: ${error.message}`, { cause: error }); } };
     let startupError;
     try {
       await waitUntil(async () => {
@@ -229,6 +230,7 @@ try {
         try { return await api("/global/health"); } catch (error) { startupError = error;return false; }
       }, 60000, "OpenCode startup failed");
     } catch (error) { throw new Error(`${error.message}: ${startupError?.message}; inspect opencode.log`, { cause: startupError }); }
+    report.opencode_bootstrap = await waitForOpenCodeProject(`http://127.0.0.1:${port}`);
     const first = await api("/session", { title: "Relay owner" }), second = await api("/session", { title: "Control session" });
     const initial = await api(`/session/${first.id}/message`, { parts: [{ type: "text", text: "Use AgentJobRelay to start the explicit fixture job and end the turn." }] });writeFileSync(join(root, "initial-turn.json"), JSON.stringify(initial, null, 2));
     const jobs = (await requestCore(ocState, { op: "list", after: 0, limit: 20 }, "oc-jobs")).jobs;assert.equal(jobs.length, 1);assert(["queued", "launching", "running"].includes(jobs[0].status));

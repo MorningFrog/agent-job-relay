@@ -64,7 +64,7 @@ case "${1:-}" in
     ;;
   frontend-tests)
     npm test --prefix web
-    node --test scripts/test_online_update.mjs scripts/test_online_uninstall.mjs scripts/test_ci_artifacts.mjs scripts/test_release_artifacts.mjs scripts/test_ci_inputs.mjs
+    node --test scripts/test_online_update.mjs scripts/test_online_uninstall.mjs scripts/test_ci_artifacts.mjs scripts/test_release_artifacts.mjs scripts/test_ci_inputs.mjs scripts/test_opencode_ready.mjs
     ;;
   msrv)
     python3 -m unittest discover -s scripts -p test_ci_cache.py -v
