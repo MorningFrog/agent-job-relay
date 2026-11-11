@@ -34,7 +34,7 @@ If a gate fails, synchronized version edits remain and notes stay pending. Fix t
 | `release_windows.ps1`, `check_release_compatibility.sh` | Native Windows preparation wrapper and exact-byte glibc 2.34 startup/SQLite smoke check |
 | `test_release_woodpecker.py`, `test_release_artifacts.mjs` | Preparation identity, original-byte seals, development isolation and failed/incomplete-run refusal |
 | `release_publish.py`, `release_publish_artifacts.mjs` | Read original accepted candidate/status, separate identity/preview/staging/GitHub finalization and independent public-byte checking; no rebuild or automated npm approval |
-| `release_web.py`, `test_release_web.py` | Observe the exact main/manual Release parent through a read-only progress endpoint; no publishing credentials or mutation API |
+| `release_web.py`, `test_release_web.py` | Observe the exact main/manual Release parent through a read-only progress endpoint; fixed safe failure/recovery guidance, no publishing credentials or mutation API |
 | `release_local.py` | Local maintainer adapter: live original-candidate inspection, shared gh/npm login, CLI staging/download, human approval boundary, local receipt/finalization and isolated public checks; never impersonates CI |
 | `test_release_local.py` | Four focused local admission, byte-preserving staging/recovery, already-public account-free preview and truthful receipt/finalization regressions; no account mutations or native builds |
 | `test_release_publish.py` | Four publication boundary/recovery regressions; no real accounts or additional native builds |

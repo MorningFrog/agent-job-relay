@@ -16,6 +16,20 @@ class NoRedirect(HTTPRedirectHandler):
         raise ValueError('Release progress redirects are refused')
 
 
+class ReleaseStopped(ValueError):
+    """Fixed public diagnostics; never print arbitrary coordinator output."""
+
+
+def failure_message(value):
+    if value.get('error_code')=='configuration_changed' and value.get('recovery')=='new_request':
+        return ('Release stopped: release configuration changed. Review the current configuration, then start '
+                'a new main / release pipeline with the intended dry-run value and an empty RELEASE_RESUME. '
+                'Original records and candidates are preserved.')
+    return ('Release stopped. Inspect the original deployment record before recovery. Use RELEASE_RESUME '
+            'only after confirming the original local task exists and its intent is unchanged. '
+            'No unknown write was repeated.')
+
+
 def observe(env=os.environ,*,fetch=None,sleep=time.sleep,clock=time.monotonic,emit=print):
     if env.get('CI')!='woodpecker' or env.get('CI_PIPELINE_EVENT')!='manual' or env.get('CI_COMMIT_BRANCH')!='main':
         raise ValueError('Release must be selected manually on main')
@@ -49,7 +63,7 @@ def observe(env=os.environ,*,fetch=None,sleep=time.sleep,clock=time.monotonic,em
         if value.get('candidate'):
             candidate=value['candidate']
             if type(candidate) is not int or candidate<=0:raise ValueError('Invalid original candidate identity')
-        if value.get('failed'):raise ValueError('Release stopped. Inspect the original deployment record; use RELEASE_RESUME for that parent after review.')
+        if value.get('failed'):raise ReleaseStopped(failure_message(value))
         if value.get('complete'):
             if value.get('phase') not in ('dry_run_complete','release_complete'):raise ValueError('Unexpected terminal Release state')
             emit('Dry-run complete: no npm upload or Tag/Release creation.' if value['phase']=='dry_run_complete'
@@ -59,8 +73,15 @@ def observe(env=os.environ,*,fetch=None,sleep=time.sleep,clock=time.monotonic,em
     raise ValueError('Observation timed out; original candidates/stages were preserved. Resume the same request.')
 
 
-if __name__=='__main__':
+def main():
     try:observe()
+    except ReleaseStopped as error:
+        print(str(error),file=sys.stderr)
+        return 1
     except (ValueError,KeyError,TypeError):
         print('Release stopped: verify selected workflow/main, parameters, coordinator availability and original run. No unknown write was repeated.',file=sys.stderr)
-        sys.exit(1)
+        return 1
+    return 0
+
+
+if __name__=='__main__':sys.exit(main())
