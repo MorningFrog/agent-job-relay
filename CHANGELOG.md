@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.26] - 2026-11-11
+
 ### Changed
 
 - Reuse explicitly declared output-free frontend/native CI checks across trusted main CI and release preparation when the shared service verifies matching committed inputs, environment policy and successful original Server evidence; retain fresh builds, exact-byte validation, PR tests and execute-on-miss behavior.

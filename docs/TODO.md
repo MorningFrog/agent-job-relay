@@ -4,14 +4,14 @@
 
 ## Scope and baseline
 
-Distribute one Rust/MCP runtime through ChatGPT Desktop/Codex, Claude Code and OpenCode plugins. Prepare and verify locally; pushing, publishing and official submissions require final confirmation. Release operations must be manually triggered. Published 0.1.24 uses original Woodpecker candidate #42, shared local CLI authentication and maintainer npm 2FA; 0.1.25 has passed local formal preparation and remains unpublished. See the [release handoff](release.md#current-release-handoff).
+Distribute one Rust/MCP runtime through ChatGPT Desktop/Codex, Claude Code and OpenCode plugins. Prepare and verify locally; pushing, publishing and official submissions require final confirmation. Release operations must be manually triggered. Published 0.1.25 retains original Woodpecker candidate #65 and Release All #66; source 0.1.26 has passed local formal preparation and remains unpublished. See the [release handoff](release.md#current-release-handoff).
 
 This is the sole project backlog. Current functionality, completed acceptance and version-specific evidence are maintained in [implementation status](IMPLEMENTATION_STATUS.md) and [live verification](live-e2e.md); changes by version are in [CHANGELOG](../CHANGELOG.md). Keep future work and explicit deferrals here.
 
 ## CI/CD migration
 
 - [x] Four required automatic Linux/Windows checks, immutable cross-worker development artifacts, project-only caches, manual preparation, shared OAuth source reads and the separate local staged-publication route are implemented and accepted. One Web UI Release All entry preserves original candidates and requires human npm approval. Experimental Mac cross-build/packaging remains separate from native acceptance.
-- [x] Release configuration refresh, referenced-binding fencing and safe CI recovery diagnostics have local regression coverage. Next actual manual release must still qualify the complete new-candidate/desktop route; local checks do not create a Server acceptance result.
+- [x] The Release All new-candidate/reuse/publication route passes original preparation #65 and parent #66. Configuration refresh, referenced-binding fencing and safe CI recovery diagnostics also have local regression coverage. Cross CI-to-release check reuse remains a separate acceptance item below.
 - [ ] Qualify macOS portable/native/host behavior on an appropriate Worker in a separate task. Linux-hosted static/regression checks and Darwin cross-compilation do not establish Mac execution; Mac runtime acceptance remains deferred.
 - [x] Replace the real 91-second retained-MCP wait with a paused-clock active-deadline regression and a short real question/answer transport check.
 - [ ] Verify cross CI→Release reuse during the next normal preparation. Ordinary same-commit check reuse, Windows compiler-input restoration and concurrent Linux/Windows package checks are accepted; further speed work should focus on package checks and cache-copy overhead.
@@ -19,7 +19,7 @@ This is the sole project backlog. Current functionality, completed acceptance an
 
 ## Host integration and distribution
 
-- [x] Global npm CLI/plugin update and coordinated removal, profile-preserving recovery, same-chat consent/handoff/feedback, current-runtime MCP forwarding and version/pin finalization are implemented; local 0.1.25 finalization and its delivery gates pass. Published history and original receipts remain immutable; current verification and host limits are recorded in the linked handoffs.
+- [x] Global npm CLI/plugin update and coordinated removal, profile-preserving recovery, same-chat consent/handoff/feedback, current-runtime MCP forwarding and version/pin finalization are implemented; local 0.1.26 finalization and its delivery gates pass. Published history and original receipts remain immutable; current verification and host limits are recorded in the linked handoffs.
 - [ ] Diagnose the failed independent 0.1.21 [Check Release](https://github.com/MorningFrog/agent-job-relay/actions/runs/41470697500), then rerun read-only verification against original candidate 41466809929 without rebuilding or republishing. Metadata/receipt checks do not replace public-byte/channel/installation verification.
 - [ ] Resolve the failed independent Check Release for published 0.1.18 against its original candidate, without republishing or replacing released bytes. Later publication and verification do not recheck that older candidate.
 - [ ] **P1:** natively qualify Windows self-update/self-removal with loaded global CLI/daemon/MCP images, qualify active-run package replacement separately, and verify actual Desktop refresh/reconnection. Public-host fixtures and Linux package replacement do not establish these outcomes.
@@ -55,9 +55,9 @@ The runtime executes independent jobs concurrently, with eight execution slots p
 
 ## Remote execution and external-run observation
 
-Runtime 0.1.12+ implements the [remote contract and reference path](remote-execution.md). Remote commands use an explicitly pinned native runtime profile (a copied executable is enough) or a separately qualified contract adapter. GitHub Actions uses local `gh` and an immutable repository/run/attempt. Source 0.1.25 Woodpecker 3.x observation uses native HTTPS and pins the server/repository/pipeline/global ID/full commit. Ordinary local `ssh`/`gh` jobs retain local-process semantics.
+Runtime 0.1.12+ implements the [remote contract and reference path](remote-execution.md). Remote commands use an explicitly pinned native runtime profile (a copied executable is enough) or a separately qualified contract adapter. GitHub Actions uses local `gh` and an immutable repository/run/attempt. Runtime 0.1.25+ Woodpecker 3.x observation uses native HTTPS and pins the server/repository/pipeline/global ID/full commit. Ordinary local `ssh`/`gh` jobs retain local-process semantics.
 
-- [x] Pinned native execution/observation, Actions read-only observation, direct remote-rule feedback and command inspection are implemented. Source 0.1.25 adds read-only Woodpecker observation; public Linux reads and regression fixtures pass, with platform/account-backed limits below.
+- [x] Pinned native execution/observation, Actions read-only observation, direct remote-rule feedback and command inspection are implemented. Runtime 0.1.25 adds read-only Woodpecker observation; public Linux reads and regression fixtures pass, with platform/account-backed limits below.
 - [ ] **P2:** qualify Woodpecker private-server authentication, native Windows/macOS and actual installed-Agent continuation; public reads and inbox fixtures do not establish these.
 - [ ] **P2:** qualify SSH-specific Linux/Windows shell/authentication deployments, additional scheduler adapters and prolonged disconnection/soak behavior. Native Windows cross-host verification uses the existing authenticated VM channel, not an SSH server. No framework coupling, checkpoint transfer or automatic training restart.
 - [ ] **P2:** qualify additional remote host/version combinations, OpenCode real-provider continuation and the specific direct `remote_alert` subscription in actual hosts. The user-confirmed general remote workflow does not identify these paths.

@@ -2,7 +2,7 @@
 
 [Documentation index](README.md) · [Commands](commands.md) · [Protocol](protocol.md)
 
-Remote execution and Actions observation require runtime 0.1.12+; Actions job/step summaries require 0.1.13+, and direct remote alerts and bounded queuing require 0.1.20+. Woodpecker observation requires the 0.1.25 source described below. External tasks share local execution slots, CLI/MCP, loopback Web UI, history and initiating-session notifications. [Default bounded waiting](usage.md#wait-for-an-execution-slot-0120) applies to the local observer or matching remote execution owner; expiry before first launch does not contact the target.
+Remote execution and Actions observation require runtime 0.1.12+; Actions job/step summaries require 0.1.13+, and direct remote alerts and bounded queuing require 0.1.20+. Woodpecker observation requires runtime 0.1.25+ as described below. External tasks share local execution slots, CLI/MCP, loopback Web UI, history and initiating-session notifications. [Default bounded waiting](usage.md#wait-for-an-execution-slot-0120) applies to the local observer or matching remote execution owner; expiry before first launch does not contact the target.
 
 ## Choose an execution owner
 
@@ -151,7 +151,7 @@ A successful, neutral or skipped final conclusion maps to local completed; failu
 
 ## Observe an existing Woodpecker pipeline (0.1.25)
 
-Use runtime 0.1.25 source advertising Doctor `woodpecker_observation=true`; 0.1.25 is prepared locally and not yet published. Published 0.1.24 does not include this adapter. The adapter reads the official Woodpecker 3.x API directly; neither `gh` nor `woodpecker-cli` is required. Select a root server origin (HTTPS, or loopback HTTP for a local deployment), repository ID/full name and an existing pipeline. Server URLs with credentials, paths, queries or fragments are rejected. Custom certificate configuration and subpath deployments are unsupported.
+Use runtime 0.1.25+ advertising Doctor `woodpecker_observation=true`. The adapter reads the official Woodpecker 3.x API directly; neither `gh` nor `woodpecker-cli` is required. Select a root server origin (HTTPS, or loopback HTTP for a local deployment), repository ID/full name and an existing pipeline. Server URLs with credentials, paths, queries or fragments are rejected. Custom certificate configuration and subpath deployments are unsupported.
 
 Read `GET /api/repos/<repo-id>` and `GET /api/repos/<repo-id>/pipelines/<number>` using your existing authorized API client. Public repositories can be queried anonymously. The repository response supplies `id` and `full_name`; the pipeline response supplies `id`, `number` and the full `commit`. The pipeline's global `id` is different from the repository-local `number` in the Web URL. A Woodpecker restart creates another pipeline with a new identity; never use `latest`, a branch name or a guessed attempt number.
 

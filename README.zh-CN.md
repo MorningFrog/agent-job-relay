@@ -19,7 +19,7 @@ Tasks run in the background. Agents pick up when needed.
 | Goal 等待（实验性） | 一次限定范围的暂停批准，保留原 goal 恢复和删除保护。运行时 0.1.17+ 支持按需临时恢复、汇报并原生再次暂停的中间反馈；见[用法及宿主限制](docs/goal-waiting.md) |
 | 有界排队 | 满额后默认 FIFO 排队，保留八个执行槽和逐任务排队期限，可显式禁用排队；见[使用指南](docs/usage.md#wait-for-an-execution-slot-0120) |
 | 批量提交 | 通过 CLI/MCP 一次提交 1–16 个独立命令，逐项返回结果并支持安全重试，见[使用指南](docs/usage.md#submit-independent-commands-together-0112) |
-| 远程任务 | 在固定身份的远端运行时启动或附加命令，或观察固定的 GitHub Actions attempt；已准备但尚未发布的 0.1.25 源码还可观察固定的 Woodpecker pipeline，包含工作流／步骤状态和运行直达链接；运行时 0.1.20+ 新增远端规则直接反馈到原聊天，见[配置与边界](docs/remote-execution.md) |
+| 远程任务 | 在固定身份的远端运行时启动或附加命令，或观察固定的 GitHub Actions attempt；运行时 0.1.25+ 还可观察固定的 Woodpecker pipeline，包含工作流／步骤状态和运行直达链接；运行时 0.1.20+ 新增远端规则直接反馈到原聊天，见[配置与边界](docs/remote-execution.md) |
 | 中间反馈 | 结构化阶段、步数和指标，重复里程碑或阈值告警，以及有界 checker 示例；见[用法与边界](docs/progress.md) |
 | 结果与历史 | 保存有界的 stdout/stderr、退出结果、事件和任务历史 |
 | 绑定会话的通知 | 将结果投递到发起会话，在宿主支持时续接聊天 |
@@ -91,7 +91,7 @@ ajr ui
 
 运行时 0.1.23+ 会在冷却期间保留有界阶段／远端反馈，并显示待报阶段及 Goal 控制／投递诊断。Goal 汇报包含被合并的较早告警的有界上下文；结果不确定的宿主控制绝不重放。见[反馈限制](docs/progress.md#configure-repeated-feedback)和 [Goal 恢复](docs/goal-waiting.md#completion-and-recovery)；新增行为在 Windows 和已安装宿主中仍待验证。
 
-已发布的 0.1.19 Goal 恢复会在重连时返回原交接及下一步操作，不重新询问暂停许可或重复执行任务。多轮保留同一请求，并区分原生暂停回执与尚未确认的最终通知。用户长期实际工作实测确认 goal 唤起正常，绝大多数情况下暂停／resume 正常，偶发无法 resume 仍需实机验证。当前源码会等原 Desktop 轮次结束后再恢复，隔离测试覆盖了任务快速结束的已报告窗口；见[实测记录](docs/live-e2e.md#user-reported-sustained-real-work-use)。恢复功能需要 Doctor `goal_wait_recovery=true`；见[恢复方式及宿主限制](docs/goal-waiting.md#recover-an-existing-handoff)。
+已发布的 0.1.19 Goal 恢复会在重连时返回原交接及下一步操作，不重新询问暂停许可或重复执行任务。多轮保留同一请求，并区分原生暂停回执与尚未确认的最终通知。用户长期实际工作实测确认 goal 唤起正常，绝大多数情况下暂停／resume 正常，偶发无法 resume 仍需实机验证。已准备的 0.1.26 源码会等原 Desktop 轮次结束后再恢复，隔离测试覆盖了任务快速结束的已报告窗口；见[实测记录](docs/live-e2e.md#user-reported-sustained-real-work-use)。恢复功能需要 Doctor `goal_wait_recovery=true`；见[恢复方式及宿主限制](docs/goal-waiting.md#recover-an-existing-handoff)。
 
 也可以提出：
 
