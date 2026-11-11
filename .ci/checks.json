@@ -16,11 +16,9 @@
   "checks": {
     "native-linux": {
       "command": [
-        "cargo",
-        "+1.99.1",
-        "test",
-        "--all-targets",
-        "--locked"
+        "node",
+        "scripts/ci_tests.mjs",
+        "--toolchain=1.99.1"
       ],
       "inputs": [
         "**"
@@ -60,10 +58,8 @@
     },
     "native-windows": {
       "command": [
-        "cargo",
-        "test",
-        "--all-targets",
-        "--locked"
+        "node",
+        "scripts/ci_tests.mjs"
       ],
       "inputs": [
         "**"

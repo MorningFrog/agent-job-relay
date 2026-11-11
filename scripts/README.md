@@ -8,6 +8,8 @@ Run scripts from the repository root. Generated state and reports belong in igno
 
 `ci_linux.sh` implements the `toolchain`, `frontend`, `frontend-tests`, `msrv`, `native`, `packages` and `cache` native steps in `.woodpecker/_ci-linux.yaml` and the separate Linux `packages` check. Run it in the pinned workflow image with a disposable checkout, not against an installed runtime or personal profile. `ci_cache.py` restores mtimes only for content/mode-matching compiler inputs; its regressions cover changed bytes/modes, UI inventory and symlinks. It checks development packages only and never publishes. See [container reproduction and migration limits](../docs/ci.md).
 
+`ci_tests.mjs` compiles all locked Cargo test targets and runs the discovered suites through Cargo with bounded parallelism, retaining every suite and failure. `test_ci_tests.mjs` covers target inventory, overlap and failure propagation. Per-suite timings/logs stay in disposable `.tmp/ci-tests-*`; see [native test scheduling](../docs/ci.md#native-test-scheduling).
+
 ## Windows native CI
 
 `ci_windows.ps1` implements the `toolchain`, `frontend`, `frontend-tests` and `native` steps in `.woodpecker/_ci-windows.yaml` using PowerShell 7, provisioned Node 24/Rust 1.99.1 and discovered Visual Studio C++ tools. A capacity-one Worker supplies project-only compiler/download caching; the shared `.ci/ci_inputs.mjs` restores content/mode-matching input times before native gates; output-free frontend/native tests use the shared `.ci/ci_checks.mjs` policy client; PR/local runs and misses execute tests in the disposable checkout. `describe_native.ps1 -Revision <commit>` records explicit native source identity without simulating an Actions environment. `ci_windows_packages.ps1` runs the subsequent installed-package/Codex/OpenCode checks. `ci_artifacts.mjs` transfers exact-run native/development-package bytes over the separately provisioned private HTTPS exchange; its tests cover identity, checksum, inventory and extraction fences. These workflows need administrator-provided exchange secrets before Server execution. See [Windows prerequisites and reproduction](../docs/ci.md#windows-native-verification).
@@ -37,7 +39,7 @@ If a gate fails, synchronized version edits remain and notes stay pending. Fix t
 | `release_web.py`, `test_release_web.py` | Observe the exact main/manual Release parent through a read-only progress endpoint; fixed safe failure/recovery guidance, no publishing credentials or mutation API |
 | `release_local.py` | Local maintainer adapter: live original-candidate inspection, shared gh/npm login, CLI staging/download, human approval boundary, local receipt/finalization and isolated public checks; never impersonates CI |
 | `test_release_local.py` | Four focused local admission, byte-preserving staging/recovery, already-public account-free preview and truthful receipt/finalization regressions; no account mutations or native builds |
-| `test_release_publish.py` | Four publication boundary/recovery regressions; no real accounts or additional native builds |
+| `test_release_publish.py` | Publication boundary/recovery and bounded concurrent full-byte verification regressions; no real accounts or additional native builds |
 | `release_actions.py` | Individual manual Actions operations: preflight, sealing, publisher preview, publication and independent verification |
 | `release_pipeline.py` | Coordinate Release All child workflows with pinned source/run identities |
 | `check_release.py` | Install and verify local candidate packages/loaders in isolated state |

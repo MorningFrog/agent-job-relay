@@ -2,6 +2,7 @@
 """Manual Actions release orchestration; never infer publication from a dry-run."""
 import argparse
 from contextlib import contextmanager
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 import os
@@ -479,16 +480,28 @@ def publish(directory, run_id, auth):
     return release
 
 
-def verify_public(directory, *, source_root=None):
-    meta = check_candidate(directory) if source_root is None else check_candidate(directory, source_root)
-    for key in PACKAGES:
+def verify_public_bytes(directory, meta, *, channel=None):
+    """Verify both complete tarballs with bounded, independent read-only requests."""
+    def verify(key):
         entry = meta[key]
         published = public_package(entry)
-        require(published is not None, "Both npm versions must be public before verification; rerun Check Release only")
+        require(published is not None, "Both npm versions must be public before verification; finish maintainer approval or retry read-only verification of the same original candidate")
+        if channel is not None:
+            require(check_channel(entry['name'], channel, entry['version']).get(channel) == entry['version'],
+                    'Public channel has not selected the sealed version; do not move tags automatically')
         tarball_url = published["dist"]["tarball"]
         require(tarball_url.startswith(REGISTRY + "/"), "Unexpected registry tarball origin")
         data = request(tarball_url, binary=True)
         require(hashlib.sha256(data).hexdigest() == sha256(directory / entry["tarball"]), "Public tarball bytes differ from candidate")
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        # Consume every result before a caller can publish or report success.
+        list(pool.map(verify, PACKAGES))
+
+
+def verify_public(directory, *, source_root=None, channel=None):
+    meta = check_candidate(directory) if source_root is None else check_candidate(directory, source_root)
+    verify_public_bytes(directory, meta, channel=channel)
 
     def install():
         # npm's install metadata can lag the version/dist-tag endpoints. Retry

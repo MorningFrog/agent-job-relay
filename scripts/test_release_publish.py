@@ -2,6 +2,7 @@
 import copy
 import json
 import os
+import threading
 from pathlib import Path
 import unittest
 from unittest.mock import patch
@@ -74,9 +75,64 @@ class PublicationTests(unittest.TestCase):
              patch.object(publisher,'asset_bytes',side_effect=lambda a:(self.directory/a['name']).read_bytes()),\
              patch.object(shared,'verify_public') as install,patch.object(shared,'github') as github:
             result=self.pub.check();self.assertFalse(result['writes']);github.assert_not_called()
-            install.assert_called_once_with(self.directory,source_root=self.source)
+            install.assert_called_once_with(self.directory,source_root=self.source,channel=self.pub.channel)
         redirect=publisher.AssetRedirect().redirect_request(Request('https://api.github.com/asset',headers={'Authorization':'Bearer private-fixture'}),None,302,'',{},'https://release-assets.githubusercontent.com/file?signature=fixture')
         self.assertFalse(redirect.has_header('Authorization'))
+
+    def test_public_npm_reads_overlap_and_failures_prevent_finalization(self):
+        entries = {self.pub.meta[k]['name']: self.pub.meta[k] for k in publisher.PACKAGES}
+        urls = {shared.REGISTRY + '/' + e['tarball']: self.directory / e['tarball'] for e in entries.values()}
+        downloads = []
+        ready = threading.Barrier(2)
+        def published(entry):
+            return {'dist': {'tarball': shared.REGISTRY + '/' + entry['tarball']}}
+        def download(url, **kwargs):
+            self.assertTrue(kwargs['binary'])
+            downloads.append(url)
+            ready.wait(timeout=5)
+            return urls[url].read_bytes()
+        with patch.object(shared, 'public_package', side_effect=published), \
+             patch.object(shared, 'check_channel', return_value={self.pub.channel: self.pub.meta['version']}), \
+             patch.object(shared, 'request', side_effect=download):
+            publisher.public_bytes(self.directory, self.pub.meta, self.pub.channel)
+        self.assertCountEqual(downloads, urls)
+        for failure in ('bytes', 'missing', 'channel', 'origin'):
+            with self.subTest(failure=failure), \
+                 patch.object(shared, 'public_package', side_effect=lambda e: None if failure == 'missing' else
+                              {'dist': {'tarball': ('https://foreign.invalid/' if failure == 'origin' else shared.REGISTRY + '/') + e['tarball']}}), \
+                 patch.object(shared, 'check_channel', return_value={} if failure == 'channel' else {self.pub.channel: self.pub.meta['version']}), \
+                 patch.object(shared, 'request', return_value=b'corrupt'), \
+                 patch.object(self.pub, 'find_release') as release, self.assertRaises(ValueError):
+                self.pub.finalize()
+            release.assert_not_called()
+
+    def test_independent_check_fetches_each_asset_once_concurrently_and_refuses_corruption(self):
+        assets = [{'name': name, 'digest': 'sha256:' + digest} for name, digest in self.pub.assets.items()]
+        # A missing server digest must still cause exactly one complete download.
+        assets[0].pop('digest')
+        release = {'id': 77, 'draft': False, 'tag_name': 'v' + self.pub.meta['version'],
+                   'target_commitish': self.pub.run['commit'], 'body': self.pub.body, 'prerelease': True}
+        ready = threading.Barrier(4)
+        first = {a['name'] for a in assets[:4]}
+        reads = []
+        def download(asset):
+            reads.append(asset['name'])
+            if asset['name'] in first:
+                ready.wait(timeout=5)
+            return (self.directory / asset['name']).read_bytes()
+        with patch.object(shared, 'check_tag', return_value=True), \
+             patch.object(shared, 'github_list', side_effect=lambda path: assets if '/assets' in path else [release]), \
+             patch.object(publisher, 'asset_bytes', side_effect=download), \
+             patch.object(shared, 'verify_public') as install:
+            self.assertFalse(self.pub.check()['writes'])
+        self.assertCountEqual(reads, self.pub.assets)
+        install.assert_called_once_with(self.directory, source_root=self.source, channel=self.pub.channel)
+        with patch.object(shared, 'check_tag', return_value=True), \
+             patch.object(shared, 'github_list', side_effect=lambda path: assets if '/assets' in path else [release]), \
+             patch.object(publisher, 'asset_bytes', return_value=b'corrupt'), \
+             patch.object(shared, 'verify_public') as install, self.assertRaises(ValueError):
+            self.pub.check()
+        install.assert_not_called()
 
 
 if __name__=='__main__':unittest.main()

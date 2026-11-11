@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Run all discovered Cargo native test suites with bounded parallel scheduling in CI, retaining official Cargo environments, complete coverage and per-suite failure/timing reports.
+- Parallelize independent npm/GitHub public-byte verification and remove duplicate downloads within Check Release while retaining full-byte, channel, receipt, Tag and isolated installation checks.
+
 ## [0.1.27] - 2026-11-12
 
 ### Fixed

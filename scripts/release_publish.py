@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Manual Woodpecker inspection, staged publication and read-only public checks."""
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 import os
@@ -122,13 +123,7 @@ def identity(expected_user):
 
 
 def public_bytes(directory, meta, channel):
-    for key in PACKAGES:
-        entry = meta[key]; published = shared.public_package(entry)
-        require(published is not None, 'Both npm packages must be public after maintainer 2FA approval; resume the same original candidate')
-        require(shared.check_channel(entry['name'], channel, entry['version']).get(channel) == entry['version'], 'Public channel has not selected the sealed version; do not move tags automatically')
-        url = published.get('dist',{}).get('tarball','')
-        require(url.startswith(shared.REGISTRY + '/'), 'Unexpected public npm tarball origin')
-        require(hashlib.sha256(shared.request(url, binary=True)).hexdigest() == sha256(directory / entry['tarball']), 'Public npm bytes differ from the original candidate')
+    shared.verify_public_bytes(directory, meta, channel=channel)
 
 
 class AssetRedirect(HTTPRedirectHandler):
@@ -209,7 +204,7 @@ class Publication:
                 run.get('server') == self.run['server'] and run.get('repo_id') == self.run['repo_id'] and
                 run.get('pipeline') == match[1] and run.get('created') == match[2] and re.fullmatch(r'[0-9a-f]{40}',run.get('commit','')), 'Invalid publication run receipt')
 
-    def find_release(self):
+    def find_release(self, *, full_bytes=False):
         self.client.check_tag('v' + self.meta['version'], self.run['commit'])
         releases = [r for r in self.client.listing('releases') if r['tag_name'] == 'v' + self.meta['version']]
         require(len(releases) <= 1, 'Multiple Releases/drafts claim this version; preserve them for inspection')
@@ -219,14 +214,16 @@ class Publication:
                 release['prerelease'] == (self.channel == 'next'), 'Existing Release belongs to different/modified candidate bytes; nothing will be overwritten')
         assets = self.client.listing(f"releases/{release['id']}/assets")
         require(len(assets) == len({a['name'] for a in assets}), 'Duplicate GitHub assets')
-        for asset in assets:
+        def verify(asset):
             if asset['name'] not in self.assets:
-                self.verify_receipt(asset); continue
+                self.verify_receipt(asset); return
             expected = self.assets[asset['name']]
             if asset.get('digest'):
                 require(asset['digest'] == 'sha256:' + expected, 'Existing GitHub bytes conflict with the original candidate')
-            else:
+            if full_bytes or not asset.get('digest'):
                 require(hashlib.sha256(self.client.asset_bytes(asset)).hexdigest() == expected, 'Existing GitHub bytes conflict with the original candidate')
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            list(pool.map(verify, assets))
         require(release['draft'] or set(self.assets) <= {a['name'] for a in assets}, 'Published Release lacks original assets; preserve it and inspect')
         return {**release,'_assets':assets}
 
@@ -297,13 +294,11 @@ class Publication:
                 'registry_writes':False,'instruction':'Run the independent read-only check; never rebuild or republish to recover a failed check.'}
 
     def check(self):
-        public_bytes(self.directory,self.meta,self.channel)
-        release=self.find_release();require(release is not None and not release['draft'], 'GitHub Release is not public; resume finalization of the original candidate')
+        release=self.find_release(full_bytes=True);require(release is not None and not release['draft'], 'GitHub Release is not public; resume finalization of the original candidate')
         require(self.client.check_tag('v'+self.meta['version'],self.run['commit']), 'Public release tag is missing')
-        for asset in release['_assets']:
-            if asset['name'] in self.assets:
-                require(hashlib.sha256(self.client.asset_bytes(asset)).hexdigest()==self.assets[asset['name']], 'Public GitHub bytes differ from the sealed candidate')
-        shared.verify_public(self.directory,source_root=self.source)
+        # One fresh npm byte/channel pass followed by the independent clean
+        # installation. Never download the same tarballs in two adjacent checks.
+        shared.verify_public(self.directory,source_root=self.source,channel=self.channel)
         return {'operation':'check','status':'public_bytes_channels_installation_and_github_verified','writes':False}
 
 

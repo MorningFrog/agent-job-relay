@@ -14,7 +14,8 @@ This is the sole project backlog. Current functionality, completed acceptance an
 - [x] The Release All new-candidate/reuse/publication route passes original preparation #65 and parent #66. Configuration refresh, referenced-binding fencing and safe CI recovery diagnostics also have local regression coverage. Cross CI-to-release check reuse remains a separate acceptance item below.
 - [ ] Qualify macOS portable/native/host behavior on an appropriate Worker in a separate task. Linux-hosted static/regression checks and Darwin cross-compilation do not establish Mac execution; Mac runtime acceptance remains deferred.
 - [x] Replace the real 91-second retained-MCP wait with a paused-clock active-deadline regression and a short real question/answer transport check.
-- [ ] Verify cross CI→Release reuse during the next normal preparation. Ordinary same-commit check reuse, Windows compiler-input restoration and concurrent Linux/Windows package checks are accepted; further speed work should focus on package checks and cache-copy overhead.
+- [x] Verify cross CI→Release reuse: manual preparation #88 reused all four frontend/native checks from successful ordinary CI #86, with matching input hashes and original Server evidence.
+- [ ] Qualify bounded native-suite scheduling and concurrent public-byte verification on the next ordinary CI/release. Preserve fresh installed-package profiles and all native/host checks; investigate Windows compilation and the serial release package-check graph separately. Local timing improvements do not establish new Server/Windows acceptance.
 - [ ] Remove the remaining manual Actions platform/release references after their replacements pass Server acceptance. The four automatic main checks are already required; preserve published versions, original candidates and receipts.
 
 ## Host integration and distribution
