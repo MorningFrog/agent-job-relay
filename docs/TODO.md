@@ -13,7 +13,8 @@ This is the sole project backlog. Current functionality, completed acceptance an
 - [x] Four required automatic Linux/Windows checks, immutable cross-worker development artifacts, project-only caches, manual preparation, shared OAuth source reads and the separate local staged-publication route are implemented and accepted. One Web UI Release All entry preserves original candidates and requires human npm approval. Experimental Mac cross-build/packaging remains separate from native acceptance.
 - [x] Release configuration refresh, referenced-binding fencing and safe CI recovery diagnostics have local regression coverage. Next actual manual release must still qualify the complete new-candidate/desktop route; local checks do not create a Server acceptance result.
 - [ ] Qualify macOS portable/native/host behavior on an appropriate Worker in a separate task. Linux-hosted static/regression checks and Darwin cross-compilation do not establish Mac execution; Mac runtime acceptance remains deferred.
-- [ ] Reduce the retained-MCP/plugin test's real 91-second human wait while preserving its distinct active-timeout boundary; evaluate suite/package-check parallelism. The warm main build already reuses compilation; do not delete installation/update/state-preservation coverage merely to improve timing.
+- [x] Replace the real 91-second retained-MCP wait with a paused-clock active-deadline regression and a short real question/answer transport check.
+- [ ] Activate and verify the shared successful-check reuse policy in real Linux/Windows CI/preparation; evaluate independent suite/package-check parallelism. Local implementation is not Server reuse evidence.
 - [ ] Remove the remaining manual Actions platform/release references after their replacements pass Server acceptance. The four automatic main checks are already required; preserve published versions, original candidates and receipts.
 
 ## Host integration and distribution

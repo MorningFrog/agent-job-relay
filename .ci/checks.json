@@ -1,0 +1,107 @@
+{
+  "format": 1,
+  "repository": "MorningFrog/agent-job-relay",
+  "repository_id": 1,
+  "branch": "main",
+  "endpoint": "https://192.168.122.1:19003",
+  "ca_pem": "-----BEGIN CERTIFICATE-----\nMIIEdjCCAt6gAwIBAgIUMmw4SdQ/vmjqMHq1VHg8SOGWlTEwDQYJKoZIhvcNAQEL\nBQAwLjEsMCoGA1UEAwwjV29vZHBlY2tlciBwcml2YXRlIHJlbGVhc2UgZXhjaGFu\nZ2UwHhcNMjYxMTA5MDIzNjE3WhcNMjcxMTA5MDIzNjE3WjAuMSwwKgYDVQQDDCNX\nb29kcGVja2VyIHByaXZhdGUgcmVsZWFzZSBleGNoYW5nZTCCAaIwDQYJKoZIhvcN\nAQEBBQADggGPADCCAYoCggGBAKkkneFhUdyuyvOHu7bou9uIAc7x1obyv6VNRKdT\n2ElSJR/Evmyo7EOqjz19hDGezQGLyFc+z6sE+oBQS0TPvC9maylm4XzuDR564YPJ\n5hu6ELDakfNGsLGPP6YSDOZKAoC2F4t4dtlJtORKjBS9Lz0DcpTbNwKZYIw1Z/PH\n8wz9stD2pLc0fz9ob9EIFjN4JOcZAJ/BL1Yk5WYYkvMj55Dqj8pkaRODV0A7z03r\nO9++PPzS4pEJRRJbwkgciWx9YR4vgHXIZQ7Aj1KvASloAoXxUOYucJLgYoJ0Kc8l\nxS5fH3SQDPegEcGqAqS984xUHyBcu3qwXLn/SYJ9neK/0FkHPpT+boHc5qDKUxTI\nP5JTOmbd5Fsri6gyhf6RlekRBXq7iD4j45P2g9eNdQZJhJVLFf1ifZY581gcB2M8\nee1oNF8JvMQ1iSBKCNjSJbUYdukmgxurXrzz9YnY4B849R+SfEPOGaFqlSvaPeYs\n+4SsFP1TtU/ahN5X8GZ6Qn98vQIDAQABo4GLMIGIMB0GA1UdDgQWBBQzFXwdCthg\n8OcBEdCdFRE40Zc4WjAfBgNVHSMEGDAWgBQzFXwdCthg8OcBEdCdFRE40Zc4WjAP\nBgNVHRMBAf8EBTADAQH/MCAGA1UdEQQZMBeHBMCoegGHBH8AAAGCCWxvY2FsaG9z\ndDATBgNVHSUEDDAKBggrBgEFBQcDATANBgkqhkiG9w0BAQsFAAOCAYEAQaCp4S3s\nZWaGjRy2/llfgs+UEAKr5hG5Pb7tWeut1KUWCS1TEOWKldc5XSM1sjVxXK3irwRw\ngwcDRzlIipnsdlSBodZxOdTx/sa7n7G4AnNiiHPzpDVcJftmi//X/wxJL4AGUyBL\nqEjNEolk/8mud9GUSuzxBJwvVlyFUqVBa+9ixvT6s2gYS3iG1QY4wSnj/jg9KN/b\nXtZ7PCtlyM/81Zi1qSt7jG1IIEpzZRqG39q7iUG4elp0DH/vpbO3pJBqHAMnDu8a\nPfOZ4g0ixup4NoRYO7uExZwOmnNY5Zp3e4O6LnemNTpd4b2kQ4VPDXYxfF7bx5Le\nJ1pGIHlIWvUTOPVjvbMrwjjwguqt7Oqe6QtGJomIltEMDT7JicI0erKF0oBC76gx\nyUXX6Hwd8biuvGD1aMhm1xQu6hjNT0oc8TV/apGoG4E16vPIzLruGjaq/iJuCLHc\n2EQVKGhdoNZ5inCBMPgGxOPSo+IszPQJwPK26CKL1vps1u5Uw/n3Mgx7\n-----END CERTIFICATE-----\n",
+  "valid_after": 1794373926,
+  "expires": 1794978726,
+  "ignored_variables": [
+    "AJR_RELEASE_TASK",
+    "AJR_RELEASE_CHANNEL",
+    "EXPECTED_RELEASE_REVISION"
+  ],
+  "checks": {
+    "native-linux": {
+      "command": [
+        "cargo",
+        "+1.99.1",
+        "test",
+        "--all-targets",
+        "--locked"
+      ],
+      "inputs": [
+        "**"
+      ],
+      "environment": "node24.21.0-bookworm-sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0;rust1.99.1;epoch-2026-11-11",
+      "steps": [
+        {
+          "workflow": "_ci-linux",
+          "step": "native"
+        },
+        {
+          "workflow": "_release-linux",
+          "step": "native"
+        }
+      ]
+    },
+    "frontend-linux": {
+      "command": [
+        "sh",
+        "scripts/ci_linux.sh",
+        "frontend-tests"
+      ],
+      "inputs": [
+        "**"
+      ],
+      "environment": "node24.21.0-bookworm-sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0;rust1.99.1;epoch-2026-11-11",
+      "steps": [
+        {
+          "workflow": "_ci-linux",
+          "step": "frontend"
+        },
+        {
+          "workflow": "_release-linux",
+          "step": "frontend"
+        }
+      ]
+    },
+    "native-windows": {
+      "command": [
+        "cargo",
+        "test",
+        "--all-targets",
+        "--locked"
+      ],
+      "inputs": [
+        "**"
+      ],
+      "environment": "ajr-win-localservice;node24;rust1.99.1;msvc-x64;epoch-2026-11-11",
+      "steps": [
+        {
+          "workflow": "_ci-windows",
+          "step": "native"
+        },
+        {
+          "workflow": "_release-windows",
+          "step": "native"
+        }
+      ]
+    },
+    "frontend-windows": {
+      "command": [
+        "pwsh",
+        "-NoProfile",
+        "-NonInteractive",
+        "-File",
+        "scripts/ci_windows.ps1",
+        "frontend-tests"
+      ],
+      "inputs": [
+        "**"
+      ],
+      "environment": "ajr-win-localservice;node24;rust1.99.1;msvc-x64;epoch-2026-11-11",
+      "steps": [
+        {
+          "workflow": "_ci-windows",
+          "step": "frontend"
+        },
+        {
+          "workflow": "_release-windows",
+          "step": "frontend"
+        }
+      ]
+    }
+  }
+}

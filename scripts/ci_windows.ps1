@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([Parameter(Mandatory=$true)][ValidateSet('toolchain','frontend','native')][string]$Step)
+param([Parameter(Mandatory=$true)][ValidateSet('toolchain','frontend','frontend-tests','native')][string]$Step)
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 Set-Location (Split-Path $PSScriptRoot -Parent)
@@ -11,7 +11,7 @@ function Invoke-Checked([string]$Program, [string[]]$Arguments) {
 }
 
 # The dedicated, capacity-one Worker supplies its project-only Cargo home.
-# Retain downloads and compiler artifacts, never fixture state or test results.
+# Retain downloads and compiler artifacts, never fixture state. Check reuse uses independent Server evidence.
 $cacheRoot = if ($env:AJR_CI_CACHE_ROOT) { $env:AJR_CI_CACHE_ROOT } elseif ($env:CARGO_HOME) {
     Join-Path (Split-Path $env:CARGO_HOME -Parent) 'native-msvc-rust1.99.1-node24-v1'
 } else { Join-Path $PWD '.tmp/ci-windows' }
@@ -56,14 +56,17 @@ switch ($Step) {
     }
     'frontend' {
         Invoke-Checked 'npm.cmd' @('ci','--prefix','web','--ignore-scripts','--no-audit','--no-fund','--prefer-offline')
-        Invoke-Checked 'npm.cmd' @('test','--prefix','web')
+        Invoke-Checked 'node' @('.ci/ci_checks.mjs','frontend-windows')
         Invoke-Checked 'npm.cmd' @('run','build','--prefix','web')
+    }
+    'frontend-tests' {
+        Invoke-Checked 'npm.cmd' @('test','--prefix','web')
         Invoke-Checked 'node' @('--test','scripts/test_online_update.mjs','scripts/test_online_uninstall.mjs','scripts/test_ci_artifacts.mjs','scripts/test_release_artifacts.mjs')
     }
     'native' {
         Invoke-Checked 'cargo' @('fmt','--check')
         Invoke-Checked 'cargo' @('clippy','--all-targets','--locked','--','-D','warnings')
-        Invoke-Checked 'cargo' @('test','--all-targets','--locked')
+        Invoke-Checked 'node' @('.ci/ci_checks.mjs','native-windows')
         Invoke-Checked 'cargo' @('build','--release','--locked')
         Invoke-Checked 'cargo' @('run','--locked','--','--help')
         New-Item -ItemType Directory -Path target -Force | Out-Null

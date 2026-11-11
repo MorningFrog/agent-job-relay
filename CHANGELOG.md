@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Reuse explicitly declared output-free frontend/native CI checks across trusted main CI and release preparation when the shared service verifies matching committed inputs, environment policy and successful original Server evidence; retain fresh builds, exact-byte validation, PR tests and execute-on-miss behavior.
+- Replace the retained-MCP test's real 91-second human wait with a paused-clock active-timeout boundary check plus real short protocol round trips.
+
 ## [0.1.25] - 2026-11-11
 
 ### Added

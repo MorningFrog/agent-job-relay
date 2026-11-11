@@ -4,7 +4,7 @@ set -eu
 cd "$(dirname "$0")/.."
 
 # A dedicated, single-workflow Agent supplies this project-only Docker volume.
-# Keep the ordinary checkout disposable; never persist test profiles or results.
+# Keep the ordinary checkout disposable; never persist test profiles. Result reuse uses independent Server evidence.
 ci_cache_root="$PWD/.tmp/ci"
 if [ -d /ci-cache ]; then
   ci_cache_root=/ci-cache/node24-3d27e5c1-rust1.99.1-msrv1.89-v1
@@ -59,8 +59,11 @@ case "${1:-}" in
     ;;
   frontend)
     npm ci --prefix web --ignore-scripts --no-audit --no-fund --prefer-offline
-    npm test --prefix web
+    node .ci/ci_checks.mjs frontend-linux
     npm run build --prefix web
+    ;;
+  frontend-tests)
+    npm test --prefix web
     node --test scripts/test_online_update.mjs scripts/test_online_uninstall.mjs scripts/test_ci_artifacts.mjs scripts/test_release_artifacts.mjs
     ;;
   msrv)
@@ -73,7 +76,7 @@ case "${1:-}" in
   native)
     cargo +1.99.1 fmt --check
     cargo +1.99.1 clippy --all-targets --locked -- -D warnings
-    cargo +1.99.1 test --all-targets --locked
+    node .ci/ci_checks.mjs native-linux
     cargo +1.99.1 build --release --locked
     cargo +1.99.1 run --locked -- --help
     ;;
@@ -88,13 +91,13 @@ case "${1:-}" in
   cache)
     if [ -d /ci-cache ] && [ -d target ]; then
       # Store compiler artifacts only, including useful work from failed gates.
-      # Tests and package/profile state are always recreated and rerun.
+      # Package/profile state is recreated; checks use committed Server evidence.
       cp -au target/. "$ci_cache_root/target/"
       python3 scripts/ci_cache.py record "$ci_cache_root/inputs.json"
     fi
     ;;
   *)
-    echo "Usage: sh scripts/ci_linux.sh {toolchain|frontend|msrv|native|packages|cache}" >&2
+    echo "Usage: sh scripts/ci_linux.sh {toolchain|frontend|frontend-tests|msrv|native|packages|cache}" >&2
     exit 2
     ;;
 esac
