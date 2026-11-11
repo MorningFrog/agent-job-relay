@@ -12,7 +12,8 @@ test('Cargo reuses a moved checkout and rebuilds changed source/assets after con
   const root=fixture(t), first=path.join(root,'first'), next=path.join(root,'next'), target=path.join(root,'target');
   fs.mkdirSync(first);execFileSync('git',['init','-q'],{cwd:first});
   fs.mkdirSync(path.join(first,'src'));fs.mkdirSync(path.join(first,'web/dist'),{recursive:true});
-  fs.writeFileSync(path.join(first,'Cargo.toml'),'[package]\nname="input_time_fixture"\nversion="0.0.0"\nedition="2021"\n');
+  // Exercise the real Windows stack-link instruction for the real binary name.
+  fs.writeFileSync(path.join(first,'Cargo.toml'),'[package]\nname="agent-job-relay"\nversion="0.0.0"\nedition="2021"\n');
   fs.copyFileSync(new URL('../build.rs',import.meta.url),path.join(first,'build.rs'));
   fs.writeFileSync(path.join(first,'src/main.rs'),'include!(concat!(env!("OUT_DIR"),"/web_assets.rs")); fn main(){println!("{}",std::str::from_utf8(ASSETS[0].1).unwrap());}\n');
   fs.writeFileSync(path.join(first,'web/dist/index.html'),'initial');
@@ -34,6 +35,6 @@ test('Cargo reuses a moved checkout and rebuilds changed source/assets after con
   fs.writeFileSync(path.join(next,'web/dist/index.html'),'changed asset');
   restore(next,snapshot(next,['web/dist']),previous);
   assert(build(next).some(v=>!v.fresh));
-  const executable=path.join(target,'debug','input_time_fixture'+(process.platform==='win32'?'.exe':''));
+  const executable=path.join(target,'debug','agent-job-relay'+(process.platform==='win32'?'.exe':''));
   assert.equal(execFileSync(executable,{encoding:'utf8'}).trim(),'changed asset');
 });
