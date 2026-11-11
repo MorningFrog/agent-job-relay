@@ -52,7 +52,8 @@ function fingerprint(revision) {
   }
   if (![policyPath, clientPath].every(required => files.some(([file]) => file === required)))
     throw new Error('Commit the check policy and client first');
-  files.sort((a,b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
+  // UTF-8 order preserves Unicode scalar order, including non-BMP names.
+  files.sort((a,b) => Buffer.compare(Buffer.from(a[0]), Buffer.from(b[0])));
   return crypto.createHash('sha256').update(canonical({policy, check: name, files})).digest('hex');
 }
 function lookup(number, hash) {

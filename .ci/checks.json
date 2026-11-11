@@ -10,7 +10,8 @@
   "ignored_variables": [
     "AJR_RELEASE_TASK",
     "AJR_RELEASE_CHANNEL",
-    "EXPECTED_RELEASE_REVISION"
+    "EXPECTED_RELEASE_REVISION",
+    "RELEASE_CONTROL_ID"
   ],
   "checks": {
     "native-linux": {
