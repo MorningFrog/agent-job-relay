@@ -79,9 +79,9 @@ Run the native commands in a disposable checkout using the provisioned tool conf
 
 After separately authorized service activation and push, inspect the Server pipeline for the exact PR head, all four workflow results and GitHub checks. This is required to validate scheduling, real dependency ordering, secret injection, authenticated checkout and cross-Worker networking; local fixture transfers do not establish those properties. Keep default repository config discovery, the existing 60-minute timeout, fork approval and trust settings intact. Select required checks from actual successful Server runs.
 
-## Main-branch protection
+## Main updates and required checks
 
-Changes to main require a pull request against the latest main and all four successful checks: `ci/woodpecker/pr/_ci-linux`, `ci/woodpecker/pr/_ci-windows`, `ci/woodpecker/pr/_ci-package-windows-test` and `ci/woodpecker/pr/_ci-windows-packages`. No administrator bypass is configured. Use a branch/PR for subsequent source, CI and release-preparation edits; do not push those changes directly to main. After merging, verify the main Push pipeline independently. See [current verification](IMPLEMENTATION_STATUS.md).
+The `woodpecker-main` ruleset does not require a pull request. It still requires all four successful checks against the latest main: `ci/woodpecker/pr/_ci-linux`, `ci/woodpecker/pr/_ci-windows`, `ci/woodpecker/pr/_ci-package-windows-test` and `ci/woodpecker/pr/_ci-windows-packages`. No administrator bypass is configured. Direct main updates are permitted only when the exact commit satisfies these checks; removing the PR requirement does not waive them. Automatic main Push/PR CI remains enabled. After updating main, verify its Push pipeline independently. See [current verification](IMPLEMENTATION_STATUS.md).
 
 ## Migration boundary
 
