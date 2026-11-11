@@ -81,7 +81,7 @@ After separately authorized service activation and push, inspect the Server pipe
 
 ## Main updates and required checks
 
-The `woodpecker-main` ruleset does not require a pull request. It still requires all four successful checks against the latest main: `ci/woodpecker/pr/_ci-linux`, `ci/woodpecker/pr/_ci-windows`, `ci/woodpecker/pr/_ci-package-windows-test` and `ci/woodpecker/pr/_ci-windows-packages`. No administrator bypass is configured. Direct main updates are permitted only when the exact commit satisfies these checks; removing the PR requirement does not waive them. Automatic main Push/PR CI remains enabled. After updating main, verify its Push pipeline independently. See [current verification](IMPLEMENTATION_STATUS.md).
+The `woodpecker-main` ruleset requires a pull request against the latest main and all four successful checks: `ci/woodpecker/pr/_ci-linux`, `ci/woodpecker/pr/_ci-windows`, `ci/woodpecker/pr/_ci-package-windows-test` and `ci/woodpecker/pr/_ci-windows-packages`. Its sole always-allowed user exception is `MorningFrog`, who may push directly without waiting for these checks. Other users and integrations remain subject to the PR/check requirements; the exception is not granted to the administrator role. Automatic main Push/PR CI remains enabled. Authorized pushes use main unless the user explicitly permits another remote branch; after updating main, verify its Push pipeline independently. See [current verification](IMPLEMENTATION_STATUS.md).
 
 ## Migration boundary
 
