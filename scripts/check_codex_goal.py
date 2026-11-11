@@ -185,7 +185,8 @@ ws.addEventListener('close', () => process.exit());
                     # Query the actual owning app-server, never the separate
                     # controller whose own runtime would report notLoaded.
                     snapshot = await rpc.call("thread/read", {"threadId": thread, "includeTurns": False})
-                    result = {"success": True, "contentItems": [{"type": "text", "text": json.dumps({"schemaVersion": 1, "thread": snapshot["thread"], "turns": []})}]}
+                    # Match the real Desktop tools endpoint, not MCP's text type.
+                    result = {"success": True, "contentItems": [{"type": "inputText", "text": json.dumps({"schemaVersion": 1, "thread": snapshot["thread"], "turns": []})}]}
                 else:
                     params = request["params"]
                     thread, prompt = params["arguments"]["threadId"], params["arguments"]["prompt"]

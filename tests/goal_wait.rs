@@ -171,7 +171,11 @@ impl Fixture {
                             if snapshot["disconnect_read"] == true {
                                 return;
                             }
-                            let response = json!({"jsonrpc":"2.0","id":request["id"],"result":{"success":snapshot["reject_read"] != true,"contentItems":[{"type":"text","text":snapshot.to_string()}]}});
+                            // Desktop's native tools endpoint uses inputText;
+                            // MCP-normalized hosts may instead return text.
+                            let content_type =
+                                snapshot["content_type"].as_str().unwrap_or("inputText");
+                            let response = json!({"jsonrpc":"2.0","id":request["id"],"result":{"success":snapshot["reject_read"] != true,"contentItems":[{"type":content_type,"text":snapshot.to_string()}]}});
                             let _ = ipc::write_frame(&mut socket, &response).await;
                             return;
                         }
@@ -713,6 +717,7 @@ async fn unavailable_or_inconsistent_host_activity_retains_the_original_wait_and
         ("omit_read_tool", json!(true)),
         ("reject_read", json!(true)),
         ("disconnect_read", json!(true)),
+        ("content_type", json!("image")),
         ("schemaVersion", json!(2)),
         ("thread", json!({"id":id(),"status":{"type":"idle"}})),
         (
@@ -743,6 +748,23 @@ async fn unavailable_or_inconsistent_host_activity_retains_the_original_wait_and
     assert_eq!(claim.delivery.id, pending["deliveries"][0]["id"]);
     f.deliver(claim).await;
     assert_eq!(f.state(&wait).await["notification_accepted"], true);
+}
+
+#[tokio::test]
+async fn normalized_text_activity_restores_the_original_goal_and_delivery() {
+    let f = Fixture::new().await;
+    f.activity.lock().unwrap()["content_type"] = json!("text");
+    let wait = f.prepare().await;
+    let result = f.submit(&wait, "normalized-text-activity").await;
+    f.finish(&result).await;
+    let pending = f.store.deliveries(None, 0, 20).await.unwrap();
+    goal_wait::progress(&f.store, &wait).await.unwrap();
+    assert_eq!(f.state(&wait).await["status"], "resumed");
+    let claim = f.store.claim().await.unwrap().unwrap();
+    assert_eq!(claim.delivery.id, pending["deliveries"][0]["id"]);
+    f.deliver(claim).await;
+    assert_eq!(f.state(&wait).await["notification_accepted"], true);
+    assert_eq!(f.mutations().len(), 1);
 }
 
 #[tokio::test]

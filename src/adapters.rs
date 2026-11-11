@@ -157,7 +157,9 @@ async fn desktop(session: &AgentSession, operation: DesktopOperation<'_>) -> Res
                 let result=rpc(&mut s,2,"tools/call",json!({"callerSource":"codex","namespace":"codex_app","tool":"read_thread","threadId":session.registration.caller_thread_id,"callId":call_id,"turnId":call_id,"arguments":{"threadId":session.registration.session_id,"turnLimit":1,"includeOutputs":false,"maxOutputCharsPerItem":0}})).await?;
                 ensure!(result["success"]==true,"Desktop did not acknowledge activity read");
                 let content=result["contentItems"].as_array().context("Desktop activity read has no content")?;
-                ensure!(content.len()==1 && content[0]["type"]=="text","Desktop activity read has an unsupported content envelope");
+                // Native Desktop contentItems use inputText, while normalized
+                // tool responses use text. Both carry the same JSON snapshot.
+                ensure!(content.len()==1 && matches!(content[0]["type"].as_str(),Some("inputText" | "text")),"Desktop activity read has an unsupported content envelope");
                 return serde_json::from_str(content[0]["text"].as_str().context("Desktop activity read has no snapshot")?).context("Desktop activity snapshot is not JSON");
             }
             if let DesktopOperation::Deliver(c)=operation {

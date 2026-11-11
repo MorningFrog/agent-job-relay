@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Accept the native Desktop `inputText` activity envelope as well as normalized `text`, so Goal feedback/completion can restore after the owning turn ends instead of remaining paused on an unsupported-envelope retry. Preserve the owning-turn guard, original IDs, delivery state and accounting.
+
 ## [0.1.26] - 2026-11-11
 
 ### Changed
