@@ -60,7 +60,7 @@ Shared npm candidates contain the native executable, not selected state or secre
 
 ## Manual release authorization
 
-Automatic Woodpecker Push/PR CI verifies source without publishing credentials. Explicit manual preparation tests and seals an immutable candidate bound to the original provider/server/repository/run/source; a seal alone does not prove whole-pipeline success. The separately selected Release coordinator defaults to dry-run. Preparation source API reads may reuse explicitly bound Server OAuth that retains account write permissions; account sessions stay deployment-side and are not exported into Workers. npm automation stages only, maintainers approve with 2FA, and GitHub finalization requires both public npm byte/channel matches. Preview and independent checks never mutate publication state; recovery preserves original candidate bytes, assets and receipts. Published Actions candidates retain their original evidence. See [release operations](release.md) and [contributor policy](../CONTRIBUTING.md).
+GitHub Actions CI runs with read-only repository access. Manual preparation checks and seals a candidate bound to the original successful Prepare Release run. Preview and Check Release also use read-only access. Stage receives an expiring npm token without bypass 2FA, and a maintainer approves staged packages with 2FA. The separately authorized GitHub finalizer gets contents write after manual selection and verifies both public tarballs and channels before changing a Release. No local CLI login or npm credential enters CI, preparation or finalization. Historical candidates retain their original provider and receipts. See [release operations](release.md) and [contributor policy](../CONTRIBUTING.md).
 
 ## Automatic data maintenance
 

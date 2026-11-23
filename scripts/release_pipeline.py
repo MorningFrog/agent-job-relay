@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Coordinate manual release workflows without changing their OIDC identity."""
+"""Prepare or reuse a GitHub Actions candidate and run its read-only preview."""
 import argparse
 import os
 import sys
@@ -10,9 +10,7 @@ sys.dont_write_bytecode = True
 from release_actions import REPOSITORY, actions_context, candidate_run, github, output, require, summary
 
 WORKFLOWS = {"prepare": ("release.yml", "Prepare Release"),
-             "preview": ("release-publish.yml", "Publish Release"),
-             "publish": ("release-publish.yml", "Publish Release"),
-             "check": ("release-check.yml", "Check Release")}
+             "preview": ("release-publish.yml", "Publish Release")}
 
 
 def find_child(filename, title, revision):
@@ -119,9 +117,7 @@ def run_step(step, selected, channel, recovery):
         return selected
     require(selected.isdigit(), "Select an original successful candidate Run ID")
     candidate_run(selected)
-    inputs = {"candidate_run_id": selected, "recover_candidate": str(recovery).lower()}
-    if step in ("preview", "publish"):
-        inputs["dry_run"] = str(step == "preview").lower()
+    inputs = {"candidate_run_id": selected, "recover_candidate": str(recovery).lower(), "operation": "preview"}
     return dispatch_and_wait(step, inputs, revision)
 
 

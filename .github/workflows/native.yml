@@ -1,0 +1,97 @@
+name: Native verification
+on:
+  workflow_call:
+    inputs:
+      platform:
+        required: true
+        type: string
+      preparation:
+        type: boolean
+        default: false
+permissions:
+  contents: read
+env:
+  CARGO_PROFILE_DEV_DEBUG: '0'
+  CARGO_PROFILE_TEST_DEBUG: '0'
+jobs:
+  linux:
+    if: inputs.platform == 'linux'
+    runs-on: ubuntu-24.04
+    container: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24.21.0'
+          package-manager-cache: false
+      - name: Build bundled React and Vite UI
+        run: |
+          npm ci --prefix web --ignore-scripts --no-audit --no-fund
+          npm run build --prefix web
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: '1.99.1'
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2.9.3
+        with:
+          key: ${{ format('{0}-{1}', inputs.preparation && 'prepare' || 'ci', inputs.platform) }}
+          # PRs and manual runs may restore compiler dependencies and always rerun checks.
+          save-if: ${{ !inputs.preparation && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+      - uses: ./.github/actions/native-gates
+      - name: Bind the executable bytes to this run
+        run: node scripts/ci_artifacts.mjs pack linux-native
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: linux-native
+          path: .tmp/linux-native.ajr
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: ${{ inputs.preparation && 14 || 7 }}
+  host:
+    if: inputs.platform != 'linux'
+    name: ${{ inputs.platform }}
+    runs-on: ${{ inputs.platform == 'windows' && 'windows-2025' || inputs.platform == 'macos' && 'macos-15' || 'ubuntu-22.04' }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24.21.0'
+          package-manager-cache: false
+      - name: Build bundled React and Vite UI
+        run: |
+          npm ci --prefix web --ignore-scripts --no-audit --no-fund
+          npm run build --prefix web
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ inputs.platform == 'msrv' && '1.89.0' || '1.99.1' }}
+          components: ${{ inputs.platform == 'windows' && 'rustfmt, clippy' || '' }}
+      - uses: Swatinem/rust-cache@v2.9.3
+        with:
+          key: ${{ format('{0}-{1}', inputs.preparation && 'prepare' || 'ci', inputs.platform) }}
+          # PRs and manual runs may restore compiler dependencies and always rerun checks.
+          save-if: ${{ !inputs.preparation && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+      - name: Check all targets at the declared minimum Rust version
+        if: inputs.platform == 'msrv'
+        run: cargo check --all-targets --locked
+      - name: Compile all targets on macOS ARM64
+        if: inputs.platform == 'macos'
+        run: cargo check --all-targets --locked
+      - uses: ./.github/actions/native-gates
+        if: inputs.platform == 'windows'
+      - name: Bind the executable bytes to this run
+        if: inputs.platform == 'windows'
+        run: node scripts/ci_artifacts.mjs pack windows-native
+      - uses: actions/upload-artifact@v7.0.2
+        if: inputs.platform == 'windows'
+        with:
+          name: windows-native
+          path: .tmp/windows-native.ajr
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: ${{ inputs.preparation && 14 || 7 }}

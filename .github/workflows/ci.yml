@@ -1,174 +1,50 @@
 name: CI
 on:
-  # Legacy platform reference: automatic verification now uses Woodpecker.
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
-env:
-  # Keep behavioral coverage; omit bulky debug symbols from copied test images.
-  CARGO_PROFILE_DEV_DEBUG: '0'
-  CARGO_PROFILE_TEST_DEBUG: '0'
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   msrv:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    uses: ./.github/workflows/native.yml
+    with:
+      platform: msrv
+  linux:
+    uses: ./.github/workflows/native.yml
+    with:
+      platform: linux
+  windows:
+    uses: ./.github/workflows/native.yml
+    with:
+      platform: windows
+  macos:
+    uses: ./.github/workflows/native.yml
+    with:
+      platform: macos
+  packages:
+    needs: [linux, windows]
+    uses: ./.github/workflows/packages.yml
+  required:
+    name: CI required
+    if: ${{ always() }}
+    needs: [msrv, linux, windows, macos, packages]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: actions/setup-node@v7.1.0
-        with:
-          node-version: '24'
-      - name: Build bundled React and Vite UI
-        run: |
-          npm ci --prefix web --ignore-scripts --no-audit --no-fund
-          npm run build --prefix web
-      - uses: dtolnay/rust-toolchain@1.89.0
-      - uses: Swatinem/rust-cache@v2.9.3
-      - name: Check all targets at the declared minimum Rust version
-        run: cargo check --all-targets --locked
-  verify:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: actions/setup-node@v7.1.0
-        with:
-          node-version: '24'
-      - name: Build bundled React and Vite UI
-        run: |
-          npm ci --prefix web --ignore-scripts --no-audit --no-fund
-          npm run build --prefix web
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2.9.3
-      - run: cargo fmt --check
-      - name: Check online updater public-host command behavior
-        run: node --test scripts/test_online_update.mjs scripts/test_online_uninstall.mjs
-      - name: Check task-panel navigation
-        run: npm test --prefix web
-      - run: cargo clippy --all-targets --locked -- -D warnings
-      - name: Linux and Windows native behavior tests
-        if: runner.os != 'macOS'
-        run: cargo test --all-targets --locked
-      - name: macOS compilation and portable schema tests only
-        if: runner.os == 'macOS'
-        run: cargo test --lib --locked
-      - run: cargo build --release --locked
-      - name: Describe the tested Windows executable
-        if: runner.os == 'Windows'
-        run: ./scripts/describe_native.ps1 -Binary target/release/agent-job-relay.exe -Output target/windows-native.json
-      - name: Retain native Windows bytes for installed-package coverage
-        if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v7.0.2
-        with:
-          name: ci-windows-native
-          path: |
-            target/release/agent-job-relay.exe
-            target/windows-native.json
-          if-no-files-found: error
-          retention-days: 7
-      - name: Retain native Linux bytes for dual-platform test packaging
-        if: runner.os == 'Linux'
-        uses: actions/upload-artifact@v7.0.2
-        with:
-          name: ci-linux-native
-          path: target/release/agent-job-relay
-          if-no-files-found: error
-          retention-days: 7
-      - run: cargo run --locked -- --help
-      - uses: actions/setup-node@v7.1.0
-        if: runner.os == 'Linux'
-        with:
-          node-version: '24'
-      - uses: actions/setup-python@v7.1.0
-        if: runner.os == 'Linux'
-        with:
-          python-version: '3.12'
-      - name: Check Cargo-derived release versions and publication recovery
-        if: runner.os == 'Linux'
+      - name: Require every CI job
         env:
-          PYTHONDONTWRITEBYTECODE: '1'
+          MSRV: ${{ needs.msrv.result }}
+          LINUX: ${{ needs.linux.result }}
+          WINDOWS: ${{ needs.windows.result }}
+          MACOS: ${{ needs.macos.result }}
+          PACKAGES: ${{ needs.packages.result }}
         run: |
-          python3 scripts/release_actions.py source --allow-unreleased
-          python3 -m unittest discover -s scripts -p test_release.py -v
-      - name: Isolated host-plugin dependencies
-        if: runner.os == 'Linux'
-        run: npm install --prefix .tmp/opencode-toolchain --cache .tmp/npm-cache --ignore-scripts --no-audit --no-fund opencode-ai@1.19.4 @opencode-ai/plugin@1.19.4 @opencode-ai/sdk@1.19.4
-      - name: Pack native runtime, OpenCode and self-hosted marketplace candidates
-        if: runner.os == 'Linux'
-        run: python3 scripts/prepare_release.py --allow-unreleased --output .tmp/release-candidate
-      - name: Install candidate packages and check actual OpenCode with simulated model
-        if: runner.os == 'Linux'
-        run: python3 scripts/check_release.py --release .tmp/release-candidate --opencode .tmp/opencode-toolchain/node_modules/opencode-linux-x64/bin/opencode
-      - name: Claude scaffold only, without a Claude account or loader
-        if: runner.os == 'Linux'
-        run: python3 scripts/check_claude_scaffold.py --binary "$PWD/target/release/agent-job-relay"
-      # Push/PR jobs verify only. Release is a separate manual workflow.
-  package-windows-test:
-    needs: verify
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: actions/setup-python@v7.1.0
-        with:
-          python-version: '3.12'
-      - uses: actions/setup-node@v7.1.0
-        with:
-          node-version: '24'
-      - uses: actions/download-artifact@v8.0.2
-        with:
-          name: ci-linux-native
-          path: .tmp/ci-linux-native
-      - uses: actions/download-artifact@v8.0.2
-        with:
-          name: ci-windows-native
-          path: .tmp/ci-windows-native
-      - name: Package the exact native images from this CI revision
-        env:
-          PYTHONDONTWRITEBYTECODE: '1'
-        run: |
-          chmod +x .tmp/ci-linux-native/agent-job-relay
-          python3 scripts/prepare_release.py --allow-unreleased --binary .tmp/ci-linux-native/agent-job-relay --output .tmp/ci-windows-packages --windows-binary .tmp/ci-windows-native/release/agent-job-relay.exe --windows-metadata .tmp/ci-windows-native/windows-native.json
-      - uses: actions/upload-artifact@v7.0.2
-        with:
-          name: ci-windows-packages
-          path: .tmp/ci-windows-packages/*
-          if-no-files-found: error
-          retention-days: 7
-  windows-packages:
-    needs: package-windows-test
-    runs-on: windows-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: actions/setup-node@v7.1.0
-        with:
-          node-version: '24'
-      - uses: actions/download-artifact@v8.0.2
-        with:
-          name: ci-windows-packages
-          path: .tmp/release-candidate
-      - name: Install isolated host tools
-        run: npm install --prefix .tmp/host-tools --cache .tmp/npm-cache --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org opencode-ai@1.19.4 @openai/codex@0.164.0
-      - name: Verify installed Windows packages and actual host loaders
-        run: node scripts/check_windows_packages.mjs --release .tmp/release-candidate --codex-entry "$PWD/.tmp/host-tools/node_modules/@openai/codex/bin/codex.js" --opencode "$PWD/.tmp/host-tools/node_modules/opencode-windows-x64/bin/opencode.exe"
-      - name: Preserve isolated Windows package failure diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v7.0.2
-        with:
-          name: windows-package-diagnostics
-          path: |
-            .tmp/wp-*/report.json
-            .tmp/wp-*/*.stdout
-            .tmp/wp-*/*.stderr
-            .tmp/wp-*/*.log
-          if-no-files-found: ignore
-          retention-days: 7
+          for result in "$MSRV" "$LINUX" "$WINDOWS" "$MACOS" "$PACKAGES"; do
+            test "$result" = success || exit 1
+          done

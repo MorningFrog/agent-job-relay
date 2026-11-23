@@ -544,7 +544,7 @@ class ReleaseTests(unittest.TestCase):
         metadata.write_checksums(self.directory)
         with self.assertRaisesRegex(ValueError, "Development-only packages"):
             self.validate()
-        with patch.object(sys, "argv", ["release_actions.py", "publish", "--allow-unreleased"]), patch.object(actions, "publish") as publish, self.assertRaises(SystemExit) as stopped, patch("sys.stderr", new=io.StringIO()):
+        with patch.object(sys, "argv", ["release_actions.py", "stage", "--allow-unreleased"]), patch.object(actions, "stage_release") as publish, self.assertRaises(SystemExit) as stopped, patch("sys.stderr", new=io.StringIO()):
             actions.main()
         self.assertEqual(stopped.exception.code, 1)
         publish.assert_not_called()
@@ -558,6 +558,23 @@ class ReleaseTests(unittest.TestCase):
         run = {**self.run, "head_repository": {"full_name": "foreign/repo"}}
         with self.assertRaisesRegex(ValueError, "repository"):
             self.validate(run)
+
+    def test_candidate_download_selects_only_the_successful_original_run_artifact(self):
+        artifact = {"name": "release-candidate-bundle", "id": 456, "expired": False}
+        runs = [(self.run, [artifact], True),
+                (self.run, [{**artifact, "name": "release-candidate"}], True),
+                ({**self.run, "id": 321}, [artifact], False),
+                ({**self.run, "conclusion": "failure"}, [artifact], False),
+                (self.run, [{**artifact, "expired": True}], False),
+                (self.run, [artifact, {**artifact, "name": "release-candidate"}], False),
+                (self.run, [{**artifact, "name": "ci-packages"}], False)]
+        for run, artifacts, accepted in runs:
+            with self.subTest(run=run["id"], artifacts=artifacts), patch.dict(os.environ, {"GITHUB_SHA": self.revision}), patch.object(actions, "github", side_effect=[run, {"artifacts": artifacts}]):
+                if accepted:
+                    self.assertEqual(actions.candidate_run("123")["candidate_artifact"], artifacts[0])
+                else:
+                    with self.assertRaises(ValueError):
+                        actions.candidate_run("123")
 
     def test_changed_assets_and_rewritten_checksums_are_refused(self):
         notes = self.directory / "release-notes.md"
@@ -589,108 +606,52 @@ class ReleaseTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Checksum mismatch"):
             metadata.check_checksums(self.directory)
 
-    def test_preview_only_uses_dry_run_and_never_creates_stage(self):
-        before = {p.name: p.read_bytes() for p in self.directory.iterdir()}
-        with patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "public_package", return_value=None), patch.object(actions, "check_channel", return_value={}), patch.object(actions, "command", return_value="{}") as commands, patch.dict(os.environ, {"NPM_STAGE_TOKEN": "fake-stage-token"}), patch.object(sys, "argv", ["release_actions.py", "preview", "--release", str(self.directory)]), patch.object(actions, "summary"):
-            actions.main()
-        self.assertEqual(len(commands.call_args_list), 2)
-        for call in commands.call_args_list:
-            self.assertIn("--dry-run", call.args[0])
-            self.assertEqual(call.args[0][:3], ["npm", "stage", "publish"])
-            self.assertNotIn("ACTIONS_ID_TOKEN_REQUEST_TOKEN", call.kwargs["env"])
-        self.assertEqual(before, {p.name: p.read_bytes() for p in self.directory.iterdir()})
+    def test_preview_checks_sealed_channel_without_credentials_or_writes(self):
+        with patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "find_release", return_value=None), patch.object(actions, "public_package", return_value=None), patch.object(actions, "check_channel") as channel, patch.object(actions, "command") as command, patch.object(actions, "npm_environment") as credentials, patch.object(actions, "github") as github, patch.object(actions, "summary"):
+            actions.preview(self.directory, "123")
+        self.assertEqual([call.args for call in channel.call_args_list],
+                         [(name, "next", self.version) for name in metadata.PACKAGES.values()])
+        command.assert_not_called()
+        credentials.assert_not_called()
+        github.assert_not_called()
 
-    def test_oidc_environment_cannot_fall_back_to_stage_token(self):
-        with patch.dict(os.environ, {"NPM_STAGE_TOKEN": "fake-stage-token", "NPM_TOKEN": "fake-other-token", "NODE_AUTH_TOKEN": "fake-inherited", "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "oidc-context"}):
-            with actions.npm_environment("oidc") as env:
-                for key in ("NPM_STAGE_TOKEN", "NPM_TOKEN", "NODE_AUTH_TOKEN"):
-                    self.assertNotIn(key, env)
-                self.assertEqual(env["ACTIONS_ID_TOKEN_REQUEST_TOKEN"], "oidc-context")
-                self.assertNotIn("fake", Path(env["npm_config_userconfig"]).read_text())
-            with actions.npm_environment("stage") as env:
-                self.assertNotIn("ACTIONS_ID_TOKEN_REQUEST_TOKEN", env)
-                self.assertEqual(env["NODE_AUTH_TOKEN"], "fake-stage-token")
-                self.assertNotIn("fake", Path(env["npm_config_userconfig"]).read_text())
+    def test_only_staging_child_receives_the_stage_token(self):
+        secrets = {"NPM_STAGE_TOKEN": "stage-token", "NPM_TOKEN": "other-token",
+                   "NODE_AUTH_TOKEN": "inherited", "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "oidc",
+                   "GH_TOKEN": "github"}
+        with patch.dict(os.environ, secrets):
+            for mode in ("public", "stage"):
+                with actions.npm_environment(mode) as env:
+                    self.assertEqual(env.get("NODE_AUTH_TOKEN"), secrets["NPM_STAGE_TOKEN"] if mode == "stage" else None)
+                    for key in secrets.keys() - {"NODE_AUTH_TOKEN"}:
+                        self.assertNotIn(key, env)
+                    self.assertNotIn(secrets["NPM_STAGE_TOKEN"], Path(env["npm_config_userconfig"]).read_text())
+
+    def test_selected_release_operation_is_bound_to_the_actual_event_and_checkout(self):
+        event = self.root / "event.json"
+        event.write_text(json.dumps({"inputs": {"operation": "stage", "candidate_run_id": "123"}}))
+        env = {"GITHUB_ACTIONS": "true", "GITHUB_EVENT_NAME": "workflow_dispatch",
+               "GITHUB_REPOSITORY": actions.REPOSITORY, "GITHUB_REF": "refs/heads/main",
+               "GITHUB_SHA": self.revision, "EXPECTED_RELEASE_REVISION": "",
+               "GITHUB_WORKFLOW_REF": f"{actions.REPOSITORY}/.github/workflows/release-publish.yml@refs/heads/main",
+               "GITHUB_EVENT_PATH": str(event)}
+        with patch.dict(os.environ, env), patch.object(actions, "command", return_value=self.revision):
+            self.assertEqual(actions.verify_workflow("stage", "123"), self.revision)
+            for operation, selected, error in (("finalize", "123", "dispatch selection"),
+                                               ("stage", "456", "candidate differs"),
+                                               ("prepare", "", "outside its selected workflow")):
+                with self.subTest(operation=operation, selected=selected), self.assertRaisesRegex(ValueError, error):
+                    actions.verify_workflow(operation, selected)
+        with patch.dict(os.environ, env), patch.object(actions, "command", return_value="b" * 40):
+            with self.assertRaisesRegex(ValueError, "Checkout differs"):
+                actions.verify_workflow("stage", "123")
 
     def test_prepare_checks_source_without_publishing_credentials(self):
-        with patch.object(actions, "actions_context", return_value=self.revision), patch.object(actions, "github", return_value={"full_name": actions.REPOSITORY}), patch.object(actions, "check_tag") as tag, patch.object(actions, "github_list", return_value=[]), patch.object(actions, "registry_version", return_value=None), patch.object(actions, "command") as npm, patch.object(actions, "request") as exchange, patch.object(actions, "output"), patch.object(actions, "summary"):
+        with patch.object(actions, "actions_context", return_value=self.revision), patch.object(actions, "github", return_value={"full_name": actions.REPOSITORY}), patch.object(actions, "check_tag", return_value=False) as tag, patch.object(actions, "github_list", return_value=[]), patch.object(actions, "registry_version", return_value=None), patch.object(actions, "command") as npm, patch.object(actions, "request") as exchange, patch.object(actions, "output"), patch.object(actions, "summary"):
             actions.prepare()
             tag.assert_called_once_with("v" + self.version, self.revision)
             npm.assert_not_called()
             exchange.assert_not_called()
-
-    def test_oidc_preflight_rejects_the_prepare_workflow_identity(self):
-        with patch.dict(os.environ, {"CANDIDATE_RUN_ID": "", "GITHUB_WORKFLOW_REF": f"{actions.REPOSITORY}/.github/workflows/release.yml@refs/heads/main"}), patch.object(actions, "actions_context", return_value=self.revision), patch.object(actions, "github", return_value={"full_name": actions.REPOSITORY}), patch.object(actions, "check_tag"), patch.object(actions, "request") as exchange:
-            with self.assertRaisesRegex(ValueError, "Publish Release"):
-                actions.preflight("oidc")
-            exchange.assert_not_called()
-
-    def test_oidc_preflight_exchanges_for_both_packages_from_publish_workflow(self):
-        env = {"CANDIDATE_RUN_ID": "", "GITHUB_WORKFLOW_REF": f"{actions.REPOSITORY}/.github/workflows/release-publish.yml@refs/heads/main", "ACTIONS_ID_TOKEN_REQUEST_URL": "https://identity.example.invalid/token", "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "fake-request-token"}
-        token = {"token_type": "oidc", "token": "fake-short-lived-token", "expires": "2026-10-28T01:00:00Z"}
-        with patch.dict(os.environ, env), patch.object(actions, "actions_context", return_value=self.revision), patch.object(actions, "github", return_value={"full_name": actions.REPOSITORY}), patch.object(actions, "check_tag"), patch.object(actions, "request", side_effect=[{"value": "fake-jwt"}, token, token]) as exchange, patch.object(actions, "summary"), patch.object(actions, "output"):
-            actions.preflight("oidc")
-        self.assertEqual(exchange.call_count, 3)
-        for call, name in zip(exchange.call_args_list[1:], metadata.PACKAGES.values()):
-            self.assertTrue(call.args[0].endswith("/package/" + name))
-            self.assertEqual(call.kwargs["method"], "POST")
-
-    def test_oidc_preview_uses_the_sealed_channel_and_never_uploads(self):
-        candidate = {**self.candidate, "channel": "latest"}
-        before = {p.name: p.read_bytes() for p in self.directory.iterdir()}
-        with patch.object(actions, "validate", return_value=candidate) as validate, patch.object(actions, "find_release", return_value=None), patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "public_package", return_value=None), patch.object(actions, "check_channel", return_value={}), patch.object(actions, "command", return_value="{}") as commands, patch.object(actions, "summary"), patch.dict(os.environ, {"NPM_STAGE_TOKEN": "fake", "NODE_AUTH_TOKEN": "fake"}):
-            actions.preview(self.directory, "oidc", "next", "123")
-        validate.assert_called_once_with(self.directory, "123")
-        self.assertEqual(commands.call_count, 2)
-        for call in commands.call_args_list:
-            self.assertEqual(call.args[0][:2], ["npm", "publish"])
-            self.assertIn("--dry-run", call.args[0])
-            self.assertIn("--tag=latest", call.args[0])
-            self.assertNotIn("NODE_AUTH_TOKEN", call.kwargs["env"])
-            self.assertNotIn("NPM_STAGE_TOKEN", call.kwargs["env"])
-        self.assertEqual(before, {p.name: p.read_bytes() for p in self.directory.iterdir()})
-
-    def test_publication_preview_reuses_a_matching_partially_published_version(self):
-        with patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "public_package", side_effect=[{}, None]), patch.object(actions, "find_release", return_value=None), patch.object(actions, "check_channel", return_value={}), patch.object(actions, "command", return_value="{}") as commands, patch.object(actions, "github") as github, patch.object(actions, "summary"):
-            actions.preview(self.directory, "oidc", "latest", "123")
-        self.assertEqual(commands.call_count, 1)
-        self.assertIn(self.directory / self.meta["opencode"]["tarball"], commands.call_args.args[0])
-        github.assert_not_called()
-
-    def test_oidc_publication_never_polls_and_reuses_matching_public_uploads(self):
-        for runtime_exists in (False, True):
-            with self.subTest(runtime_exists=runtime_exists):
-                uploaded = []
-
-                def publish(argv, **_kwargs):
-                    self.assertEqual(argv[:2], ["npm", "publish"])
-                    uploaded.append(Path(argv[2]).name)
-                    return "{}"
-
-                def lookup(entry):
-                    self.assertFalse(uploaded, "Publication must not read registry visibility after a write")
-                    if runtime_exists and entry["name"] == metadata.PACKAGES["runtime"]:
-                        return {"name": entry["name"], "version": self.version, "dist": {"integrity": entry["integrity"]}}
-                    return None
-
-                with patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "registry_version", side_effect=lookup), patch.object(actions, "check_channel", return_value={"next": self.version}), patch.object(actions, "draft_release", return_value=self.draft()), patch.object(actions, "command", side_effect=publish), patch.object(actions, "record_publish_acceptance") as receipt, patch.object(actions, "github") as github, patch.object(actions.time, "sleep") as sleep, patch.object(actions, "output") as output, patch.object(actions, "summary"):
-                    actions.publish(self.directory, "123", "oidc")
-                keys = ["opencode"] if runtime_exists else list(metadata.PACKAGES)
-                self.assertEqual(uploaded, [self.meta[key]["tarball"] for key in keys])
-                self.assertEqual([call.args[2] for call in receipt.call_args_list], keys)
-                sleep.assert_not_called()
-                output.assert_called_once_with("submitted", "true")
-                github.assert_called_once_with("releases/1", method="PATCH", payload={"draft": False, "make_latest": "false"})
-
-    def test_acceptance_receipt_skips_upload_while_public_metadata_is_missing(self):
-        release = {**self.draft(), "_accepted_npm_packages": {"runtime"}}
-        with patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "public_package", return_value=None), patch.object(actions, "check_channel", return_value={}), patch.object(actions, "draft_release", return_value=release), patch.object(actions, "command", return_value="{}") as command, patch.object(actions, "record_publish_acceptance") as receipt, patch.object(actions, "github"), patch.object(actions.time, "sleep") as sleep, patch.object(actions, "output") as output, patch.object(actions, "summary"):
-            actions.publish(self.directory, "123", "oidc")
-        command.assert_called_once()
-        self.assertEqual(command.call_args.args[0][2], self.directory / self.meta["opencode"]["tarball"])
-        receipt.assert_called_once_with(self.candidate, release, "opencode")
-        sleep.assert_not_called()
-        output.assert_called_once_with("submitted", "true")
 
     def test_check_rejects_conflicting_public_bytes_without_mutation(self):
         entry = self.meta["runtime"]
@@ -707,26 +668,31 @@ class ReleaseTests(unittest.TestCase):
         entry = self.meta["runtime"]
         tarball = self.directory / entry["tarball"]
         stage = self.stage()
-        with patch.object(actions, "command", side_effect=[json.dumps([stage]), json.dumps(stage)]) as commands, patch.object(actions, "request", return_value=tarball.read_bytes()), patch.object(actions, "summary"):
-            actions.stage_package(entry, tarball, "next", {"NODE_AUTH_TOKEN": "fake"})
-            self.assertEqual(commands.call_count, 2)
-        with patch.object(actions, "command", return_value=json.dumps([{**stage, "tag": "latest"}])):
+        for data in (tarball.read_bytes(), b"foreign"):
+            replies = [json.dumps([stage]), json.dumps(stage)]
+            with self.subTest(matches=data != b"foreign"), patch.object(actions, "command", side_effect=replies) as run, patch.object(actions, "request", return_value=data), patch.object(actions, "summary"):
+                if data == b"foreign":
+                    with self.assertRaisesRegex(ValueError, "differs"):
+                        actions.stage_package(entry, tarball, "next", {"NODE_AUTH_TOKEN": "fake"})
+                else:
+                    self.assertTrue(actions.stage_package(entry, tarball, "next", {"NODE_AUTH_TOKEN": "fake"}))
+                self.assertEqual([c.args[0][2] for c in run.call_args_list], ["list", "view"])
+        with patch.object(actions, "command", return_value=json.dumps([{**stage, "tag": "latest"}])) as run:
             with self.assertRaisesRegex(ValueError, "another channel"):
-                actions.stage_package(entry, tarball, "next", {"NODE_AUTH_TOKEN": "fake"})
-        with patch.object(actions, "command", side_effect=[json.dumps([stage]), json.dumps(stage)]), patch.object(actions, "request", return_value=b"foreign"):
-            with self.assertRaisesRegex(ValueError, "differs"):
-                actions.stage_package(entry, tarball, "next", {"NODE_AUTH_TOKEN": "fake"})
+                actions.stage_package(entry, tarball, "next", {})
+            run.assert_called_once()
 
     def test_new_stage_is_created_once_then_downloaded_for_verification(self):
         entry = self.meta["runtime"]
         tarball = self.directory / entry["tarball"]
-        stage_id = "11111111-1111-4111-8111-111111111111"
-        with patch.object(actions, "command", side_effect=["[]", json.dumps({entry["name"]: {"stageId": stage_id}}), json.dumps(self.stage())]) as commands, patch.object(actions, "request", return_value=tarball.read_bytes()) as download, patch.object(actions, "summary"):
-            actions.stage_package(entry, tarball, "next", {"NODE_AUTH_TOKEN": "fake"})
-        argv = commands.call_args_list[1].args[0]
-        self.assertEqual(argv[:3], ["npm", "stage", "publish"])
-        self.assertIn("--tag=next", argv)
-        self.assertTrue(download.call_args.args[0].endswith(f"/{stage_id}/tarball"))
+        stage = self.stage()
+        replies = ["[]", json.dumps({entry["name"]: {"stageId": stage["id"]}}), json.dumps(stage)]
+        with patch.object(actions, "command", side_effect=replies) as run, patch.object(actions, "request", return_value=tarball.read_bytes()) as download, patch.object(actions, "summary"):
+            self.assertTrue(actions.stage_package(entry, tarball, "next", {"NODE_AUTH_TOKEN": "fake"}))
+        self.assertEqual([c.args[0][2] for c in run.call_args_list], ["list", "publish", "view"])
+        self.assertIn("--tag=next", run.call_args_list[1].args[0])
+        self.assertTrue(download.call_args.args[0].endswith(f"/{stage['id']}/tarball"))
+        self.assertTrue(download.call_args.kwargs["binary"])
 
     def test_validating_stage_is_retained_without_premature_download(self):
         entry = self.meta["runtime"]
@@ -738,15 +704,11 @@ class ReleaseTests(unittest.TestCase):
             self.assertIn("Do not approve yet", summary.call_args.args[0])
 
     def test_pending_validation_does_not_prevent_considering_the_second_package(self):
-        @contextmanager
-        def env(_auth):
-            yield {"NODE_AUTH_TOKEN": "fake"}
-
-        with patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "public_package", return_value=None), patch.object(actions, "check_channel", return_value={}), patch.object(actions, "draft_release", return_value=self.draft()), patch.object(actions, "npm_environment", env), patch.object(actions, "stage_package", side_effect=[False, True]) as stage, patch.object(actions, "output") as output, patch.object(actions, "summary") as summary:
-            actions.publish(self.directory, "123", "stage")
+        with patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_registry_selection", return_value=dict.fromkeys(metadata.PACKAGES)), patch.object(actions, "find_release", return_value=None), patch.object(actions, "npm_environment"), patch.object(actions, "stage_package", side_effect=[False, True]) as stage, patch.object(actions, "summary") as summary, patch.object(actions, "draft_release") as draft:
+            actions.stage_release(self.directory, "123")
         self.assertEqual([c.args[0]["name"] for c in stage.call_args_list], list(metadata.PACKAGES.values()))
-        output.assert_called_once_with("ready", "false")
         self.assertIn("Waiting for npm automated validation", summary.call_args.args[0])
+        draft.assert_not_called()
 
     def test_stage_metadata_conflicts_and_unknown_status_stop_before_download(self):
         entry = self.meta["runtime"]
@@ -759,19 +721,14 @@ class ReleaseTests(unittest.TestCase):
     def test_conflicting_public_version_stops_before_draft_or_upload(self):
         with patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "registry_version", return_value={"name": metadata.PACKAGES["runtime"], "version": self.version, "dist": {"integrity": "foreign"}}), patch.object(actions, "draft_release") as draft:
             with self.assertRaisesRegex(ValueError, "conflict"):
-                actions.publish(self.directory, "123", "stage")
+                actions.stage_release(self.directory, "123")
             draft.assert_not_called()
 
-    def test_staging_waits_and_approval_resume_skips_all_uploads(self):
-        @contextmanager
-        def env(_auth):
-            yield {"NODE_AUTH_TOKEN": "fake"}
-
-        for approved in (False, True):
-            with self.subTest(approved=approved), patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "public_package", return_value={} if approved else None), patch.object(actions, "check_channel", return_value={}), patch.object(actions, "draft_release", return_value={"id": 1}), patch.object(actions, "npm_environment", env), patch.object(actions, "stage_package") as stage, patch.object(actions, "output") as outputs, patch.object(actions, "summary"):
-                actions.publish(self.directory, "123", "stage")
-                self.assertEqual(stage.call_count, 0 if approved else 2)
-                outputs.assert_called_once_with("ready", str(approved).lower())
+    def test_stage_ignores_already_public_versions_and_preserves_legacy_receipts(self):
+        for public, receipt in (({}, set()), (None, {"runtime"})):
+            with self.subTest(public=public, receipt=receipt), patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_registry_selection", return_value={"runtime": public, "opencode": None}), patch.object(actions, "find_release", return_value={"_accepted_npm_packages": receipt}), patch.object(actions, "npm_environment"), patch.object(actions, "stage_package", return_value=True) as stage, patch.object(actions, "summary"):
+                actions.stage_release(self.directory, "123")
+            self.assertEqual([c.args[0]["name"] for c in stage.call_args_list], [metadata.PACKAGES["opencode"]])
 
     def test_foreign_release_and_assets_are_preserved(self):
         with patch.object(actions, "check_tag"), patch.object(actions, "github", return_value=[{**self.draft(), "body": "foreign"}]), patch.object(actions, "upload_release_asset") as mutation:
@@ -784,10 +741,10 @@ class ReleaseTests(unittest.TestCase):
                 actions.draft_release(self.directory, self.candidate)
             mutation.assert_not_called()
 
-    def test_local_process_cannot_publish(self):
+    def test_local_process_cannot_select_a_write_operation(self):
         with patch.dict(os.environ, {"GITHUB_ACTIONS": "false"}):
             with self.assertRaisesRegex(ValueError, "manual GitHub"):
-                actions.publish(self.directory, "123", "stage")
+                actions.verify_workflow("stage", "123")
 
     def test_repository_api_uses_the_canonical_path(self):
         with patch.dict(os.environ, {"GH_TOKEN": "fake"}), patch.object(actions, "request", return_value={}) as api:
@@ -797,7 +754,7 @@ class ReleaseTests(unittest.TestCase):
     def test_newer_npm_channel_stops_before_draft_or_upload(self):
         with patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "public_package", return_value=None), patch.object(actions, "request", return_value={"next": "99.0.0-beta.1"}), patch.object(actions, "draft_release") as draft, patch.object(actions, "command") as mutation:
             with self.assertRaisesRegex(ValueError, "backwards"):
-                actions.publish(self.directory, "123", "stage")
+                actions.stage_release(self.directory, "123")
             draft.assert_not_called()
             mutation.assert_not_called()
 
@@ -873,15 +830,6 @@ class ReleaseTests(unittest.TestCase):
         with patch.dict(os.environ, {"GITHUB_SHA": newer, "RECOVER_CANDIDATE": "true"}), patch.object(actions, "github", side_effect=[self.run, artifact]), patch.object(actions, "check_recovery_source") as check:
             self.assertEqual(actions.candidate_run("123")["head_sha"], self.revision)
             check.assert_called_once_with(self.revision, newer)
-
-    def test_recovery_preflight_checks_the_original_candidate_tag(self):
-        @contextmanager
-        def env(_auth):
-            yield {}
-
-        with patch.dict(os.environ, {"CANDIDATE_RUN_ID": "123"}), patch.object(actions, "actions_context", return_value="b" * 40), patch.object(actions, "candidate_run", return_value=self.run), patch.object(actions, "github", return_value={"full_name": actions.REPOSITORY}), patch.object(actions, "check_tag") as tag, patch.object(actions, "npm_environment", env), patch.object(actions, "command", return_value='"morningfrog"'), patch.object(actions, "summary"), patch.object(actions, "output"):
-            actions.preflight("stage")
-        tag.assert_called_once_with("v" + self.version, self.revision)
 
     def test_recovery_allows_only_unchanged_payloads_in_a_descendant_checkout(self):
         def git(*args):
@@ -968,61 +916,21 @@ class ReleaseTests(unittest.TestCase):
             server.server_close()
             thread.join()
 
-    def test_finalization_requires_public_validation_before_any_write(self):
-        with patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "verify_public", side_effect=ValueError("not approved")), patch.object(actions, "github") as mutation, patch.object(actions, "command") as commands:
+    def test_finalization_requires_both_public_tarballs_and_channels_before_any_write(self):
+        with patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "verify_public_bytes", side_effect=ValueError("not approved")), patch.object(actions, "github") as mutation, patch.object(actions, "command") as commands:
             with self.assertRaisesRegex(ValueError, "not approved"):
-                actions.finalize(self.directory, "123", "stage")
+                actions.finalize(self.directory, "123")
             mutation.assert_not_called()
             commands.assert_not_called()
-        with patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "verify_public"), patch.object(actions, "request", return_value={"next": self.version}), patch.object(actions, "draft_release", return_value={"id": 1, "draft": True}), patch.object(actions, "github") as mutation, patch.object(actions, "command") as commands, patch.object(actions, "summary"), patch.dict(os.environ, {"NPM_STAGE_TOKEN": "fake"}):
-            actions.finalize(self.directory, "123", "stage")
-            commands.assert_not_called()
-            mutation.assert_called_once_with("releases/1", method="PATCH", payload={"draft": False, "make_latest": "false"})
+        with patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "verify_public_bytes") as verify, patch.object(actions, "draft_release", return_value={"id": 1, "draft": True}), patch.object(actions, "check_tag", return_value=True), patch.object(actions, "github") as mutation, patch.object(actions, "command") as commands, patch.object(actions, "summary"):
+            actions.finalize(self.directory, "123")
+        verify.assert_called_once_with(self.directory, self.meta, channel="next")
+        commands.assert_not_called()
+        mutation.assert_called_once_with("releases/1", method="PATCH", payload={"draft": False, "make_latest": "false"})
 
     def test_authenticated_redirect_cannot_forward_a_token(self):
         with self.assertRaisesRegex(RuntimeError, "redirects"):
             actions.NoCredentialRedirect().redirect_request(None, None, 302, "redirect", {}, "https://foreign.invalid")
-
-    def test_channel_update_must_be_public_before_github_completion(self):
-        with self.registry_clock() as sleep, patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "verify_public"), patch.object(actions, "request", return_value={}), patch.object(actions, "command", return_value="") as command, patch.object(actions, "draft_release") as draft, patch.object(actions, "github") as github, patch.object(actions, "summary"), patch.dict(os.environ, {"NPM_STAGE_TOKEN": "fake"}):
-            with self.assertRaisesRegex(ValueError, "not yet publicly visible"):
-                actions.finalize(self.directory, "123", "stage")
-        self.assertEqual(command.call_args.args[0][:3], ["npm", "dist-tag", "add"])
-        command.assert_called_once()
-        self.assertEqual(sum(call.args[0] for call in sleep.call_args_list), 120)
-        draft.assert_not_called()
-        github.assert_not_called()
-
-    def test_channel_propagation_waits_before_github_completion_without_rewriting_tags(self):
-        updated = set()
-        visible = set()
-        pending = {name: 2 for name in metadata.PACKAGES.values()}
-
-        def update(argv, **_kwargs):
-            self.assertEqual(argv[:3], ["npm", "dist-tag", "add"])
-            name = argv[3].split("@")[0]
-            self.assertNotIn(name, updated)
-            updated.add(name)
-            return ""
-
-        def tags(url, **_kwargs):
-            name = next(name for name in metadata.PACKAGES.values() if name in url)
-            if name not in updated:
-                return {"next": "0.0.1"}
-            if pending[name]:
-                pending[name] -= 1
-                return {"next": "0.0.1"}
-            visible.add(name)
-            return {"next": self.version}
-
-        def complete(*_args, **_kwargs):
-            self.assertEqual(visible, set(metadata.PACKAGES.values()))
-
-        with self.registry_clock() as sleep, patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "verify_public"), patch.object(actions, "request", side_effect=tags), patch.object(actions, "command", side_effect=update) as command, patch.object(actions, "draft_release", return_value={"id": 1, "draft": True}), patch.object(actions, "github", side_effect=complete) as github, patch.object(actions, "summary"):
-            actions.finalize(self.directory, "123", "oidc")
-        self.assertEqual(command.call_count, 2)
-        self.assertEqual(sleep.call_count, 4)
-        github.assert_called_once_with("releases/1", method="PATCH", payload={"draft": False, "make_latest": "false"})
 
     def test_check_waits_read_only_and_verifies_the_published_release(self):
         pending = {name: 2 for name in metadata.PACKAGES.values()}
@@ -1037,7 +945,7 @@ class ReleaseTests(unittest.TestCase):
         with self.registry_clock() as sleep, patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "public_package", side_effect=lookup), patch.object(actions, "check_channel", return_value={"next": self.version}), patch.object(actions, "verify_public") as install, patch.object(actions, "find_release", return_value=release), patch.object(actions, "check_tag", return_value=True), patch.object(actions, "github") as mutation, patch.object(actions, "command") as command, patch.object(actions, "summary") as summary:
             actions.check_publication(self.directory, "123")
         self.assertEqual(sleep.call_count, 2)
-        install.assert_called_once_with(self.directory)
+        install.assert_called_once_with(self.directory, channel="next")
         mutation.assert_not_called()
         command.assert_not_called()
         self.assertIn("Public verification passed", summary.call_args.args[0])
@@ -1171,40 +1079,13 @@ class ReleaseTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "publishing workflow"):
                 actions.read_receipt(asset(data), self.candidate, match)
 
-    def test_receipt_writer_keeps_candidate_inventory_unchanged(self):
-        before = {p.name: p.read_bytes() for p in self.directory.iterdir()}
-        recorded = []
-
-        def upload(release_id, path):
-            self.assertEqual(release_id, 1)
-            self.assertEqual(path.name, "npm-publish-receipt-456-2-opencode.json")
-            recorded.append(json.loads(path.read_text()))
-
-        with patch.dict(os.environ, {"GITHUB_RUN_ID": "456", "GITHUB_RUN_ATTEMPT": "2"}), patch.object(actions, "actions_context", return_value=self.revision), patch.object(actions, "upload_release_asset", side_effect=upload):
-            actions.record_publish_acceptance(self.candidate, self.draft(), "opencode")
-        self.assertEqual(recorded, [{**actions.receipt_fields(self.candidate, "opencode"), "publisher_run_id": "456", "publisher_run_attempt": "2", "publisher_revision": self.revision}])
-        self.assertEqual(before, {p.name: p.read_bytes() for p in self.directory.iterdir()})
-
-    def test_receipt_failure_stops_before_next_upload_and_public_metadata_allows_recovery(self):
-        with patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "public_package", return_value=None), patch.object(actions, "check_channel", return_value={}), patch.object(actions, "draft_release", return_value=self.draft()), patch.object(actions, "command", return_value="{}") as command, patch.object(actions, "record_publish_acceptance", side_effect=RuntimeError("receipt response lost")), patch.object(actions, "github") as github:
-            with self.assertRaisesRegex(RuntimeError, "receipt response lost"):
-                actions.publish(self.directory, "123", "oidc")
-        command.assert_called_once()
-        github.assert_not_called()
-        with patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "public_package", side_effect=[{}, None]), patch.object(actions, "check_channel", return_value={"next": self.version}), patch.object(actions, "draft_release", return_value=self.draft()), patch.object(actions, "command", return_value="{}") as command, patch.object(actions, "record_publish_acceptance") as receipt, patch.object(actions, "github"), patch.object(actions, "output"), patch.object(actions, "summary"):
-            actions.publish(self.directory, "123", "oidc")
-        command.assert_called_once()
-        self.assertEqual(command.call_args.args[0][2], self.directory / self.meta["opencode"]["tarball"])
-        self.assertEqual(receipt.call_args.args[2], "opencode")
-
     def test_completed_publication_is_idempotent_without_any_remote_write(self):
-        with patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "public_package", return_value={}), patch.object(actions, "check_channel", return_value={"next": self.version}), patch.object(actions, "draft_release", return_value={**self.draft(), "draft": False}), patch.object(actions, "command") as command, patch.object(actions, "record_publish_acceptance") as receipt, patch.object(actions, "github") as github, patch.object(actions, "output"), patch.object(actions, "summary"):
-            actions.publish(self.directory, "123", "oidc")
+        with patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "verify_public_bytes"), patch.object(actions, "draft_release", return_value={**self.draft(), "draft": False}), patch.object(actions, "check_tag", return_value=True), patch.object(actions, "command") as command, patch.object(actions, "github") as github, patch.object(actions, "summary"):
+            actions.finalize(self.directory, "123")
         command.assert_not_called()
-        receipt.assert_not_called()
         github.assert_not_called()
 
-    def child(self, step="publish", **overrides):
+    def child(self, step="preview", **overrides):
         filename, name = pipeline.WORKFLOWS[step]
         return {**self.run, "id": 456, "path": ".github/workflows/" + filename, "display_title": f"{name} [release-789-{step}]", "run_attempt": 1, **overrides}
 
@@ -1227,11 +1108,11 @@ class ReleaseTests(unittest.TestCase):
             return child
 
         with patch.dict(os.environ, {"GITHUB_RUN_ID": "789"}), patch.object(pipeline, "github", side_effect=api), patch.object(pipeline, "output"), patch.object(pipeline, "summary"):
-            self.assertEqual(pipeline.dispatch_and_wait("publish", {"candidate_run_id": "123", "dry_run": "false"}, self.revision), "456")
+            self.assertEqual(pipeline.dispatch_and_wait("preview", {"candidate_run_id": "123", "operation": "preview"}, self.revision), "456")
         self.assertEqual(len(posts), 1)
         self.assertEqual(posts[0][0], "actions/workflows/release-publish.yml/dispatches")
         self.assertEqual(posts[0][1]["inputs"]["expected_revision"], self.revision)
-        self.assertEqual(posts[0][1]["inputs"]["pipeline_key"], "release-789-publish")
+        self.assertEqual(posts[0][1]["inputs"]["pipeline_key"], "release-789-preview")
 
     def test_pipeline_initial_metadata_settles_without_dispatching_twice(self):
         posts = []
@@ -1254,7 +1135,7 @@ class ReleaseTests(unittest.TestCase):
             return next(snapshots)
 
         with self.registry_clock() as sleep, patch.dict(os.environ, {"GITHUB_RUN_ID": "789"}), patch.object(pipeline, "github", side_effect=api), patch.object(pipeline, "output"), patch.object(pipeline, "summary"):
-            self.assertEqual(pipeline.dispatch_and_wait("preview", {"candidate_run_id": "123", "dry_run": "true"}, self.revision), "456")
+            self.assertEqual(pipeline.dispatch_and_wait("preview", {"candidate_run_id": "123", "operation": "preview"}, self.revision), "456")
         self.assertEqual(posts, ["actions/workflows/release-publish.yml/dispatches"])
         self.assertGreater(sum(call.args[0] for call in sleep.call_args_list), 0)
 
@@ -1273,7 +1154,7 @@ class ReleaseTests(unittest.TestCase):
 
         with self.registry_clock() as sleep, patch.dict(os.environ, {"GITHUB_RUN_ID": "789"}), patch.object(pipeline, "github", side_effect=api), patch.object(pipeline, "output"), patch.object(pipeline, "summary"):
             with self.assertRaisesRegex(ValueError, "did not initialize"):
-                pipeline.dispatch_and_wait("preview", {"candidate_run_id": "123", "dry_run": "true"}, self.revision)
+                pipeline.dispatch_and_wait("preview", {"candidate_run_id": "123", "operation": "preview"}, self.revision)
         self.assertEqual(posts, ["actions/workflows/release-publish.yml/dispatches"])
         self.assertEqual(sum(call.args[0] for call in sleep.call_args_list), 60)
 
@@ -1293,13 +1174,13 @@ class ReleaseTests(unittest.TestCase):
 
             with self.subTest(field=field), self.registry_clock() as sleep, patch.dict(os.environ, {"GITHUB_RUN_ID": "789"}), patch.object(pipeline, "github", side_effect=api), patch.object(pipeline, "output"), patch.object(pipeline, "summary"):
                 with self.assertRaisesRegex(ValueError, field):
-                    pipeline.dispatch_and_wait("preview", {"candidate_run_id": "123", "dry_run": "true"}, self.revision)
+                    pipeline.dispatch_and_wait("preview", {"candidate_run_id": "123", "operation": "preview"}, self.revision)
             sleep.assert_not_called()
             self.assertEqual(posts, ["actions/workflows/release-publish.yml/dispatches"])
 
-    def test_pipeline_retries_failed_check_only_using_its_original_run_id(self):
-        failed = self.child("check", conclusion="failure")
-        runs = iter([failed, self.child("check", status="in_progress", conclusion=None, run_attempt=2), self.child("check", run_attempt=2)])
+    def test_pipeline_retries_failed_preview_using_its_original_run_id(self):
+        failed = self.child("preview", conclusion="failure")
+        runs = iter([failed, self.child("preview", status="in_progress", conclusion=None, run_attempt=2), self.child("preview", run_attempt=2)])
         posts = []
 
         def api(path, **kwargs):
@@ -1314,7 +1195,7 @@ class ReleaseTests(unittest.TestCase):
             return next(runs)
 
         with self.registry_clock(), patch.dict(os.environ, {"GITHUB_RUN_ID": "789"}), patch.object(pipeline, "github", side_effect=api), patch.object(pipeline, "output"), patch.object(pipeline, "summary"):
-            self.assertEqual(pipeline.dispatch_and_wait("check", {"candidate_run_id": "123"}, self.revision), "456")
+            self.assertEqual(pipeline.dispatch_and_wait("preview", {"candidate_run_id": "123"}, self.revision), "456")
         self.assertEqual(posts, ["actions/runs/456/rerun-failed-jobs"])
 
     def test_pipeline_reuses_selected_candidate_without_preparing_again(self):
@@ -1337,7 +1218,7 @@ class ReleaseTests(unittest.TestCase):
 
             with self.subTest(main_changed=changed), patch.dict(os.environ, {"GITHUB_RUN_ID": "789"}), patch.object(pipeline, "github", side_effect=api):
                 with self.assertRaises(ValueError):
-                    pipeline.dispatch_and_wait("publish", {"candidate_run_id": "123"}, self.revision)
+                    pipeline.dispatch_and_wait("preview", {"candidate_run_id": "123"}, self.revision)
             self.assertEqual(writes, [])
 
     def test_pipeline_child_ref_race_is_rejected_by_the_child_context(self):
@@ -1347,15 +1228,15 @@ class ReleaseTests(unittest.TestCase):
                 actions.actions_context()
         request.assert_not_called()
 
-    def test_pipeline_preview_dispatches_only_the_actual_publisher_dry_run(self):
+    def test_pipeline_preview_dispatches_only_the_read_only_operation(self):
         env = {"GITHUB_WORKFLOW_REF": f"{actions.REPOSITORY}/.github/workflows/release-all.yml@refs/heads/main"}
         with patch.dict(os.environ, env), patch.object(pipeline, "actions_context", return_value=self.revision), patch.object(pipeline, "candidate_run") as candidate, patch.object(pipeline, "dispatch_and_wait", return_value="456") as dispatch:
             self.assertEqual(pipeline.run_step("preview", "123", "next", True), "456")
         candidate.assert_called_once_with("123")
-        dispatch.assert_called_once_with("preview", {"candidate_run_id": "123", "recover_candidate": "true", "dry_run": "true"}, self.revision)
+        dispatch.assert_called_once_with("preview", {"candidate_run_id": "123", "recover_candidate": "true", "operation": "preview"}, self.revision)
 
     def test_prepare_refuses_a_partially_published_version_before_any_build(self):
-        with patch.object(actions, "actions_context", return_value=self.revision), patch.object(actions, "github", return_value={"full_name": actions.REPOSITORY}), patch.object(actions, "check_tag"), patch.object(actions, "github_list", return_value=[]), patch.object(actions, "registry_version", return_value={}), patch.object(actions, "command") as command:
+        with patch.object(actions, "actions_context", return_value=self.revision), patch.object(actions, "github", return_value={"full_name": actions.REPOSITORY}), patch.object(actions, "check_tag", return_value=False), patch.object(actions, "github_list", return_value=[]), patch.object(actions, "registry_version", return_value={}), patch.object(actions, "command") as command:
             with self.assertRaisesRegex(ValueError, "original candidate_run_id"):
                 actions.prepare()
         command.assert_not_called()

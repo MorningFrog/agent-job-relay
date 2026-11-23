@@ -8,15 +8,12 @@ Distribute one Rust/MCP runtime through ChatGPT Desktop/Codex, Claude Code and O
 
 This is the sole project backlog. Current functionality, completed acceptance and version-specific evidence are maintained in [implementation status](IMPLEMENTATION_STATUS.md) and [live verification](live-e2e.md); changes by version are in [CHANGELOG](../CHANGELOG.md). Keep future work and explicit deferrals here.
 
-## CI/CD migration
+## CI/CD
 
-- [x] Four required automatic Linux/Windows checks, immutable cross-worker development artifacts, project-only caches, manual preparation, shared OAuth source reads and the separate local staged-publication route are implemented and accepted. One Web UI Release All entry preserves original candidates and requires human npm approval. Experimental Mac cross-build/packaging remains separate from native acceptance.
-- [x] The Release All new-candidate/reuse/publication route passes original preparation #65 and parent #66. Configuration refresh, referenced-binding fencing and safe CI recovery diagnostics also have local regression coverage. Cross CI-to-release check reuse remains a separate acceptance item below.
-- [ ] Qualify macOS portable/native/host behavior on an appropriate Worker in a separate task. Linux-hosted static/regression checks and Darwin cross-compilation do not establish Mac execution; Mac runtime acceptance remains deferred.
-- [x] Replace the real 91-second retained-MCP wait with a paused-clock active-deadline regression and a short real question/answer transport check.
-- [x] Verify cross CI→Release reuse: manual preparation #88 reused all four frontend/native checks from successful ordinary CI #86, with matching input hashes and original Server evidence.
-- [ ] Qualify bounded native-suite scheduling and concurrent public-byte verification on the next ordinary CI/release. Preserve fresh installed-package profiles and all native/host checks; investigate Windows compilation and the serial release package-check graph separately. Local timing improvements do not establish new Server/Windows acceptance.
-- [ ] Remove the remaining manual Actions platform/release references after their replacements pass Server acceptance. The four automatic main checks are already required; preserve published versions, original candidates and receipts.
+- [x] Restore GitHub Actions as the repository's CI/CD provider. Keep Linux/Windows native and installed-package checks, separate minimum Rust compilation and macOS ARM64 compilation. Remove Woodpecker project workflows and their private exchange/cache tooling.
+- [ ] Qualify the first GitHub-hosted PR and main push. After the new GitHub Actions required check passes, replace the obsolete Woodpecker requirements in the GitHub ruleset using maintainer authorization. Retire the external repository integration separately if present.
+- [ ] Qualify GitHub-hosted manual Prepare Release and read-only Preview on an unused finalized version. Actual staged publication, maintainer approval and independent public verification require separate acceptance. Preserve original provider candidates and published receipts.
+- [ ] Qualify macOS runtime/installation/host behavior in a separate task. Compilation and cross-build checks do not close this item.
 
 ## Host integration and distribution
 

@@ -1,72 +1,17 @@
-# Developer scripts
+# Script index
 
-[Contributing](../CONTRIBUTING.md) · [Release guide](../docs/release.md) · [Testing](../docs/testing.md)
+[Documentation index](../docs/README.md) · [CI](../docs/ci.md) · [Testing](../docs/testing.md) · [Release](../docs/release.md)
 
-Run scripts from the repository root. Generated state and reports belong in ignored `.tmp/` or `target/`; host checks use isolated profiles and do not establish real-account/model acceptance unless explicitly documented.
-
-## Linux CI
-
-`ci_linux.sh` implements the `toolchain`, `frontend`, `frontend-tests`, `msrv`, `native`, `packages` and `cache` native steps in `.woodpecker/_ci-linux.yaml` and the separate Linux `packages` check. Run it in the pinned workflow image with a disposable checkout, not against an installed runtime or personal profile. `ci_cache.py` restores mtimes only for content/mode-matching compiler inputs; its regressions cover changed bytes/modes, UI inventory and symlinks. It checks development packages only and never publishes. See [container reproduction and migration limits](../docs/ci.md).
-
-`ci_tests.mjs` compiles all locked Cargo test targets and runs the discovered suites through Cargo with bounded parallelism, retaining every suite and failure. `test_ci_tests.mjs` covers target inventory, overlap and failure propagation. Per-suite timings/logs stay in disposable `.tmp/ci-tests-*`; see [native test scheduling](../docs/ci.md#native-test-scheduling).
-
-## Windows native CI
-
-`ci_windows.ps1` implements the `toolchain`, `frontend`, `frontend-tests` and `native` steps in `.woodpecker/_ci-windows.yaml` using PowerShell 7, provisioned Node 24/Rust 1.99.1 and discovered Visual Studio C++ tools. A capacity-one Worker supplies project-only compiler/download caching; the shared `.ci/ci_inputs.mjs` restores content/mode-matching input times before native gates; output-free frontend/native tests use the shared `.ci/ci_checks.mjs` policy client; PR/local runs and misses execute tests in the disposable checkout. `describe_native.ps1 -Revision <commit>` records explicit native source identity without simulating an Actions environment. `ci_windows_packages.ps1` runs the subsequent installed-package/Codex/OpenCode checks. `ci_artifacts.mjs` transfers exact-run native/development-package bytes over the separately provisioned private HTTPS exchange; its tests cover identity, checksum, inventory and extraction fences. These workflows need administrator-provided exchange secrets before Server execution. See [Windows prerequisites and reproduction](../docs/ci.md#windows-native-verification).
-
-## Release preparation
-
-Use one local entry point for a new formal release:
-
-```bash
-python3 scripts/finalize_release.py --version <unused-x.y.z>
-```
-
-This synchronizes Cargo.toml/Cargo.lock, both public npm packages, OpenCode's exact runtime dependency, plugin descriptors and online MCP/terminal runtime pins. It checks unused-version evidence before writing, runs frontend/native/release gates, then archives Unreleased notes under `## [x.y.z] - YYYY-MM-DD`. The date defaults to Asia/Shanghai; `--date YYYY-MM-DD` overrides it. The private web package has its own development version. Review and commit before manual preparation; this command never pushes or publishes.
-
-If a gate fails, synchronized version edits remain and notes stay pending. Fix the failure and rerun the same command. Each file replacement is atomic; an interrupted group of version edits is repaired by repeating the same explicit `--version`. Without `--version`, the command validates the current Cargo version and requires all pins already to match. Existing release sections/dates are preserved; used versions and merging pending changes into an existing section are refused. Candidate reuse/publication retries use the original sealed candidate, without finalization. See [preparation requirements](../docs/release.md#prepare-and-review).
-
-| Script/module | Responsibility |
+| Scripts | Purpose |
 |---|---|
-| `finalize_release.py` | Local version synchronization, delivery gates and CHANGELOG finalization |
-| `release_metadata.py` | Shared version/pin planning and validation, notes, checksums and immutable candidate identity; imported module |
-| `prepare_release.py` | Package already-built native bytes into npm/marketplace candidates; `--allow-unreleased` produces development-only artifacts |
-| `build_macos_arm64.py` | Linux/osxcross ARM Mac build or type-check, with no tests/target execution; requires a user-supplied SDK/toolchain and emits an explicitly untested development descriptor; [guide](../docs/macos-arm64.md) |
-| `release_woodpecker.py`, `release_artifacts.mjs` | Manual-only source/run fences, compatibility evidence, separate-role transfer and post-installation preparation seals; rehearsal stays development-only, no publication |
-| `release_windows.ps1`, `check_release_compatibility.sh` | Native Windows preparation wrapper and exact-byte glibc 2.34 startup/SQLite smoke check |
-| `test_release_woodpecker.py`, `test_release_artifacts.mjs` | Preparation identity, original-byte seals, development isolation and failed/incomplete-run refusal |
-| `release_publish.py`, `release_publish_artifacts.mjs` | Read original accepted candidate/status, separate identity/preview/staging/GitHub finalization and independent public-byte checking; no rebuild or automated npm approval |
-| `release_web.py`, `test_release_web.py` | Observe the exact main/manual Release parent through a read-only progress endpoint; fixed safe failure/recovery guidance, no publishing credentials or mutation API |
-| `release_local.py` | Local maintainer adapter: live original-candidate inspection, shared gh/npm login, CLI staging/download, human approval boundary, local receipt/finalization and isolated public checks; never impersonates CI |
-| `test_release_local.py` | Four focused local admission, byte-preserving staging/recovery, already-public account-free preview and truthful receipt/finalization regressions; no account mutations or native builds |
-| `test_release_publish.py` | Publication boundary/recovery and bounded concurrent full-byte verification regressions; no real accounts or additional native builds |
-| `release_actions.py` | Individual manual Actions operations: preflight, sealing, publisher preview, publication and independent verification |
-| `release_pipeline.py` | Coordinate Release All child workflows with pinned source/run identities |
-| `check_release.py` | Install and verify local candidate packages/loaders in isolated state |
-| `test_release.py` | Account-free release behavior/regression fixtures |
-
-For development-only validation without version edits or finalization:
-
-```bash
-python3 scripts/release_actions.py source --allow-unreleased
-python3 -B -m unittest discover -s scripts -p test_release.py -v
-```
-
-Expected: synchronized current-source metadata is printed, then all release fixtures pass without public writes. Actions entry points remain separate so packaging, publication and checking retain their existing credentials and immutable-candidate boundaries.
-
-## Host and maintenance verification
-
-| Scripts | Purpose and limits |
-|---|---|
-| `check_codex_plugin.py` | Actual Codex plugin/tool discovery with isolated installation; no model continuation proof |
-| `check_codex_goal.py` | Actual goal-capable Codex plus simulated Agent/model/endpoint; no real Desktop goal mutation |
-| `check_opencode_plugin.py` | Actual OpenCode V1 loader/session workflow with a simulated model |
-| `opencode_ready.mjs`, `test_opencode_ready.mjs` | Shared bounded project-bootstrap readiness before Linux/Windows session writes; delayed/failed startup regression without real hosts |
-| `check_claude_scaffold.py` | Scaffold launcher/caller isolation; Claude remains inbox-only without account-backed loader evidence |
-| `check_desktop_restart.py` | Bounded wait/release handshake for explicitly coordinated restart acceptance |
-| `check_online_update.py` | Isolated installed-package update/removal with fixture registry/public-host commands |
-| `test_online_update.mjs`, `test_online_uninstall.mjs` | Account-free public-host/Git maintenance fixtures |
-| `check_windows_packages.mjs` | Windows installed npm/native/package and actual host-loader checks |
-| `describe_native.ps1` | Describe verified Windows native version/revision/digest for candidate packaging |
-
-Use the [testing guide](../docs/testing.md) for prerequisites, invocations and expected results; Python CLI entry points also describe their options with `--help`. Current evidence and platform/host limits live in [implementation status](../docs/IMPLEMENTATION_STATUS.md), not in generated reports committed to Git.
+| `ci_tests.mjs`, `test_ci_tests.mjs` | Run all locked Cargo test suites with bounded concurrency and per-suite results. Tests verify discovery, overlap and failure propagation |
+| `ci_artifacts.mjs`, `test_ci_artifacts.mjs` | Frame exact-run native binaries, packages and sealed candidates. Verify run/source/producer, development mode and the full byte inventory before extracting |
+| `describe_native.ps1`, `ci_windows_packages.ps1`, `check_windows_packages.mjs` | Describe the Windows executable and run installed-package and actual host-loader checks using disposable profiles |
+| `check_release_compatibility.sh` | Verify startup and isolated SQLite access with the exact downloaded Linux executable inside the pinned glibc 2.34 image |
+| `prepare_release.py`, `check_release.py` | Pack Linux/Windows bytes and test the exact installed packages in an isolated registry/profile. Use `--allow-unreleased` for development packaging only |
+| `finalize_release.py`, `release_metadata.py` | Check version availability, synchronize Cargo/npm/plugin pins, run local gates, finalize notes and validate sealed candidate metadata |
+| `release_actions.py`, `release_pipeline.py`, `test_release.py` | Bind manual GitHub Actions source/run identity, prepare/reuse and preview, stage for human approval, finalize GitHub and independently check the public release |
+| `check_codex_plugin.py`, `check_codex_goal.py`, `check_desktop_restart.py` | Exercise actual Codex loading, isolated Goal fixtures and version-specific Desktop restart checks. See [live verification](../docs/live-e2e.md) for limits |
+| `check_opencode_plugin.py`, `opencode_ready.mjs`, `test_opencode_ready.mjs`, `check_claude_scaffold.py` | Exercise actual OpenCode V1 loading with simulated model and isolated readiness fencing. Check the Claude scaffold without a Claude account |
+| `check_online_update.py`, `test_online_update.mjs`, `test_online_uninstall.mjs` | Qualify isolated online upgrade/removal and public host CLI command behavior |
+| `build_macos_arm64.py` | Build and describe experimental Darwin ARM64 bytes from a supplied toolchain. See [macOS development](../docs/macos-arm64.md) |

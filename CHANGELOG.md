@@ -4,6 +4,8 @@
 
 ### Changed
 
+- Run project CI and manual releases on GitHub Actions. Preserve exact-run Linux/Windows package checks, separately verify minimum Rust and macOS ARM64 compilation, and require npm staging with maintainer 2FA before GitHub publication.
+
 - Run all discovered Cargo native test suites with bounded parallel scheduling in CI, retaining official Cargo environments, complete coverage and per-suite failure/timing reports.
 - Parallelize independent npm/GitHub public-byte verification and remove duplicate downloads within Check Release while retaining full-byte, channel, receipt, Tag and isolated installation checks.
 

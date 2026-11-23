@@ -1,0 +1,29 @@
+name: Native gates
+description: Test and build the Linux or Windows executable
+runs:
+  using: composite
+  steps:
+    - name: Check Linux and Windows source and frontend behavior
+      shell: bash
+      run: |
+        cargo fmt --check
+        npm test --prefix web
+        node --test scripts/test_online_update.mjs scripts/test_online_uninstall.mjs scripts/test_ci_artifacts.mjs scripts/test_opencode_ready.mjs scripts/test_ci_tests.mjs
+        cargo clippy --all-targets --locked -- -D warnings
+    - name: Run every native Cargo test suite
+      shell: bash
+      run: node scripts/ci_tests.mjs
+    - name: Build the tested native release executable
+      shell: bash
+      run: cargo build --release --locked
+    - name: Verify the Linux executable
+      if: runner.os == 'Linux'
+      shell: bash
+      run: target/release/agent-job-relay --help
+    - name: Verify and describe the Windows executable
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        & ./target/release/agent-job-relay.exe --help
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        ./scripts/describe_native.ps1 -Binary target/release/agent-job-relay.exe -Output target/windows-native.json

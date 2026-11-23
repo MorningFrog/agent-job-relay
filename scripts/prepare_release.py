@@ -107,7 +107,7 @@ def main():
     parser.add_argument("--windows-metadata", type=Path, help="Matching native build descriptor from describe_native.ps1")
     parser.add_argument("--macos-binary", type=Path, help="Experimental macOS ARM64 cross-build; development packages only")
     parser.add_argument("--macos-metadata", type=Path, help="Matching untested native.json from build_macos_arm64.py")
-    parser.add_argument("--expected-revision", default=os.environ.get("CI_COMMIT_SHA") or os.environ.get("GITHUB_SHA"), help="Exact source commit for cross-platform packaging; defaults to the actual CI provider's commit")
+    parser.add_argument("--expected-revision", default=os.environ.get("GITHUB_SHA"), help="Exact source commit for cross-platform packaging; defaults to the actual CI provider's commit")
     args = parser.parse_args()
     if args.expected_revision and not re.fullmatch(r"[0-9a-f]{40}", args.expected_revision):
         parser.error("expected revision must be a full Git commit")

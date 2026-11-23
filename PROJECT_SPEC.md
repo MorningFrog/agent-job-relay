@@ -66,7 +66,7 @@ Windows 支持私有 IPC、独立进程监管、恢复和插件/npm 交付。宿
 - `clap`：CLI；`serde` / `serde_json`：消息协议；`thiserror` / `anyhow`：分层错误；`tracing`：结构化日志。
 - Unix Domain Socket 与 Windows Named Pipe：本地 IPC；优先可维护的小型适配封装，必要时使用 `interprocess`；IPC 身份与权限必须按平台验证。
 - Linux/macOS 进程组与 session、Windows Job Objects：将 OS 特殊性限制在 `platform/` 内。其他 OS 作为后续兼容目标。
-- 测试：Rust 内置测试、`assert_cmd`/`tempfile`/`proptest` 等按需使用；CI/CD 迁往本地 Woodpecker，Linux 最低版本／原生／开发包检查先行，Windows 原生／安装包和 macOS 编译检查的迁移边界见 [CI 指南](docs/ci.md)；发布自动化仅使用手动 workflow，实际发布需最终确认。
+- 测试：Rust 内置测试、`assert_cmd`/`tempfile`/`proptest` 等按需使用；CI/CD 使用 GitHub Actions，分别验证 Rust 最低版本、Linux／Windows 原生和安装包，以及 macOS ARM64 编译，见 [CI 指南](docs/ci.md)；发布自动化仅使用手动 workflow，实际发布需最终确认。
 - 可选 TUI：`ratatui`，严格排在可靠唤醒和恢复之后。
 - 发行与安装：保留 cargo build/run/install/uninstall 及本地插件安装入口。用户最终通过 Agent Plugin 使用同一 Rust/MCP 核心，期望覆盖 ChatGPT Desktop/Codex、Claude Code、OpenCode；逐一适配其官方安装机制。正式发布通过显式手动流程并须用户授权，独立系统安装包及软件仓库计划已取消，详见 §16。
 
@@ -97,8 +97,8 @@ agent-job-relay/
     config.rs
   tests/{cli,daemon,runner,persistence,delivery,mcp}/
   docs/{architecture,protocol,security,limitations,testing,installation,release,TODO}.md
-  .woodpecker/linux.yaml
-  .woodpecker/windows.yaml
+  .github/workflows/ci.yml
+  .github/workflows/release.yml
 ```
 
 不存在的平台适配器不要制造全部实现已完成的错觉；可用 feature gate 或显式 Unsupported 状态。模块文件名和代码结构由实际实现决定，不要求为目录示意图创建空文件。
@@ -245,7 +245,7 @@ ChatGPT Desktop 的实验性桌面桥接依赖未经公开稳定承诺的 Host p
 首选 Ubuntu 26.04/Linux 做真实 E2E 开发；整体架构从开始就隔离 Windows/macOS 差异。
 
 - Linux 必须可编译并通过真实进程生命周期测试。
-- Windows 使用现有 Woodpecker 原生检查；macOS ARM64 提供未测试的交叉构建／原生开发入口，目标编译依赖 SDK／工具链。macOS 原生与 portable 测试留待单独任务，当前不执行；无法验证的 OS 特有行为必须明确标记未测试，不推断为已支持。
+- Windows 使用 GitHub Actions 原生及安装包检查；macOS ARM64 提供未测试的交叉构建／原生开发入口，目标编译依赖 SDK／工具链。macOS 原生与 portable 测试留待单独任务，当前不执行；无法验证的 OS 特有行为必须明确标记未测试，不推断为已支持。
 - 使用 `Cargo.lock` 固定可执行程序依赖，避免动态 API 漂移；CI 包含 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --all-targets` 和 release build（根据实际命令与 features 调整）。
 - 安装应优先原生单可执行文件；无需要求 Python、Go、Node、Docker 运行环境。
 - 不直接发布仓库或插件。本轮进行构建/测试及本地插件验证，官方插件平台提交留待后续开发稳定及用户明确授权。
