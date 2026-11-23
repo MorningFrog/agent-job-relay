@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { identity, packBundle, inspectBundle, extractBundle } from './ci_artifacts.mjs';
@@ -20,6 +21,39 @@ test('CI identity requires exact repository/run/commit fields', () => {
   assert.deepEqual(identity(env), run);
   for (const key of Object.keys(env)) assert.throws(() => identity({ ...env, [key]: '' }));
   assert.throws(() => identity({ ...env, GITHUB_SHA: '../other' }));
+});
+
+test('artifact CLI validates its exact checkout when the runner and checkout owners differ', t => {
+  const base = join(dirname(fileURLToPath(import.meta.url)), '../.tmp');
+  mkdirSync(base, { recursive: true });
+  const repo = mkdtempSync(join(base, 'ci-checkout-'));
+  t.after(() => rmSync(repo, { recursive: true, force: true }));
+  const env = {
+    ...process.env, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: join(repo, 'empty-global-config'), GIT_CONFIG_COUNT: '0',
+    GIT_TEST_ASSUME_DIFFERENT_OWNER: '0', LC_ALL: 'C', GITHUB_ACTIONS: 'true',
+    GITHUB_REPOSITORY: run.repository, GITHUB_REPOSITORY_ID: run.repo_id, GITHUB_RUN_ID: run.run_id,
+  };
+  const options = { cwd: repo, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] };
+  const git = (...args) => execFileSync('git', args, options).trim();
+  git('init', '--quiet', '--template=');
+  mkdirSync(join(repo, 'scripts'));
+  const cli = join(repo, 'scripts/ci_artifacts.mjs');
+  copyFileSync(fileURLToPath(new URL('./ci_artifacts.mjs', import.meta.url)), cli);
+  git('add', 'scripts/ci_artifacts.mjs');
+  git('-c', 'user.name=Artifact fixture', '-c', 'user.email=fixture@example.invalid',
+    '-c', 'commit.gpgsign=false', 'commit', '--quiet', '-m', 'Fixture checkout');
+  env.GITHUB_SHA = git('rev-parse', 'HEAD');
+  env.GIT_TEST_ASSUME_DIFFERENT_OWNER = '1';
+  assert.throws(() => git('rev-parse', 'HEAD'), /dubious ownership/);
+
+  const executable = Buffer.from('native fixture bytes');
+  mkdirSync(join(repo, 'target/release'), { recursive: true });
+  writeFileSync(join(repo, 'target/release/agent-job-relay'), executable);
+  const pack = () => execFileSync(process.execPath, [cli, 'pack', 'linux-native'], options);
+  pack();
+  const bundle = readFileSync(join(repo, '.tmp/linux-native.ajr'));
+  assert.deepEqual(inspectBundle(bundle, { ...run, commit: env.GITHUB_SHA }, 'linux-native'), { 'agent-job-relay': executable });
+  assert.throws(() => git('rev-parse', 'HEAD'), /dubious ownership/);
 });
 
 test('frozen byte inventory rejects other runs, producers, corrupt bytes and truncation before extraction', t => {

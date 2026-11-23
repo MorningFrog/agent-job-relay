@@ -4,14 +4,14 @@
 
 ## Scope and baseline
 
-Distribute one Rust/MCP runtime through ChatGPT Desktop/Codex, Claude Code and OpenCode plugins. Prepare and verify locally; pushing, publishing and official submissions require final confirmation. Release operations must be manually triggered. Public npm latest and GitHub Release are 0.1.26, checked on 2026-11-12; original 0.1.25 candidate #65 and Release All #66 remain immutable. Source 0.1.27 includes the Goal envelope fix and has passed local formal preparation; it remains unpublished. See the [release handoff](release.md#current-release-handoff).
+Distribute one Rust/MCP runtime through ChatGPT Desktop/Codex, Claude Code and OpenCode plugins. Pushing, publishing and official submissions require final confirmation. Release operations are manual. GitHub Release 0.1.27 is public and contains the Goal envelope fix. See the [release handoff](release.md#current-release-handoff).
 
 This is the sole project backlog. Current functionality, completed acceptance and version-specific evidence are maintained in [implementation status](IMPLEMENTATION_STATUS.md) and [live verification](live-e2e.md); changes by version are in [CHANGELOG](../CHANGELOG.md). Keep future work and explicit deferrals here.
 
 ## CI/CD
 
 - [x] Restore GitHub Actions as the repository's CI/CD provider. Keep Linux/Windows native and installed-package checks, separate minimum Rust compilation and macOS ARM64 compilation. Remove Woodpecker project workflows and their private exchange/cache tooling.
-- [ ] Qualify the first GitHub-hosted PR and main push. After the new GitHub Actions required check passes, replace the obsolete Woodpecker requirements in the GitHub ruleset using maintainer authorization. Retire the external repository integration separately if present.
+- [ ] Qualify the GitHub-hosted PR and main push, including installed-package jobs. Configure the `CI required` ruleset check after a successful PR run with maintainer authorization. Retire the external repository integration separately if present.
 - [ ] Qualify GitHub-hosted manual Prepare Release and read-only Preview on an unused finalized version. Actual staged publication, maintainer approval and independent public verification require separate acceptance. Preserve original provider candidates and published receipts.
 - [ ] Qualify macOS runtime/installation/host behavior in a separate task. Compilation and cross-build checks do not close this item.
 

@@ -136,7 +136,10 @@ function main() {
     requireValue(process.env.CANDIDATE_RUN_ID && process.env.SEALED_REVISION, 'Missing original candidate identity');
     run = identity({ ...process.env, GITHUB_RUN_ID: process.env.CANDIDATE_RUN_ID, GITHUB_SHA: process.env.SEALED_REVISION });
   }
-  const git = args => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+  // The container user can differ from the owner of the runner's mounted checkout.
+  const git = args => execFileSync('git', ['-c', `safe.directory=${root}`, ...args], {
+    cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+  }).trim();
   requireValue(git(['rev-parse', 'HEAD']) === current.commit, 'Checkout differs from CI artifact identity');
   requireValue(!git(['status', '--porcelain', '--untracked-files=no']), 'CI artifacts require unchanged tracked source');
   requireValue(Object.hasOwn(PRODUCERS, kind), 'Unknown CI artifact kind');

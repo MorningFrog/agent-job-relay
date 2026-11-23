@@ -3,13 +3,16 @@ description: Test and build the Linux or Windows executable
 runs:
   using: composite
   steps:
-    - name: Check Linux and Windows source and frontend behavior
+    - name: Check format, frontend and shared script behavior
+      if: runner.os == 'Linux'
       shell: bash
       run: |
         cargo fmt --check
         npm test --prefix web
         node --test scripts/test_online_update.mjs scripts/test_online_uninstall.mjs scripts/test_ci_artifacts.mjs scripts/test_opencode_ready.mjs scripts/test_ci_tests.mjs
-        cargo clippy --all-targets --locked -- -D warnings
+    - name: Lint native code and tests
+      shell: bash
+      run: cargo clippy --all-targets --locked -- -D warnings
     - name: Run every native Cargo test suite
       shell: bash
       run: node scripts/ci_tests.mjs

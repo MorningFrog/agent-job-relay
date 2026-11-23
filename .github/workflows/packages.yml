@@ -78,6 +78,7 @@ jobs:
           node-version: '24.21.0'
           package-manager-cache: false
       - uses: actions/download-artifact@v8.0.2
+        if: inputs.preparation
         with:
           name: linux-native
           path: .tmp
@@ -85,15 +86,20 @@ jobs:
         with:
           name: ${{ env.PACKAGE_ARTIFACT }}
           path: .tmp
-      - name: Verify this run's artifacts and release tooling
+      - name: Verify the package bundle and run release script tests
+        run: |
+          node scripts/ci_artifacts.mjs extract "$PACKAGE_ARTIFACT"
+          python3 -m unittest discover -s scripts -p test_release.py -v
+      - name: Check installed development packages
+        if: '!inputs.preparation'
+        run: python3 scripts/check_release.py --release ".tmp/$PACKAGE_ARTIFACT"
+      - name: Install isolated host test tools
+        if: inputs.preparation
         run: |
           node scripts/ci_artifacts.mjs extract linux-native
-          node scripts/ci_artifacts.mjs extract "$PACKAGE_ARTIFACT"
-          python3 scripts/release_actions.py source --allow-unreleased
-          python3 -m unittest discover -s scripts -p test_release.py -v
-      - name: Install isolated host test tools
-        run: npm install --prefix .tmp/host-tools --cache .tmp/npm-cache --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org opencode-ai@1.19.4 @opencode-ai/plugin@1.19.4 @opencode-ai/sdk@1.19.4 @openai/codex@0.164.0
-      - name: Check installed candidates and actual Codex and OpenCode loaders
+          npm install --prefix .tmp/host-tools --cache .tmp/npm-cache --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org opencode-ai@1.19.4 @opencode-ai/plugin@1.19.4 @opencode-ai/sdk@1.19.4 @openai/codex@0.164.0
+      - name: Check installed release candidates and host loaders
+        if: inputs.preparation
         run: |
           python3 scripts/check_release.py --release ".tmp/$PACKAGE_ARTIFACT" \
             --binary .tmp/linux-native/agent-job-relay \
@@ -119,7 +125,11 @@ jobs:
           path: .tmp
       - name: Verify this run's package bytes before installing
         run: node scripts/ci_artifacts.mjs extract $env:PACKAGE_ARTIFACT
-      - name: Verify isolated Windows packages and actual loaders
+      - name: Check installed Windows development packages
+        if: '!inputs.preparation'
+        run: node scripts/check_windows_packages.mjs --release ".tmp/$env:PACKAGE_ARTIFACT"
+      - name: Check installed Windows release candidates and host loaders
+        if: inputs.preparation
         run: ./scripts/ci_windows_packages.ps1 -ReleaseDirectory ".tmp/$env:PACKAGE_ARTIFACT"
       - uses: actions/upload-artifact@v7.0.2
         if: failure()

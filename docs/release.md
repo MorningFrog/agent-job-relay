@@ -6,9 +6,9 @@ Only maintainers initiate releases. Prepare Release, Publish Release and Check R
 
 ## Current release handoff
 
-Source 0.1.27 contains the fix for the published 0.1.26 Goal native-envelope regression. The migration and subsequent changes remain in Unreleased. Confirm publication state and select an unused version before formal preparation. Local finalization of the earlier 0.1.27 baseline did not establish a successful GitHub Actions candidate or installed Desktop fix acceptance.
+[GitHub Release 0.1.27](https://github.com/MorningFrog/agent-job-relay/releases/tag/v0.1.27) publishes the Goal native-envelope fix with its original Woodpecker evidence, candidate and publication receipt. Current npm channels and installed Desktop fix acceptance require separate verification. The GitHub Actions migration remains in Unreleased. Confirm publication state and select an unused version before formal preparation.
 
-The 2026-11-12 metadata check confirmed both npm latest channels and the public GitHub Release at 0.1.26. The 0.1.25 baseline independently verified public tarballs, sealed assets, Tag and receipt against its original Woodpecker candidate #65 and Release All #66. Retain each original provider, run, published asset and receipt. Check historical versions against their original evidence. A Woodpecker pipeline number cannot select a GitHub Actions candidate.
+Retain each original provider, run, published asset and receipt. Check historical versions against their original evidence and use a successful GitHub Actions Run ID for new Actions candidates.
 
 ## Prepare and review
 
