@@ -57,29 +57,45 @@ impl Fixture {
         serde_json::from_slice(&out.stdout).unwrap()
     }
     async fn daemon(&self) -> OwnedDaemon {
-        let daemon = OwnedDaemon(
+        let stderr = self.dir.path().join("daemon.stderr");
+        let mut daemon = OwnedDaemon(
             Command::new(env!("CARGO_BIN_EXE_agent-job-relay"))
                 .args([
                     "--state-dir",
                     self.store.config.root.to_str().unwrap(),
                     "daemon",
                 ])
+                .env("AJR_WEB_UI", "off")
                 .stdin(Stdio::null())
                 .stdout(Stdio::null())
-                .stderr(Stdio::null())
+                .stderr(std::fs::File::create(&stderr).unwrap())
                 .spawn()
                 .unwrap(),
         );
-        tokio::time::timeout(Duration::from_secs(5), async {
-            while ipc::call(&self.store.config, Request::Doctor)
-                .await
-                .is_err()
-            {
-                tokio::time::sleep(Duration::from_millis(20)).await;
+        // CI overlaps this suite with installation tests that read the large
+        // debug executable. Allow startup scheduling time without relaxing
+        // any of the subsequent goal or delivery deadlines.
+        let readiness = tokio::time::timeout(Duration::from_secs(20), async {
+            loop {
+                anyhow::ensure!(
+                    daemon.try_wait()?.is_none(),
+                    "daemon exited before readiness"
+                );
+                if ipc::call(&self.store.config, Request::List { after: 0, limit: 1 })
+                    .await
+                    .is_ok()
+                {
+                    return Ok::<_, anyhow::Error>(());
+                }
+                tokio::time::sleep(Duration::from_millis(25)).await;
             }
         })
-        .await
-        .unwrap();
+        .await;
+        assert!(
+            matches!(readiness, Ok(Ok(()))),
+            "goal fixture daemon failed readiness: {readiness:?}\n{}",
+            std::fs::read_to_string(stderr).unwrap_or_default()
+        );
         daemon
     }
     fn cli(&self) -> tokio::process::Command {
