@@ -331,7 +331,22 @@ async fn remote_attach_observation_stop_and_control_have_separate_authority() {
     let remote = Rig::new().await;
     let local = Rig::new().await;
     let (target, transport) = remote.target();
-    let remote_job = remote.start(remote.spec(long_command())).await;
+    let workload = if cfg!(windows) {
+        command("[Console]::WriteLine('ready'); while ($true) { Start-Sleep -Seconds 1 }")
+    } else {
+        command("printf 'ready\\n'; while :; do sleep 1; done")
+    };
+    let remote_job = remote.start(remote.spec(workload)).await;
+    // An observer can connect while the target is still launching. Wait for
+    // the workload itself to run before testing what can stop it.
+    remote
+        .wait(&remote_job.job_id, |v| {
+            v["job"]["status"] == "running"
+                && v["observation"]["stdout"]["total_bytes"]
+                    .as_u64()
+                    .is_some_and(|bytes| bytes > 0)
+        })
+        .await;
     let reference = RunRef::from_job(&remote_job);
     let attach = |allow_stop| CommandSpec::Remote {
         remote: Box::new(RemoteSpec {
@@ -353,16 +368,14 @@ async fn remote_attach_observation_stop_and_control_have_separate_authority() {
     local
         .wait(&watcher.job_id, |v| v["job"]["status"] == "cancelled")
         .await;
-    assert_eq!(
-        remote
-            .store
-            .status(remote_job.job_id.clone())
-            .await
-            .unwrap()
-            .status
-            .as_str(),
-        "running"
-    );
+    let untouched = remote
+        .store
+        .status(remote_job.job_id.clone())
+        .await
+        .unwrap();
+    assert_eq!(RunRef::from_job(&untouched), reference);
+    assert_eq!(untouched.status, JobState::Running);
+    assert!(!untouched.cancel_requested);
     let controller = local.start(local.spec(attach(true))).await;
     local
         .wait(&controller.job_id, |v| {

@@ -37,7 +37,7 @@ For **Stage**, configure the `npm-stage` environment on `main` with an expiring 
 
 ## Recover the original candidate
 
-For Release All failures or approval timeouts, use **Re-run failed jobs** on the same run. The coordinator reuses matching child runs and retries failed children by their original Run ID. If a dispatched child is temporarily absent from the Actions API, it waits up to one minute for the exact Run ID to become visible. Keep `main` on the selected revision through publication because a change fences subsequent dispatch.
+Use **Re-run failed jobs** for failures or approval timeouts on the same revision. The coordinator reuses matching child runs and retries failed children by their original Run ID. If a dispatched child is temporarily absent from the Actions API, it waits up to one minute for the exact Run ID to become visible. Keep `main` on the selected revision through publication because a change fences subsequent dispatch. After committing a source fix for a failed preparation, dispatch a fresh dry-run from the updated `main`.
 
 Standalone retries use the same successful Prepare Release Run ID. Stage reuses matching stages and preserves their channel. After an uncertain upload, inspect npm's staging inventory before retrying. Finalize preserves matching draft assets and published bytes. If public registry propagation delays Check Release, rerun only that read-only check. A conflicting tag, channel, receipt, package or Release stops the workflow.
 
