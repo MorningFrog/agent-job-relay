@@ -1,7 +1,12 @@
 name: Release All
+run-name: Release All (${{ github.event.inputs.dry_run == 'false' && 'publish' || 'dry-run' }})
 on:
   workflow_dispatch:
     inputs:
+      dry_run:
+        description: Dry run (prepare or reuse and preview only). Uncheck to publish after npm 2FA approval.
+        type: boolean
+        default: true
       candidate_run_id:
         description: Reuse an original candidate; leave empty only for a new unused version
         type: string
@@ -63,3 +68,71 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CANDIDATE_RUN_ID: ${{ needs.prepare.outputs.candidate_run_id }}
         run: python3 scripts/release_pipeline.py preview
+  stage:
+    needs: [prepare, preview]
+    if: github.event.inputs.dry_run == 'false'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 95
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Stage and verify the exact npm tarballs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN_ID: ${{ needs.prepare.outputs.candidate_run_id }}
+        run: python3 scripts/release_pipeline.py stage
+  npm-approval:
+    needs: [prepare, stage]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    permissions:
+      contents: read
+      actions: read
+    env:
+      CANDIDATE_RUN_ID: ${{ needs.prepare.outputs.candidate_run_id }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/release-candidate
+      - name: Wait for the maintainer's npm approvals to become public
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/release_actions.py await-approval --candidate-run-id "$CANDIDATE_RUN_ID"
+  finalize:
+    needs: [prepare, npm-approval]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 95
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Finalize the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN_ID: ${{ needs.prepare.outputs.candidate_run_id }}
+        run: python3 scripts/release_pipeline.py finalize
+  check:
+    needs: [prepare, finalize]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 95
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Run the independent Check Release workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN_ID: ${{ needs.prepare.outputs.candidate_run_id }}
+        run: python3 scripts/release_pipeline.py check

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare or reuse a GitHub Actions candidate and run its read-only preview."""
+"""Coordinate GitHub Actions dry-runs and explicitly selected publication."""
 import argparse
 import os
 import sys
@@ -7,10 +7,14 @@ import time
 from urllib.parse import urlencode
 
 sys.dont_write_bytecode = True
-from release_actions import REPOSITORY, actions_context, candidate_run, github, output, require, summary
+from release_actions import (RELEASE_ALL_REF, REPOSITORY, actions_context, candidate_run,
+                             github, output, require, require_formal_dispatch, summary)
 
-WORKFLOWS = {"prepare": ("release.yml", "Prepare Release"),
-             "preview": ("release-publish.yml", "Publish Release")}
+WORKFLOWS = {
+    "prepare": ("release.yml", "Prepare Release"),
+    **{step: ("release-publish.yml", "Publish Release") for step in ("preview", "stage", "finalize")},
+    "check": ("release-check.yml", "Check Release"),
+}
 
 
 def find_child(filename, title, revision):
@@ -68,7 +72,8 @@ def dispatch_and_wait(step, inputs, revision):
     require(parent.isdigit(), "Missing manual pipeline Run ID")
     key = f"release-{parent}-{step}"
     title = f"{name} [{key}]"
-    require(github("git/ref/heads/main")["object"]["sha"] == revision, "main changed during the pipeline; start a new manual run with the original candidate and recovery enabled")
+    require(github("git/ref/heads/main")["object"]["sha"] == revision,
+            "main changed during the pipeline; retain the original candidate and follow the release recovery guide")
     run = find_child(filename, title, revision)
     minimum_attempt = 1
     if run is None:
@@ -107,7 +112,10 @@ def dispatch_and_wait(step, inputs, revision):
 
 def run_step(step, selected, channel, recovery):
     revision = actions_context()
-    require(os.environ.get("GITHUB_WORKFLOW_REF") == f"{REPOSITORY}/.github/workflows/release-all.yml@refs/heads/main", "Pipeline coordination requires the manual Release All workflow")
+    require(os.environ.get("GITHUB_WORKFLOW_REF") == RELEASE_ALL_REF, "Pipeline coordination requires the manual Release All workflow")
+    if step in ("stage", "finalize", "check"):
+        original = require_formal_dispatch().get("candidate_run_id")
+        require(not original or original == selected, "The candidate differs from the manual dispatch selection")
     if step == "prepare" and selected:
         candidate_run(selected)
         output("candidate_run_id", selected)
@@ -119,7 +127,9 @@ def run_step(step, selected, channel, recovery):
         return selected
     require(selected.isdigit(), "Select an original successful candidate Run ID")
     candidate_run(selected)
-    inputs = {"candidate_run_id": selected, "recover_candidate": str(recovery).lower(), "operation": "preview"}
+    inputs = {"candidate_run_id": selected, "recover_candidate": str(recovery).lower()}
+    if step != "check":
+        inputs["operation"] = step
     return dispatch_and_wait(step, inputs, revision)
 
 
@@ -129,7 +139,7 @@ def main():
     args = parser.parse_args()
     try:
         run_step(args.step, os.environ.get("CANDIDATE_RUN_ID", ""), os.environ.get("RELEASE_CHANNEL", "latest"), os.environ.get("RECOVER_CANDIDATE") == "true")
-    except (ValueError, RuntimeError, KeyError) as error:
+    except (ValueError, RuntimeError, KeyError, OSError) as error:
         parser.exit(1, f"Release pipeline stopped: {error}\n")
 
 

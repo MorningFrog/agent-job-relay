@@ -1260,6 +1260,99 @@ class ReleaseTests(unittest.TestCase):
         candidate.assert_called_once_with("123")
         dispatch.assert_called_once_with("preview", {"candidate_run_id": "123", "recover_candidate": "true", "operation": "preview"}, self.revision)
 
+    def test_pipeline_requires_explicit_publish_mode_before_dispatching_formal_steps(self):
+        event = self.root / "event.json"
+        env = {"GITHUB_WORKFLOW_REF": actions.RELEASE_ALL_REF, "GITHUB_EVENT_PATH": str(event)}
+        for inputs in ({}, {"dry_run": "true"}, {"dry_run": True}, {"dry_run": 0}):
+            event.write_text(json.dumps({"inputs": inputs}))
+            for step in ("stage", "finalize", "check"):
+                with self.subTest(inputs=inputs, step=step), patch.dict(os.environ, env), patch.object(pipeline, "actions_context", return_value=self.revision), patch.object(pipeline, "candidate_run") as candidate, patch.object(pipeline, "dispatch_and_wait") as dispatch:
+                    with self.assertRaisesRegex(ValueError, "explicitly unchecking"):
+                        pipeline.run_step(step, "123", "latest", False)
+                    candidate.assert_not_called()
+                    dispatch.assert_not_called()
+
+    def test_pipeline_passes_the_same_original_candidate_to_each_formal_child(self):
+        event = self.root / "event.json"
+        event.write_text(json.dumps({"inputs": {"dry_run": "false", "candidate_run_id": "123"}}))
+        env = {"GITHUB_WORKFLOW_REF": actions.RELEASE_ALL_REF, "GITHUB_EVENT_PATH": str(event), "GITHUB_RUN_ID": "789"}
+        posts = []
+        children = {}
+
+        def api(path, **kwargs):
+            if path == "git/ref/heads/main":
+                return {"object": {"sha": self.revision}}
+            if "/runs?" in path:
+                return {"workflow_runs": []}
+            if path.endswith("/dispatches"):
+                posts.append((path, kwargs["payload"]))
+                step = kwargs["payload"]["inputs"]["pipeline_key"].rsplit("-", 1)[-1]
+                run_id = 456 + len(posts)
+                children[f"actions/runs/{run_id}"] = self.child(step, id=run_id)
+                return {"workflow_run_id": run_id}
+            return children[path]
+
+        with patch.dict(os.environ, env), patch.object(pipeline, "actions_context", return_value=self.revision), patch.object(pipeline, "candidate_run") as candidate, patch.object(pipeline, "github", side_effect=api), patch.object(pipeline, "summary"):
+            for index, step in enumerate(("preview", "stage", "finalize", "check"), start=457):
+                self.assertEqual(pipeline.run_step(step, "123", "latest", True), str(index))
+            with self.assertRaisesRegex(ValueError, "candidate differs"):
+                pipeline.run_step("finalize", "999", "latest", True)
+        self.assertEqual([call.args for call in candidate.call_args_list], [("123",)] * 4)
+        expected = {"candidate_run_id": "123", "recover_candidate": "true", "expected_revision": self.revision}
+        self.assertEqual(posts, [
+            ("actions/workflows/release-publish.yml/dispatches", {"ref": "main", "inputs": {**expected, "pipeline_key": f"release-789-{step}", "operation": step}})
+            for step in ("preview", "stage", "finalize")
+        ] + [
+            ("actions/workflows/release-check.yml/dispatches", {"ref": "main", "inputs": {**expected, "pipeline_key": "release-789-check"}})
+        ])
+
+    def test_release_all_approval_loads_only_the_explicitly_selected_formal_candidate(self):
+        event = self.root / "event.json"
+        env = {"GITHUB_WORKFLOW_REF": actions.RELEASE_ALL_REF, "GITHUB_EVENT_PATH": str(event)}
+        with patch.dict(os.environ, env), patch.object(actions, "actions_context", return_value=self.revision), patch.object(actions, "command", return_value=self.revision):
+            for operation in ("run", "await-approval"):
+                event.write_text(json.dumps({"inputs": {"dry_run": "true", "candidate_run_id": "123"}}))
+                with self.assertRaisesRegex(ValueError, "explicitly unchecking"):
+                    actions.verify_workflow(operation, "123")
+                event.write_text(json.dumps({"inputs": {"dry_run": "false", "candidate_run_id": "123"}}))
+                with self.assertRaisesRegex(ValueError, "candidate differs"):
+                    actions.verify_workflow(operation, "999")
+                self.assertEqual(actions.verify_workflow(operation, "123"), self.revision)
+
+    def test_release_all_approval_is_read_only_and_requires_both_versions_on_the_sealed_channel(self):
+        runtime, opencode = metadata.PACKAGES.values()
+        # First only runtime has been approved, then the OpenCode channel propagates.
+        public_states = [True, False, True, True, True, True]
+        channels = [{"next": self.version}, {}, {"next": self.version}, {},
+                    {"next": self.version}, {"next": self.version}]
+        with self.registry_clock() as sleep, patch.object(actions, "validate", return_value=self.candidate) as validate, patch.object(actions, "public_package", side_effect=public_states), patch.object(actions, "check_channel", side_effect=channels) as channel, patch.object(actions, "github") as github, patch.object(actions, "command") as npm, patch.object(actions, "summary"):
+            actions.await_approval(self.directory, "123")
+        validate.assert_called_once_with(self.directory, "123")
+        self.assertEqual([call.args for call in channel.call_args_list],
+                         [(name, "next", self.version) for name in (runtime, opencode)] * 3)
+        self.assertEqual([call.args for call in sleep.call_args_list], [(15,), (15,)])
+        github.assert_not_called()
+        npm.assert_not_called()
+
+    def test_release_all_approval_timeout_preserves_the_candidate_without_publication(self):
+        with self.registry_clock() as sleep, patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "public_package", return_value=None), patch.object(actions, "check_channel", return_value={}), patch.object(actions, "github") as github, patch.object(actions, "command") as npm, patch.object(actions, "summary"):
+            with self.assertRaisesRegex(ValueError, "rerun the failed Release All jobs"):
+                actions.await_approval(self.directory, "123")
+        self.assertEqual(sum(call.args[0] for call in sleep.call_args_list), 3600)
+        github.assert_not_called()
+        npm.assert_not_called()
+
+    def test_coordinated_staging_waits_for_validation_before_downloading_exact_bytes(self):
+        entry = self.meta["runtime"]
+        tarball = self.directory / entry["tarball"]
+        stage = self.stage()
+        responses = [[stage], self.stage("validating"), stage]
+        with self.registry_clock() as sleep, patch.object(actions, "command", side_effect=map(json.dumps, responses)) as npm, patch.object(actions, "request", return_value=tarball.read_bytes()) as download, patch.object(actions, "summary"):
+            self.assertTrue(actions.stage_package(entry, tarball, "next", {"NODE_AUTH_TOKEN": "fake"}, wait_for_validation=True))
+        self.assertEqual([call.args[0][2] for call in npm.call_args_list], ["list", "view", "view"])
+        download.assert_called_once()
+        sleep.assert_called_once_with(5)
+
     def test_prepare_refuses_a_partially_published_version_before_any_build(self):
         with patch.object(actions, "actions_context", return_value=self.revision), patch.object(actions, "github", return_value={"full_name": actions.REPOSITORY}), patch.object(actions, "check_tag", return_value=False), patch.object(actions, "github_list", return_value=[]), patch.object(actions, "registry_version", return_value={}), patch.object(actions, "command") as command:
             with self.assertRaisesRegex(ValueError, "original candidate_run_id"):

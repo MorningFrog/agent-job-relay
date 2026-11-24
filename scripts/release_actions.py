@@ -22,6 +22,7 @@ from release_metadata import (REPO, PACKAGES, check_candidate, require, seal_can
 
 REGISTRY = "https://registry.npmjs.org"
 REPOSITORY = "MorningFrog/agent-job-relay"
+RELEASE_ALL_REF = f"{REPOSITORY}/.github/workflows/release-all.yml@refs/heads/main"
 # These files do not contribute bytes to the runtime, npm packages or marketplace.
 # Recovery is opt-in and still verifies the original candidate and every asset.
 RECOVERY_PATHS = frozenset({
@@ -114,6 +115,19 @@ def actions_context():
     return revision
 
 
+def dispatch_inputs():
+    event_path = os.environ.get("GITHUB_EVENT_PATH")
+    require(event_path, "Missing GitHub dispatch event")
+    return json.loads(Path(event_path).read_text()).get("inputs") or {}
+
+
+def require_formal_dispatch():
+    inputs = dispatch_inputs()
+    dry_run = inputs.get("dry_run")
+    require(dry_run == "false" or dry_run is False, "Release All publication requires explicitly unchecking dry_run")
+    return inputs
+
+
 @contextmanager
 def npm_environment(auth):
     (REPO / ".tmp").mkdir(exist_ok=True)
@@ -151,19 +165,19 @@ def public_package(entry):
     return published
 
 
-def wait_for_registry(read, ready, description):
-    deadline = time.monotonic() + 120
+def wait_for_registry(read, ready, description, *, timeout=120, interval=5):
+    deadline = time.monotonic() + timeout
     announced = False
     while True:
         value = read()
         if ready(value):
             return value
         remaining = deadline - time.monotonic()
-        require(remaining > 0, f"{description} is not yet publicly visible after waiting for npm propagation; retry the same original candidate without rebuilding")
+        require(remaining > 0, f"Timed out waiting for {description}; retry the same original candidate")
         if not announced:
-            summary(f"Waiting up to two minutes for npm registry propagation: {description}. No upload is retried.")
+            summary(f"Waiting up to {timeout // 60} minutes for {description}.")
             announced = True
-        time.sleep(min(5, remaining))
+        time.sleep(min(interval, remaining))
 
 
 def check_channel(name, channel, selected):
@@ -193,7 +207,7 @@ def preview(directory, run_id):
     find_release(directory, candidate)
     existing = check_registry_selection(meta, candidate["channel"])
     selected = ", ".join(meta[key]["name"] for key, public in existing.items() if public is not None) or "none"
-    summary(f"**Preview verified:** version `{meta['version']}`, sealed channel `{candidate['channel']}`, candidate run `{run_id}`. Matching public npm versions: {selected}. Stage and finalize are separately selected operations.")
+    summary(f"**Preview verified:** version `{meta['version']}`, sealed channel `{candidate['channel']}`, candidate run `{run_id}`. Matching public npm versions: {selected}.")
 
 
 def check_registry_selection(meta, channel):
@@ -358,7 +372,7 @@ def draft_release(directory, candidate):
     return release
 
 
-def stage_package(entry, tarball, channel, env):
+def stage_package(entry, tarball, channel, env, *, wait_for_validation=False):
     stages = json.loads(command(["npm", "stage", "list", entry["name"], "--json", f"--registry={REGISTRY}"], env=env))
     require(isinstance(stages, list), "Unexpected npm stage inventory")
     matching = [s for s in stages if s.get("packageName") == entry["name"] and s.get("version") == entry["version"]]
@@ -373,12 +387,19 @@ def stage_package(entry, tarball, channel, env):
         stage = {"id": staged.get("stageId")}
     stage_id = stage.get("id", "")
     require(isinstance(stage_id, str) and re.fullmatch(r"[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}", stage_id), "npm returned an invalid stage ID")
-    stage = json.loads(command(["npm", "stage", "view", stage_id, "--json", f"--registry={REGISTRY}"], env=env))
-    require(stage.get("id") == stage_id and stage.get("packageName") == entry["name"] and stage.get("version") == entry["version"] and stage.get("tag") == channel, "Staged package identity/channel mismatch")
-    require(stage.get("shasum") == hashlib.sha1(tarball.read_bytes()).hexdigest(), "Staged package checksum differs from candidate")
-    status = stage.get("status")
-    require(status in ("validating", "staged"), "Unknown npm stage status; inspect on npm before retrying")
-    if status == "validating":
+    checksum = hashlib.sha1(tarball.read_bytes()).hexdigest()
+
+    def stage_ready():
+        viewed = json.loads(command(["npm", "stage", "view", stage_id, "--json", f"--registry={REGISTRY}"], env=env))
+        require(viewed.get("id") == stage_id and viewed.get("packageName") == entry["name"] and viewed.get("version") == entry["version"] and viewed.get("tag") == channel, "Staged package identity/channel mismatch")
+        require(viewed.get("shasum") == checksum, "Staged package checksum differs from candidate")
+        status = viewed.get("status")
+        require(status in ("validating", "staged"), "Unknown npm stage status; inspect on npm before retrying")
+        return status == "staged"
+
+    if wait_for_validation:
+        wait_for_registry(stage_ready, bool, f"automated validation of stage {stage_id}; wait for byte verification before approving")
+    elif not stage_ready():
         summary(f"`{entry['name']}@{entry['version']}` uploaded; npm automated validation is pending. Stage ID: `{stage_id}`. Do not approve yet. Rerun Stage with the same candidate after validation to verify the staged bytes.")
         return False
     # Same download endpoint as npm stage download, with a byte bound and no tar parsing.
@@ -386,11 +407,11 @@ def stage_package(entry, tarball, channel, env):
                    binary=True, context="npm staged tarball download")
     require(len(data) == tarball.stat().st_size and hashlib.sha256(data).hexdigest() == sha256(tarball),
             "Staged tarball differs from reviewed candidate; do not approve it")
-    summary(f"`{entry['name']}@{entry['version']}` staged and bytes verified. Stage ID: `{stage_id}`. Approve on npm with 2FA (runtime first), then select Finalize with the same original candidate Run ID.")
+    summary(f"`{entry['name']}@{entry['version']}` staged and bytes verified. Stage ID: `{stage_id}`.")
     return True
 
 
-def stage_release(directory, run_id):
+def stage_release(directory, run_id, *, wait_for_validation=False):
     candidate = validate(directory, run_id)
     meta = check_candidate(directory)
     existing = check_registry_selection(meta, candidate["channel"])
@@ -398,16 +419,17 @@ def stage_release(directory, run_id):
     accepted = release.get("_accepted_npm_packages", set()) if release else set()
     pending = [key for key in PACKAGES if existing[key] is None and key not in accepted]
     if not pending:
-        summary("Both npm packages are public or have legacy upload receipts. Select Finalize after both public bytes and channels are available.")
+        summary("Both npm packages are public or have legacy upload receipts. Finalize requires matching public bytes and channels.")
         return
 
     with npm_environment("stage") as env:
-        verified = [stage_package(meta[key], directory / meta[key]["tarball"], candidate["channel"], env)
+        verified = [stage_package(meta[key], directory / meta[key]["tarball"], candidate["channel"], env,
+                                  wait_for_validation=wait_for_validation)
                     for key in pending]
     if not all(verified):
         summary("Waiting for npm automated validation. Rerun Stage for the same candidate to verify staged bytes before approval.")
     else:
-        summary("Waiting for maintainer npm approval with 2FA. After approval, select Finalize for the same candidate.")
+        summary("Approve the verified stages on npm with 2FA, runtime first. Release All continues after approval. For standalone staging, select Finalize with the same candidate.")
 
 
 def verify_public_bytes(directory, meta, *, channel=None):
@@ -465,16 +487,28 @@ def finalize(directory, run_id):
     summary(f"**Release complete:** https://github.com/{REPOSITORY}/releases/tag/v{candidate['version']} — npm channel `{candidate['channel']}`, candidate run `{run_id}`. Existing matching uploads were retained.")
 
 
+def public_versions_visible(meta, channel):
+    packages = {key: public_package(meta[key]) for key in PACKAGES}
+    channels = {key: check_channel(name, channel, meta["version"]) for key, name in PACKAGES.items()}
+    return all(packages[key] is not None and channels[key].get(channel) == meta["version"] for key in PACKAGES)
+
+
+def await_approval(directory, run_id):
+    candidate = validate(directory, run_id)
+    meta = check_candidate(directory)
+    summary(f"Approve the verified stage IDs shown by Publish Release on npm with 2FA, runtime first. Release All is waiting for both packages from candidate `{run_id}`.")
+    wait_for_registry(lambda: public_versions_visible(meta, candidate["channel"]), bool,
+                      "both approved npm versions and their sealed channel; rerun the failed Release All jobs",
+                      timeout=3600, interval=15)
+    summary("Both versions are visible on the sealed npm channel. Finalize will verify the complete tarball bytes before publishing GitHub.")
+
+
 def check_publication(directory, run_id):
     candidate = validate(directory, run_id)
     meta = check_candidate(directory)
 
-    def visible():
-        packages = {key: public_package(meta[key]) for key in PACKAGES}
-        channels = {key: check_channel(name, candidate["channel"], candidate["version"]) for key, name in PACKAGES.items()}
-        return all(packages[key] is not None and channels[key].get(candidate["channel"]) == candidate["version"] for key in PACKAGES)
-
-    wait_for_registry(visible, bool, "both public package versions and their sealed channel; rerun Check Release only")
+    wait_for_registry(lambda: public_versions_visible(meta, candidate["channel"]), bool,
+                      "both public package versions and their sealed channel; rerun Check Release only")
     verify_public(directory, channel=candidate["channel"])
     release = find_release(directory, candidate)
     require(release is not None and not release["draft"], "GitHub Release is not public; select Finalize in Publish Release with the same candidate")
@@ -486,8 +520,9 @@ def check_publication(directory, run_id):
 def verify_workflow(operation, run_id):
     allowed = {
         "prepare": ("release.yml",), "seal": ("release.yml",),
-        "run": ("release-publish.yml", "release-check.yml"),
+        "run": ("release-publish.yml", "release-check.yml", "release-all.yml"),
         "preview": ("release-publish.yml",), "stage": ("release-publish.yml",),
+        "await-approval": ("release-all.yml",),
         "finalize": ("release-publish.yml",), "check": ("release-check.yml",),
     }
     revision = actions_context()
@@ -495,18 +530,21 @@ def verify_workflow(operation, run_id):
         f"{REPOSITORY}/.github/workflows/{file}@refs/heads/main" for file in allowed[operation]
     }, "Release operation is outside its selected workflow")
     require(command(["git", "rev-parse", "HEAD"]).strip() == revision, "Checkout differs from the manual release revision")
+    if os.environ["GITHUB_WORKFLOW_REF"] == RELEASE_ALL_REF:
+        selected = require_formal_dispatch().get("candidate_run_id")
+        require(not selected or selected == run_id, "The candidate differs from the manual dispatch selection")
     if operation in ("stage", "finalize", "preview"):
-        event_path = os.environ.get("GITHUB_EVENT_PATH")
-        require(event_path, "Missing GitHub dispatch event")
-        inputs = json.loads(Path(event_path).read_text()).get("inputs", {})
+        inputs = dispatch_inputs()
         require(inputs.get("operation", "preview") == operation, "Release operation differs from the manual dispatch selection")
         require(inputs.get("candidate_run_id") == run_id, "The candidate differs from the manual dispatch selection")
+    if operation == "check":
+        require(dispatch_inputs().get("candidate_run_id") == run_id, "The candidate differs from the manual dispatch selection")
     return revision
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("operation", choices=["source", "prepare", "run", "seal", "preview", "stage", "finalize", "check"])
+    parser.add_argument("operation", choices=["source", "prepare", "run", "seal", "preview", "stage", "await-approval", "finalize", "check"])
     parser.add_argument("--release", type=Path, default=REPO / ".tmp/release-candidate")
     parser.add_argument("--candidate-run-id", default="")
     parser.add_argument("--channel", choices=["latest", "next"], default="latest")
@@ -533,8 +571,10 @@ def main():
             output("artifact_id", artifact["id"])
             output("bundle", str(artifact["name"] == "release-candidate-bundle").lower())
             output("revision", run["head_sha"])
+        elif args.operation == "stage":
+            stage_release(args.release.resolve(), args.candidate_run_id, wait_for_validation=bool(dispatch_inputs().get("pipeline_key")))
         else:
-            operations = {"preview": preview, "stage": stage_release, "finalize": finalize, "check": check_publication}
+            operations = {"preview": preview, "await-approval": await_approval, "finalize": finalize, "check": check_publication}
             operations[args.operation](args.release.resolve(), args.candidate_run_id)
     except (ValueError, RuntimeError, KeyError, OSError) as error:
         parser.exit(1, f"Release stopped: {error}\n")
