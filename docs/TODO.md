@@ -4,20 +4,21 @@
 
 ## Scope and baseline
 
-Distribute one Rust/MCP runtime through ChatGPT Desktop/Codex, Claude Code and OpenCode plugins. Pushing, publishing and official submissions require final confirmation. Release operations are manual. GitHub Release 0.1.27 is public and contains the Goal envelope fix. See the [release handoff](release.md#current-release-handoff).
+Distribute one Rust/MCP runtime through ChatGPT Desktop/Codex, Claude Code and OpenCode plugins. Pushing, publishing and official submissions require final confirmation. Release operations are manual. GitHub Release 0.1.27 remains the published baseline. Source 0.1.28 covers the Actions release route and Goal-lifetime default pause approval. See the [release handoff](release.md#current-release-handoff).
 
 This is the sole project backlog. Current functionality, completed acceptance and version-specific evidence are maintained in [implementation status](IMPLEMENTATION_STATUS.md) and [live verification](live-e2e.md); changes by version are in [CHANGELOG](../CHANGELOG.md). Keep future work and explicit deferrals here.
 
 ## CI/CD
 
 - [x] Restore GitHub Actions as the repository's CI/CD provider. Keep Linux/Windows native and installed-package checks, separate minimum Rust compilation and macOS ARM64 compilation. Remove Woodpecker project workflows and their private exchange/cache tooling.
-- [ ] Qualify the GitHub-hosted PR and main push, including installed-package jobs. Configure the `CI required` ruleset check after a successful PR run with maintainer authorization. Retire the external repository integration separately if present.
-- [ ] Qualify GitHub-hosted manual Prepare Release and read-only Preview on an unused finalized version. Actual staged publication, maintainer approval and independent public verification require separate acceptance. Preserve original provider candidates and published receipts.
+- [x] Qualify a GitHub-hosted main push, including Linux and Windows installed-package checks. See the [CI evidence](IMPLEMENTATION_STATUS.md#current-verification).
+- [ ] Qualify the GitHub-hosted PR path, then configure the `CI required` ruleset check with maintainer authorization. Retire any external repository integration separately.
+- [ ] Qualify GitHub-hosted npm staging, maintainer approval and independent public verification. Preparation and read-only preview evidence belongs to each version’s original Actions candidate. Preserve original provider candidates and published receipts.
 - [ ] Qualify macOS runtime/installation/host behavior in a separate task. Compilation and cross-build checks do not close this item.
 
 ## Host integration and distribution
 
-- [x] Global npm CLI/plugin update and coordinated removal, profile-preserving recovery, same-chat consent/handoff/feedback, current-runtime MCP forwarding and version/pin finalization are implemented; local 0.1.27 finalization and its delivery gates pass. Published history and original receipts remain immutable; current verification and host limits are recorded in the linked handoffs.
+- [x] Global npm CLI/plugin update and coordinated removal, profile-preserving recovery, same-chat consent/handoff/feedback, current-runtime MCP forwarding and version/pin finalization are implemented. Published history and original receipts remain immutable; current verification and host limits are recorded in the linked handoffs.
 - [ ] Diagnose the failed independent 0.1.21 [Check Release](https://github.com/MorningFrog/agent-job-relay/actions/runs/41470697500), then rerun read-only verification against original candidate 41466809929 without rebuilding or republishing. Metadata/receipt checks do not replace public-byte/channel/installation verification.
 - [ ] Resolve the failed independent Check Release for published 0.1.18 against its original candidate, without republishing or replacing released bytes. Later publication and verification do not recheck that older candidate.
 - [ ] **P1:** natively qualify Windows self-update/self-removal with loaded global CLI/daemon/MCP images, qualify active-run package replacement separately, and verify actual Desktop refresh/reconnection. Public-host fixtures and Linux package replacement do not establish these outcomes.

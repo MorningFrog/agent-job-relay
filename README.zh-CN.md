@@ -91,7 +91,7 @@ ajr ui
 
 运行时 0.1.23+ 会在冷却期间保留有界阶段／远端反馈，并显示待报阶段及 Goal 控制／投递诊断。Goal 汇报包含被合并的较早告警的有界上下文；结果不确定的宿主控制绝不重放。见[反馈限制](docs/progress.md#configure-repeated-feedback)和 [Goal 恢复](docs/goal-waiting.md#completion-and-recovery)；新增行为在 Windows 和已安装宿主中仍待验证。
 
-已发布的 0.1.19 Goal 恢复会在重连时返回原交接及下一步操作，不重新询问暂停许可或重复执行任务。多轮保留同一请求，并区分原生暂停回执与尚未确认的最终通知。用户长期实际工作实测确认 goal 唤起正常，绝大多数情况下暂停／resume 正常，偶发无法 resume 仍需实机验证。已发布的 0.1.26 新增原轮次结束检查，但拒绝了实际 Desktop 的 `inputText` 返回，导致 Goal 任务结束后仍保持暂停。0.1.27 源码修复兼容该格式和规范化的 `text`，保留轮次保护；已安装版本的真实模型验收仍待完成。见[实测记录](docs/live-e2e.md#user-reported-sustained-real-work-use)。恢复功能需要 Doctor `goal_wait_recovery=true`；见[恢复方式及宿主限制](docs/goal-waiting.md#recover-an-existing-handoff)。
+Goal 恢复在交接中断后重连时返回原交接和下一步操作。已发布的 0.1.27 兼容 Desktop 返回的 `inputText` 活动信息，并在恢复 Goal 前检查发起轮次已结束。从 0.1.28 起，一次默认暂停批准可覆盖同一请求与 Goal 的后续后台轮次，无累计作业上限或审批期限。历史限额授权保留原范围。这些变更的已安装 Desktop 和真实模型验收仍待完成。见 [Goal 等待与恢复](docs/goal-waiting.md)及[实测记录](docs/live-e2e.md#user-reported-sustained-real-work-use)。
 
 也可以提出：
 

@@ -16,7 +16,7 @@ Use the selected plugin launcher's absolute path as `AJR_RELAY`. From the actual
 
 When no goal exists, use the returned ordinary binding and submit normally. With an active goal and missing permission, the command succeeds with `status=needs_confirmation`, `session_key` and a `consent` record containing `request_id`, `revision`, scope and question deadline. There is no submission binding, wait group, workload or goal mutation yet. This is pending user input, not a tool failure or a blocked goal. Inactive-goal reconnection is described below. The actual caller/runtime must come from the host terminal; shared MCP environment, guessed IDs and external terminals cannot identify this chat.
 
-Keep the request ID. With daemon Doctor `persistent_goal_consent=true`, default approval covers later rounds of the same request and Goal without a cumulative job cap or approval deadline. Use `--job-count <1..16>` only for explicitly bounded approval. If the initial user request already permits pause for the proposed scope, adding `--wait-goal` records that permission and skips the question. The flag is a cooperative assertion of user permission.
+Keep the request ID. Runtime 0.1.28 and later advertise `persistent_goal_consent=true` in daemon Doctor. With that capability, default approval covers later rounds of the same request and Goal without a cumulative job cap or approval deadline. Use `--job-count <1..16>` only for explicitly bounded approval. If the initial user request already permits pause for the proposed scope, adding `--wait-goal` records that permission and skips the question. The flag is a cooperative assertion of user permission.
 
 ## 2. Ask once when needed
 

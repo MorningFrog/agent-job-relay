@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.28] - 2026-11-24
+
 ### Changed
 
 - Run project CI and manual releases on GitHub Actions. Preserve exact-run Linux/Windows package checks, separately verify minimum Rust and macOS ARM64 compilation, and require npm staging with maintainer 2FA before GitHub publication.

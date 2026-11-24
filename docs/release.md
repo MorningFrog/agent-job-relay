@@ -6,7 +6,7 @@ Only maintainers initiate releases. Prepare Release, Publish Release and Check R
 
 ## Current release handoff
 
-[GitHub Release 0.1.27](https://github.com/MorningFrog/agent-job-relay/releases/tag/v0.1.27) publishes the Goal native-envelope fix with its original Woodpecker evidence, candidate and publication receipt. Current npm channels and installed Desktop fix acceptance require separate verification. The GitHub Actions migration remains in Unreleased. Confirm publication state and select an unused version before formal preparation.
+[GitHub Release 0.1.27](https://github.com/MorningFrog/agent-job-relay/releases/tag/v0.1.27) remains the published baseline with its original Woodpecker candidate and publication receipt. Version 0.1.28 uses the GitHub Actions release route and adds Goal-lifetime default pause approval. Use the prepared commit’s successful CI run and the original Prepare Release run to verify the 0.1.28 preview. See the [current verification status](IMPLEMENTATION_STATUS.md#current-verification).
 
 Retain each original provider, run, published asset and receipt. Check historical versions against their original evidence and use a successful GitHub Actions Run ID for new Actions candidates.
 
