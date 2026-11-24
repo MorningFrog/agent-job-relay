@@ -2,10 +2,6 @@
 
 ## [Unreleased]
 
-### Removed
-
-- Remove Woodpecker pipeline observation and its HTTP/TLS dependencies. Preserve task history and close outstanding observations with an unknown external outcome.
-
 ## [0.1.28] - 2026-11-24
 
 ### Changed
