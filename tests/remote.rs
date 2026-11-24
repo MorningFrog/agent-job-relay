@@ -1,5 +1,8 @@
 #![cfg(any(target_os = "linux", windows))]
 mod common;
+#[cfg(windows)]
+#[path = "common/windows.rs"]
+mod windows_fixture;
 #[path = "remote/woodpecker.rs"]
 mod woodpecker;
 use agent_job_relay::{
@@ -10,11 +13,15 @@ use agent_job_relay::{
     storage::Store,
 };
 use serde_json::{Value, json};
+#[cfg(not(windows))]
+use std::process::Child;
 use std::{
     collections::BTreeMap,
-    process::{Child, Command, Stdio},
+    process::{Command, Stdio},
     time::Duration,
 };
+#[cfg(windows)]
+use windows_fixture::{DaemonProcess as Child, launch_daemon};
 
 const EXE: &str = env!("CARGO_BIN_EXE_agent-job-relay");
 struct Rig {
@@ -30,6 +37,7 @@ impl Rig {
         config.prepare().unwrap();
         let store = Store::new(config.clone());
         store.init().await.unwrap();
+        let daemon_log = dir.path().join("daemon.log");
         #[cfg(not(windows))]
         let daemon = Some(
             Command::new(EXE)
@@ -39,41 +47,43 @@ impl Rig {
                 .env("AJR_WEB_UI", "off")
                 .stdin(Stdio::null())
                 .stdout(Stdio::null())
-                .stderr(Stdio::null())
+                .stderr(std::fs::File::create(&daemon_log).unwrap())
                 .spawn()
                 .unwrap(),
         );
         #[cfg(windows)]
-        let daemon = {
-            // Exercise the native verified CIM bootstrap outside Cargo's
-            // non-breakaway cleanup job; never weaken runner containment.
-            let output = Command::new(EXE)
-                .arg("--state-dir")
-                .arg(&config.root)
-                .args(["daemon", "start"])
-                .env("AJR_WEB_UI", "off")
-                .output()
-                .unwrap();
-            assert!(
-                output.status.success(),
-                "{}",
-                String::from_utf8_lossy(&output.stderr)
-            );
-            None
-        };
-        let rig = Self {
+        // The Windows native suite covers restricted-host cold starts. Remote
+        // tests need a real foreground daemon outside Cargo's cleanup job.
+        let daemon = Some(launch_daemon(dir.path(), &config.root, true));
+        let mut rig = Self {
             dir,
             config,
             store,
             daemon,
         };
-        for _ in 0..200 {
-            if ipc::call(&rig.config, Request::Doctor).await.is_ok() {
-                return rig;
+        let daemon = rig.daemon.as_mut().unwrap();
+        let ready = tokio::time::timeout(Duration::from_secs(20), async {
+            loop {
+                anyhow::ensure!(
+                    daemon.try_wait()?.is_none(),
+                    "daemon exited before readiness"
+                );
+                if ipc::call(&rig.config, Request::List { after: 0, limit: 1 })
+                    .await
+                    .is_ok()
+                {
+                    return Ok::<_, anyhow::Error>(());
+                }
+                tokio::time::sleep(Duration::from_millis(25)).await;
             }
-            tokio::time::sleep(Duration::from_millis(20)).await;
-        }
-        panic!("test daemon unavailable");
+        })
+        .await;
+        assert!(
+            matches!(ready, Ok(Ok(()))),
+            "remote fixture daemon failed readiness: {ready:?}\n{}",
+            std::fs::read_to_string(daemon_log).unwrap_or_default()
+        );
+        rig
     }
     fn spec(&self, command: CommandSpec) -> StartSpec {
         StartSpec {
@@ -125,10 +135,7 @@ impl Rig {
 }
 impl Drop for Rig {
     fn drop(&mut self) {
-        if let Some(child) = &mut self.daemon {
-            let _ = child.kill();
-            let _ = child.wait();
-        } else {
+        if cfg!(windows) || self.daemon.is_none() {
             let _ = Command::new(EXE)
                 .arg("--state-dir")
                 .arg(&self.config.root)
@@ -136,6 +143,10 @@ impl Drop for Rig {
                 .stdout(Stdio::null())
                 .stderr(Stdio::null())
                 .status();
+        }
+        if let Some(child) = &mut self.daemon {
+            let _ = child.kill();
+            let _ = child.wait();
         }
     }
 }
