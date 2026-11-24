@@ -42,7 +42,7 @@ jobs:
         run: |
           docker run --rm --network none --user "$(id -u):$(id -g)" \
             --mount "type=bind,src=$PWD,dst=/workspace" \
-            almalinux:9-minimal@sha256:7dc48de6be22bf7271c217984310e413901c570c4e4eb0 \
+            docker.io/library/almalinux:9-minimal@sha256:9e471b79649f4892cf7614652aefca33904523da2f2f4d34f8fdbe1c10ae43e4 \
             sh /workspace/scripts/check_release_compatibility.sh .tmp/linux-native/agent-job-relay
       - name: Package the exact Linux and Windows executables
         env:

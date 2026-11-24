@@ -48,10 +48,12 @@ def read_child(run_id, filename, title, revision):
     deadline = time.monotonic() + 60
     announced = False
     while True:
-        run = github(f"actions/runs/{run_id}")
-        require(run.get("id") == run_id, "Child workflow identity/source differs from this manual pipeline: id")
-        if validate_child(run, filename, title, revision, allow_initializing=True):
-            return run
+        # The dispatch receipt can precede visibility of this exact ID in the run API.
+        run = github(f"actions/runs/{run_id}", missing=True)
+        if run is not None:
+            require(run.get("id") == run_id, "Child workflow identity/source differs from this manual pipeline: id")
+            if validate_child(run, filename, title, revision, allow_initializing=True):
+                return run
         remaining = deadline - time.monotonic()
         require(remaining > 0, f"Child metadata did not initialize within one minute; inspect exact Run ID {run_id}. No second workflow was dispatched")
         if not announced:

@@ -1117,6 +1117,7 @@ class ReleaseTests(unittest.TestCase):
     def test_pipeline_initial_metadata_settles_without_dispatching_twice(self):
         posts = []
         snapshots = iter([
+            None,  # The dispatched ID is temporarily absent (HTTP 404).
             self.child("preview", display_title="Publish Release", status="queued", conclusion=None),
             self.child("preview", head_repository=None, status="queued", conclusion=None),
             self.child("preview", status="in_progress", conclusion=None),
@@ -1132,6 +1133,7 @@ class ReleaseTests(unittest.TestCase):
                 posts.append(path)
                 return {"workflow_run_id": 456}
             self.assertEqual(path, "actions/runs/456")
+            self.assertTrue(kwargs.get("missing"))
             return next(snapshots)
 
         with self.registry_clock() as sleep, patch.dict(os.environ, {"GITHUB_RUN_ID": "789"}), patch.object(pipeline, "github", side_effect=api), patch.object(pipeline, "output"), patch.object(pipeline, "summary"):
@@ -1139,7 +1141,7 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(posts, ["actions/workflows/release-publish.yml/dispatches"])
         self.assertGreater(sum(call.args[0] for call in sleep.call_args_list), 0)
 
-    def test_pipeline_initial_metadata_wait_is_bounded_without_redispatch(self):
+    def test_pipeline_missing_child_wait_is_bounded_without_redispatch(self):
         posts = []
 
         def api(path, **kwargs):
@@ -1150,7 +1152,9 @@ class ReleaseTests(unittest.TestCase):
             if kwargs.get("method") == "POST":
                 posts.append(path)
                 return {"workflow_run_id": 456}
-            return self.child("preview", display_title="Publish Release", status="queued", conclusion=None)
+            self.assertEqual(path, "actions/runs/456")
+            self.assertTrue(kwargs.get("missing"))
+            return None
 
         with self.registry_clock() as sleep, patch.dict(os.environ, {"GITHUB_RUN_ID": "789"}), patch.object(pipeline, "github", side_effect=api), patch.object(pipeline, "output"), patch.object(pipeline, "summary"):
             with self.assertRaisesRegex(ValueError, "did not initialize"):
