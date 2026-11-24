@@ -662,14 +662,10 @@ pub async fn start_waiting(
     .await
 }
 fn verify_external_runtime(info: &Value, command: &crate::core::CommandSpec) -> Result<()> {
+    ensure!(!command.is_retired(), crate::core::RETIRED_OBSERVATION);
     ensure!(
         info["remote_execution"] == true && info["github_actions_observation"] == true,
         "selected daemon does not support external execution. No job was submitted. Finish active jobs, then explicitly stop/update this same profile and retry"
-    );
-    ensure!(
-        !matches!(command, crate::core::CommandSpec::Woodpecker { .. })
-            || info["woodpecker_observation"] == true,
-        "selected daemon does not support Woodpecker observation. No job was submitted. Finish active jobs, then explicitly stop/update this same profile and retry"
     );
     Ok(())
 }

@@ -63,13 +63,13 @@ async fn resolve(
 /// Independent local observer, restartable only for pinned external intents.
 /// A transport error never becomes a remote command's failure or cancellation.
 pub async fn observe(config: &Config, store: &Store, job: &Job, spec: &StartSpec) -> Result<()> {
+    ensure!(!spec.command.is_retired(), RETIRED_OBSERVATION);
     let previous = store.inspect(Some(job.job_id.clone()), None, 1).await?;
     let mut external = previous["observation"]["external"].clone();
     if !external.is_object() {
         let mode = match spec.command {
             CommandSpec::Remote { .. } => "remote_runtime",
             CommandSpec::GithubActions { .. } => "github_actions",
-            CommandSpec::Woodpecker { .. } => "woodpecker",
             _ => unreachable!(),
         };
         external = json!({"mode":mode,"origin_job_id":job.job_id,"origin_run_id":job.run_id,"connection":"unobserved"});
@@ -241,13 +241,6 @@ pub async fn observe(config: &Config, store: &Store, job: &Job, spec: &StartSpec
                         external["workflow"] = sample;
                         Ok(state.map(|state| (state, None, None, detail)))
                     }
-                    CommandSpec::Woodpecker { pipeline } => {
-                        let sample = super::woodpecker::sample(pipeline).await?;
-                        let state = super::woodpecker::terminal_state(&sample);
-                        let detail = format!("Woodpecker pipeline observed: {} ({})", sample["status"].as_str().unwrap_or("pending"), sample["url"].as_str().unwrap_or(""));
-                        external["pipeline"] = sample;
-                        Ok(state.map(|state| (state, None, None, detail)))
-                    }
                     _ => unreachable!(),
                 }
             }.await;
@@ -290,10 +283,7 @@ pub async fn observe(config: &Config, store: &Store, job: &Job, spec: &StartSpec
                     .await;
             }
             let seconds = if failures == 0 {
-                if matches!(
-                    spec.command,
-                    CommandSpec::GithubActions { .. } | CommandSpec::Woodpecker { .. }
-                ) {
+                if matches!(spec.command, CommandSpec::GithubActions { .. }) {
                     5
                 } else {
                     1

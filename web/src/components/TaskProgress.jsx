@@ -1,21 +1,19 @@
 import React from "react";
 import { ActionsProgress } from "./ActionsProgress.jsx";
-import { WoodpeckerProgress } from "./WoodpeckerProgress.jsx";
 import { date, isWorkflow } from "../view.js";
 
 export function TaskProgress({ detail }) {
   const job = detail.job, external = detail.observation?.external;
+  const retired = job.command?.kind === "retired_observation";
   const progress = detail.observation?.progress || external?.observation?.progress;
   return <div className="progress-view">
     {job.command?.kind === "github_actions" && <ActionsProgress
       spec={job.command.workflow} workflow={external?.workflow} stale={external?.evidence_stale} />}
-    {job.command?.kind === "woodpecker" && <WoodpeckerProgress
-      spec={job.command.pipeline} pipeline={external?.pipeline} stale={external?.evidence_stale} />}
     {external && <section className="job-summary">
-      <strong>{isWorkflow(external.mode) ? "工作流观察" : "远程任务"}</strong>
-      <p className="execution-detail">连接：{external.connection} · 最近成功 {date(external.last_success_at)}</p>
+      <strong>{isWorkflow(job.command?.kind) ? "工作流观察" : "远程任务"}</strong>
+      <p className="execution-detail">{retired ? "历史观察" : `连接：${external.connection}`} · 最近成功 {date(external.last_success_at)}</p>
       {external.run && <p className="execution-detail mono">远端运行 {external.run.run_id} · attempt {external.run.attempt} · {external.status || "待核实"}</p>}
-      {!external.can_stop && <p className="execution-detail">仅观察：停止观察不会取消远端运行。</p>}
+      {!retired && !external.can_stop && <p className="execution-detail">仅观察：停止观察不会取消远端运行。</p>}
       {external.last_error && <p className="execution-detail">{external.last_error}；远端结果待核实。</p>}
     </section>}
     {detail.observation?.remote_feedback && <section className="job-summary" aria-label="远端反馈证据">

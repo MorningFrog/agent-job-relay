@@ -4,12 +4,10 @@ mod feedback;
 mod observer;
 mod protocol;
 mod transport;
-mod woodpecker;
 
 pub use observer::observe;
 pub use protocol::{BridgeRequest, Operation, RunRef, initialize, serve};
 pub use transport::exchange;
-pub use woodpecker::WoodpeckerSpec;
 
 use crate::core::*;
 use anyhow::{Result, ensure};

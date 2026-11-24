@@ -143,7 +143,7 @@ fn terminal_run(job: &crate::core::Job, run_id: &str) -> Option<Value> {
     use crate::core::CommandSpec;
     if matches!(
         &job.command,
-        CommandSpec::GithubActions { .. } | CommandSpec::Woodpecker { .. }
+        CommandSpec::GithubActions { .. } | CommandSpec::RetiredObservation { .. }
     ) || matches!(&job.command, CommandSpec::Remote { remote } if !remote.can_stop())
     {
         result["read_only_observation"] = json!(true);
@@ -619,7 +619,6 @@ pub fn compact(op: &str, value: Value) -> Value {
                     "remote_execution",
                     "remote_alert_feedback",
                     "github_actions_observation",
-                    "woodpecker_observation",
                     "goal_waiting",
                     "goal_wait_host_pause",
                     "goal_wait_feedback",

@@ -55,6 +55,11 @@ impl crate::storage::Store {
                 tx.commit()?;
                 return Ok(None);
             }
+            if job.command.is_retired() {
+                finish_tx(&tx, &job_id, JobState::Orphaned, None, None, RETIRED_OBSERVATION)?;
+                tx.commit()?;
+                return Ok(None);
+            }
             let occupied: u32 = tx.query_row("SELECT count(*) FROM jobs WHERE status IN ('launching','running')", [], |r| r.get(0))?;
             let older: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM jobs WHERE status='queued' AND rowid<?)", [job.sequence], |r| r.get(0))?;
             if occupied >= EXECUTION_LIMIT || older { return Ok(None); }

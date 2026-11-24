@@ -3,8 +3,6 @@ mod common;
 #[cfg(windows)]
 #[path = "common/windows.rs"]
 mod windows_fixture;
-#[path = "remote/woodpecker.rs"]
-mod woodpecker;
 use agent_job_relay::{
     config::Config,
     core::*,
@@ -1138,6 +1136,67 @@ async fn observer_storage_failure_does_not_become_an_external_execution_failure(
             .unwrap()
             .contains("external outcome unknown")
     );
+}
+
+#[tokio::test]
+async fn retired_observation_stays_readable_and_cannot_restart() {
+    let dir = tempfile::tempdir_in(common::root()).unwrap();
+    let config = Config::new(Some(dir.path().join("state"))).unwrap();
+    config.prepare().unwrap();
+    let store = Store::new(config.clone());
+    store.init().await.unwrap();
+    let mut spec: StartSpec = serde_json::from_value(json!({
+        "command":{"kind":"exec","program":"must-not-run"}, "cwd":dir.path(),
+    }))
+    .unwrap();
+    let db = rusqlite::Connection::open(config.root.join("relay.sqlite3")).unwrap();
+    let command = json!({"kind":"woodpecker","pipeline":{
+        "repository":"owner/repo","pipeline_id":69,"pipeline_number":42,
+    }});
+    for state in ["queued", "running", "completed"] {
+        spec.idempotency_key = Some(format!("existing-{state}"));
+        let job = store.start(spec.clone()).await.unwrap();
+        db.execute(
+            "UPDATE jobs SET status=?1,updated=0,spec=json_set(spec,'$.command',json(?2)) WHERE id=?3",
+            rusqlite::params![state, command.to_string(), job.job_id],
+        )
+        .unwrap();
+        db.execute(
+            "UPDATE runs SET status=?1 WHERE id=?2",
+            rusqlite::params![state, job.run_id],
+        )
+        .unwrap();
+        agent_job_relay::daemon::tick(&store).await.unwrap();
+        let row = store.status(job.job_id.clone()).await.unwrap();
+        assert_eq!(row.run_id, job.run_id);
+        assert_eq!(
+            row.status.as_str(),
+            if state == "completed" {
+                state
+            } else {
+                "orphaned"
+            }
+        );
+        assert!(row.runner_pid.is_none());
+        assert_eq!(
+            serde_json::to_value(&row.command).unwrap()["pipeline"],
+            command["pipeline"]
+        );
+        if state != "completed" {
+            assert!(row.detail.unwrap().contains("provider has been removed"));
+            assert_eq!(
+                store
+                    .events(job.job_id, 0, 10)
+                    .await
+                    .unwrap()
+                    .iter()
+                    .filter(|event| event.kind == "orphaned")
+                    .count(),
+                1
+            );
+        }
+    }
+    assert_eq!(store.list(0, 10).await.unwrap().len(), 3);
 }
 
 #[tokio::test]

@@ -9,6 +9,9 @@ use std::{
 mod state;
 pub use state::JobState;
 
+pub(crate) const RETIRED_OBSERVATION: &str =
+    "workflow observation provider has been removed; external outcome unknown";
+
 pub fn now() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -42,9 +45,11 @@ pub enum CommandSpec {
     GithubActions {
         workflow: crate::remote::ActionsSpec,
     },
-    /// Observe one existing Woodpecker pipeline; never start or cancel CI.
-    Woodpecker {
-        pipeline: crate::remote::WoodpeckerSpec,
+    /// Read preserved task records from the retired workflow observer.
+    #[serde(alias = "woodpecker")]
+    #[schemars(skip)]
+    RetiredObservation {
+        pipeline: serde_json::Value,
     },
 }
 impl CommandSpec {
@@ -70,13 +75,13 @@ impl CommandSpec {
                 "GitHub Actions {} run {} attempt {}",
                 workflow.repository, workflow.run_id, workflow.attempt
             ),
-            Self::Woodpecker { pipeline } => format!(
-                "Woodpecker {} {} pipeline {} (id {}) commit {}",
-                pipeline.server_url,
-                pipeline.repository,
-                pipeline.pipeline_number,
-                pipeline.pipeline_id,
-                pipeline.commit
+            Self::RetiredObservation { pipeline } => format!(
+                "Retired workflow observation {} {} pipeline {} (id {}) commit {}",
+                pipeline["server_url"].as_str().unwrap_or_default(),
+                pipeline["repository"].as_str().unwrap_or_default(),
+                pipeline["pipeline_number"],
+                pipeline["pipeline_id"],
+                pipeline["commit"].as_str().unwrap_or_default(),
             ),
         }
     }
@@ -91,7 +96,8 @@ impl CommandSpec {
                 ),
                 "remote silence/progress rules must run on the remote runner; put them in remote.intent.spec.monitor_rules and use an origin remote_alert rule for notifications"
             ),
-            Self::GithubActions { .. } | Self::Woodpecker { .. } => ensure!(
+            Self::RetiredObservation { .. } => bail!(RETIRED_OBSERVATION),
+            Self::GithubActions { .. } => ensure!(
                 matches!(rule.condition, Condition::Elapsed { .. }),
                 "workflow observation supports only elapsed rules; it has no workload output stream"
             ),
@@ -105,8 +111,11 @@ impl CommandSpec {
     pub fn is_external(&self) -> bool {
         matches!(
             self,
-            Self::Remote { .. } | Self::GithubActions { .. } | Self::Woodpecker { .. }
+            Self::Remote { .. } | Self::GithubActions { .. } | Self::RetiredObservation { .. }
         )
+    }
+    pub(crate) fn is_retired(&self) -> bool {
+        matches!(self, Self::RetiredObservation { .. })
     }
 }
 #[derive(Clone, Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema, PartialEq)]
@@ -203,14 +212,7 @@ impl StartSpec {
                 );
                 vec![]
             }
-            CommandSpec::Woodpecker { pipeline } => {
-                pipeline.validate()?;
-                ensure!(
-                    self.env.is_empty(),
-                    "workflow observation does not accept environment overrides"
-                );
-                vec![]
-            }
+            CommandSpec::RetiredObservation { .. } => bail!(RETIRED_OBSERVATION),
         };
         ensure!(
             strings

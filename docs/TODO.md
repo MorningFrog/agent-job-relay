@@ -10,7 +10,7 @@ This is the sole project backlog. Current functionality, completed acceptance an
 
 ## CI/CD
 
-- [x] Restore GitHub Actions as the repository's CI/CD provider. Keep Linux/Windows native and installed-package checks, separate minimum Rust compilation and macOS ARM64 compilation. Remove Woodpecker project workflows and their private exchange/cache tooling.
+- [x] Restore GitHub Actions as the repository's CI/CD provider. Keep Linux/Windows native and installed-package checks, separate minimum Rust compilation and macOS ARM64 compilation.
 - [x] Qualify a GitHub-hosted main push, including Linux and Windows installed-package checks. See the [CI evidence](IMPLEMENTATION_STATUS.md#current-verification).
 - [ ] Qualify the GitHub-hosted PR path, then configure the `CI required` ruleset check with maintainer authorization. Retire any external repository integration separately.
 - [ ] Qualify Release All formal mode on GitHub Actions through npm staging, maintainer approval, GitHub finalization and independent public verification. Preparation and read-only preview evidence belongs to each version’s original Actions candidate. Preserve original provider candidates and published receipts.
@@ -54,10 +54,9 @@ The runtime executes independent jobs concurrently, with eight execution slots p
 
 ## Remote execution and external-run observation
 
-Runtime 0.1.12+ implements the [remote contract and reference path](remote-execution.md). Remote commands use an explicitly pinned native runtime profile (a copied executable is enough) or a separately qualified contract adapter. GitHub Actions uses local `gh` and an immutable repository/run/attempt. Runtime 0.1.25+ Woodpecker 3.x observation uses native HTTPS and pins the server/repository/pipeline/global ID/full commit. Ordinary local `ssh`/`gh` jobs retain local-process semantics.
+Runtime 0.1.12+ implements the [remote contract and reference path](remote-execution.md). Remote commands use an explicitly pinned native runtime profile (a copied executable is enough) or a separately qualified contract adapter. GitHub Actions uses local `gh` and an immutable repository/run/attempt. Ordinary local `ssh`/`gh` jobs retain local-process semantics.
 
-- [x] Pinned native execution/observation, Actions read-only observation, direct remote-rule feedback and command inspection are implemented. Runtime 0.1.25 adds read-only Woodpecker observation; public Linux reads and regression fixtures pass, with platform/account-backed limits below.
-- [ ] **P2:** qualify Woodpecker private-server authentication, native Windows/macOS and actual installed-Agent continuation; public reads and inbox fixtures do not establish these.
+- [x] Pinned native execution/observation, Actions read-only observation, direct remote-rule feedback and command inspection are implemented.
 - [ ] **P2:** qualify SSH-specific Linux/Windows shell/authentication deployments, additional scheduler adapters and prolonged disconnection/soak behavior. Native Windows cross-host verification uses the existing authenticated VM channel, not an SSH server. No framework coupling, checkpoint transfer or automatic training restart.
 - [ ] **P2:** qualify additional remote host/version combinations, OpenCode real-provider continuation and the specific direct `remote_alert` subscription in actual hosts. The user-confirmed general remote workflow does not identify these paths.
 

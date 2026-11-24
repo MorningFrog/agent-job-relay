@@ -25,17 +25,13 @@ Use [published installation](installation.md#quick-install-the-latest-release) o
 
 ## Windows native runtime and MCP
 
-The published 0.1.25 candidate passes Woodpecker Windows MSVC gates, frontend/static-CRT build and installed-package/loader checks. These automated gates do not qualify Windows self-update/self-removal with held images, browser interaction or goal/controller behavior. Earlier Windows 11 VM external-task verification under SYSTEM and ordinary-user monitor/Web/maintenance acceptance remain applicable to their baselines; Windows goal/controller and native confirmation UI still require separate host evidence.
+The published 0.1.25 candidate passes Windows MSVC gates, frontend/static-CRT build and installed-package/loader checks. These automated gates do not qualify Windows self-update/self-removal with held images, browser interaction or goal/controller behavior. Earlier Windows 11 VM external-task verification under SYSTEM and ordinary-user monitor/Web/maintenance acceptance remain applicable to their baselines; Windows goal/controller and native confirmation UI still require separate host evidence.
 
 Installed v0.1.8 with actual Codex 0.164.0 and `gpt-6.1-sol`/`low` passes cold-profile MCP submission under SYSTEM and an ordinary interactive user: no prestarted daemon, one completed native Job/Run, expected output and doctor reporting `windows_cim`. Installed npm/package/loader checks use isolated registries/profiles and a simulated OpenCode model; they remain separate from real provider/host acceptance.
 
 ## Windows ChatGPT Desktop
 
 The user verified v0.1.8 with official Desktop 26.1021.3705.0, bundled Codex 0.164.0-alpha.11.1, GPT-6 Luna / Low and Full access. The actual chat binds, submits through MCP, ends its turn and automatically continues to inspect the matching result without another user message. A correctly reported failed workload still establishes result continuation, not workload success. Restricted-access single-command binding, current goal waiting and native confirmation UI remain unqualified.
-
-## Woodpecker observation (0.1.25+)
-
-On 2026-11-10, an isolated Linux source release build observes this project's existing public Woodpecker pipeline **#42**, global ID **69**, source `baf9a7b18a219e298354f52330c2aebbc354538d`. The observer reports completed with verified Server `success`, all six workflow states and exact step counts matching a separate read-only API query. CLI, shared stdio MCP and authenticated local HTTP return the same snapshot; unchanged-key CLI/MCP submission retains the original Job/Run, and compact MCP inspection includes identity/status/link. The check uses native HTTPS without account credentials and starts no CI work. This establishes public read/inspection behavior, not private-account authentication, native Windows/macOS or real-Agent completion continuation. Browser automation was unavailable in this session; frontend rendering is covered separately by automated tests.
 
 ## Distribution
 

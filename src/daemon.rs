@@ -22,7 +22,7 @@ async fn reconcile(store: &Store) -> Result<bool> {
                 // claim still rechecks capacity before every real launch.
                 let expired = job.run.started_at.is_none()
                     && job.queue.as_ref().is_some_and(|q| q.expires_at <= now());
-                if slots == 0 && !expired {
+                if slots == 0 && !expired && !job.command.is_retired() {
                     continue;
                 }
                 let nonce = store.claim_queued(job.job_id.clone()).await?;
@@ -70,7 +70,7 @@ async fn reconcile(store: &Store) -> Result<bool> {
                 let lock = store.config.run_lock(&job.run_id)?;
                 match lock.try_lock() {
                     Ok(()) => {
-                        if job.command.is_external() {
+                        if job.command.is_external() && !job.command.is_retired() {
                             // Resume observers only, reconnecting the original remote run.
                             let id = job.job_id;
                             store.call(move |db| {
@@ -85,7 +85,14 @@ async fn reconcile(store: &Store) -> Result<bool> {
                             continue;
                         }
                         // Hold the lock through finalization: a delayed runner cannot claim.
-                        store.finish(job.job_id,"orphaned",None,None,"runner lock lost; execution outcome unknown; command was not replayed".into()).await?;
+                        let detail = if job.command.is_retired() {
+                            RETIRED_OBSERVATION
+                        } else {
+                            "runner lock lost; execution outcome unknown; command was not replayed"
+                        };
+                        store
+                            .finish(job.job_id, "orphaned", None, None, detail.into())
+                            .await?;
                     }
                     Err(std::fs::TryLockError::WouldBlock) => {}
                     Err(e) => return Err(e.into()),

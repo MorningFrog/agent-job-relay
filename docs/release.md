@@ -6,7 +6,7 @@ Only maintainers initiate releases. Release All and its standalone Prepare Relea
 
 ## Current release handoff
 
-[GitHub Release 0.1.27](https://github.com/MorningFrog/agent-job-relay/releases/tag/v0.1.27) remains the published baseline with its original Woodpecker candidate and publication receipt. Version 0.1.28 includes the GitHub Actions release route, Goal-lifetime default pause approval and compact MCP guidance and results. Preview the candidate built from the reviewed 0.1.28 commit after its CI succeeds. The [earlier preview](https://github.com/MorningFrog/agent-job-relay/actions/runs/45325117673/attempts/1) refers to the original candidate before the MCP changes. See the [current verification status](IMPLEMENTATION_STATUS.md#current-verification).
+[GitHub Release 0.1.27](https://github.com/MorningFrog/agent-job-relay/releases/tag/v0.1.27) remains the published baseline with its original candidate and publication receipt. Version 0.1.28 includes the GitHub Actions release route, Goal-lifetime default pause approval and compact MCP guidance and results. Use a reviewed commit with finalized notes and successful CI to prepare a new candidate. The [earlier preview](https://github.com/MorningFrog/agent-job-relay/actions/runs/45325117673/attempts/1) refers to the original candidate before the MCP changes. See the [current verification status](IMPLEMENTATION_STATUS.md#current-verification).
 
 Retain each original provider, run, published asset and receipt. Check historical versions against their original evidence and use a successful GitHub Actions Run ID for new Actions candidates.
 

@@ -502,6 +502,11 @@ mod tests {
         for t in tools {
             let schema = serde_json::Value::Object((*t.input_schema).clone());
             check_refs(&schema, &schema["$defs"]);
+            if matches!(t.name.as_ref(), "job_start" | "job_start_batch") {
+                let input = schema.to_string();
+                assert!(!input.contains("retired_observation"));
+                assert!(!input.contains("woodpecker"));
+            }
             assert_eq!(t.input_schema["type"], "object");
             assert!(t.input_schema["properties"].get("op").is_none());
         }
