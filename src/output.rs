@@ -305,6 +305,7 @@ pub fn compact(op: &str, value: Value) -> Value {
                     "automatic_goal_pause_supported",
                     "goal_pause_authorization_policy",
                     "scoped_goal_consent",
+                    "persistent_goal_consent",
                     "native_goal_consent_form",
                     "automatic_goal_pause_reason",
                     "managed_mcp_updates_supported",

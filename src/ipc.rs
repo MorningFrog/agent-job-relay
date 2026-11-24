@@ -49,6 +49,8 @@ pub enum Request {
         request_id: Option<String>,
         label: Option<String>,
         job_limit: Option<u32>,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        persistent: bool,
         #[serde(default)]
         user_authorized: bool,
     },
@@ -301,8 +303,19 @@ pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
             request_id,
             label,
             job_limit,
+            persistent,
             user_authorized,
         } => {
+            anyhow::ensure!(
+                !persistent || job_limit.is_none(),
+                "persistent goal consent cannot specify a job limit"
+            );
+            // Older clients omitted job_limit to request a single-job approval.
+            let job_limit = if !persistent && request_id.is_none() {
+                Some(job_limit.unwrap_or(1))
+            } else {
+                job_limit
+            };
             store
                 .prepare_goal_consent(
                     session_key,
@@ -534,6 +547,7 @@ pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
             value["goal_wait_feedback"] = json!(true);
             value["goal_wait_recovery"] = json!(true);
             value["scoped_goal_consent"] = json!(true);
+            value["persistent_goal_consent"] = json!(true);
             value["automatic_goal_pause_supported"] = json!(false);
             value["goal_pause_authorization_policy"] = json!("ask_once_per_request");
             value["automatic_goal_pause_reason"] = json!(

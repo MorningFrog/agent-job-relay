@@ -3280,7 +3280,7 @@ async fn reconnect_reports_an_inflight_final_ack_then_reuses_the_original_reques
     // finish directly, without another Agent reconnect/polling loop.
     let second_wait = next["binding"]["goal_wait_id"].as_str().unwrap();
     let acknowledgement = f.acknowledgements.acquire().await.unwrap();
-    ipc::call(
+    let second = ipc::call(
         &f.store.config,
         Request::StartGoal {
             spec: StartSpec {
@@ -3308,9 +3308,139 @@ async fn reconnect_reports_an_inflight_final_ack_then_reuses_the_original_reques
     };
     let (finished, ()) = tokio::join!(reconnect, release);
     assert_eq!(finished["status"], "request_closed");
+    assert_eq!(f.controller.read().await.unwrap().unwrap().status, "active");
+    assert!(finished.get("binding").is_none());
+    assert_eq!(finished["consent"]["status"], "exhausted");
     assert_eq!(finished["consent"]["jobs_admitted"], 2);
+    assert_eq!(finished["consent"]["jobs_remaining"], 0);
+    assert_eq!(
+        finished["consent"]["jobs"][1]["run_id"],
+        second["job"]["run_id"]
+    );
+    assert_eq!(finished["next_step"], finished["consent"]["next_step"]);
+    let guidance = finished["next_step"].as_str().unwrap();
+    assert!(
+        guidance.contains("AgentJobRelay background-job allowance"),
+        "{guidance}"
+    );
+    assert!(
+        guidance.contains("authorized foreground work"),
+        "{guidance}"
+    );
+    assert!(guidance.contains("does not block the goal"), "{guidance}");
     assert_eq!(f.messages.lock().unwrap().len(), 2);
     assert_eq!(f.mutations().len(), 2);
+    ipc::call(&f.store.config, Request::Shutdown).await.unwrap();
+    daemon.wait().unwrap();
+}
+
+#[tokio::test]
+async fn default_approval_survives_the_old_job_limit_and_an_idle_session() {
+    use agent_job_relay::goal_consent::Decision;
+    let f = Fixture::new().await;
+    let mut daemon = f.daemon().await;
+    let pending = f
+        .cli_value(&["connect", "--request-label", "build and verify"])
+        .await;
+    assert_eq!(pending["status"], "needs_confirmation");
+    assert!(pending.get("binding").is_none());
+    let request = pending["consent"]["request_id"].as_str().unwrap();
+    let session = pending["session_key"].as_str().unwrap();
+    let approved = ipc::call(
+        &f.store.config,
+        Request::GoalConsent {
+            request_id: request.into(),
+            session_key: session.into(),
+            decision: Decision::Allow,
+            expected_revision: pending["consent"]["revision"].as_i64(),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(approved["status"], "approved");
+    assert!(approved["job_limit"].is_null());
+    assert!(approved["expires_at"].is_null());
+    let args = ["connect", "--request-id", request];
+    let first = f.cli_value(&args).await;
+    let wait = first["binding"]["goal_wait_id"].as_str().unwrap();
+    let spec = |key: &str| StartSpec {
+        session: Some(session.into()),
+        ..f.spec(key)
+    };
+    let batch = ipc::call(
+        &f.store.config,
+        Request::StartGoalBatch {
+            goal_wait_id: wait.into(),
+            specs: (0..16).map(|i| spec(&format!("persistent-{i}"))).collect(),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(batch["goal_wait"]["jobs"].as_array().unwrap().len(), 16);
+    f.pause_and_confirm(wait).await;
+    tokio::time::timeout(Duration::from_secs(15), async {
+        while f.state(wait).await["notification_accepted"] != true {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .unwrap();
+
+    // Simulate a long idle interval and a lapsed session lease. Connecting from
+    // the same endpoint refreshes the lease without changing the approval.
+    let request_id = request.to_owned();
+    let session_key = session.to_owned();
+    f.store.call(move |db| {
+        db.execute("UPDATE goal_consents SET created=created-172800000,updated=updated-172800000 WHERE id=?", [request_id])?;
+        db.execute("UPDATE sessions SET expires=0 WHERE key=?", [session_key])?;
+        Ok(())
+    }).await.unwrap();
+    let next = f.cli_value(&args).await;
+    assert_eq!(next["status"], "ready");
+    assert_eq!(next["session_key"], session);
+    assert_eq!(next["consent"]["request_id"], request);
+    assert_eq!(next["consent"]["revision"], approved["revision"]);
+    assert_eq!(next["consent"]["jobs_admitted"], 16);
+    assert!(next["consent"]["jobs_remaining"].is_null());
+    assert!(
+        ipc::call(
+            &f.store.config,
+            Request::Start {
+                spec: spec("ordinary-bypass")
+            }
+        )
+        .await
+        .is_err()
+    );
+    let next_wait = next["binding"]["goal_wait_id"].as_str().unwrap();
+    assert_ne!(next_wait, wait);
+    let start = || Request::StartGoal {
+        spec: spec("persistent-16"),
+        goal_wait_id: next_wait.into(),
+    };
+    let seventeenth = ipc::call(&f.store.config, start()).await.unwrap();
+    let retry = ipc::call(&f.store.config, start()).await.unwrap();
+    assert_eq!(retry["job"]["run_id"], seventeenth["job"]["run_id"]);
+    let current = f.cli_value(&args).await;
+    assert_eq!(current["status"], "goal_wait_pending");
+    assert_eq!(current["consent"]["jobs_admitted"], 17);
+    assert_eq!(
+        current["consent"]["jobs"][15]["run_id"],
+        seventeenth["job"]["run_id"]
+    );
+    let revoked = ipc::call(
+        &f.store.config,
+        Request::GoalConsent {
+            request_id: request.into(),
+            session_key: session.into(),
+            decision: Decision::Revoke,
+            expected_revision: approved["revision"].as_i64(),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(revoked["status"], "revoked");
+    assert_eq!(f.cli_value(&args).await["status"], "request_closed");
     ipc::call(&f.store.config, Request::Shutdown).await.unwrap();
     daemon.wait().unwrap();
 }

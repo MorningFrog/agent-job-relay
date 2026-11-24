@@ -252,7 +252,7 @@ impl Store {
                 "default queuing requires schema 14; finish older runs and upgrade this profile first");
             let queue_timeout = spec.queue_timeout_seconds.unwrap_or(crate::scheduling::DEFAULT_QUEUE_TIMEOUT_SECONDS);
             if goal_wait.is_none() && let Some(session)=&spec.session {
-                ensure!(!tx.query_row("SELECT EXISTS(SELECT 1 FROM goal_consents WHERE session_key=? AND status IN ('pending','asking','approved') AND expires>? AND used<job_limit)",params![session,now()],|r|r.get::<_,bool>(0))?,"this request needs its approved goal-wait binding; ordinary submission cannot bypass pause consent");
+                ensure!(!tx.query_row("SELECT EXISTS(SELECT 1 FROM goal_consents WHERE session_key=? AND status IN ('pending','asking','approved') AND expires>? AND (job_limit=0 OR used<job_limit))",params![session,now()],|r|r.get::<_,bool>(0))?,"this request needs its approved goal-wait binding; ordinary submission cannot bypass pause consent");
                 ensure!(!tx.query_row("SELECT EXISTS(SELECT 1 FROM goal_waits WHERE session_key=? AND (status IN ('prepared','sealed','pausing','waiting','resuming') OR (status='resumed' AND feedback_delivery IS NOT NULL)) AND expires>?)",params![session,now()],|r|r.get::<_,bool>(0))?,"this chat has a required goal handoff; preserve its goal_wait_id binding instead of submitting ordinary work");
             }
             let active:i64=tx.query_row("SELECT count(*) FROM jobs WHERE status IN ('queued','launching','running')",[],|r|r.get(0))?;

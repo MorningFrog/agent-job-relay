@@ -100,7 +100,7 @@ fn plan(detail: &Value) -> Value {
                     "The existing handoff or final delivery is in progress. Yield; no Agent polling or new submission is needed."
                 }
                 "inspect_results" => {
-                    "Inspect the original results and continue through the original request if it has remaining admission budget."
+                    "Inspect the original results and continue authorized work in the active goal. Reuse the approval for later background rounds of the original request within its recorded scope."
                 }
                 _ => {
                     "Inspect the original results and use the original host's explicit goal controls. Do not overwrite blockers or repeat uncertain pause/restore operations."

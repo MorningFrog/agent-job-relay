@@ -115,7 +115,7 @@ pub(crate) async fn respond(
     }
     let token = Store::question_token(&c)?;
     // Scope text is displayed as data, never interpreted as an instruction.
-    let params = json!({"mode":"form","message":format!("允许本次后台任务暂停目标，完成后继续吗？\n请求：{}（最多 {} 项任务）",c.label,c.job_limit),"requestedSchema":{"type":"object","properties":{"allow_goal_pause":{"type":"boolean","title":"允许本次请求暂停目标并在任务结束后继续"}},"required":["allow_goal_pause"]}});
+    let params = json!({"mode":"form","message":format!("{}\n请求：{}",c.question(),c.label),"requestedSchema":{"type":"object","properties":{"allow_goal_pause":{"type":"boolean","title":"允许本次请求暂停目标并在任务结束后继续"}},"required":["allow_goal_pause"]}});
     if version >= ProtocolVersion::V_2026_07_28 {
         let value = json!({"resultType":"input_required","inputRequests":{request_id:{"method":"elicitation/create","params":params}},"requestState":token});
         return Ok(serde_json::from_value::<InputRequiredResult>(value)?.into());

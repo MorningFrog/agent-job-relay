@@ -13,7 +13,7 @@ use std::path::PathBuf;
 
 pub const QUESTION_SECONDS: u64 = 300;
 const PENDING_MS: i64 = 600_000;
-const APPROVED_MS: i64 = 86_400_000;
+const BOUNDED_APPROVAL_MS: i64 = 86_400_000;
 
 #[derive(Clone, Default)]
 pub struct Options {
@@ -44,7 +44,8 @@ pub struct Consent {
     snapshot: String,
     pub cwd: PathBuf,
     pub label: String,
-    pub job_limit: u32,
+    // The existing non-null column stores zero for new goal-lifetime consent.
+    job_limit: u32,
     pub used: u32,
     pub status: String,
     pub revision: i64,
@@ -53,6 +54,24 @@ pub struct Consent {
     pub source: String,
     /// Latest successful observation, never persisted as lifecycle authority.
     pub goal_status: Option<String>,
+}
+
+impl Consent {
+    fn job_limit(&self) -> Option<u32> {
+        (self.job_limit != 0).then_some(self.job_limit)
+    }
+
+    fn jobs_remaining(&self) -> Option<u32> {
+        self.job_limit()
+            .map(|limit| limit.saturating_sub(self.used))
+    }
+
+    pub(crate) fn question(&self) -> String {
+        match self.job_limit() {
+            Some(limit) => format!("允许本次请求的后台任务暂停目标，完成后继续吗？（最多 {limit} 项，授权有效期 24 小时）"),
+            None => "允许同一目标下本次请求的后续后台任务暂停目标，完成后继续吗？批准后可沿用，直到目标结束或你撤回授权。".into(),
+        }
+    }
 }
 
 fn read(db: &Connection, id: &str) -> Result<Consent> {
@@ -105,18 +124,20 @@ fn expire(db: &Connection, c: &Consent) -> Result<Consent> {
     Ok(c.clone())
 }
 pub fn view(c: &Consent) -> Value {
-    let state = if c.status == "approved" && c.used >= c.job_limit {
+    let remaining = c.jobs_remaining();
+    let state = if c.status == "approved" && remaining == Some(0) {
         "exhausted"
     } else {
         &c.status
     };
     let goal_inactive = c.goal_status.as_deref().is_some_and(|s| s != "active");
-    let mut value = json!({"request_id":c.id,"session_key":c.session_key,"status":state,"revision":c.revision,"label":c.label,"job_limit":c.job_limit,"jobs_admitted":c.used,"jobs_remaining":c.job_limit.saturating_sub(c.used),"expires_at":c.expires,"question":"允许本次后台任务暂停目标，完成后继续吗？","choices":["允许","暂不运行"],"question_pending":c.status=="asking","authorization_source":c.source,"next_step":match state {
-        "pending" | "asking" | "approved" if goal_inactive => "The original goal is inactive; this request and its remaining consent are retained until expiry. Do not submit, re-prompt, mark blocked or automatically overwrite the host status. If a recorded wait is still waiting, let it finish. Otherwise the user can resume the original goal through host controls, then reconnect with this same request_id; approved consent needs no new pause question.",
+    let mut value = json!({"request_id":c.id,"session_key":c.session_key,"status":state,"revision":c.revision,"label":c.label,"job_limit":c.job_limit(),"jobs_admitted":c.used,"jobs_remaining":remaining,"expires_at":(c.expires!=i64::MAX).then_some(c.expires),"question":c.question(),"choices":["允许","暂不运行"],"question_pending":c.status=="asking","authorization_source":c.source,"next_step":match state {
+        "pending" | "asking" | "approved" if goal_inactive => "The original goal is inactive and this request is retained. Do not submit, re-prompt, mark blocked or automatically overwrite the host status. If a recorded wait is still waiting, let it finish. Otherwise the user can resume the original goal through host controls, then reconnect with this same request_id; approved consent needs no new pause question.",
         "pending"=>"Use job_goal_consent to request native confirmation, or ask one short host question. Only an actual user answer may be recorded with decision=allow/decline and this revision. Do not submit work or mark the goal blocked.",
         "asking"=>"The original question is pending. Wait for that answer; do not ask again, poll or submit work.",
-        "approved"=>"Reconnect from the actual terminal with --request-id and this request_id; preserve the returned goal binding. Reuse this consent only for the remaining rounds of this request and original goal.",
-        _=>"This request cannot admit further work. Existing jobs were not replayed or stopped. Do not re-prompt automatically; follow the user's next instruction."
+        "approved"=>"Reconnect from the actual terminal with --request-id and this request_id. Reuse the approval for later rounds of this request on the original goal. Preserve the returned goal binding.",
+        "exhausted"=>"This bounded approval has used its explicit AgentJobRelay background-job allowance. Follow any recorded handoff and inspect the original Job/Run results. Continue authorized foreground work in the active goal. The Relay allowance alone does not block the goal. A new approval is needed to change the scope of the original permission.",
+        _=>"This pause-consent request is closed for new AgentJobRelay background jobs. Retain the original Job/Run/wait IDs and respect any user decision. Continue authorized foreground work if the goal is active. Do not mark the goal blocked solely because this Relay request is closed. Do not replay jobs or re-prompt automatically."
     }});
     if goal_inactive {
         value["goal_status"] = json!(c.goal_status);
@@ -125,7 +146,7 @@ pub fn view(c: &Consent) -> Value {
 }
 fn view_db(db: &Connection, c: &Consent) -> Result<Value> {
     let mut value = view(c);
-    let mut q=db.prepare("SELECT m.job_id,m.run_id,w.id,w.status FROM goal_wait_jobs m JOIN goal_waits w ON w.id=m.wait_id WHERE w.consent_id=? ORDER BY m.rowid LIMIT 16")?;
+    let mut q=db.prepare("SELECT job_id,run_id,wait_id,status FROM (SELECT m.rowid AS seq,m.job_id,m.run_id,m.wait_id,w.status FROM goal_wait_jobs m JOIN goal_waits w ON w.id=m.wait_id WHERE w.consent_id=? ORDER BY m.rowid DESC LIMIT 16) ORDER BY seq")?;
     value["jobs"]=json!(q.query_map([&c.id],|r|Ok(json!({"job_id":r.get::<_,String>(0)?,"run_id":r.get::<_,String>(1)?,"goal_wait_id":r.get::<_,String>(2)?,"handoff_status":r.get::<_,String>(3)?})))?.collect::<rusqlite::Result<Vec<_>>>()?);
     value["waits"] = json!(crate::goal_wait::for_request(db, &c.id)?);
     Ok(value)
@@ -174,7 +195,8 @@ impl Store {
             let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
             let label=options.label.clone().unwrap_or_else(||"本次后台任务".into());
             ensure!(!label.trim().is_empty() && label.len()<=512 && !label.chars().any(char::is_control),"request label must be 1..512 bytes without control characters");
-            let limit=options.job_limit.unwrap_or(1);ensure!((1..=16).contains(&limit),"request job limit must be 1..16");
+            ensure!(options.job_limit.is_none_or(|limit| (1..=16).contains(&limit)),"explicit request job limit must be 1..16");
+            let limit=options.job_limit.unwrap_or(0);
             let actual=crate::session::read_session(&tx,&session_key)?;
             ensure!(actual.connected && actual.expires_at>now() && snapshot(&actual)?==snap,"caller changed before consent preparation");
             let old=if let Some(id)=&options.request_id {validate_id(id)?;Some(id.clone())}else{
@@ -374,7 +396,13 @@ impl Store {
     }
 }
 fn approve(db: &Connection, c: &Consent, source: &str) -> Result<()> {
-    db.execute("UPDATE goal_consents SET status='approved',revision=revision+1,updated=?,expires=?,source=? WHERE id=? AND revision=?",params![now(),now()+APPROVED_MS,source,c.id,c.revision])?;
+    let t = now();
+    let expires = if c.job_limit().is_some() {
+        t + BOUNDED_APPROVAL_MS
+    } else {
+        i64::MAX
+    };
+    db.execute("UPDATE goal_consents SET status='approved',revision=revision+1,updated=?,expires=?,source=? WHERE id=? AND revision=?",params![t,expires,source,c.id,c.revision])?;
     audit(db, &read(db, &c.id)?, source)
 }
 
@@ -389,8 +417,8 @@ pub(crate) fn check_scope(
     let c = read(db, id)?;
     owner(db, &c, session)?;
     ensure!(
-        c.status == "approved" && c.expires > now() && c.used < c.job_limit,
-        "request consent is pending, closed, expired or exhausted"
+        c.status == "approved" && c.expires > now() && c.jobs_remaining() != Some(0),
+        "new AgentJobRelay background jobs require an active pause approval covering this submission"
     );
     ensure!(
         c.expected.same_identity(goal)
@@ -416,7 +444,7 @@ pub(crate) fn consume(
     audit(
         db,
         &read(db, id)?,
-        "one original Job/Run admitted; consent budget consumed transactionally",
+        "one original Job/Run recorded in the consent history transactionally",
     )
 }
 pub(crate) fn restore_fence(db: &Connection) -> Result<()> {

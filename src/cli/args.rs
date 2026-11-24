@@ -99,7 +99,7 @@ pub(super) enum Commands {
         /// Brief user-visible description of this request
         #[arg(long, conflicts_with = "recover")]
         request_label: Option<String>,
-        /// Maximum original jobs covered by this request (1..16; default 1)
+        /// Optional bounded approval (1..16 jobs over 24 hours). Default: reuse for the original goal
         #[arg(long, conflicts_with = "recover")]
         job_count: Option<u32>,
     },

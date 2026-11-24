@@ -11,12 +11,12 @@ This is experimental behavior. Published 0.1.20+ and source 0.1.25 expose 27 MCP
 Use the selected plugin launcher's absolute path as `AJR_RELAY`. From the actual chat terminal, run:
 
 ```bash
-"$AJR_RELAY" connect --cwd "<absolute-project>" --request-label "Three separate scans" --job-count 3
+"$AJR_RELAY" connect --cwd "<absolute-project>" --request-label "Three separate scans"
 ```
 
-When no goal exists, use the returned ordinary binding and submit normally. With an active goal and missing permission, the command succeeds with `status=needs_confirmation`, `session_key` and a `consent` record containing `request_id`, `revision`, scope, expiry and remaining job count. There is no submission binding, wait group, workload or goal mutation yet. This is pending user input, not a tool failure or a blocked goal. Inactive-goal reconnection is described below. The actual caller/runtime must come from the host terminal; shared MCP environment, guessed IDs and external terminals cannot identify this chat.
+When no goal exists, use the returned ordinary binding and submit normally. With an active goal and missing permission, the command succeeds with `status=needs_confirmation`, `session_key` and a `consent` record containing `request_id`, `revision`, scope and question deadline. There is no submission binding, wait group, workload or goal mutation yet. This is pending user input, not a tool failure or a blocked goal. Inactive-goal reconnection is described below. The actual caller/runtime must come from the host terminal; shared MCP environment, guessed IDs and external terminals cannot identify this chat.
 
-Keep the request ID. The job count is 1–16, default 1, and limits newly admitted jobs; retries do not consume another slot. If the initial user request already permits this pause, adding `--wait-goal` records that actual permission and skips the question. The flag is a cooperative assertion, not independent host attestation.
+Keep the request ID. With daemon Doctor `persistent_goal_consent=true`, default approval covers later rounds of the same request and Goal without a cumulative job cap or approval deadline. Use `--job-count <1..16>` only for explicitly bounded approval. If the initial user request already permits pause for the proposed scope, adding `--wait-goal` records that permission and skips the question. The flag is a cooperative assertion of user permission.
 
 ## 2. Ask once when needed
 
@@ -34,13 +34,15 @@ After approval, reconnect from the same chat terminal and workspace:
 "$AJR_RELAY" connect --cwd "<absolute-project>" --request-id "<returned-request-id>"
 ```
 
-Expected: `status=ready`, approved consent and a binding with `session_key`, `cwd` and `goal_wait_id`. Pass the full binding unchanged to `job_start` or `job_start_batch`, using stable idempotency keys. Preparation itself neither submits nor pauses. Accepted jobs consume consent slots atomically with admission; identical accepted-key retries retain their IDs and consume no extra slot.
+Expected: `status=ready`, approved consent and a binding with `session_key`, `cwd` and `goal_wait_id`. Pass the full binding unchanged to `job_start` or `job_start_batch`, using stable idempotency keys. Preparation itself neither submits nor pauses. Each newly admitted job is counted in the request history in the admission transaction. Identical accepted-key retries retain their original IDs and count once.
 
 For three separate calls, submit one job, complete its handoff, inspect its result, then reconnect with the same request ID for the next round. Do not replace separate calls with a batch. Put a requested post-command delay inside that round's background workload, so the delay also occurs while the goal waits. Keep updates brief and give one final summary when all rounds finish.
 
-Consent is pinned to the original registration/endpoint, goal/controller, workspace, request label and job limit. Approval lasts at most 24 hours for admission; it is not a workload timeout. A new request never silently adopts an earlier approval. Reconnection with an exhausted or closed request returns its state and original Job/Run/wait IDs for recovery, without replaying work. `decision=revoke` with the observed revision closes future admission/control/notification while admitted commands keep running; it does not resume an already paused goal.
+Consent stays tied to the original registration/endpoint, goal/controller, workspace and request. Default approval lasts until the goal ends or is replaced, the user revokes consent, or the original binding is invalidated. Existing bounded approvals and new requests with `--job-count` retain the stated job limit and 24-hour deadline. A closed request retains its results and wait history. For a bounded request with no remaining slots, continue authorized foreground work and get actual permission before changing the scope.
 
-If a later round returns `status=goal_not_active`, inspect `goal_status` and keep the original request ID. `blocked` and other inactive states gate admission without permanently invalidating unexpired consent. An acknowledged wait handles its original paused goal on completion; a separate blocked/user-paused state requires the user's host Resume control. After the original goal becomes active, reconnect with the same `--request-id`; approved consent needs no new question and retains its remaining job budget. Do not create a replacement request, mark the goal blocked to wait or overwrite an unexplained blocker automatically. Controller/read errors fail the current call without cancelling consent or waits; explicit decline/revocation remains available while the controller is unavailable. Previously invalidated requests are not reopened.
+Use `decision=revoke` with the observed revision to close future admission, automatic control and notification. Admitted commands keep running, and the original host retains control of any already paused goal.
+
+If a later round returns `status=goal_not_active`, inspect `goal_status` and keep the original request ID. `blocked` and other inactive states gate admission without permanently invalidating consent. An acknowledged wait handles its original paused goal on completion; a separate blocked/user-paused state requires the user's host Resume control. After the original goal becomes active, reconnect with the same `--request-id`; the same approval applies without another question. Do not create a replacement request, mark the goal blocked to wait or overwrite an unexplained blocker automatically. Controller/read errors fail the current call without cancelling consent or waits; explicit decline/revocation remains available while the controller is unavailable. Previously invalidated requests are not reopened.
 
 ### Recover an existing handoff
 
@@ -92,7 +94,7 @@ Source 0.1.23 `feedback.context` adds the coalesced count and up to four origina
 |---|---|
 | All original members finish | Verify the original paused goal/binding and owning-host turn completion, restore status only and send one merged result notification |
 | Goal deleted/completed or identity observably replaced/changed | Invalidate consent and suppress continuation; never recreate a goal |
-| Same goal blocked between rounds | Retain unexpired consent and original IDs, return `goal_not_active` without a binding; reuse the request after host Resume |
+| Same goal blocked between rounds | Retain current consent and original IDs, return `goal_not_active` without a binding and reuse the request after host Resume |
 | Consent controller read fails | Fail the call without invalidation or wait cancellation; never infer goal deletion from transport loss |
 | Daemon lost before sealing | Recover committed members only, then await native acknowledgement; never replay execution |
 | Daemon lost after acknowledged pause | Continue durable observation of the original runs |

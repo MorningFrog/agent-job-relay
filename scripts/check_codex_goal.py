@@ -235,7 +235,7 @@ ws.addEventListener('close', () => process.exit());
             await until(active_checks, "active goal did not produce repeated control turns before pause")
             if scenario == "fast_failure":
                 hold_response.set()
-            pending=await relay("connect", "--request-label", scenario, "--job-count", 3 if scenario == "resume" else 1, "--cwd", work, caller=thread)
+            pending=await relay("connect", "--request-label", scenario, "--cwd", work, caller=thread)
             if pending["status"]!="needs_confirmation" or pending.get("binding"):
                 raise RuntimeError("active-goal preflight did not return a gated confirmation state")
             consent=pending["consent"]
@@ -402,9 +402,12 @@ ws.addEventListener('close', () => process.exit());
                     if round_gate.with_suffix('.launches').read_text() != "once\n":
                         raise RuntimeError("next round command was replayed")
                     rounds.append({"job_id": round_job, "run_id": round_started["job"]["run_id"], "goal_wait_id": round_wait})
-                exhausted = await relay("connect", "--request-id", consent["request_id"], "--cwd", work, caller=thread)
-                if exhausted["status"] != "request_closed" or exhausted["consent"]["jobs_admitted"] != 3 or len(exhausted["consent"]["jobs"]) != 3:
-                    raise RuntimeError("three-round request did not retain its exact admission budget/history")
+                reusable = await relay("connect", "--request-id", consent["request_id"], "--cwd", work, caller=thread)
+                remaining = reusable["consent"]
+                if (reusable["status"] != "ready" or remaining["request_id"] != consent["request_id"]
+                        or remaining["jobs_admitted"] != 3 or len(remaining["jobs"]) != 3
+                        or remaining["job_limit"] is not None or remaining["expires_at"] is not None):
+                    raise RuntimeError("three-round request did not retain its original approval/history")
             if scenario == "deleted" and goal is not None:
                 raise RuntimeError("deleted goal was recreated")
             if scenario == "replaced" and (goal["objective"] != "New unrelated user goal" or goal["status"] != "paused"):

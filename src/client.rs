@@ -319,7 +319,8 @@ pub async fn connect_request(
         .to_string();
     let goal_status = goal.as_ref().map(|(_, g)| g.status.as_str());
     value["goal_status"] = json!(goal_status);
-    let scoped = ipc::call(config, Request::Doctor).await?["scoped_goal_consent"] == true;
+    let capabilities = ipc::call(config, Request::Doctor).await?;
+    let scoped = capabilities["scoped_goal_consent"] == true;
     if scoped
         && let Some(wait) = crate::storage::Store::readonly(config.clone())
             .pending_goal_handoff(key.clone(), goal.clone())
@@ -395,6 +396,11 @@ pub async fn connect_request(
         scoped,
         "selected daemon lacks scoped goal consent; update the same profile before submission"
     );
+    let persistent = options.request_id.is_none() && options.job_limit.is_none();
+    ensure!(
+        !persistent || capabilities["persistent_goal_consent"] == true,
+        "selected daemon lacks goal-lifetime pause consent; update the same profile before submission"
+    );
     let consent = ipc::call(
         config,
         Request::PrepareGoalConsent {
@@ -405,6 +411,7 @@ pub async fn connect_request(
             request_id: options.request_id,
             label: options.label,
             job_limit: options.job_limit,
+            persistent,
             user_authorized: options.user_authorized,
         },
     )

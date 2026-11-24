@@ -124,7 +124,7 @@ For a CLI submission from the current ChatGPT Desktop chat's terminal, use `star
 
 ## Wait with an active goal (experimental)
 
-Ordinary terminal `connect --request-label <brief-task> --job-count <count>` returns `needs_confirmation` for an active goal without pause permission. `job_goal_consent` asks once through negotiated native input or an Agent host question; a natural affirmative reply covers the fixed remaining jobs. Reconnect with `--request-id <id>` for each round, submit its binding, acknowledge the originating native pause and end the turn. Put requested post-command delays inside each background workload. Plugin messages cannot provide consent. Pending input creates no jobs/waits and must not trigger repeated questions, polling or blocked status. See [goal waiting](goal-waiting.md).
+Ordinary terminal `connect --request-label <brief-task>` returns `needs_confirmation` for an active goal without pause permission. `job_goal_consent` asks once through negotiated native input or an Agent host question; a natural affirmative reply covers later rounds of the same request for the lifetime of the original Goal. Reconnect with `--request-id <id>` for each round, submit its binding, acknowledge the originating native pause and end the turn. Put requested post-command delays inside each background workload. Plugin messages cannot provide consent. Pending input creates no jobs/waits and must not trigger repeated questions, polling or blocked status. See [goal waiting](goal-waiting.md).
 
 ## Recover notifications
 
