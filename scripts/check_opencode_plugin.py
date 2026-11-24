@@ -30,7 +30,11 @@ def main():
     parser.add_argument("--registry", help="Loopback unpublished-package registry")
     parser.add_argument("--batch", action="store_true", help="Exercise batch partial admission and caller override through the actual loader")
     args = parser.parse_args()
-    for path in [args.opencode, args.binary, args.node_modules / "@opencode-ai/plugin"]:
+    use_source_plugin = not args.plugin_dir and not args.plugin_spec
+    required = [args.opencode, args.binary]
+    if use_source_plugin:
+        required.append(args.node_modules / "@opencode-ai/plugin")
+    for path in required:
         if not path.exists():
             parser.error(f"missing isolated dependency: {path}")
     base = REPO / ".tmp"
@@ -41,7 +45,7 @@ def main():
     home, project, state = root / "home", root / "project", root / "relay"
     home.mkdir(); project.mkdir()
     plugin = args.plugin_dir.resolve() if args.plugin_dir else root / "plugin"
-    if not args.plugin_dir and not args.plugin_spec:
+    if use_source_plugin:
         shutil.copytree(REPO / "plugins/opencode-v1", plugin)
         modules = plugin / "node_modules"
         modules.mkdir()
@@ -108,7 +112,7 @@ def main():
     model = ThreadingHTTPServer(("127.0.0.1", 0), Model)
     threading.Thread(target=model.serve_forever, daemon=True).start()
     options = {"stateDir": str(state)}
-    if not args.plugin_dir and not args.plugin_spec:
+    if use_source_plugin:
         options["executable"] = str(args.binary.resolve())
     config = {"$schema": "https://opencode.ai/config.json", "plugin": [[args.plugin_spec or plugin.joinpath("index.mjs").as_uri(), options]],
               "model": "relayfixture/relay-fixture", "small_model": "relayfixture/relay-fixture", "enabled_providers": ["relayfixture"],
