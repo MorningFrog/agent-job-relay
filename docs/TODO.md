@@ -4,7 +4,7 @@
 
 ## Scope and baseline
 
-Distribute one Rust/MCP runtime through ChatGPT Desktop/Codex, Claude Code and OpenCode plugins. Pushing, publishing and official submissions require final confirmation. Release operations are manual. GitHub Release 0.1.27 remains the published baseline. Source 0.1.28 covers the Actions release route and Goal-lifetime default pause approval. See the [release handoff](release.md#current-release-handoff).
+Distribute one Rust/MCP runtime through ChatGPT Desktop/Codex, Claude Code and OpenCode plugins. Pushing, publishing and official submissions require final confirmation. Release operations are manual. GitHub Release 0.1.27 remains the published baseline. Source 0.1.28 includes the Actions release route, Goal-lifetime default pause approval and compact MCP guidance and results. See the [release handoff](release.md#current-release-handoff).
 
 This is the sole project backlog. Current functionality, completed acceptance and version-specific evidence are maintained in [implementation status](IMPLEMENTATION_STATUS.md) and [live verification](live-e2e.md); changes by version are in [CHANGELOG](../CHANGELOG.md). Keep future work and explicit deferrals here.
 
