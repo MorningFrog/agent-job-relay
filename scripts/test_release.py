@@ -213,9 +213,12 @@ class ReleaseTests(unittest.TestCase):
         body = (self.directory / "release-notes.md").read_text() + f"\n<!-- AgentJobRelay candidate 123 {self.revision} next -->"
         return {"body": body, "tag_name": "v" + self.version, "target_commitish": self.revision, "prerelease": True, "draft": True, "id": release_id}
 
-    def stage(self, status="staged"):
-        entry = self.meta["runtime"]
-        return {"id": "11111111-1111-4111-8111-111111111111", "packageName": entry["name"], "version": self.version, "tag": "next", "status": status, "shasum": actions.hashlib.sha1((self.directory / entry["tarball"]).read_bytes()).hexdigest()}
+    def stage_receipt(self, key="runtime"):
+        entry = self.meta[key]
+        return {
+            "name": entry["name"], "version": entry["version"], "integrity": entry["integrity"],
+            "stageId": "11111111-1111-4111-8111-111111111111",
+        }
 
     @contextmanager
     def registry_clock(self):
@@ -636,17 +639,29 @@ class ReleaseTests(unittest.TestCase):
         credentials.assert_not_called()
         github.assert_not_called()
 
-    def test_only_staging_child_receives_the_stage_token(self):
-        secrets = {"NPM_STAGE_TOKEN": "stage-token", "NPM_TOKEN": "other-token",
-                   "NODE_AUTH_TOKEN": "inherited", "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "oidc",
-                   "GH_TOKEN": "github"}
-        with patch.dict(os.environ, secrets):
+    def test_only_staging_child_receives_github_oidc_request_environment(self):
+        oidc = {"ACTIONS_ID_TOKEN_REQUEST_URL": "https://example.invalid",
+                "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "fake-oidc-request-token"}
+        inherited = {"NPM_STAGE_TOKEN": "stage-token", "NPM_TOKEN": "other-token",
+                     "NODE_AUTH_TOKEN": "inherited", "NPM_ID_TOKEN": "fake-npm-id-token",
+                     "GH_TOKEN": "github", "NPM_CONFIG_REGISTRY": "https://foreign.invalid"}
+        with patch.dict(os.environ, {**oidc, **inherited}):
             for mode in ("public", "stage"):
                 with actions.npm_environment(mode) as env:
-                    self.assertEqual(env.get("NODE_AUTH_TOKEN"), secrets["NPM_STAGE_TOKEN"] if mode == "stage" else None)
-                    for key in secrets.keys() - {"NODE_AUTH_TOKEN"}:
-                        self.assertNotIn(key, env)
-                    self.assertNotIn(secrets["NPM_STAGE_TOKEN"], Path(env["npm_config_userconfig"]).read_text())
+                    for name, value in oidc.items():
+                        self.assertEqual(env.get(name), value if mode == "stage" else None)
+                    self.assertTrue(inherited.keys().isdisjoint(env))
+                    config = Path(env["npm_config_userconfig"]).read_text()
+                    self.assertIn(actions.REGISTRY, config)
+                    for secret in (*oidc.values(), *inherited.values()):
+                        self.assertNotIn(secret, config)
+
+    def test_legacy_secret_cannot_replace_missing_oidc(self):
+        with patch.dict(os.environ, {"NPM_STAGE_TOKEN": "unused",
+                                     "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "",
+                                     "ACTIONS_ID_TOKEN_REQUEST_URL": "https://example.invalid"}):
+            with self.assertRaisesRegex(ValueError, "id-token: write"), actions.npm_environment("stage"):
+                self.fail("Staging started without OIDC")
 
     def test_selected_release_operation_is_bound_to_the_actual_event_and_checkout(self):
         event = self.root / "event.json"
@@ -685,59 +700,47 @@ class ReleaseTests(unittest.TestCase):
         github.assert_not_called()
         command.assert_not_called()
 
-    def test_matching_stage_is_reused_only_after_byte_and_tag_check(self):
+    def test_trusted_stage_uploads_exact_tarball_once_and_records_review_evidence(self):
         entry = self.meta["runtime"]
         tarball = self.directory / entry["tarball"]
-        stage = self.stage()
-        for data in (tarball.read_bytes(), b"foreign"):
-            replies = [json.dumps([stage]), json.dumps(stage)]
-            with self.subTest(matches=data != b"foreign"), patch.object(actions, "command", side_effect=replies) as run, patch.object(actions, "request", return_value=data), patch.object(actions, "summary"):
-                if data == b"foreign":
-                    with self.assertRaisesRegex(ValueError, "differs"):
-                        actions.stage_package(entry, tarball, "next", {"NODE_AUTH_TOKEN": "fake"})
-                else:
-                    self.assertTrue(actions.stage_package(entry, tarball, "next", {"NODE_AUTH_TOKEN": "fake"}))
-                self.assertEqual([c.args[0][2] for c in run.call_args_list], ["list", "view"])
-        with patch.object(actions, "command", return_value=json.dumps([{**stage, "tag": "latest"}])) as run:
-            with self.assertRaisesRegex(ValueError, "another channel"):
-                actions.stage_package(entry, tarball, "next", {})
-            run.assert_called_once()
+        receipt = self.stage_receipt()
+        env = {"npm_config_userconfig": str(self.root / "npmrc")}
+        reply = json.dumps({entry["name"]: receipt})
+        with patch.object(actions, "command", return_value=reply) as npm, patch.object(actions, "summary") as summary:
+            actions.stage_package(entry, tarball, "next", env)
+        npm.assert_called_once_with(
+            ["npm", "stage", "publish", tarball, "--ignore-scripts", "--access=public",
+             "--tag=next", "--json", f"--registry={actions.REGISTRY}"],
+            env=env, cwd=self.root,
+        )
+        messages = [call.args[0] for call in summary.call_args_list]
+        self.assertIn(metadata.sha256(tarball), messages[0])
+        self.assertIn(receipt["stageId"], messages[1])
 
-    def test_new_stage_is_created_once_then_downloaded_for_verification(self):
+    def test_trusted_stage_refuses_malformed_or_conflicting_acknowledgements(self):
         entry = self.meta["runtime"]
-        tarball = self.directory / entry["tarball"]
-        stage = self.stage()
-        replies = ["[]", json.dumps({entry["name"]: {"stageId": stage["id"]}}), json.dumps(stage)]
-        with patch.object(actions, "command", side_effect=replies) as run, patch.object(actions, "request", return_value=tarball.read_bytes()) as download, patch.object(actions, "summary"):
-            self.assertTrue(actions.stage_package(entry, tarball, "next", {"NODE_AUTH_TOKEN": "fake"}))
-        self.assertEqual([c.args[0][2] for c in run.call_args_list], ["list", "publish", "view"])
-        self.assertIn("--tag=next", run.call_args_list[1].args[0])
-        self.assertTrue(download.call_args.args[0].endswith(f"/{stage['id']}/tarball"))
-        self.assertTrue(download.call_args.kwargs["binary"])
+        env = {"npm_config_userconfig": str(self.root / "npmrc")}
+        for field, value in (("name", "foreign"), ("version", "9.9.9"),
+                             ("integrity", "foreign"), ("stageId", "invalid")):
+            reply = json.dumps({**self.stage_receipt(), field: value})
+            with self.subTest(field=field), patch.object(actions, "command", return_value=reply) as npm, patch.object(actions, "summary") as summary:
+                with self.assertRaisesRegex(ValueError, "Inspect the npm staging inventory"):
+                    actions.stage_package(entry, self.directory / entry["tarball"], "next", env)
+                npm.assert_called_once()
+                summary.assert_called_once()
 
-    def test_validating_stage_is_retained_without_premature_download(self):
-        entry = self.meta["runtime"]
-        stage = self.stage("validating")
-        with patch.object(actions, "command", side_effect=["[]", json.dumps({"stageId": stage["id"]}), json.dumps(stage)]) as commands, patch.object(actions, "request") as download, patch.object(actions, "summary") as summary:
-            self.assertFalse(actions.stage_package(entry, self.directory / entry["tarball"], "next", {"NODE_AUTH_TOKEN": "fake"}))
-            self.assertEqual(commands.call_count, 3)
-            download.assert_not_called()
-            self.assertIn("Do not approve yet", summary.call_args.args[0])
-
-    def test_pending_validation_does_not_prevent_considering_the_second_package(self):
-        with patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_registry_selection", return_value=dict.fromkeys(metadata.PACKAGES)), patch.object(actions, "find_release", return_value=None), patch.object(actions, "npm_environment"), patch.object(actions, "stage_package", side_effect=[False, True]) as stage, patch.object(actions, "summary") as summary, patch.object(actions, "draft_release") as draft:
-            actions.stage_release(self.directory, "123")
-        self.assertEqual([c.args[0]["name"] for c in stage.call_args_list], list(metadata.PACKAGES.values()))
-        self.assertIn("Waiting for npm automated validation", summary.call_args.args[0])
+    def test_partial_staging_reports_first_ack_and_does_not_repeat_uncertain_upload(self):
+        first = self.stage_receipt()
+        failed = actions.CommandError(["npm", "stage"], 1, "E409")
+        env = {"npm_config_userconfig": str(self.root / "npmrc")}
+        with patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_registry_selection", return_value=dict.fromkeys(metadata.PACKAGES)), patch.object(actions, "find_release", return_value=None), patch.object(actions, "npm_environment") as credentials, patch.object(actions, "command", side_effect=[json.dumps(first), failed]) as npm, patch.object(actions, "summary") as summary, patch.object(actions, "draft_release") as draft:
+            credentials.return_value.__enter__.return_value = env
+            with self.assertRaisesRegex(ValueError, "E409.*Inspect the npm staging inventory"):
+                actions.stage_release(self.directory, "123")
+        self.assertEqual([call.args[0][3].name for call in npm.call_args_list],
+                         [self.meta[key]["tarball"] for key in metadata.PACKAGES])
+        self.assertIn(first["stageId"], summary.call_args_list[1].args[0])
         draft.assert_not_called()
-
-    def test_stage_metadata_conflicts_and_unknown_status_stop_before_download(self):
-        entry = self.meta["runtime"]
-        for field, value in [("status", "future-state"), ("shasum", "0" * 40), ("packageName", "foreign"), ("tag", "latest")]:
-            with self.subTest(field=field), patch.object(actions, "command", side_effect=[json.dumps([self.stage()]), json.dumps({**self.stage(), field: value})]), patch.object(actions, "request") as download:
-                with self.assertRaises(ValueError):
-                    actions.stage_package(entry, self.directory / entry["tarball"], "next", {"NODE_AUTH_TOKEN": "fake"})
-                download.assert_not_called()
 
     def test_conflicting_public_version_stops_before_draft_or_upload(self):
         with patch.object(actions, "validate", return_value=self.candidate), patch.object(actions, "check_candidate", return_value=self.meta), patch.object(actions, "registry_version", return_value={"name": metadata.PACKAGES["runtime"], "version": self.version, "dist": {"integrity": "foreign"}}), patch.object(actions, "draft_release") as draft:
@@ -924,8 +927,8 @@ class ReleaseTests(unittest.TestCase):
             self.assertEqual(self.real_request(url, token="fake-fixture-token", method="POST", payload=payload), {"uploaded": True})
             self.assertEqual(received, {"content_type": "application/octet-stream", "body": payload})
             self.assertIsNone(self.real_request(url + "/empty", token="fake-fixture-token", method="POST"))
-            with self.assertRaisesRegex(RuntimeError, "npm staged tarball download failed with HTTP 404") as error:
-                self.real_request(url, token="fake-fixture-token", context="npm staged tarball download")
+            with self.assertRaisesRegex(RuntimeError, "Release asset download failed with HTTP 404") as error:
+                self.real_request(url, token="fake-fixture-token", context="Release asset download")
             self.assertNotIn("fake-private", str(error.exception))
             self.assertNotIn("fake-fixture-token", str(error.exception))
             with patch.object(actions, "urlopen", side_effect=actions.URLError("fake-private-signed-url")):
@@ -1341,17 +1344,6 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(sum(call.args[0] for call in sleep.call_args_list), 3600)
         github.assert_not_called()
         npm.assert_not_called()
-
-    def test_coordinated_staging_waits_for_validation_before_downloading_exact_bytes(self):
-        entry = self.meta["runtime"]
-        tarball = self.directory / entry["tarball"]
-        stage = self.stage()
-        responses = [[stage], self.stage("validating"), stage]
-        with self.registry_clock() as sleep, patch.object(actions, "command", side_effect=map(json.dumps, responses)) as npm, patch.object(actions, "request", return_value=tarball.read_bytes()) as download, patch.object(actions, "summary"):
-            self.assertTrue(actions.stage_package(entry, tarball, "next", {"NODE_AUTH_TOKEN": "fake"}, wait_for_validation=True))
-        self.assertEqual([call.args[0][2] for call in npm.call_args_list], ["list", "view", "view"])
-        download.assert_called_once()
-        sleep.assert_called_once_with(5)
 
     def test_prepare_refuses_a_partially_published_version_before_any_build(self):
         with patch.object(actions, "actions_context", return_value=self.revision), patch.object(actions, "github", return_value={"full_name": actions.REPOSITORY}), patch.object(actions, "check_tag", return_value=False), patch.object(actions, "github_list", return_value=[]), patch.object(actions, "registry_version", return_value={}), patch.object(actions, "command") as command:

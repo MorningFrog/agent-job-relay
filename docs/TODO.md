@@ -13,7 +13,7 @@ This is the sole project backlog. Current functionality, completed acceptance an
 - [x] Restore GitHub Actions as the repository's CI/CD provider. Keep Linux/Windows native and installed-package checks, separate minimum Rust compilation and macOS ARM64 compilation.
 - [x] Qualify a GitHub-hosted main push, including Linux and Windows installed-package checks. See the [CI evidence](IMPLEMENTATION_STATUS.md#current-verification).
 - [ ] Qualify the GitHub-hosted PR path, then configure the `CI required` ruleset check with maintainer authorization. Retire any external repository integration separately.
-- [ ] Qualify Release All formal mode on GitHub Actions through npm staging, maintainer approval, GitHub finalization and independent public verification. Preparation and read-only preview evidence belongs to each version’s original Actions candidate. Preserve original provider candidates and published receipts.
+- [ ] Qualify Release All formal mode on GitHub Actions through OIDC npm staging, maintainer review and 2FA approval, GitHub finalization and independent public verification. Preserve each version's original candidate and publication receipts.
 - [ ] Qualify macOS runtime/installation/host behavior in a separate task. Compilation and cross-build checks do not close this item.
 
 ## Host integration and distribution

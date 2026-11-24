@@ -80,7 +80,7 @@ jobs:
       - uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.12'
-      - name: Stage and verify the exact npm tarballs
+      - name: Stage the exact npm tarballs with Trusted Publishing
         env:
           GH_TOKEN: ${{ github.token }}
           CANDIDATE_RUN_ID: ${{ needs.prepare.outputs.candidate_run_id }}

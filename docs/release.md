@@ -20,25 +20,27 @@ Preparation uses a repository Actions token for source/API reads. The local fina
 
 ## Stage, approve and finalize
 
+Configure npm Trusted Publisher for both `agent-job-relay-runtime` and `agent-job-relay-opencode-v1` with repository `MorningFrog/agent-job-relay`, workflow `release-publish.yml` and environment `release`. Grant the trusted publisher `npm stage publish` for this workflow. The Stage job exchanges its GitHub OIDC identity for short-lived npm access. Configure the `release` environment for `main`; any environment approval rules apply to both Stage and Finalize. See [npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers/) and [GitHub deployment environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments).
+
 1. To publish, run **Release All** on `main` and uncheck **Dry run**. Enter the reviewed **Prepare Release** Run ID to publish the same bytes. Leaving the field empty builds and previews a new candidate before staging.
-2. Wait for the Stage child to succeed. Open its summary for the verified npm stage IDs. Review the candidate and approve those stages on npm with maintainer 2FA, runtime first and then OpenCode. Release All waits up to one hour for both versions to appear on the sealed channel.
+2. Open the successful Stage child's summary for the stage IDs, candidate SHA-256 hashes and channel. npm OIDC can submit the archives. A maintainer uses their own npm login to review each stage after npm validation. Run `npm stage view <stage-id>` to check the package, version and tag, then `npm stage download <stage-id>` and compare the downloaded archive's SHA-256 with the summary. Approve the matching archives with npm 2FA, runtime first and then OpenCode. Release All waits up to one hour for both versions to appear on the sealed channel. See [npm staged review](https://docs.npmjs.com/staged-publishing/#review-a-staged-package).
 3. Once both versions are visible, Release All dispatches GitHub finalization and then independent **Check Release**. Expect Finalize to verify both full npm tarballs and their channels before writing to GitHub. A successful Check Release verifies the public downloads, clean npm installation, tag, notes and assets.
 
 The standalone workflows can run each phase separately for inspection or recovery.
 
 | Operation | Authority | Expected result |
 |---|---|---|
-| **Publish Release**, `stage` | Read-only GitHub token and environment secret `NPM_STAGE_TOKEN` | Stage or reuse the two exact npm tarballs, verify the staged bytes and show stage IDs. Wait for npm validation when necessary and rerun Stage against the same candidate to verify bytes before approval |
-| **npm approval** | Maintainer npm account with 2FA | Approve verified runtime first, then OpenCode. Both versions and the sealed channel become publicly available |
+| **Publish Release**, `stage` | Read-only GitHub token and job-scoped OIDC in `release` | Stage exact candidate tarballs and record npm stage IDs and candidate hashes for review |
+| **npm approval** | Maintainer npm account with 2FA | Check staged bytes and channel, then approve runtime first and OpenCode second |
 | **Publish Release**, `finalize` | GitHub `release` environment and repository token with contents write | Verify both complete public npm tarballs and their channels, then publish the matching GitHub Release and candidate assets |
 | **Check Release** | Read-only repository token | Independently verify public tarballs, channel, clean npm installation, GitHub Tag, notes and assets. Any retained legacy upload receipts are checked against their original Actions runs |
-
-For **Stage**, configure the `npm-stage` environment on `main` with an expiring npm granular token limited to these two packages and the staging operations. Do not enable bypass 2FA. Keep the token in that environment secret and rotate it before expiry or after exposure. Configure `release` on `main` with the desired maintainer approval rules for GitHub finalization. Preview and Check Release require no npm credentials. See [npm stage command](https://docs.npmjs.com/cli/v11/commands/npm-stage/) and [GitHub deployment environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments).
 
 ## Recover the original candidate
 
 Use **Re-run failed jobs** for failures or approval timeouts on the same revision. The coordinator reuses matching child runs and retries failed children by their original Run ID. If a dispatched child is temporarily absent from the Actions API, it waits up to one minute for the exact Run ID to become visible. Keep `main` on the selected revision through publication because a change fences subsequent dispatch. After committing a source fix for a failed preparation, dispatch a fresh dry-run from the updated `main`.
 
-Standalone retries use the same successful Prepare Release Run ID. Stage reuses matching stages and preserves their channel. After an uncertain upload, inspect npm's staging inventory before retrying. Finalize preserves matching draft assets and published bytes. If public registry propagation delays Check Release, rerun only that read-only check. A conflicting tag, channel, receipt, package or Release stops the workflow.
+Before retrying a failed Stage, inspect the npm staging inventory with the maintainer's login. If npm already accepted a tarball, compare its metadata and SHA-256 with the original candidate and approve it after verification. Retry with the original Prepare Release Run ID once any verified stages are public. Stage leaves matching public versions alone and attempts only the remaining versions. npm's version uniqueness fences conflicting uploads. Finalize preserves matching draft assets and published bytes. If public registry propagation delays Check Release, rerun only that read-only check.
+
+After updating release tooling, dispatch a new **Release All** from the updated `main`, supply the original Prepare Release Run ID and enable `recover_candidate`. A rerun of the earlier workflow uses its original checkout.
 
 Use `recover_candidate` only for a descendant of the original revision whose diff is limited to the release-tooling and documentation allowlist. Runtime, build/package inputs, version or CHANGELOG changes require a new unused version. Preserve published notes, dates, tags, candidate bytes and receipts. An incomplete or failed verification never authorizes a rebuild or replacement of public artifacts.

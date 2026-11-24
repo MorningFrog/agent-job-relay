@@ -68,18 +68,21 @@ jobs:
     if: github.ref == 'refs/heads/main' && inputs.operation == 'stage'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    environment: npm-stage
+    environment: release
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
     steps:
       - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/release-candidate
-      - run: npm install --global --ignore-scripts --registry=https://registry.npmjs.org npm@11.21.1
-      - name: Stage exact tarballs for maintainer approval
+      - run: env -u ACTIONS_ID_TOKEN_REQUEST_TOKEN -u ACTIONS_ID_TOKEN_REQUEST_URL npm install --global --ignore-scripts --registry=https://registry.npmjs.org npm@11.21.1
+      - name: Stage exact tarballs with npm Trusted Publishing
         env:
           GH_TOKEN: ${{ github.token }}
-          NPM_STAGE_TOKEN: ${{ secrets.NPM_STAGE_TOKEN }}
         run: python3 scripts/release_actions.py stage --candidate-run-id "$CANDIDATE_RUN_ID"
   finalize:
     needs: selection
