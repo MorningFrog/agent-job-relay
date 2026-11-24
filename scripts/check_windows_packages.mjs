@@ -174,7 +174,8 @@ try {
     env.AJR_STATE_DIR = join(root, "codex-state");
     writeFileSync(join(env.CODEX_HOME, "config.toml"), 'cli_auth_credentials_store = "file"\n[analytics]\nenabled = false\n[feedback]\nenabled = false\n');
     const market = join(root, "marketplace");
-    await run([join(process.env.SystemRoot, "System32/WindowsPowerShell/v1.0/powershell.exe"), "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", `Expand-Archive -LiteralPath '${join(release, meta.marketplace).replaceAll("'", "''")}' -DestinationPath '${market.replaceAll("'", "''")}'`], "marketplace-extract");
+    mkdirSync(market);
+    await run([join(process.env.SystemRoot, "System32/tar.exe"), "-xf", join(release, meta.marketplace), "-C", market], "marketplace-extract");
     for (const file of [".mcp.json", "mcp.json", "relay", "relay.cmd"]) {
       const path = join(market, "plugins/chatgpt", file);writeFileSync(path, readFileSync(path, "utf8").replaceAll("https://registry.npmjs.org", registryUrl));
     }

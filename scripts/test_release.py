@@ -19,6 +19,7 @@ import release_actions as actions
 import release_metadata as metadata
 import release_pipeline as pipeline
 import check_online_update as online_fixture
+import check_release as install_fixture
 import finalize_release as finalizer
 import prepare_release as preparation
 import build_macos_arm64 as macos_build
@@ -226,6 +227,26 @@ class ReleaseTests(unittest.TestCase):
 
         with patch.object(actions.time, "monotonic", side_effect=lambda: elapsed), patch.object(actions.time, "sleep", side_effect=advance) as sleep:
             yield sleep
+
+    def test_installed_job_wait_advances_past_started_event(self):
+        def receipt(status, cursor, exit_code):
+            return json.dumps({
+                "next_cursor": cursor,
+                "job": {"job_id": "original-job", "status": status, "exit_code": exit_code},
+            })
+
+        calls = []
+        events = iter([receipt("running", 7, None), receipt("completed", 8, 0)])
+
+        def command(argv, name):
+            calls.append((argv, name))
+            return next(events)
+
+        install_fixture.require_completed_job(command, ["ajr"], "original-job", "short-wait")
+        self.assertEqual(calls, [
+            (["ajr", "wait", "original-job", "--after", "0", "--seconds", "5"], "short-wait"),
+            (["ajr", "wait", "original-job", "--after", "7", "--seconds", "5"], "short-wait"),
+        ])
 
     def test_version_and_changelog_are_enforced_before_build(self):
         self.assertEqual(metadata.source_metadata(self.root)["version"], self.version)

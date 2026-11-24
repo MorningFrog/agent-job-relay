@@ -13,6 +13,7 @@ import sys
 import tarfile
 import tempfile
 import threading
+import time
 from urllib.parse import unquote, parse_qs, urlsplit
 from urllib.request import Request, urlopen
 
@@ -21,6 +22,24 @@ from check_codex_plugin import run as check_codex
 from check_online_update import check_online_update
 
 REPO = Path(__file__).resolve().parents[1]
+
+
+def require_completed_job(command, launcher, job_id, name):
+    cursor = 0
+    deadline = time.monotonic() + 20
+    while time.monotonic() < deadline:
+        receipt = json.loads(command(
+            [*launcher, "wait", job_id, "--after", str(cursor), "--seconds", "5"], name,
+        ))
+        job = receipt["job"]
+        if job["job_id"] != job_id:
+            raise RuntimeError(f"{name}: wait returned a different job")
+        if job["status"] == "completed" and job["exit_code"] == 0:
+            return
+        if job["status"] not in {"queued", "launching", "running"}:
+            raise RuntimeError(f"{name}: job ended as {job['status']} (exit {job['exit_code']})")
+        cursor = receipt["next_cursor"]
+    raise RuntimeError(f"{name}: job did not finish within the test deadline")
 
 
 def main():
@@ -148,16 +167,16 @@ def main():
                     raise RuntimeError(f"{name}: explicit profile override was ignored")
             del env["AJR_STATE_DIR"]
             short_job_id = json.loads(command(["ajr", "start", "--cwd", home, "--", "/usr/bin/printf", "%s", "--state-dir"], "short-start"))["job"]["job_id"]
-            command(["ajr", "wait", short_job_id, "--seconds", "5"], "short-wait")
+            require_completed_job(command, ["ajr"], short_job_id, "short-wait")
             shared = json.loads(command(["agent-job-relay", "codex", "status", short_job_id], "short-shared-status"))
-            if shared["status"] != "completed" or shared["exit_code"] != 0:
+            if shared["job_id"] != short_job_id or shared["status"] != "completed" or shared["exit_code"] != 0:
                 raise RuntimeError("short command did not share the plugin profile")
             check_ui(["ajr"], short_job_id, "short-ui")
             if tuple(map(int, meta["version"].split("."))) >= (0, 1, 14):
                 online_update = check_online_update(root, prefix, env, meta, url, command, short_job_id)
         # Exercise profile persistence after moving the installed npm payload.
         job_id = json.loads(command(["node", cli, "opencode", "start", "--cwd", home, "--", "/usr/bin/printf", "packaged-runtime"], "start"))["job"]["job_id"]
-        command(["node", cli, "opencode", "wait", job_id, "--seconds", "5"], "wait")
+        require_completed_job(command, ["node", cli, "opencode"], job_id, "wait")
         moved = root / "relocated-runtime"
         shutil.copytree(cli.parent, moved)
         status = json.loads(command(["node", moved / "cli.mjs", "opencode", "status", job_id], "relocated-status"))
