@@ -114,7 +114,7 @@ codex plugin add agent-job-relay@agent-job-relay-local
 
 > 调用 AgentJobRelay 的 MCP job_doctor，验证 managed_mcp_updates_supported=true、goal_wait_policy=required_for_active_desktop_goal，scoped_goal_consent=true，并确认发现 job_goal_consent 及包含 confirm_paused 的 job_goal_wait。不提交任务。如果没有它的 MCP 工具，请报告并停止，不使用 CLI 降级，也不使用其他插件的工具。
 
-预期：实际调用 AgentJobRelay 的 `job_doctor` 成功且具备上述能力。排查同版本更新时，可将其 `runtime_workflow_sha256` 与所选启动器 `instructions` 返回的摘要比较；仅版本号相同不足以证明更新生效。共享 MCP 中，`binding_mode=explicit current-terminal binding` 和 `desktop_context.available=false` 是正常结果；真正提交任务时才会通过终端绑定当前聊天。
+预期：实际调用 AgentJobRelay 的 `job_doctor` 成功且具备上述能力。排查同版本更新时，可将 MCP 的索引和主题摘要与所选启动器 `instructions` 返回的摘要比较；仅版本号相同不足以证明更新生效。共享 MCP 中，`binding_mode=explicit current-terminal binding` 和 `desktop_context.available=false` 是正常结果；真正提交任务时才会通过终端绑定当前聊天。
 
 成功后，再使用下一项实际需要的长任务：
 

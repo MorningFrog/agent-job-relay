@@ -772,7 +772,14 @@ while [ ! -f release ]; do sleep .05; done
             "start",
             json!({"job":first["job"],"feedback":first["feedback"]}),
         );
-        assert_eq!(compact["feedback"], first["feedback"]);
+        assert_eq!(compact["feedback"]["status"], "configured");
+        assert_eq!(
+            compact["feedback"]["rules"][1]["rule_id"],
+            first["feedback"]["rules"][1]["rule_id"]
+        );
+        assert_eq!(compact["feedback"]["rules"][1]["application"], "applied");
+        assert_eq!(compact["feedback"]["rules"][1]["sample_observed"], true);
+        assert_eq!(compact["continuation"]["action"], "yield_for_notification");
         assert_eq!(
             first["observation"]["progress"]["sources"]["checker"]["observed_run"],
             "target:job:run:attempt-1"

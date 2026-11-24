@@ -168,6 +168,7 @@ pub(crate) fn summarize(db: &Connection, detail: &Value) -> Result<Value> {
             let caps = crate::session::capabilities(&session.registration.adapter);
             targets.push(json!({
                 "target_id":target,"session_key":key,"can_resume":caps.can_resume,
+                "renew_on_delivery":session.registration.renew_on_delivery,
                 "status":if !session.connected {"invalidated"}
                     else if session.expires_at <= now() {"lease_expired"} else {"configured"},
                 "delivery":if caps.can_resume {"host"} else {"inbox"},

@@ -93,8 +93,8 @@ async def run(args):
                     response_held.set()
                     if not release_response.wait(60):
                         raise RuntimeError("held originating turn was not released")
-                resumed = "AgentJobRelay goal wait (delivery " in json.dumps(body.get("input", []))
-                feedback = "AgentJobRelay goal feedback (delivery " in json.dumps(body.get("input", []))
+                resumed = "AgentJobRelay goal wait" in json.dumps(body.get("input", []))
+                feedback = "AgentJobRelay goal feedback" in json.dumps(body.get("input", []))
                 text = "RELAY_GOAL_RESUMED" if resumed else "RELAY_GOAL_FEEDBACK" if feedback else "RELAY_GOAL_WAITING"
                 item = {"type": "message", "id": "msg_" + uuid.uuid4().hex, "role": "assistant", "status": "completed", "content": [{"type": "output_text", "text": text, "annotations": []}]}
                 response = {"id": "resp_" + uuid.uuid4().hex, "object": "response", "status": "completed", "output": [item], "usage": {"input_tokens": 11, "output_tokens": 3, "total_tokens": 14}}
@@ -402,7 +402,7 @@ ws.addEventListener('close', () => process.exit());
                     if round_gate.with_suffix('.launches').read_text() != "once\n":
                         raise RuntimeError("next round command was replayed")
                     rounds.append({"job_id": round_job, "run_id": round_started["job"]["run_id"], "goal_wait_id": round_wait})
-                reusable = await relay("connect", "--request-id", consent["request_id"], "--cwd", work, caller=thread)
+                reusable = await relay("connect", "--request-id", consent["request_id"], "--cwd", work, "--full", caller=thread)
                 remaining = reusable["consent"]
                 if (reusable["status"] != "ready" or remaining["request_id"] != consent["request_id"]
                         or remaining["jobs_admitted"] != 3 or len(remaining["jobs"]) != 3

@@ -6,7 +6,7 @@ A source installation can change native bytes and restart its daemon while the h
 
 ## Decision
 
-Keep native cached skills and MCP initialization as stable instruction entries. At each submission, result notification and maintenance request, load `instructions` through the selected profile-preserving launcher. Maintain the full workflow once in `plugins/workflows/background-jobs.md` and embed it in the executable. Return its policy and digest without creating daemon/job state. Native cached launchers already point to the managed installation; online npm entries retain their pinned release route.
+Keep native cached skills and MCP initialization as stable instruction entries. Load applicable topics through `instructions <topic>` on the selected profile-preserving launcher. Embed the index and topics from `plugins/workflows/` in the executable and return both digests without creating daemon/job state. For routine reads and sufficient notification evidence, use the tools or evidence directly. Native cached launchers already point to the managed installation; online npm entries retain their pinned release route.
 
 A managed MCP connection captures its original installation/profile, platform, version and image digest. Before catalog/call handling it checks the current receipt/profile/image and takes a shared installation lock through execution, fencing cooperating replacements while permitting parallel readers. If bytes changed, use the verified current executable's internal stdio MCP worker with the connection's explicit state. This includes same-version source updates. Shared workers drop inherited caller IDs; the original arguments and stable workload identities remain untouched. Emit a catalog notification once per runtime image revision.
 

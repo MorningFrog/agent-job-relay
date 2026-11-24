@@ -832,12 +832,9 @@ async fn remote_progress_alerts_reach_only_the_origin_through_disconnect_and_obs
         .unwrap()
         .unwrap();
     assert_eq!(first["params"]["arguments"]["threadId"], "original-chat");
-    assert!(
-        first["params"]["arguments"]["prompt"]
-            .as_str()
-            .unwrap()
-            .contains("monitor_alert")
-    );
+    let prompt = first["params"]["arguments"]["prompt"].as_str().unwrap();
+    assert!(prompt.contains(&job.job_id) && prompt.contains(&job.run_id));
+    assert!(prompt.contains("monitor alert"));
     let first_evidence = local
         .wait(&job.job_id, |v| {
             v["notifications"]["counts"]["accepted_by_host"] == 1
@@ -886,7 +883,8 @@ async fn remote_progress_alerts_reach_only_the_origin_through_disconnect_and_obs
         .unwrap();
     assert_eq!(second["params"]["arguments"]["threadId"], "original-chat");
     let prompt = second["params"]["arguments"]["prompt"].as_str().unwrap();
-    assert!(prompt.contains(&job.job_id) && prompt.contains("monitor_alert"));
+    assert!(prompt.contains(&job.job_id) && prompt.contains(&job.run_id));
+    assert!(prompt.contains("monitor alert"));
     let recovered = local
         .wait(&job.job_id, |v| {
             v["notifications"]["counts"]["accepted_by_host"] == 2
@@ -913,6 +911,11 @@ async fn remote_progress_alerts_reach_only_the_origin_through_disconnect_and_obs
         final_call["params"]["arguments"]["threadId"],
         "original-chat"
     );
+    let prompt = final_call["params"]["arguments"]["prompt"]
+        .as_str()
+        .unwrap();
+    assert!(prompt.contains(&job.job_id) && prompt.contains(&job.run_id));
+    assert!(prompt.contains("completed, exit 0"));
     let final_state = local
         .wait(&job.job_id, |v| {
             v["job"]["status"] == "completed"

@@ -9,6 +9,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 from pathlib import Path
+import re
+import shlex
 import shutil
 import socket
 import subprocess
@@ -25,12 +27,17 @@ def main():
     parser.add_argument("--opencode", type=Path, default=REPO / ".tmp/opencode-toolchain/node_modules/opencode-linux-x64/bin/opencode")
     parser.add_argument("--node-modules", type=Path, default=REPO / ".tmp/opencode-toolchain/node_modules")
     parser.add_argument("--binary", type=Path, default=REPO / "target/debug/agent-job-relay")
+    parser.add_argument("--source-plugin", type=Path, default=REPO / "plugins/opencode-v1")
+    parser.add_argument("--context-check", choices=["legacy", "topics"],
+                        help="Measure the scripted submit and completion flow at the model endpoint")
     parser.add_argument("--plugin-dir", type=Path, help="Use an npm-installed plugin instead of source files")
     parser.add_argument("--plugin-spec", help="Install the exact npm name/version through the actual Bun loader")
     parser.add_argument("--registry", help="Loopback unpublished-package registry")
     parser.add_argument("--batch", action="store_true", help="Exercise batch partial admission and caller override through the actual loader")
     args = parser.parse_args()
     use_source_plugin = not args.plugin_dir and not args.plugin_spec
+    if args.context_check and (not use_source_plugin or args.batch):
+        parser.error("--context-check requires a single source-plugin submission")
     required = [args.opencode, args.binary]
     if use_source_plugin:
         required.append(args.node_modules / "@opencode-ai/plugin")
@@ -46,7 +53,7 @@ def main():
     home.mkdir(); project.mkdir()
     plugin = args.plugin_dir.resolve() if args.plugin_dir else root / "plugin"
     if use_source_plugin:
-        shutil.copytree(REPO / "plugins/opencode-v1", plugin)
+        shutil.copytree(args.source_plugin, plugin)
         modules = plugin / "node_modules"
         modules.mkdir()
         (modules / "@opencode-ai").symlink_to((args.node_modules / "@opencode-ai").resolve(), target_is_directory=True)
@@ -66,6 +73,10 @@ def main():
     gates = [root / f"probe-{index}" for index in range(2)] if args.batch else [root / "probe"]
     tool_name = "agent_job_relay_job_start_batch" if args.batch else "agent_job_relay_job_start"
 
+    guidance = shlex.join([str(args.binary.resolve()), "--state-dir", str(state), "instructions"]
+                          + (["delegate"] if args.context_check == "topics" else []))
+    model_calls = []
+
     class Model(BaseHTTPRequestHandler):
         def log_message(self, *_args):
             pass
@@ -80,11 +91,24 @@ def main():
                 if isinstance(content, list):
                     content = "\n".join(p.get("text", "") for p in content)
                 available = [t.get("function", {}).get("name") for t in body.get("tools", [])]
-                if "AgentJobRelay event (delivery " in content:
-                    delta = {"role": "assistant", "content": "RELAY_RESUMED_MATCHING_SESSION"}
-                    finish = "stop"
+                after_user = body["messages"][body["messages"].index(users[-1]) + 1:] if users else []
+                replies = sum(m["role"] == "tool" for m in after_user)
+                completion = "AgentJobRelay event" in content
+                read_guidance = args.context_check and (not completion or args.context_check == "legacy")
+                if read_guidance and replies == 0 and "bash" in available:
+                    name = "bash"
+                    arguments = {"command": guidance, "workdir": str(project), "description": "Read Relay instructions"}
+                elif args.context_check == "legacy" and completion and replies == 1:
+                    name = "agent_job_relay_job_inspect"
+                    job_id = re.search(r"job ([0-9a-f-]{36})", content).group(1)
+                    arguments = {"job_id": job_id}
+                elif completion:
+                    if args.context_check == "topics" and not re.search(r"run [0-9a-f-]{36}: completed, exit 0", content):
+                        raise RuntimeError("summary lacks pinned terminal evidence")
+                    name = None
                     resumed.set()
-                elif tool_name in available and not any(m["role"] == "tool" for m in body["messages"][body["messages"].index(users[-1]) + 1:]):
+                elif tool_name in available and replies == int(bool(args.context_check)):
+                    name = tool_name
                     specs = [{"command": {"kind": "exec", "program": "/usr/bin/python3", "args": [str(REPO / "scripts/check_desktop_restart.py"), "wait", "--directory", str(item), "--timeout", "60"]}, "cwd": str(project), "timeout_seconds": 70} for item in gates]
                     arguments = {"spec": specs[0]}
                     if args.batch:
@@ -92,10 +116,14 @@ def main():
                             spec.update(idempotency_key=f"owned-batch-{index}", session="00000000-0000-0000-0000-000000000000")
                         specs.append({**specs[0], "idempotency_key": "rejected-batch", "timeout_seconds": 0})
                         arguments = {"specs": specs, "binding": {"session_key": "forged-model-caller", "cwd": str(project)}}
-                    delta = {"role": "assistant", "tool_calls": [{"index": 0, "id": "fixture_relay_start", "type": "function", "function": {"name": tool_name, "arguments": json.dumps(arguments)}}]}
+                else:
+                    name = None
+                if name:
+                    model_calls.append(name)
+                    delta = {"role": "assistant", "tool_calls": [{"index": 0, "id": f"fixture_call_{len(model_calls)}", "type": "function", "function": {"name": name, "arguments": json.dumps(arguments)}}]}
                     finish = "tool_calls"
                 else:
-                    delta = {"role": "assistant", "content": "Submission turn ended."}
+                    delta = {"role": "assistant", "content": "RELAY_RESUMED_MATCHING_SESSION" if completion else "Submission turn ended."}
                     finish = "stop"
                 if body.get("stream"):
                     chunks = [{"id": "fixture", "object": "chat.completion.chunk", "created": 0, "model": "relay-fixture", "choices": [{"index": 0, "delta": delta, "finish_reason": None}]},
@@ -118,6 +146,8 @@ def main():
               "model": "relayfixture/relay-fixture", "small_model": "relayfixture/relay-fixture", "enabled_providers": ["relayfixture"],
               "provider": {"relayfixture": {"npm": "@ai-sdk/openai-compatible", "name": "Isolated test fixture", "options": {"baseURL": f"http://127.0.0.1:{model.server_port}/v1", "apiKey": "isolated-fixture"}, "models": {"relay-fixture": {"name": "Relay fixture", "limit": {"context": 32768, "output": 1024}}}}},
               "permission": {"*": "deny", "agent_job_relay_*": "allow"}}
+    if args.context_check:
+        config["permission"]["bash"] = {"*": "deny", guidance: "allow"}
     (project / "opencode.json").write_text(json.dumps(config))
     with socket.socket() as port_socket:
         port_socket.bind(("127.0.0.1", 0)); port = port_socket.getsockname()[1]
@@ -214,10 +244,18 @@ def main():
                     raise RuntimeError("MCP batch partial-admission result was not returned to the model")
                 if {item["result"]["job"]["job_id"] for item in batch["results"] if item["accepted"]} != {job["job_id"] for job in jobs}:
                     raise RuntimeError("batch results did not map to the persisted jobs")
+            if args.context_check:
+                expected = ["bash", tool_name]
+                if args.context_check == "legacy":
+                    expected += ["bash", "agent_job_relay_job_inspect"]
+                if model_calls != expected:
+                    raise RuntimeError(f"unexpected model-selected tools: {model_calls!r}")
             other = api(f"/session/{second['id']}/message")
             if other:
                 raise RuntimeError("unrelated session received a batch completion")
             report = {"result": "passed", "opencode": version, "loader": "actual", "package": "Bun name/version install from loopback registry and bundled native" if args.plugin_spec else "npm-installed tarball and bundled native" if args.plugin_dir else "source", "submission": "actual MCP batch with caller hook and partial admission" if args.batch else "actual MCP with caller hook", "continuation": "actual session API and agent loop", "model": "local simulated fixture; no real provider/account", "other_session_untouched": True, "resumed_turn_completed": True, "job": outcomes[0]["job"], "deliveries": outcomes[0]["deliveries"], "outcomes": outcomes}
+            if args.context_check:
+                report["fixture_tool_calls"] = model_calls
             (root / "report.json").write_text(json.dumps(report, indent=2) + "\n")
             print(json.dumps({"result": "passed", "opencode": version, "model": "simulated", "report": str(root / "report.json")}))
     finally:

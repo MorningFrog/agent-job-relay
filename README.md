@@ -21,7 +21,7 @@ Run long commands independently of the Agent connection, keep their results, and
 | Batch submission | Submit 1–16 independent commands through CLI/MCP, with per-item results and safe retries; [usage](docs/usage.md#submit-independent-commands-together-0112) |
 | Remote tasks | Launch/attach on a pinned remote runtime or observe a fixed GitHub Actions attempt; runtime 0.1.25+ also observes a pinned Woodpecker pipeline, with workflow/step status and run links; runtime 0.1.20+ adds direct remote-rule feedback to the originating chat; [setup and boundaries](docs/remote-execution.md) |
 | Mid-run feedback | Structured stages/steps/metrics, repeated milestone or threshold alerts and a bounded checker recipe; [usage and limits](docs/progress.md) |
-| Results and history | Bounded stdout/stderr, exit outcomes, events and retained task history |
+| Results and history | Exact-run completion summaries, bounded output and on-demand event and log details |
 | Session-bound notifications | Deliver results to the initiating session; resume the chat when supported by its host |
 | Local task manager | Inspect tasks, configure persistent output/silence/elapsed rules and stop work through CLI or the bundled Web UI |
 | Data maintenance | Automatic archival, rolling backups and explicit restore into a new profile |

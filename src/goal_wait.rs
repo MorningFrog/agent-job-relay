@@ -11,7 +11,7 @@ use serde_json::{Value, json};
 mod diagnostics;
 mod feedback;
 mod recovery;
-pub(crate) use recovery::for_request;
+pub(crate) use recovery::{for_request, set_action};
 
 const OPEN: &str = "'prepared','sealed','pausing','waiting','resuming'";
 const DAY: i64 = 86_400_000;
@@ -82,18 +82,6 @@ fn brief(db: &Connection, id: &str) -> Result<Value> {
         ))?
         .collect::<rusqlite::Result<Vec<_>>>()?
     );
-    value["next_step"] = json!(match value["status"].as_str().unwrap_or("") {
-        "prepared" => "Submit once with this binding; no goal has been paused yet.",
-        "sealed" =>
-            "Work is admitted through the explicit native-pause protocol. Only a user/system request can authorize this chat's native update_goal(status='paused'); plugin delegation alone cannot. After its acknowledgement, confirm with job_goal_wait(confirm_paused=true, expected_revision=this revision). If authority or native pause is unavailable, cancel this wait and report the host limitation once; do not ask for a special phrase, mark the goal blocked, poll or resubmit jobs.",
-        "waiting" => "End this turn. Relay will handle completion without Agent polling.",
-        "resumed" =>
-            "Inspect the member results; host acceptance is not confirmed Agent execution.",
-        "cancelled" | "suppressed" | "attention" =>
-            "Inspect member results and use host goal controls explicitly. Commands were not replayed; Relay will not reactivate this wait.",
-        _ =>
-            "Work is admitted, but goal pause is not yet acknowledged. Inspect this wait before claiming automatic waiting.",
-    });
     value["host_pause_required"] = json!(value["status"] == "sealed");
     let record = read(db, id)?;
     value["feedback_count"] = json!(record.feedback_count);
@@ -107,9 +95,6 @@ fn brief(db: &Connection, id: &str) -> Result<Value> {
     };
     if record.status == "resumed" && record.feedback_delivery.is_some() {
         value["host_pause_required"] = json!(true);
-        value["next_step"] = json!(
-            "The original goal was temporarily restored for this feedback cycle. Match Job/Run/delivery, inspect bounded evidence and report requested feedback. Then use this chat's native update_goal(status='paused') under the original pause/feedback authorization, and confirm with job_goal_wait(confirm_paused=true, expected_revision=this revision). Do not submit or replay work. Complete this re-pause handshake even if members finished during the report; Relay will then restore once for the final merged outcome. If native pause fails or is uncertain, cancel this wait and report the limitation; never replay the native mutation."
-        );
     }
     value["request_id"] = json!(db.query_row(
         "SELECT consent_id FROM goal_waits WHERE id=?",
@@ -122,6 +107,12 @@ fn brief(db: &Connection, id: &str) -> Result<Value> {
 }
 fn view(db: &Connection, id: &str) -> Result<Value> {
     let mut result = brief(db, id)?;
+    if result["status"] == "resumed"
+        && result["feedback"].is_null()
+        && let Some(members) = result["jobs"].as_array()
+    {
+        result["results"] = json!(crate::output::terminal_results(db, members));
+    }
     let mut q=db.prepare("SELECT sequence,revision,at,status,detail FROM goal_wait_audits WHERE wait_id=? ORDER BY sequence DESC LIMIT 32")?;
     result["audits"]=json!(q.query_map([id],|r|Ok(json!({"sequence":r.get::<_,i64>(0)?,"revision":r.get::<_,i64>(1)?,"at":r.get::<_,i64>(2)?,"status":r.get::<_,String>(3)?,"detail":r.get::<_,String>(4)?})))?.collect::<rusqlite::Result<Vec<_>>>()?);
     Ok(result)

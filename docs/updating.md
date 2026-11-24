@@ -119,7 +119,7 @@ Use host refresh/reinstall for normal plugin-cache management. For a historical 
 
 Expected: refresh validates the original installation/profile/platform and complete snapshot hashes, retains a backup and reports the new matching snapshot. Legacy caches without `.agent-job-relay-runtime.json` need host refresh first. Modified, unknown, missing, symlinked or foreign content is refused. Use only the exact plugin directory, never a parent containing other plugins. Refresh neither scans/deletes caches nor changes the host's registry/enabled state or stops the daemon.
 
-Reconnect MCP once after migrating historical full-skill/pre-forwarder entries. Current managed connections follow later verified native updates. After those later updates, `matches_installed=false` can reflect an unused historical binary in the snapshot rather than stale behavior: compare the launcher's `instructions.workflow_sha256` with MCP `runtime_workflow_sha256` and require `managed_mcp_updates_supported=true`. A matching version string alone is insufficient; deleting snapshots is not a repair.
+Reconnect MCP once after migrating historical full-skill/pre-forwarder entries. Current managed connections follow later verified native updates. After those later updates, `matches_installed=false` can reflect an unused historical binary in the snapshot rather than stale behavior: compare launcher `instructions` digests (`workflow_sha256`, `topics_sha256`) with MCP `runtime_workflow_sha256` and `runtime_topics_sha256` when advertised and require `managed_mcp_updates_supported=true`. A matching version string alone is insufficient; deleting snapshots is not a repair.
 
 ## Compatibility and interrupted operations
 

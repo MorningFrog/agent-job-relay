@@ -86,6 +86,36 @@ For feedback receipts, run `cargo test --test feedback`, the existing monitor/go
 
 For temporary goal feedback, run `cargo test --test goal_wait feedback` and `cargo test --test data schema`. Expected: repeated restoration/native re-pause with stable IDs/accounting; coalesced delivery history and group cooldown/budget; stale/lost confirmation and late intermediate ACK fences; final completion before transmission and during reporting; uncertain restore, timeout, cancellation/deletion and backup/restore without replay; schema v11 migration with unchanged history. `python3 scripts/check_codex_goal.py --wait-seconds 2` adds an actual-Codex feedback case: a native checkpoint produces a model turn after delivery-time renewal of an expired opted-in session, an explicitly simulated owning-host pause is confirmed, no model requests occur during re-paused waiting, and final continuation completes the same run. The Agent/model/endpoint are simulated; no real Desktop goal is changed.
 
+## Measure Agent context
+
+Compare two executable and matching plugin snapshots with the same OpenCode version, isolated profiles and a local scripted model. Build frontend assets and both executables first. Use the source plugin from the exact baseline checkout.
+
+```bash
+python3 scripts/check_opencode_plugin.py --binary "$BEFORE" --source-plugin "$BASELINE_PLUGIN" --context-check legacy
+python3 scripts/check_opencode_plugin.py --binary "$AFTER" --context-check topics
+python3 scripts/measure_mcp_context.py "$BEFORE_CAPTURE" "$AFTER_CAPTURE"
+```
+
+Use each run's `model-requests.json` as the capture. The counting script requires Python `tiktoken` and defaults to `o200k_base`. It counts descriptions/schemas from tools actually sent to the model and guidance/Relay responses once per unique call. Cumulative input includes serialized messages and tools from every request, including repeated history and other host context. The provider's scripted usage counters are placeholders. Both runs should finish the original same-session turn, with one original Job/Run, no polling and no unrelated-session notification. The legacy fixture models the prior cached skill’s reload policy and performs one result inspection. The topic fixture expects enough terminal evidence to report directly.
+
+The 2026-11-24 Linux comparison uses OpenCode 1.19.4, the prior source baseline and this change.
+
+| Measured input or call | Before | After |
+|---|---:|---:|
+| Relay MCP tools sent to the model | 27 | 27 |
+| Tool description tokens | 1,695 | 393 |
+| Input schema tokens | 6,905 | 6,662 |
+| Runtime guidance loads / response tokens | 2 / 13,386 | 1 / 618 |
+| Submission receipt tokens | 453 | 189 |
+| Follow-up inspection calls / response tokens | 1 / 1,004 | 0 / 0 |
+| Completion notification tokens | 82 | 81 |
+| Model requests across submission and continuation | 6 | 4 |
+| Cumulative submission input tokens | 63,058 | 44,471 |
+| Cumulative continuation input tokens | 87,008 | 15,414 |
+| Cumulative input tokens | 150,066 | 59,885 |
+
+A separate stdio capture counts 148 → 104 tokens in MCP initialization instructions and 6,693 → 297 in the no-argument CLI guidance response. Token counts use serialized inputs and do not measure provider billing or cache behavior. The scripted comparison covers a completed ordinary workload with sufficient outcome evidence. Real-provider tool choices, long-duration savings and Desktop Goal context costs require separate evidence.
+
 ## Manual feature prompts
 
 Copy the short task requests in [English](test-prompts.md) or [中文](test-prompts.zh-CN.md) for directory scans, file searches, builds, progress updates and task management.

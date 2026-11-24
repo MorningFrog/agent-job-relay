@@ -53,8 +53,11 @@ pub(super) enum Commands {
         #[arg(long)]
         original_version: Option<String>,
     },
-    /// Read the current plugin workflow without starting a daemon or job
-    Instructions,
+    /// Read the runtime guidance index or one topic without starting a daemon
+    Instructions {
+        /// delegate, goal, feedback, remote or recovery
+        topic: Option<String>,
+    },
     /// Provision a remote identity or handle an authenticated stdio request
     Remote {
         #[command(subcommand)]
@@ -117,6 +120,9 @@ pub(super) enum Commands {
         confirm_paused: bool,
         #[arg(long)]
         expected_revision: Option<i64>,
+        /// Return control audits and delivery diagnostics
+        #[arg(long)]
+        full: bool,
     },
     /// Export, bootstrap or update a plugin runtime and explicitly refresh caches
     Plugin {

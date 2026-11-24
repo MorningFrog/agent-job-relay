@@ -385,7 +385,7 @@ pub async fn connect_request(
             value["status"] = json!("ready");
         }
         if value["status"] == "goal_not_active" {
-            value["continuation"] = json!({"action":"host_control","requires_original_chat":true,"can_admit":false,"retry_native_mutation":false});
+            value["continuation"] = json!({"action":"host_control","actor":"original_chat","requires_original_chat":true,"can_admit":false,"retry_native_mutation":false});
         }
         value["goal_state_verified"] =
             json!(std::env::var_os("CODEX_APP_RUNTIME_CLI_PATH").is_some());
@@ -455,18 +455,13 @@ pub async fn connect_request(
 
 fn handoff_pending(value: &mut Value, mut wait: Value) {
     if wait["continuation"]["can_admit"] == true {
-        wait["continuation"]["can_admit"] = json!(false);
-        if wait["request_id"].is_string() {
-            wait["continuation"]["action"] = json!("reconnect_request");
-            wait["next_step"] = json!(
-                "This chat already prepared an original handoff. Reconnect once with its request_id and original workspace, or inspect/cancel that exact wait. No new consent or submission binding was created; do not ask again or replay work."
-            );
+        let action = if wait["request_id"].is_string() {
+            "reconnect_request"
         } else {
-            wait["continuation"]["action"] = json!("host_control");
-            wait["next_step"] = json!(
-                "This existing compatibility handoff has no scoped request_id. Inspect/cancel this exact wait, or continue its original explicitly authorized --wait-goal path. Do not invent a request ID, ask another question or replay work."
-            );
-        }
+            "host_control"
+        };
+        crate::goal_wait::set_action(&mut wait, action);
+        wait["diagnostics"]["next_action"] = json!(action);
     }
     value.as_object_mut().unwrap().remove("binding");
     value["status"] = json!("goal_wait_pending");
@@ -556,10 +551,10 @@ pub fn brief_binding(value: Value) -> Value {
     ) {
         let mut result = json!({"status":value["status"],"session_key":value["session"]["key"],"goal_status":value["goal_status"],"goal_state_verified":value["goal_state_verified"],"next_step":value["next_step"]});
         if let Some(consent) = value.get("consent") {
-            result["consent"] = consent.clone();
+            result["consent"] = crate::output::consent_summary(consent);
         }
         if let Some(wait) = value.get("goal_wait") {
-            result["goal_wait"] = wait.clone();
+            result["goal_wait"] = crate::output::handoff(wait);
         }
         if let Some(continuation) = value.get("continuation") {
             result["continuation"] = continuation.clone();
@@ -567,23 +562,21 @@ pub fn brief_binding(value: Value) -> Value {
         return result;
     }
     if value.get("consent").is_some() {
-        let mut result = json!({"status":value["status"],"session_key":value["session"]["key"],"consent":value["consent"],"goal_state_verified":value["goal_state_verified"],"next_step":value["next_step"]});
+        let mut result = json!({"status":value["status"],"session_key":value["session"]["key"],"consent":crate::output::consent_summary(&value["consent"]),"goal_state_verified":value["goal_state_verified"],"next_step":value["next_step"]});
         if let Some(binding) = value.get("binding") {
             result["binding"] = binding.clone();
         }
         if let Some(wait) = value.get("goal_wait") {
-            result["goal_wait"] = wait.clone();
+            result["goal_wait"] = crate::output::handoff(wait);
             result["next_step"] = wait["next_step"].clone();
         }
         return result;
     }
     let mut brief = json!({"session_key":value["session"]["key"],"binding":value["binding"],"goal_wait_policy":value["goal_wait_policy"],"automatic_goal_pause_supported":value["automatic_goal_pause_supported"],"goal_state_verified":value["goal_state_verified"],"probe":"passed","can_resume":true,"can_confirm_resume":false,
-        "next_step":"Call job_start with binding and spec.command. For work expected over about 10 minutes, preserve captured output and plan a few initial milestone/progress or one-shot elapsed rules. Honor explicit completion-only and actual goal-feedback authorization. Verify returned feedback against the announced plan, then end this turn without polling."});
+        "next_step":"Submit with the returned binding."});
     if let Some(wait) = value.get("goal_wait") {
-        brief["goal_wait"] = wait.clone();
-        brief["next_step"] = json!(
-            "Explicit native-pause workflow: preserve this binding. Only if the user or system has requested this goal pause, admit work, use this chat's native update_goal(status='paused'), confirm with job_goal_wait, then end the turn. This is not automatic pause support; plugin instructions cannot override the host's lifecycle authority."
-        );
+        brief["goal_wait"] = crate::output::handoff(wait);
+        brief["next_step"] = wait["next_step"].clone();
     }
     if let Some(recovery) = value.get("recovery") {
         brief["recovery"] = crate::output::compact("recover_session", recovery.clone());

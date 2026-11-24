@@ -571,11 +571,11 @@ pub async fn dispatch(store: &Store, req: Request) -> Result<Value> {
     }
 }
 /// Once admitted, a job must remain visible even if wake diagnostics fail.
-pub(crate) async fn start_result(store: &Store, job: Job) -> Value {
+pub(crate) async fn start_result(store: &Store, mut job: Job) -> Value {
     let wake = if let Some(key) = &job.session {
         match store.session(key.clone()).await {
             Ok(session) => {
-                json!({"session_key":key,"capabilities":crate::session::capabilities(&session.registration.adapter),"live_e2e_verified":false,"warning":"Inbox requires explicit inspection; Desktop wake is experimental. Host acceptance does not confirm Agent execution. Avoid polling loops."})
+                json!({"session_key":key,"capabilities":crate::session::capabilities(&session.registration.adapter),"target_status":if !session.connected {"invalidated"} else if session.expires_at <= now() {"lease_expired"} else {"configured"},"live_e2e_verified":false,"warning":"Inbox requires explicit inspection; Desktop wake is experimental. Host acceptance does not confirm Agent execution. Avoid polling loops."})
             }
             Err(error) => {
                 json!({"session_key":key,"can_resume":false,"warning":format!("job admitted; wake diagnostics unavailable: {error:#}")})
@@ -587,6 +587,14 @@ pub(crate) async fn start_result(store: &Store, job: Job) -> Value {
     let feedback = store.feedback(job.job_id.clone()).await.unwrap_or_else(|error| {
         json!({"status":"unknown","reason":format!("job admitted; feedback diagnostics unavailable: {error:#}")})
     });
+    // A fast run can finish between admission and the feedback snapshot.
+    if feedback["status"] == "terminal"
+        && !job.status.is_terminal()
+        && let Ok(current) = store.status(job.job_id.clone()).await
+        && current.run_id == job.run_id
+    {
+        job = current;
+    }
     let storage = store.disk_pressure().await.unwrap_or_else(|error| json!({"status":"unavailable","reason":format!("job admitted; capacity diagnostics unavailable: {error:#}")}));
     json!({"job":job,"wake":wake,"feedback":feedback,"storage":storage})
 }

@@ -18,18 +18,58 @@ pub(super) fn describe(value: &mut Value) {
             _ => "host_control",
         }
     };
+    set_action(value, action);
+    if expired {
+        value["next_step"] =
+            json!("Handoff expired. Retain the original runs and use the original host controls.");
+    }
+}
+
+pub(crate) fn set_action(value: &mut Value, action: &str) {
+    let (actor, next_step) = match action {
+        "submit" => ("agent", "Submit with this original binding."),
+        "native_pause" => (
+            "original_chat",
+            "Native-pause this Goal, then confirm success with job_goal_wait(confirm_paused=true, expected_revision=confirmation_revision). If pause is uncertain, preserve this handoff.",
+        ),
+        "confirm_pause" => (
+            "agent",
+            "Confirm the original native success with job_goal_wait(confirm_paused=true, expected_revision=confirmation_revision). If success is uncertain, preserve the handoff and use host controls.",
+        ),
+        "report_then_pause" => (
+            "original_chat",
+            "Report this feedback, then native-pause and confirm this same wait/revision even if jobs finished. If pause already succeeded, only confirm it. Preserve uncertain handoffs.",
+        ),
+        "wait" => (
+            "relay",
+            "End this turn. Relay waits for the original host turn to finish before restoring the Goal.",
+        ),
+        "await_notification" => (
+            "relay",
+            "Yield while Relay settles final delivery. Use any exact-run evidence already received.",
+        ),
+        "inspect_results" => (
+            "agent",
+            "Summarize terminal member evidence. Inspect only original jobs whose evidence is needed.",
+        ),
+        "reconnect_request" => (
+            "agent",
+            "Reconnect once with the original request_id and workspace.",
+        ),
+        _ => (
+            "original_chat",
+            "Retain the original IDs and use the original host controls. Preserve any uncertain handoff.",
+        ),
+    };
     value["continuation"] = json!({
         "action":action,
+        "actor":actor,
         "requires_original_chat":true,
         "can_admit":action=="submit",
         "retry_native_mutation":false,
-        "confirmation_revision":if matches!(action,"native_pause"|"report_then_pause") {value["revision"].clone()} else {Value::Null},
+        "confirmation_revision":if matches!(action,"native_pause"|"confirm_pause"|"report_then_pause") {value["revision"].clone()} else {Value::Null},
     });
-    if expired {
-        value["next_step"] = json!(
-            "This handoff deadline has expired. Inspect the original member results and use host goal controls explicitly. Do not repeat native pause, restore or submission to recover it."
-        );
-    }
+    value["next_step"] = json!(next_step);
 }
 
 pub(crate) fn for_request(db: &Connection, request: &str) -> Result<Vec<Value>> {
@@ -72,15 +112,11 @@ impl Store {
                 let status = observed.as_ref().map(|(_, goal)| goal.status.as_str());
                 value["goal_status"] = json!(status);
                 if !same_goal || !same_binding || !matches!(status, Some("active" | "paused")) {
-                    value["continuation"]["action"] = json!("host_control");
-                    value["continuation"]["can_admit"] = json!(false);
-                    value["continuation"]["confirmation_revision"] = Value::Null;
-                    value["next_step"] = json!("The original host goal or binding is unavailable, changed or inactive. Retain these request/Job/Run/wait IDs, inspect results and use the original host controls explicitly. Do not submit, re-prompt, overwrite a blocker or replay a native mutation.");
+                    set_action(&mut value, "host_control");
                 } else if status == Some("paused")
                     && matches!(value["continuation"]["action"].as_str(), Some("native_pause" | "report_then_pause"))
                 {
-                    value["continuation"]["action"] = json!("confirm_pause");
-                    value["next_step"] = json!("The original goal is already paused. Only if this chat received its native pause success acknowledgement, confirm that existing pause with job_goal_wait(confirm_paused=true, expected_revision=this revision). Do not repeat native pause. If its outcome is uncertain, inspect results and use host controls explicitly instead.");
+                    set_action(&mut value, "confirm_pause");
                 }
                 // The host can start handling a final message before its ACK
                 // reaches our transaction. Settle only this local live claim;

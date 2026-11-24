@@ -183,7 +183,9 @@ MCP server 首先用 stdio，且保持 stdout 是纯 MCP 通道，诊断输出�
 - `job_doctor`：daemon/runner/store/relay/wake 健康诊断；
 - `job_register_session`/`job_add_wake_target`：若 MCP Host 无法可靠自动提供会话身份，应以显式注册方式完成，不要编造会话 ID。
 
-Tool 描述应引导 Agent：短任务可以等待，长任务在有可靠 Wake 能力时 `start` 后结束当前回合等待唤醒；无 Wake 能力时诚实提示，禁止循环频繁轮询。MCP Tasks/订阅功能仅在 SDK 和 Host 实际协商支持后启用，不应破坏普通工具兼容。
+MCP 初始化给出共享宿主绑定要求和当前运行时指引的精确 argv。工具描述只保留用途和影响选型的约束；普通只读查询可以直接调用。保留工具名和输入兼容性。`instructions [delegate|goal|feedback|remote|recovery]` 按需提供工作流主题。回执用原始身份、revision 和下一步区分待授权、原生暂停、等待、恢复交接、中间汇报及最终汇总。长任务应在提交后完成必要交接并结束本轮；无可用通知时提供 Job ID 和检查入口。
+
+终态通知直接携带可验证的原 Job/Run 结果。详细输出和诊断通过有界检查、事件或日志按需获取；宿主接受和 Agent 实际恢复执行分别验证。MCP Tasks/订阅功能仅在 SDK 和 Host 实际协商支持后启用。
 
 CLI 第一版推荐：
 

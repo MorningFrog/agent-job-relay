@@ -205,7 +205,7 @@ try {
         const users = body.messages.filter(m => m.role === "user"), last = users.at(-1);let content = last?.content ?? "";
         if (Array.isArray(content)) content = content.map(p => p.text ?? "").join("\n");
         const tools = body.tools?.map(t => t.function?.name) ?? [];let delta, finish;
-        if (content.includes("AgentJobRelay event (delivery ")) { delta = { role: "assistant", content: "RELAY_RESUMED_MATCHING_SESSION" };finish = "stop";resumed = true; }
+        if (content.includes("AgentJobRelay event")) { delta = { role: "assistant", content: "RELAY_RESUMED_MATCHING_SESSION" };finish = "stop";resumed = true; }
         else if (tools.includes("agent_job_relay_job_start") && !body.messages.slice(body.messages.indexOf(last) + 1).some(m => m.role === "tool")) {
           const script = "const fs=require('node:fs'),p=require('node:path');const d=process.argv[1];fs.writeFileSync(p.join(d,'ready'),'ready');const t=setInterval(()=>{if(fs.existsSync(p.join(d,'release'))){clearInterval(t);console.log('released')}},25)";
           const spec = { command: { kind: "exec", program: process.execPath, args: ["-e", script, gate] }, cwd: project, timeout_seconds: 70 };

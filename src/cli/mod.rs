@@ -133,10 +133,10 @@ pub(super) async fn run() -> Result<()> {
             );
             return Ok(());
         }
-        Commands::Instructions => {
+        Commands::Instructions { topic } => {
             println!(
                 "{}",
-                serde_json::to_string(&agent_job_relay::mcp::workflow())?
+                serde_json::to_string(&agent_job_relay::mcp::workflow(topic.as_deref())?)?
             );
             return Ok(());
         }
@@ -309,12 +309,26 @@ pub(super) async fn run() -> Result<()> {
             cancel,
             confirm_paused,
             expected_revision,
-        } => Request::GoalWait {
-            goal_wait_id,
-            cancel,
-            confirm_paused,
-            expected_revision,
-        },
+            full,
+        } => {
+            let value = agent_job_relay::client::call(
+                &config,
+                Request::GoalWait {
+                    goal_wait_id,
+                    cancel,
+                    confirm_paused,
+                    expected_revision,
+                },
+            )
+            .await?;
+            let value = if full {
+                value
+            } else {
+                agent_job_relay::output::compact("goal_wait", value)
+            };
+            println!("{}", serde_json::to_string(&value)?);
+            return Ok(());
+        }
         Commands::Plugin { command } => {
             let result: serde_json::Value = async {
                 use agent_job_relay::{deployment, plugin};

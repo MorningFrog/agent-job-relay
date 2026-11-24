@@ -811,12 +811,8 @@ async fn installed_shared_mcp_uses_each_terminal_binding_and_never_its_inherited
         jobs.push(result["job"]["job_id"].as_str().unwrap().to_string());
         assert!(result["job"].get("run").is_none());
         assert!(result["job"].get("command").is_none());
-        assert!(
-            result["next_step"]
-                .as_str()
-                .unwrap()
-                .contains("End this turn")
-        );
+        assert_eq!(result["continuation"]["action"], "yield_for_notification");
+        assert_eq!(result["wake"]["mode"], "host");
         for full in [false, true] {
             let status=rpc(&mut input,&mut lines,json!({"jsonrpc":"2.0","id":40+i,"method":"tools/call","params":{"name":"job_status","arguments":{"job_id":jobs.last().unwrap(),"full":full}}})).await;
             let status: Value =
@@ -1326,6 +1322,9 @@ async fn host_replacement_gets_a_new_binding_without_moving_old_jobs() {
     let delivered = replacement.delivery().await;
     let prompt = delivered["params"]["arguments"]["prompt"].as_str().unwrap();
     assert!(prompt.contains(next["job"]["job_id"].as_str().unwrap()));
+    assert!(prompt.contains(next["job"]["run_id"].as_str().unwrap()));
+    assert!(prompt.contains("completed, exit 0"));
+    assert!(!prompt.contains(delivered["params"]["callId"].as_str().unwrap()));
     assert!(!prompt.contains(&old_job));
 }
 

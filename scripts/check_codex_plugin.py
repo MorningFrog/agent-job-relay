@@ -105,6 +105,10 @@ async def run(binary, codex, marketplace=None, registry=None):
         workflow = json.loads(command([cache / "relay", "instructions"], "current-workflow"))
         if workflow["goal_wait_policy"] != "required_for_active_desktop_goal" or workflow["workflow_sha256"] != hashlib.sha256(workflow["workflow"].encode()).hexdigest():
             raise RuntimeError("cached launcher did not return the current required runtime workflow")
+        if "topics_sha256" in workflow:
+            topic = json.loads(command([cache / "relay", "instructions", "goal"], "goal-guidance"))
+            if topic["topic"] != "goal" or topic["workflow_sha256"] != hashlib.sha256(topic["workflow"].encode()).hexdigest() or state.exists():
+                raise RuntimeError("installed launcher did not return stateless topic guidance")
     with (root / "app-server.stderr").open("wb") as errors:
         child = await asyncio.create_subprocess_exec(
             codex, "app-server", "--stdio", cwd=home, env=env,

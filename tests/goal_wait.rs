@@ -450,7 +450,9 @@ async fn feedback_context_retains_bounded_original_evidence_and_final_failure_di
         .as_str()
         .unwrap()
         .to_string();
-    assert!(prompt.contains("combines 7 earlier alerts") && prompt.contains("feedback.context"));
+    assert_eq!(state["continuation"]["action"], "report_then_pause");
+    assert!(prompt.contains("7 earlier combined"));
+    assert!(prompt.contains(&format!("expected_revision={}", state["revision"])));
     assert!(
         !prompt.contains("explicit exception evidence"),
         "workload evidence stays in bounded inspection, not the host prompt"
@@ -518,8 +520,18 @@ async fn feedback_cycles_restore_then_ack_native_repause_without_finishing_or_re
     assert!(f.mutations().is_empty());
     assert!(f.store.claim().await.unwrap().is_none());
     f.activity.lock().unwrap()["thread"]["status"]["type"] = json!("idle");
-    goal_wait::progress(&f.store, &wait).await.unwrap();
-    let reporting = f.state(&wait).await;
+    let reporting = tokio::time::timeout(Duration::from_secs(8), async {
+        loop {
+            goal_wait::progress(&f.store, &wait).await.unwrap();
+            let state = f.state(&wait).await;
+            if state["status"] != "waiting" {
+                break state;
+            }
+            tokio::time::sleep(Duration::from_millis(40)).await;
+        }
+    })
+    .await
+    .unwrap();
     assert_eq!(reporting["status"], "resumed");
     assert_eq!(reporting["feedback"]["delivery_id"], selected);
     assert_eq!(reporting["host_pause_required"], true);
@@ -532,6 +544,14 @@ async fn feedback_cycles_restore_then_ack_native_repause_without_finishing_or_re
     assert_eq!(f.mutations().len(), 1);
     let claim = f.store.claim().await.unwrap().unwrap();
     assert_eq!(claim.event["goal_wait_phase"], "feedback");
+    assert_eq!(claim.event["action"], "report_then_pause");
+    let receipt = agent_job_relay::output::compact("goal_wait", reporting.clone());
+    assert_eq!(receipt["continuation"]["actor"], "original_chat");
+    assert_eq!(
+        receipt["continuation"]["confirmation_revision"],
+        claim.event["goal_wait_revision"]
+    );
+    assert!(receipt.get("audits").is_none());
     f.deliver(claim).await;
     let acknowledged = f.state(&wait).await;
     assert_eq!(acknowledged["notification_accepted"], false);
@@ -574,6 +594,7 @@ async fn feedback_cycles_restore_then_ack_native_repause_without_finishing_or_re
         .unwrap();
     assert_eq!(confirmed["status"], "waiting");
     assert!(confirmed["feedback"].is_null());
+    assert_eq!(confirmed["continuation"]["actor"], "relay");
     assert_eq!(
         f.store
             .confirm_goal_pause(wait.clone(), revision)
@@ -588,6 +609,8 @@ async fn feedback_cycles_restore_then_ack_native_repause_without_finishing_or_re
     goal_wait::progress(&f.store, &wait).await.unwrap();
     let reporting = f.state(&wait).await;
     assert_eq!(reporting["feedback"]["cycle"], 2);
+    assert_eq!(reporting["jobs"], confirmed["jobs"]);
+    assert_ne!(reporting["revision"], confirmed["revision"]);
     let late = f.store.claim().await.unwrap().unwrap();
     // The owning Agent can finish its native pause before the host transport
     // acknowledgement is committed. That late ACK must not consume completion.
@@ -602,8 +625,21 @@ async fn feedback_cycles_restore_then_ack_native_repause_without_finishing_or_re
     goal_wait::progress(&f.store, &wait).await.unwrap();
     let final_claim = f.store.claim().await.unwrap().unwrap();
     assert_eq!(final_claim.event["goal_wait_phase"], "completion");
+    assert_eq!(final_claim.event["action"], "report_results");
+    assert_eq!(
+        final_claim.event["results"][0]["run_id"],
+        result["job"]["run_id"]
+    );
+    assert_eq!(final_claim.event["results"][0]["exit_code"], 0);
     f.deliver(final_claim).await;
-    assert_eq!(f.state(&wait).await["notification_accepted"], true);
+    let final_receipt = agent_job_relay::output::compact("goal_wait", f.state(&wait).await);
+    assert_eq!(final_receipt["notification_accepted"], true);
+    assert_eq!(final_receipt["continuation"]["action"], "inspect_results");
+    assert_eq!(
+        final_receipt["results"][0]["run_id"],
+        result["job"]["run_id"]
+    );
+    assert_eq!(final_receipt["results"][0]["status"], "completed");
     assert!(f.store.claim().await.unwrap().is_none());
     assert_eq!(f.mutations().len(), 3);
     assert_eq!(f.store.list(0, 20).await.unwrap().len(), 1);
@@ -640,12 +676,11 @@ async fn final_completion_supersedes_unsent_feedback_through_the_actual_dispatch
     {
         let messages = f.messages.lock().unwrap();
         assert_eq!(messages.len(), 1);
-        assert!(
-            messages[0]["params"]["arguments"]["prompt"]
-                .as_str()
-                .unwrap()
-                .contains("all member runs reached terminal")
-        );
+        let prompt = messages[0]["params"]["arguments"]["prompt"]
+            .as_str()
+            .unwrap();
+        assert!(prompt.contains("completed, exit 0"));
+        assert!(!prompt.contains("confirm_paused"));
     }
     assert!(f.state(&wait).await["feedback"].is_null());
 }
@@ -1327,6 +1362,9 @@ async fn batch_freezes_partial_admission_waits_for_every_run_and_merges_notifica
         prompt.contains(first["job"]["job_id"].as_str().unwrap())
             && prompt.contains(second["job"]["job_id"].as_str().unwrap())
     );
+    assert!(prompt.contains(first["job"]["run_id"].as_str().unwrap()));
+    assert!(prompt.contains(second["job"]["run_id"].as_str().unwrap()));
+    assert_eq!(prompt.matches("completed, exit 0").count(), 2);
     assert!(!prompt.contains(&f.goal.objective));
     assert!(f.store.claim().await.unwrap().is_none());
     assert_eq!(
@@ -2899,9 +2937,11 @@ async fn native_mcp_questions_and_fallback_require_real_answers_and_preserve_one
     mcp.call(2, args.clone()).await;
     let question = consent_result(&mcp.receive().await);
     assert_eq!(question["ask_user_now"], true);
+    assert_eq!(question["continuation"]["action"], "ask_user_once");
     mcp.call(3, args.clone()).await;
     let repeated = consent_result(&mcp.receive().await);
     assert_eq!(repeated["question_pending"], true);
+    assert_eq!(repeated["continuation"]["action"], "await_user");
     assert!(repeated.get("ask_user_now").is_none());
     let mut answer = args;
     answer["decision"] = json!("allow");
@@ -2998,7 +3038,8 @@ async fn scoped_terminal_request_reuses_one_answer_for_three_real_background_sub
                 if let Some(consent) = gated.get("consent") {
                     assert_eq!(consent["status"], "approved");
                     assert_eq!(consent["jobs_admitted"], 1);
-                    assert_eq!(consent["jobs"].as_array().unwrap().len(), 1);
+                    assert_eq!(consent["request_id"], request);
+                    assert_eq!(consent["continuation"]["action"], "host_resume");
                 }
             }
             assert_eq!(f.store.list(0, 100).await.unwrap().len(), 1);
@@ -3068,7 +3109,7 @@ async fn scoped_terminal_request_reuses_one_answer_for_three_real_background_sub
     assert!(out.status.success());
     let ended: Value = serde_json::from_slice(&out.stdout).unwrap();
     assert_eq!(ended["status"], "request_closed");
-    assert_eq!(ended["consent"]["jobs"].as_array().unwrap().len(), 3);
+    assert_eq!(ended["consent"]["jobs_admitted"], 3);
     assert_eq!(
         std::fs::read_to_string(f.dir.path().join("scoped-executions")).unwrap(),
         "once\nonce\nonce\n"
@@ -3145,7 +3186,11 @@ async fn reconnect_recovers_the_original_native_handoff_after_daemon_loss() {
     assert_eq!(recovered["goal_wait"]["goal_wait_id"], wait);
     assert_eq!(recovered["goal_wait"]["request_id"], request);
     assert_eq!(recovered["consent"]["jobs_admitted"], 1);
-    assert_eq!(recovered["consent"]["waits"][0]["goal_wait_id"], wait);
+    assert!(recovered["consent"].get("waits").is_none());
+    let full = f
+        .cli_value(&["connect", "--request-id", request, "--full"])
+        .await;
+    assert_eq!(full["consent"]["waits"][0]["goal_wait_id"], wait);
     assert!(recovered.get("binding").is_none());
     let file = f.dir.path().join("pending-batch.json");
     let mut unbound = f.spec("must-not-start");
@@ -3314,20 +3359,17 @@ async fn reconnect_reports_an_inflight_final_ack_then_reuses_the_original_reques
     assert_eq!(finished["consent"]["jobs_admitted"], 2);
     assert_eq!(finished["consent"]["jobs_remaining"], 0);
     assert_eq!(
-        finished["consent"]["jobs"][1]["run_id"],
-        second["job"]["run_id"]
+        finished["consent"]["continuation"]["action"],
+        "retain_results"
     );
     assert_eq!(finished["next_step"], finished["consent"]["next_step"]);
-    let guidance = finished["next_step"].as_str().unwrap();
-    assert!(
-        guidance.contains("AgentJobRelay background-job allowance"),
-        "{guidance}"
+    let full = f
+        .cli_value(&["connect", "--request-id", request, "--full"])
+        .await;
+    assert_eq!(
+        full["consent"]["jobs"][1]["run_id"],
+        second["job"]["run_id"]
     );
-    assert!(
-        guidance.contains("authorized foreground work"),
-        "{guidance}"
-    );
-    assert!(guidance.contains("does not block the goal"), "{guidance}");
     assert_eq!(f.messages.lock().unwrap().len(), 2);
     assert_eq!(f.mutations().len(), 2);
     ipc::call(&f.store.config, Request::Shutdown).await.unwrap();
@@ -3425,7 +3467,7 @@ async fn default_approval_survives_the_old_job_limit_and_an_idle_session() {
     assert_eq!(current["status"], "goal_wait_pending");
     assert_eq!(current["consent"]["jobs_admitted"], 17);
     assert_eq!(
-        current["consent"]["jobs"][15]["run_id"],
+        current["goal_wait"]["jobs"][0]["run_id"],
         seventeenth["job"]["run_id"]
     );
     let revoked = ipc::call(
@@ -3504,7 +3546,7 @@ async fn exhausted_consent_does_not_allow_ordinary_submission_during_feedback_re
         feedback["continuation"]
     );
     assert_eq!(
-        compact["notifications"]["goal"]["request_id"],
+        compact["notifications"]["recovery"]["plan"]["request_id"],
         feedback["request_id"]
     );
     assert!(compact["goal_wait"]["next_step"].is_string());

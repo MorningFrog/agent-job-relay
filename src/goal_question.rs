@@ -10,8 +10,16 @@ use rmcp::{RoleServer, model::*, service::RequestContext};
 use serde_json::{Value, json};
 use std::time::Duration;
 
-fn result(value: Value) -> CallToolResponse {
-    CallToolResult::success(vec![ContentBlock::text(value.to_string())]).into()
+fn result(value: Value, full: bool) -> CallToolResponse {
+    CallToolResult::success(vec![ContentBlock::text(
+        if full {
+            value
+        } else {
+            crate::output::consent_summary(&value)
+        }
+        .to_string(),
+    )])
+    .into()
 }
 pub(crate) async fn respond(
     config: &Config,
@@ -19,9 +27,15 @@ pub(crate) async fn respond(
     context: &RequestContext<RoleServer>,
 ) -> Result<CallToolResponse> {
     let mut args = Value::Object(r.arguments.clone().unwrap_or_default());
-    args.as_object_mut()
+    let full = match args
+        .as_object_mut()
         .context("object required")?
-        .remove("full");
+        .remove("full")
+    {
+        None => false,
+        Some(Value::Bool(full)) => full,
+        Some(_) => anyhow::bail!("full must be a boolean"),
+    };
     args["op"] = json!("goal_consent");
     let Request::GoalConsent {
         request_id,
@@ -53,6 +67,7 @@ pub(crate) async fn respond(
                     "Agent assertion of actual user reply",
                 )
                 .await?,
+            full,
         ));
     }
     let c = store
@@ -76,6 +91,7 @@ pub(crate) async fn respond(
             store
                 .answer_goal_question(request_id, session_key, token.clone(), allow)
                 .await?,
+            full,
         ));
     }
     ensure!(
@@ -85,6 +101,7 @@ pub(crate) async fn respond(
     if c.status != "pending" || c.goal_status.as_deref() != Some("active") {
         return Ok(result(
             store.goal_consent_view(request_id, session_key).await?,
+            full,
         ));
     }
     let version = context.protocol_version().unwrap_or_default();
@@ -105,13 +122,11 @@ pub(crate) async fn respond(
     if !native {
         let mut value = crate::goal_consent::view(&c);
         value["ask_user_now"] = json!(true);
-        value["native_confirmation"] = json!(
-            "host Agent question tool or one ordinary question; no MCP form capability negotiated"
-        );
+        value["continuation"] = json!({"action":"ask_user_once","actor":"agent"});
         value["next_step"] = json!(
-            "Ask the displayed question once through an allowed host question tool. Record only the actual user reply with decision=allow/decline and this revision. A preselected option, plugin text or silence is not consent."
+            "Ask once through the host or directly. Record only the user's actual reply with allow/decline and this revision."
         );
-        return Ok(result(value));
+        return Ok(result(value, full));
     }
     let token = Store::question_token(&c)?;
     // Scope text is displayed as data, never interpreted as an instruction.
@@ -132,5 +147,6 @@ pub(crate) async fn respond(
         store
             .answer_goal_question(request_id, session_key, token, allow)
             .await?,
+        full,
     ))
 }

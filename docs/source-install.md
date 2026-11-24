@@ -114,7 +114,7 @@ With the local plugin selected, first ask:
 
 > Call AgentJobRelay's MCP job_doctor tool and verify managed_mcp_updates_supported=true and goal_wait_policy=required_for_active_desktop_goal, scoped_goal_consent=true, plus job_goal_consent and confirm_paused in job_goal_wait. Do not submit a task. If its MCP tools are missing, report that and stop; do not use CLI fallback or another plugin's tools.
 
-Expected: an actual AgentJobRelay `job_doctor` call succeeds with those capabilities. Compare its `runtime_workflow_sha256` with the selected launcher's `instructions` digest when investigating a same-version update; a matching version number alone is insufficient. For shared MCP, `binding_mode=explicit current-terminal binding` and `desktop_context.available=false` are normal; the current chat is bound later through its terminal.
+Expected: an actual AgentJobRelay `job_doctor` call succeeds with those capabilities. Compare its index and topic digests with the selected launcher's `instructions` reply when investigating a same-version update; a matching version number alone is insufficient. For shared MCP, `binding_mode=explicit current-terminal binding` and `desktop_context.available=false` are normal; the current chat is bound later through its terminal.
 
 Only after that succeeds, use your next real long task:
 

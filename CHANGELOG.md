@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Shorten MCP tool descriptions, load runtime guidance by topic, and return the current admission or Goal handoff action with original IDs and revision.
+- Summarize exact terminal outcomes in Desktop and OpenCode notifications. Keep output, progress, delivery history and full diagnostics available on demand.
+
 ## [0.1.28] - 2026-11-24
 
 ### Changed

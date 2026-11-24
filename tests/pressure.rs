@@ -110,7 +110,12 @@ async fn disk_pressure_refuses_only_new_admissions_and_keeps_original_runs_and_c
     assert_eq!(admitted["storage"]["status"], "warning");
     assert_eq!(admitted["storage"]["new_jobs_allowed"], true);
     let compact = agent_job_relay::output::compact("start", admitted.clone());
-    assert_eq!(compact["storage"], admitted["storage"]);
+    assert_eq!(compact["storage"]["status"], "warning");
+    assert_eq!(compact["storage"]["new_jobs_allowed"], true);
+    assert_eq!(
+        compact["storage"]["available_bytes"],
+        admitted["storage"]["available_bytes"]
+    );
     assert_eq!(
         store.data_status().await.unwrap()["archive_retention"],
         json!("indefinite; automatic archiving compresses data without deleting history")

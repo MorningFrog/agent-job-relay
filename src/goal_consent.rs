@@ -131,14 +131,40 @@ pub fn view(c: &Consent) -> Value {
         &c.status
     };
     let goal_inactive = c.goal_status.as_deref().is_some_and(|s| s != "active");
-    let mut value = json!({"request_id":c.id,"session_key":c.session_key,"status":state,"revision":c.revision,"label":c.label,"job_limit":c.job_limit(),"jobs_admitted":c.used,"jobs_remaining":remaining,"expires_at":(c.expires!=i64::MAX).then_some(c.expires),"question":c.question(),"choices":["允许","暂不运行"],"question_pending":c.status=="asking","authorization_source":c.source,"next_step":match state {
-        "pending" | "asking" | "approved" if goal_inactive => "The original goal is inactive and this request is retained. Do not submit, re-prompt, mark blocked or automatically overwrite the host status. If a recorded wait is still waiting, let it finish. Otherwise the user can resume the original goal through host controls, then reconnect with this same request_id; approved consent needs no new pause question.",
-        "pending"=>"Use job_goal_consent to request native confirmation, or ask one short host question. Only an actual user answer may be recorded with decision=allow/decline and this revision. Do not submit work or mark the goal blocked.",
-        "asking"=>"The original question is pending. Wait for that answer; do not ask again, poll or submit work.",
-        "approved"=>"Reconnect from the actual terminal with --request-id and this request_id. Reuse the approval for later rounds of this request on the original goal. Preserve the returned goal binding.",
-        "exhausted"=>"This bounded approval has used its explicit AgentJobRelay background-job allowance. Follow any recorded handoff and inspect the original Job/Run results. Continue authorized foreground work in the active goal. The Relay allowance alone does not block the goal. A new approval is needed to change the scope of the original permission.",
-        _=>"This pause-consent request is closed for new AgentJobRelay background jobs. Retain the original Job/Run/wait IDs and respect any user decision. Continue authorized foreground work if the goal is active. Do not mark the goal blocked solely because this Relay request is closed. Do not replay jobs or re-prompt automatically."
-    }});
+    let (action, actor, next_step) = match state {
+        "pending" | "asking" | "approved" if goal_inactive => (
+            "host_resume",
+            "original_chat",
+            "Keep this request. Resume the original Goal through its host before reconnecting.",
+        ),
+        "pending" => (
+            "request_confirmation",
+            "agent",
+            "Call job_goal_consent for one negotiated question or Agent fallback.",
+        ),
+        "asking" => (
+            "await_user",
+            "user",
+            "Wait for the original answer. No submission or polling.",
+        ),
+        "approved" => (
+            "reconnect_request",
+            "agent",
+            "Reconnect from the original terminal with --request-id and this request_id. Reuse this approval for later rounds.",
+        ),
+        "exhausted" => (
+            "retain_results",
+            "agent",
+            "This bounded approval is exhausted. Follow the original handoff and continue authorized foreground work.",
+        ),
+        _ => (
+            "retain_results",
+            "agent",
+            "This approval is closed. Keep original results and honor the user's decision.",
+        ),
+    };
+    let mut value = json!({"request_id":c.id,"session_key":c.session_key,"status":state,"revision":c.revision,"label":c.label,"job_limit":c.job_limit(),"jobs_admitted":c.used,"jobs_remaining":remaining,"expires_at":(c.expires!=i64::MAX).then_some(c.expires),"question":c.question(),"choices":["允许","暂不运行"],"question_pending":c.status=="asking","authorization_source":c.source,
+        "continuation":{"action":action,"actor":actor},"next_step":next_step});
     if goal_inactive {
         value["goal_status"] = json!(c.goal_status);
     }

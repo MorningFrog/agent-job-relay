@@ -110,11 +110,21 @@ impl Store {
         tx.execute("INSERT INTO delivery_attempts(delivery_id,attempt,token,started) VALUES(?,?,?,?)",params![d,delivery.attempts,token,t])?;
         let session=read_session(&tx,&key)?;
         let mut event=tx.query_row("SELECT id,job_id,run_id,kind,at,seq FROM events WHERE id=?",[&delivery.event_id],|r|Ok(json!({"event_id":r.get::<_,String>(0)?,"job_id":r.get::<_,String>(1)?,"run_id":r.get::<_,String>(2)?,"kind":r.get::<_,String>(3)?,"at":r.get::<_,i64>(4)?,"sequence":r.get::<_,i64>(5)?,"untrusted_output":true})))?;
+        let origin = json!({"job_id": event["job_id"], "run_id": event["run_id"]});
+        let mut members = vec![origin];
         if let Some(wait)=crate::goal_wait::summary_for_job(&tx,event["job_id"].as_str().unwrap_or(""))? {
             event["goal_wait_id"]=wait["goal_wait_id"].clone();event["goal_wait_jobs"]=wait["jobs"].clone();
             event["goal_wait_phase"]=json!(if wait["feedback"]["delivery_id"]==delivery.id {"feedback"} else {"completion"});
             event["goal_wait_revision"]=wait["revision"].clone();
             event["goal_wait_feedback"]=wait["feedback"].clone();
+            event["request_id"]=wait["request_id"].clone();
+            members = wait["jobs"].as_array().cloned().unwrap_or_default();
+        }
+        if event["kind"] == "monitor_alert" {
+            event["action"] = json!(if event["goal_wait_phase"] == "feedback" {"report_then_pause"} else {"report_feedback"});
+        } else {
+            event["action"] = json!("report_results");
+            event["results"] = json!(crate::output::terminal_results(&tx, &members));
         }
         tx.commit()?;Ok(Some(Claim{delivery,token,session,event}))
     }).await

@@ -48,6 +48,12 @@ pub async fn exchange(session: &AgentSession, claim: Option<&Claim>) -> Result<(
                 params["event_id"] = c.event["event_id"].clone();
                 params["job_id"] = c.event["job_id"].clone();
                 params["kind"] = c.event["kind"].clone();
+                params["run_id"] = c.event["run_id"].clone();
+                for name in ["exit_code", "signal", "duration_seconds", "read_only_observation"] {
+                    if let Some(value) = c.event["results"][0].get(name) {
+                        params[name] = value.clone();
+                    }
+                }
             }
             crate::ipc::write_frame(&mut socket, &json!({"jsonrpc":"2.0","id":1,"method":if claim.is_some(){"relay/deliver"}else{"relay/probe"},"params":params})).await?;
             let response = crate::ipc::read_frame(&mut socket, 16384).await?;

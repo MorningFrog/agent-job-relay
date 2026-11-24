@@ -79,8 +79,8 @@ Rules use one condition: `--no-output <duration>`, `--elapsed <duration>`, `--co
 | `connect [--cwd <absolute-project>]` | Obtain a fresh current-chat/workspace binding from its actual terminal |
 | `connect [--request-label <label>] [--job-count <1..16>] [--request-id <id>]` (experimental) | Prepare a scoped request or reconnect after approval; pending input creates no wait/job |
 | `connect --wait-goal` (experimental) | Assert actual user pause permission; scoped options record it for this request, otherwise use single-handoff compatibility |
-| `instructions` | Read the current embedded plugin workflow, policy and digest without starting a daemon/job; cached skills load this at every invocation |
-| `goal-wait <id> [--confirm-paused\|--cancel] [--expected-revision <n>]` (experimental) | Inspect, confirm this chat's successful native goal pause, or cancel future control/notification; mutations require the observed revision and jobs keep running; [handoff and interruption](goal-waiting.md) |
+| `instructions [topic]` | Read the embedded index or one of `delegate`, `goal`, `feedback`, `remote` and `recovery` without starting a daemon or job |
+| `goal-wait <id> [--confirm-paused\|--cancel] [--expected-revision <n>] [--full]` (experimental) | Read the handoff action, confirm this chat's successful native pause or close future control. Use `--full` for [handoff audits and diagnostics](goal-waiting.md) |
 | `connect --recover [--apply]` | Preview/apply same-chat recovery; `--after`, `--limit`, `--full` |
 | `session connect [--brief]` | Compatible current-terminal binding entry |
 | `session recover [--apply]` | Compatible same-chat recovery entry |

@@ -21,7 +21,7 @@ Tasks run in the background. Agents pick up when needed.
 | 批量提交 | 通过 CLI/MCP 一次提交 1–16 个独立命令，逐项返回结果并支持安全重试，见[使用指南](docs/usage.md#submit-independent-commands-together-0112) |
 | 远程任务 | 在固定身份的远端运行时启动或附加命令，或观察固定的 GitHub Actions attempt；运行时 0.1.25+ 还可观察固定的 Woodpecker pipeline，包含工作流／步骤状态和运行直达链接；运行时 0.1.20+ 新增远端规则直接反馈到原聊天，见[配置与边界](docs/remote-execution.md) |
 | 中间反馈 | 结构化阶段、步数和指标，重复里程碑或阈值告警，以及有界 checker 示例；见[用法与边界](docs/progress.md) |
-| 结果与历史 | 保存有界的 stdout/stderr、退出结果、事件和任务历史 |
+| 结果与历史 | 汇总原运行的终态，提供有界输出及按需查询的事件和日志 |
 | 绑定会话的通知 | 将结果投递到发起会话，在宿主支持时续接聊天 |
 | 本地任务面板 | 通过 CLI 或随包 Web UI 检查任务、设置输出/静默/时长规则并停止任务 |
 | 数据维护 | 自动归档、滚动备份，以及显式恢复到新数据目录 |

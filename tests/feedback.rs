@@ -240,10 +240,14 @@ async fn receipts_follow_persisted_rule_changes_and_do_not_replay_on_diagnostic_
     let retry = submit(&store, &spec).await;
     assert_eq!(initial["job"], retry["job"]);
     assert_eq!(retry["feedback"], detail["feedback"]);
-    assert_eq!(
-        agent_job_relay::output::compact("start", retry)["feedback"],
-        detail["feedback"]
-    );
+    let compact = agent_job_relay::output::compact("start", retry);
+    assert_eq!(compact["accepted"], true);
+    assert_eq!(compact["job"]["job_id"], id);
+    assert_eq!(compact["continuation"]["action"], "share_inspection");
+    assert_eq!(compact["wake"]["mode"], "unavailable");
+    assert_eq!(compact["feedback"]["rules"][0]["rule_id"], rule_id);
+    assert_eq!(compact["feedback"]["rules"][0]["application"], "pending");
+    assert_eq!(compact["feedback"]["rules"][0]["revision"], 1);
     store
         .monitor(
             id.into(),
@@ -375,6 +379,7 @@ async fn host_feedback_follows_recorded_rebinds_lease_state_and_one_shot_exhaust
     host.endpoint = Some(endpoint);
     host.caller_thread_id = Some("host".into());
     host.experimental = true;
+    host.renew_on_delivery = true;
     let bound = store.register(host).await.unwrap();
     store
         .rebind(old_target.into(), bound.key.clone())
@@ -386,8 +391,11 @@ async fn host_feedback_follows_recorded_rebinds_lease_state_and_one_shot_exhaust
     assert_eq!(rebound["feedback"]["status"], "configured");
     assert_eq!(rebound["feedback"]["targets"][0]["session_key"], bound.key);
     let compact = agent_job_relay::output::compact("start", rebound);
-    assert_eq!(compact["feedback"]["can_confirm_resume"], false);
-    assert!(compact["next_step"].as_str().unwrap().contains("mid-run"));
+    assert_eq!(compact["wake"]["can_confirm_resume"], false);
+    assert_eq!(compact["wake"]["mode"], "host");
+    assert_eq!(compact["wake"]["session_key"], bound.key);
+    assert_eq!(compact["feedback"]["notifying_rules"], 1);
+    assert_eq!(compact["continuation"]["action"], "yield_for_notification");
     // Inspection never probes or mutates the host as a side effect.
     assert_eq!(
         listener.accept().unwrap_err().kind(),
@@ -408,6 +416,10 @@ async fn host_feedback_follows_recorded_rebinds_lease_state_and_one_shot_exhaust
         inspect(&store, id).await["feedback"]["status"],
         "binding_unavailable"
     );
+    let expired = agent_job_relay::output::compact("start", submit(&store, &spec).await);
+    assert_eq!(expired["wake"]["mode"], "host");
+    assert_eq!(expired["wake"]["target_status"], "renewal_required");
+    assert_eq!(expired["continuation"]["action"], "yield_for_notification");
     store.invalidate(bound.key).await.unwrap();
     assert_eq!(
         inspect(&store, id).await["feedback"]["targets"][0]["status"],
@@ -547,7 +559,9 @@ async fn notification_diagnostics_preserve_delivery_identity_and_archive_equival
 fn compact_inspection_bounds_output_and_keeps_result_and_control_identity() {
     let full = json!({"job":{"job_id":"job","run_id":"run","status":"failed","exit_code":1,"run":{"started_at":1,"ended_at":2}},
         "observation":{"stdout":{"text":"训练🙂".repeat(20000),"total_bytes":160000},"stderr":{"text":"x".repeat(65536)}},
-        "events":[{"seq":9,"payload":"x".repeat(65536)}],
+        "events":[{"seq":9,"run_id":"run","kind":"failed","event_id":"terminal","payload":{"detail":"x".repeat(65536),
+            "progress":{"sources":{"train":{"stage":"checkpoint","step":9,"total":10}}}}},
+            {"seq":8,"run_id":"run","kind":"monitor_alert","payload":"x".repeat(65536)}],
         "rules":[{"private":"large"}],"goal_wait":{"goal_wait_id":"wait","revision":7,"status":"sealed","host_pause_required":true,"controller":"private"},
         "notifications":{"status":"retry_wait","agent_execution":"unconfirmed"},"deliveries":{"next_cursor":12}});
     let compact = agent_job_relay::output::compact("inspect", full.clone());
@@ -556,14 +570,20 @@ fn compact_inspection_bounds_output_and_keeps_result_and_control_identity() {
     assert_eq!(compact["job"]["run_id"], "run");
     assert_eq!(compact["job"]["exit_code"], 1);
     assert_eq!(compact["events_after"], 9);
-    assert_eq!(compact["recent_events_after"], 8);
+    assert_eq!(compact["recent_events_after"], 7);
+    assert_eq!(compact["terminal_event"]["event_id"], "terminal");
+    assert_eq!(
+        compact["progress"]["sources"]["train"]["stage"],
+        "checkpoint"
+    );
+    assert!(compact["recent_events"][0].get("payload_excerpt").is_none());
     assert_eq!(compact["job"]["run"]["ended_at"], 2);
     assert!(
-        compact["recent_events"][0]["payload_excerpt"]
+        compact["recent_events"][1]["payload_excerpt"]
             .as_str()
             .unwrap()
             .len()
-            <= 1024
+            <= 768
     );
     assert_eq!(compact["deliveries_after"], 12);
     assert_eq!(compact["goal_wait"]["revision"], 7);
